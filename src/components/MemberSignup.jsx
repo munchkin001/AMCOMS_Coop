@@ -101,21 +101,10 @@ const MemberSignup = () => {
         throw new Error('Failed to create account. Please try again.');
       }
 
-      // Wait a moment for auth session to be fully established
-      await new Promise(resolve => setTimeout(resolve, 500));
-
-      // 2. Set the session to ensure we're authenticated
-      if (authData.session) {
-        await supabase.auth.setSession({
-          access_token: authData.session.access_token,
-          refresh_token: authData.session.refresh_token
-        });
-      }
-
-      // 3. Create member application with the authenticated user's ID
+      // 2. Create member application
       const { error: appError } = await supabase
         .from('member_applications')
-        .insert({
+        .insert([{
           user_id: authData.user.id,
           first_name: formData.firstName,
           middle_name: formData.middleName || null,
@@ -130,12 +119,9 @@ const MemberSignup = () => {
           occupation: formData.occupation || null,
           status: 'pending',
           application_date: new Date().toISOString()
-        });
+        }]);
 
-      if (appError) {
-        console.error('Application insert error:', appError);
-        throw new Error(`Failed to create application: ${appError.message}`);
-      }
+      if (appError) throw appError;
 
       // Success!
       setMessage({
