@@ -248,6 +248,71 @@ WHERE schemaname = 'public'
 
 
 -- ============================================
+-- 10c. SERVER-OWNED SIGNUP
+-- ============================================
+-- Signup is submitted through a SECURITY DEFINER function so the browser
+-- never supplies user_id. The function must be reachable by anon (a visitor
+-- has no session when email confirmation is on) and must pin search_path.
+SELECT
+  '10c. submit_member_application'               AS check_name,
+  CASE
+    WHEN p.oid IS NULL THEN 'FAIL - function missing; signup will fail'
+    WHEN NOT p.prosecdef THEN 'FAIL - not SECURITY DEFINER; RLS will block it'
+    WHEN p.proconfig IS NULL
+         OR NOT EXISTS (SELECT 1 FROM unnest(p.proconfig) c
+                        WHERE c LIKE 'search\_path=%')
+      THEN 'FAIL - search_path not pinned'
+    ELSE 'PASS'
+  END                                             AS status,
+  'SECURITY DEFINER=' || coalesce(p.prosecdef::TEXT, 'n/a') AS detail
+FROM (SELECT NULL::oid) seed
+LEFT JOIN pg_proc p
+  ON p.oid = to_regprocedure(
+       'public.submit_member_application(text,text,text,text,text,text,text,text,text,date,text,text,text,text,text,text,text,text)');
+
+
+-- anon must be able to reach it, otherwise signup fails for unconfirmed users.
+SELECT
+  '10d. signup executable by anon'               AS check_name,
+  CASE
+    WHEN count(*) > 0 THEN 'PASS'
+    ELSE 'FAIL - anon lacks EXECUTE; signup fails without a confirmed email'
+  END                                             AS status,
+  'submit_member_application'                     AS detail
+FROM information_schema.routine_privileges
+WHERE specific_name = 'submit_member_application'
+  AND grantee IN ('anon', 'PUBLIC');
+
+
+-- link_application_to_current_user must be authenticated-only, because it
+-- reads the verified JWT email.
+SELECT
+  '10e. link function not exposed to anon'        AS check_name,
+  CASE
+    WHEN count(*) = 0 THEN 'PASS'
+    ELSE 'FAIL - anon can call link_application_to_current_user'
+  END                                             AS status,
+  coalesce(string_agg(DISTINCT grantee, ', '), '(no grantees)') AS detail
+FROM information_schema.routine_privileges
+WHERE specific_name = 'link_application_to_current_user'
+  AND grantee IN ('anon', 'PUBLIC');
+
+
+-- No client INSERT path on member_applications may remain.
+SELECT
+  '10f. no client INSERT on applications'         AS check_name,
+  CASE
+    WHEN count(*) = 0 THEN 'PASS - submission is function-only'
+    ELSE 'FAIL - ' || count(*) || ' policy/policies bypass the function'
+  END                                             AS status,
+  coalesce(string_agg(policyname, ', '), '(none)') AS detail
+FROM pg_policies
+WHERE schemaname = 'public'
+  AND tablename = 'member_applications'
+  AND cmd IN ('INSERT', 'ALL');
+
+
+-- ============================================
 -- 11. MEMBER APPLICATION FIELDS PERSISTED
 -- ============================================
 -- These are collected at signup and must survive approval.

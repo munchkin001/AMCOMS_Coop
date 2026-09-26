@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
+import { linkApplicationToCurrentUser } from '../lib/memberApplications';
 
 const MemberLogin = () => {
   const navigate = useNavigate();
@@ -44,7 +45,15 @@ const MemberLogin = () => {
         return;
       }
 
-      // 2. Check member application status
+      // 2. Link any unlinked application to this account.
+      //    An application submitted before email confirmation has user_id = NULL,
+      //    so the lookup in step 3 would not find it. The link function matches
+      //    on the email inside the verified JWT, so it cannot be used to claim
+      //    somebody else's application. A failure here is not fatal: the
+      //    approval trigger resolves user_id from the email as well.
+      await linkApplicationToCurrentUser();
+
+      // 3. Check member application status
       const { data: application, error: appError } = await supabase
         .from('member_applications')
         .select('*')
@@ -55,16 +64,17 @@ const MemberLogin = () => {
         console.error('Error checking application:', appError);
       }
 
-      // 3. Check if application exists
+      // 4. Check if application exists
       if (!application) {
-        // No application found - might be old member or error
+        // No application found. Either they never applied, or their record
+        // predates the applications table.
         setError('No membership application found. Please contact the cooperative office or register first.');
         await supabase.auth.signOut();
         setLoading(false);
         return;
       }
 
-      // 4. Check application status
+      // 5. Check application status
       if (application.status === 'pending') {
         setError('Your application is still pending approval. Please wait for the manager to review your application.');
         await supabase.auth.signOut();
@@ -79,7 +89,7 @@ const MemberLogin = () => {
         return;
       }
 
-      // 5. Check if member record exists (should be auto-created by trigger)
+      // 6. Check if member record exists (auto-created by the approval trigger)
       const { data: staff, error: staffError } = await supabase
         .from('staff')
         .select('*, members(*)')
@@ -101,7 +111,7 @@ const MemberLogin = () => {
         return;
       }
 
-      // 6. Success! Redirect to member portal
+      // 7. Success! Redirect to member portal
       navigate('/member-portal');
 
     } catch (err) {

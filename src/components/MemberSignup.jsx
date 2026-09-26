@@ -1,6 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
+import { submitMemberApplication } from '../lib/memberApplications';
 
 const MemberSignup = () => {
   const navigate = useNavigate();
@@ -101,32 +102,23 @@ const MemberSignup = () => {
         throw new Error('Failed to create account. Please try again.');
       }
 
-      // 2. Create member application
-      const { error: appError } = await supabase
-        .from('member_applications')
-        .insert([{
-          user_id: authData.user.id,
-          first_name: formData.firstName,
-          middle_name: formData.middleName || null,
-          last_name: formData.lastName,
-          email: formData.email,
-          phone: formData.phone,
-          address: formData.address,
-          barangay: formData.barangay || null,
-          municipality: formData.municipality,
-          province: formData.province,
-          date_of_birth: formData.dateOfBirth,
-          occupation: formData.occupation || null,
-          status: 'pending',
-          application_date: new Date().toISOString()
-        }]);
+      // 2. Submit the membership application.
+      //    This goes through a SECURITY DEFINER function rather than a table
+      //    insert. The function stamps user_id itself, so this succeeds whether
+      //    or not signUp returned a session -- which it does not when email
+      //    confirmation is enabled. That is why the previous direct-insert
+      //    approach kept failing, and why RLS and the auth.users foreign key
+      //    were previously disabled to work around it.
+      const result = await submitMemberApplication(formData);
 
-      if (appError) throw appError;
+      if (!result.success) {
+        throw new Error(result.error);
+      }
 
       // Success!
       setMessage({
         type: 'success',
-        text: 'Application submitted successfully! Please wait for manager approval. You will receive an email notification.'
+        text: 'Application submitted successfully! Please wait for manager approval.'
       });
 
       // Redirect to login after 3 seconds
