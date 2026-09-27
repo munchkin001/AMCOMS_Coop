@@ -14,7 +14,6 @@ export const useAuth = () => {
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [staff, setStaff] = useState(null);
-  const [member, setMember] = useState(null);
   const [loading, setLoading] = useState(true);
   const [session, setSession] = useState(null);
   const [authError, setAuthError] = useState(null);
@@ -41,7 +40,6 @@ export const AuthProvider = ({ children }) => {
         fetchStaffProfile(session.user.id);
       } else {
         setStaff(null);
-        setMember(null);
         setLoading(false);
       }
     });
@@ -52,7 +50,7 @@ export const AuthProvider = ({ children }) => {
   const fetchStaffProfile = async (userId) => {
     try {
       setAuthError(null);
-
+      
       const { data, error } = await supabase
         .from('staff')
         .select('*')
@@ -87,15 +85,9 @@ export const AuthProvider = ({ children }) => {
       }
 
       setStaff(data);
-
-      // If user is a member, fetch their member profile
-      if (data.member_id) {
-        await fetchMemberProfile(data.member_id);
-      }
-
       setAuthError(null);
       return data;
-
+      
     } catch (error) {
       console.error('Error fetching staff profile:', error.message);
       setAuthError('Failed to load user profile. Please try again.');
@@ -106,31 +98,10 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  const fetchMemberProfile = async (memberId) => {
-    try {
-      const { data, error } = await supabase
-        .from('members')
-        .select('*')
-        .eq('id', memberId)
-        .single();
-
-      if (error) {
-        console.error('Error fetching member profile:', error);
-        return null;
-      }
-
-      setMember(data);
-      return data;
-    } catch (error) {
-      console.error('Error fetching member profile:', error);
-      return null;
-    }
-  };
-
   const signIn = async (email, password) => {
     try {
       setAuthError(null);
-
+      
       const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password,
@@ -144,8 +115,8 @@ export const AuthProvider = ({ children }) => {
         if (!staffData) {
           // Profile fetch failed or user not authorized
           await supabase.auth.signOut();
-          return {
-            data: null,
+          return { 
+            data: null, 
             error: new Error(authError || 'Unable to load user profile')
           };
         }
@@ -236,7 +207,6 @@ export const AuthProvider = ({ children }) => {
   const value = {
     user,
     staff,
-    member,
     session,
     loading,
     authError,

@@ -12,7 +12,7 @@ import MemberAnnouncements from '../components/member/MemberAnnouncements';
 const MemberPortal = () => {
   const navigate = useNavigate();
   const [activeModule, setActiveModule] = useState('dashboard');
-  const [activeSubModule, setActiveSubModule] = useState('');
+  const [activeSubModule, setActiveSubModule] = useState(''); // For My Accounts submenu
   const [showAccountsMenu, setShowAccountsMenu] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [notifications, setNotifications] = useState([
@@ -52,7 +52,7 @@ const MemberPortal = () => {
   const unreadCount = notifications.filter(n => !n.read).length;
 
   const markAsRead = (id) => {
-    setNotifications(notifications.map(n =>
+    setNotifications(notifications.map(n => 
       n.id === id ? { ...n, read: true } : n
     ));
   };
@@ -61,13 +61,13 @@ const MemberPortal = () => {
     setActiveModule('my-accounts');
     setActiveSubModule(subModule);
     setShowAccountsMenu(true);
-    setIsMobileMenuOpen(false);
+    setIsMobileMenuOpen(false); // Close mobile menu
   };
 
   const handleModuleChange = (module) => {
     setActiveModule(module);
     setShowAccountsMenu(false);
-    setIsMobileMenuOpen(false);
+    setIsMobileMenuOpen(false); // Close mobile menu
   };
 
   const renderModule = () => {
@@ -113,6 +113,49 @@ const MemberPortal = () => {
                   </div>
                 </div>
               </div>
+              <div>
+                <h4 className="text-md font-semibold text-gray-900 mb-3">Notification Preferences</h4>
+                <div className="space-y-2">
+                  <label className="flex items-center">
+                    <input type="checkbox" defaultChecked className="mr-2" />
+                    <span className="text-sm text-gray-700">Email notifications</span>
+                  </label>
+                  <label className="flex items-center">
+                    <input type="checkbox" defaultChecked className="mr-2" />
+                    <span className="text-sm text-gray-700">Loan payment reminders</span>
+                  </label>
+                  <label className="flex items-center">
+                    <input type="checkbox" defaultChecked className="mr-2" />
+                    <span className="text-sm text-gray-700">Request status updates</span>
+                  </label>
+                </div>
+              </div>
+              <div>
+                <h4 className="text-md font-semibold text-gray-900 mb-3">Security</h4>
+                <div className="space-y-2">
+                  <label className="flex items-center">
+                    <input type="checkbox" defaultChecked className="mr-2" />
+                    <span className="text-sm text-gray-700">Two-factor authentication</span>
+                  </label>
+                  <label className="flex items-center">
+                    <input type="checkbox" className="mr-2" />
+                    <span className="text-sm text-gray-700">Login alerts</span>
+                  </label>
+                </div>
+              </div>
+              <div>
+                <h4 className="text-md font-semibold text-gray-900 mb-3">Accessibility</h4>
+                <div className="space-y-2">
+                  <label className="flex items-center">
+                    <input type="checkbox" className="mr-2" />
+                    <span className="text-sm text-gray-700">Large text mode</span>
+                  </label>
+                  <label className="flex items-center">
+                    <input type="checkbox" className="mr-2" />
+                    <span className="text-sm text-gray-700">High contrast mode</span>
+                  </label>
+                </div>
+              </div>
               <button className="px-6 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700">
                 Save Changes
               </button>
@@ -156,7 +199,7 @@ const MemberPortal = () => {
     <div className="flex h-screen bg-gray-50">
       {/* Mobile Overlay */}
       {isMobileMenuOpen && (
-        <div
+        <div 
           className="fixed inset-0 bg-black bg-opacity-50 z-40 lg:hidden"
           onClick={() => setIsMobileMenuOpen(false)}
         />
@@ -174,6 +217,7 @@ const MemberPortal = () => {
             <h1 className="text-2xl font-bold text-gray-900">AMCOMS</h1>
             <p className="text-indigo-600 text-sm mt-1">Member Portal</p>
           </div>
+          {/* Close button for mobile */}
           <button
             onClick={() => setIsMobileMenuOpen(false)}
             className="lg:hidden p-2 rounded-lg hover:bg-gray-100"
@@ -189,8 +233,8 @@ const MemberPortal = () => {
           <button
             onClick={() => handleModuleChange('dashboard')}
             className={`w-full text-left px-4 py-3 rounded-lg transition-colors ${
-              activeModule === 'dashboard'
-                ? 'bg-indigo-50 text-indigo-700 font-medium'
+              activeModule === 'dashboard' 
+                ? 'bg-indigo-50 text-indigo-700 font-medium' 
                 : 'text-gray-700 hover:bg-gray-50'
             }`}
           >
@@ -206,7 +250,7 @@ const MemberPortal = () => {
               onClick={() => setShowAccountsMenu(!showAccountsMenu)}
               className={`w-full text-left px-4 py-3 rounded-lg transition-colors ${
                 activeModule === 'my-accounts'
-                  ? 'bg-indigo-50 text-indigo-700 font-medium'
+                  ? 'bg-indigo-50 text-indigo-700 font-medium' 
                   : 'text-gray-700 hover:bg-gray-50'
               }`}
             >
@@ -215,17 +259,17 @@ const MemberPortal = () => {
                   <span className="text-lg">💰</span>
                   <span>My Accounts</span>
                 </div>
-                <svg
-                  className={`w-4 h-4 transition-transform ${showAccountsMenu ? 'rotate-180' : ''}`}
-                  fill="none"
-                  stroke="currentColor"
+                <svg 
+                  className={`w-4 h-4 transition-transform ${showAccountsMenu ? 'rotate-180' : ''}`} 
+                  fill="none" 
+                  stroke="currentColor" 
                   viewBox="0 0 24 24"
                 >
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                 </svg>
               </div>
             </button>
-
+            
             {showAccountsMenu && (
               <div className="ml-4 mt-1 space-y-1">
                 <button
@@ -266,8 +310,8 @@ const MemberPortal = () => {
           <button
             onClick={() => handleModuleChange('requests')}
             className={`w-full text-left px-4 py-3 rounded-lg transition-colors ${
-              activeModule === 'requests'
-                ? 'bg-indigo-50 text-indigo-700 font-medium'
+              activeModule === 'requests' 
+                ? 'bg-indigo-50 text-indigo-700 font-medium' 
                 : 'text-gray-700 hover:bg-gray-50'
             }`}
           >
@@ -281,8 +325,8 @@ const MemberPortal = () => {
           <button
             onClick={() => handleModuleChange('transactions')}
             className={`w-full text-left px-4 py-3 rounded-lg transition-colors ${
-              activeModule === 'transactions'
-                ? 'bg-indigo-50 text-indigo-700 font-medium'
+              activeModule === 'transactions' 
+                ? 'bg-indigo-50 text-indigo-700 font-medium' 
                 : 'text-gray-700 hover:bg-gray-50'
             }`}
           >
@@ -311,7 +355,7 @@ const MemberPortal = () => {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
                 </svg>
               </button>
-
+              
               <div>
                 <h2 className="text-xl lg:text-2xl font-bold text-gray-900">{getModuleTitle()}</h2>
               </div>
@@ -382,13 +426,13 @@ const MemberPortal = () => {
 
                 {showUserMenu && (
                   <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-50">
-                    <button
+                    <button 
                       onClick={handleProfileClick}
                       className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
                     >
                       My Profile
                     </button>
-                    <button
+                    <button 
                       onClick={handleSettingsClick}
                       className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
                     >

@@ -1,70 +1,71 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
+import heroImg from '../assets/hero.png';
 
 const Hero = () => {
   return (
-    <section id="home" className="relative bg-gradient-to-br from-green-700 via-green-800 to-green-900 overflow-hidden">
-      {/* Background Pattern */}
-      <div className="absolute inset-0">
-        <div className="absolute top-0 right-0 w-96 h-96 bg-green-600 rounded-full opacity-20 -translate-y-1/2 translate-x-1/2" />
-        <div className="absolute bottom-0 left-0 w-96 h-96 bg-green-600 rounded-full opacity-20 translate-y-1/2 -translate-x-1/2" />
-      </div>
-
-      <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20 md:py-32">
-        <div className="grid lg:grid-cols-2 gap-12 items-center">
-          {/* Text Content */}
-          <div className="text-center lg:text-left">
-            <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold text-white leading-tight mb-6">
-              Welcome to<br />
-              <span className="text-green-300">Agay-ayan</span><br />
-              Multi-Purpose<br />
-              Cooperative
-            </h1>
-            <p className="text-lg md:text-xl text-green-100 mb-8 max-w-lg mx-auto lg:mx-0">
-              Empowering our community through cooperative values. Serving our members with
-              financial services, livelihood programs, and sustainable development.
-            </p>
-            <div className="flex flex-col sm:flex-row gap-4 justify-center lg:justify-start">
-              <Link
-                to="/"
-                className="inline-flex items-center justify-center px-8 py-4 bg-white text-green-800 font-bold rounded-xl hover:bg-green-50 transition-colors shadow-lg text-lg"
-              >
-                Access Portal
-                <svg className="ml-2 w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
-                </svg>
-              </Link>
-              <a
-                href="#about"
-                className="inline-flex items-center justify-center px-8 py-4 border-2 border-white text-white font-bold rounded-xl hover:bg-white/10 transition-colors text-lg"
-              >
-                Learn More
-              </a>
-            </div>
+    <section id="home" className="relative w-full min-h-screen bg-cover bg-center" style={{
+      backgroundImage: `linear-gradient(rgba(22, 101, 52, 0.45), rgba(22, 101, 52, 0.55)), url(/5.jpg)`
+    }}>
+      <div className="w-full px-8 sm:px-12 md:px-16 lg:px-24 xl:px-32 pt-48 md:pt-56 lg:pt-64 xl:pt-72 pb-20 md:pb-24 lg:pb-32">
+        <div className="max-w-7xl mx-auto">
+          {/* Badge */}
+          <div className="mb-8 md:mb-10 lg:mb-12">
+            <span className="inline-block bg-green-600 bg-opacity-50 text-white px-4 py-2 rounded-full text-xs sm:text-sm">
+              ✓ Serving Agay-Ayan Since 1990+
+            </span>
           </div>
 
-          {/* Hero Image */}
-          <div className="hidden lg:block">
-            <div className="relative">
-              <div className="bg-white/10 backdrop-blur-sm rounded-3xl p-8 border border-white/20">
-                <img
-                  src="/LOGO.png"
-                  alt="AMCOMS Cooperative"
-                  className="w-full max-w-md mx-auto rounded-2xl shadow-2xl"
-                />
-                <div className="text-center mt-6">
-                  <p className="text-white text-xl font-bold">Agay-ayan, Gingoog City</p>
-                  <p className="text-green-200">Misamis Oriental, Philippines</p>
-                </div>
+          {/* Main Heading */}
+          <div className="max-w-4xl">
+            <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl xl:text-7xl font-bold text-white leading-tight mb-6 md:mb-8 lg:mb-10">
+              Premium Coconut Sugar from <span className="text-green-300">Agay-Ayan</span> Multipurpose Cooperative
+            </h1>
+            
+            <p className="text-base sm:text-lg md:text-xl lg:text-2xl text-white text-opacity-90 mb-10 md:mb-12 lg:mb-16 leading-relaxed max-w-3xl">
+              Naturally produced from 100% coconut sap by local farmers in Gingoog City. 
+              Our flagship coconut sugar offers a healthier natural sweetener while 
+              supporting sustainable livelihoods and community development.
+            </p>
+
+            {/* CTA Buttons */}
+            <div className="flex flex-col sm:flex-row flex-wrap gap-3 sm:gap-4 mb-12 md:mb-16 lg:mb-20">
+              <a href="#products" className="bg-green-600 text-white px-6 sm:px-8 py-3 sm:py-3.5 rounded-lg hover:bg-green-700 transition-colors flex items-center justify-center sm:justify-start space-x-2 text-base sm:text-lg font-semibold">
+                <span>View Products</span>
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                </svg>
+              </a>
+              <a href="#membership" className="bg-transparent border-2 border-white text-white px-6 sm:px-8 py-3 sm:py-3.5 rounded-lg hover:bg-white hover:text-green-700 transition-colors text-base sm:text-lg font-semibold text-center">
+                Become a Member
+              </a>
+              <Link to="/portal-selection" className="bg-transparent border-2 border-white text-white px-6 sm:px-8 py-3 sm:py-3.5 rounded-lg hover:bg-white hover:text-green-700 transition-colors flex items-center justify-center sm:justify-start space-x-2 text-base sm:text-lg font-semibold">
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1" />
+                </svg>
+                <span>Login</span>
+              </Link>
+            </div>
+
+            {/* Stats */}
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 md:gap-8">
+              <div className="bg-white bg-opacity-10 backdrop-blur-sm p-4 sm:p-6 rounded-lg text-center">
+                <div className="text-2xl sm:text-3xl md:text-4xl font-bold text-white mb-1 sm:mb-2">260</div>
+                <div className="text-white text-opacity-80 text-xs sm:text-sm">Registered Members</div>
+              </div>
+              <div className="bg-white bg-opacity-10 backdrop-blur-sm p-4 sm:p-6 rounded-lg text-center">
+                <div className="text-2xl sm:text-3xl md:text-4xl font-bold text-white mb-1 sm:mb-2">70%</div>
+                <div className="text-white text-opacity-80 text-xs sm:text-sm">Active Members</div>
+              </div>
+              <div className="bg-white bg-opacity-10 backdrop-blur-sm p-4 sm:p-6 rounded-lg text-center">
+                <div className="text-2xl sm:text-3xl md:text-4xl font-bold text-white mb-1 sm:mb-2">30+</div>
+                <div className="text-white text-opacity-80 text-xs sm:text-sm">Years of Service</div>
+              </div>
+              <div className="bg-white bg-opacity-10 backdrop-blur-sm p-4 sm:p-6 rounded-lg text-center">
+                <div className="text-2xl sm:text-3xl md:text-4xl font-bold text-white mb-1 sm:mb-2">BFT</div>
+                <div className="text-white text-opacity-80 text-xs sm:text-sm">Food Terminal Partner</div>
               </div>
             </div>
-          </div>
-        </div>
-
-        {/* Scroll Indicator */}
-        <div className="absolute bottom-8 left-1/2 -translate-x-1/2 hidden md:block">
-          <div className="w-6 h-10 border-2 border-white/50 rounded-full flex justify-center">
-            <div className="w-1.5 h-3 bg-white/70 rounded-full mt-2 animate-bounce" />
           </div>
         </div>
       </div>

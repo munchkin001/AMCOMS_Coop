@@ -6,16 +6,16 @@ import LoadingSpinner from './common/LoadingSpinner';
 /**
  * ProtectedRoute Component
  * Protects routes from unauthorized access based on authentication and role
- *
+ * 
  * @param {Object} props
  * @param {React.Component} props.children - Component to render if authorized
  * @param {string|string[]} props.allowedRoles - Role(s) allowed to access this route
  * @param {string} props.redirectTo - Where to redirect if unauthorized (default: /portal-selection)
  */
-const ProtectedRoute = ({
-  children,
-  allowedRoles = [],
-  redirectTo = '/portal-selection'
+const ProtectedRoute = ({ 
+  children, 
+  allowedRoles = [], 
+  redirectTo = '/portal-selection' 
 }) => {
   const { user, staff, loading, authError } = useAuth();
   const location = useLocation();
@@ -51,7 +51,7 @@ const ProtectedRoute = ({
           <p className="text-gray-600 mb-6">
             {authError || 'Your account has been deactivated. Please contact the administrator.'}
           </p>
-          <a
+          <a 
             href={redirectTo}
             className="inline-block px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
           >
@@ -65,7 +65,7 @@ const ProtectedRoute = ({
   // Check role authorization
   if (allowedRoles.length > 0) {
     const userRole = staff.role;
-    const hasAccess = Array.isArray(allowedRoles)
+    const hasAccess = Array.isArray(allowedRoles) 
       ? allowedRoles.includes(userRole)
       : allowedRoles === userRole;
 
@@ -85,7 +85,7 @@ const ProtectedRoute = ({
             <p className="text-sm text-gray-500 mb-6">
               Your role: <span className="font-semibold">{userRole}</span>
             </p>
-            <a
+            <a 
               href={redirectTo}
               className="inline-block px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
             >

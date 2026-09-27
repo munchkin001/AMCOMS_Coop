@@ -138,7 +138,7 @@ const ResetPassword = () => {
               {error}
             </p>
 
-            <a
+            <a 
               href="/forgot-password"
               className="block w-full bg-blue-800 text-white py-3 rounded-lg font-semibold hover:bg-blue-900 transition-colors text-center"
             >
@@ -264,8 +264,8 @@ const ResetPassword = () => {
 
         {/* Back to Login */}
         <div className="text-center mt-6">
-          <a
-            href="/portal-selection"
+          <a 
+            href="/portal-selection" 
             className="text-gray-600 hover:text-blue-600 text-sm flex items-center justify-center space-x-2 transition-colors"
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">

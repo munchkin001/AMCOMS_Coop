@@ -1,195 +1,145 @@
 import React from 'react';
-import { useNavigate } from 'react-router-dom';
 
 const PortalSelection = () => {
-  const navigate = useNavigate();
+  const portals = [
+    {
+      id: 'chairman',
+      icon: '🛡️',
+      title: 'Chairman Portal',
+      description: 'Governance & oversight — financial statements, executive reports, audit compliance, and business performance.',
+      color: 'blue',
+      bgColor: 'bg-blue-100',
+      iconBg: 'bg-blue-600',
+      textColor: 'text-blue-600',
+      hoverBg: 'hover:bg-blue-50'
+    },
+    {
+      id: 'manager',
+      icon: '📊',
+      title: 'Manager Portal',
+      description: 'Unrestricted system access — members, loans, savings, business operations, reports, users, and settings.',
+      color: 'green',
+      bgColor: 'bg-green-100',
+      iconBg: 'bg-green-600',
+      textColor: 'text-green-600',
+      hoverBg: 'hover:bg-green-50'
+    },
+    {
+      id: 'treasurer',
+      icon: '📈',
+      title: 'Treasurer Portal',
+      description: 'Transaction-focused — loan collections, savings, income, expenses, and cash flow.',
+      color: 'teal',
+      bgColor: 'bg-teal-100',
+      iconBg: 'bg-teal-600',
+      textColor: 'text-teal-600',
+      hoverBg: 'hover:bg-teal-50'
+    },
+    {
+      id: 'bookkeeper',
+      icon: '📖',
+      title: 'Bookkeeper Portal',
+      description: 'Accounting records — income, expenses, cash flow, reconciliation, and financial reports.',
+      color: 'purple',
+      bgColor: 'bg-purple-100',
+      iconBg: 'bg-purple-600',
+      textColor: 'text-purple-600',
+      hoverBg: 'hover:bg-purple-50'
+    },
+    {
+      id: 'inventory',
+      icon: '📦',
+      title: 'Inventory Staff Portal',
+      description: 'Inventory & production — coconut sugar, BFT products, deliveries, stock movements.',
+      color: 'orange',
+      bgColor: 'bg-orange-100',
+      iconBg: 'bg-orange-600',
+      textColor: 'text-orange-600',
+      hoverBg: 'hover:bg-orange-50'
+    },
+    {
+      id: 'member',
+      icon: '👤',
+      title: 'Member Portal',
+      description: 'Personal self-service portal — savings, loans, time deposits, and transactions.',
+      color: 'green',
+      bgColor: 'bg-green-100',
+      iconBg: 'bg-green-700',
+      textColor: 'text-green-700',
+      hoverBg: 'hover:bg-green-50'
+    }
+  ];
 
-  const handleStaffLogin = () => {
-    navigate('/staff-login');
-  };
-
-  const handleMemberLogin = () => {
-    navigate('/member-login');
+  const handlePortalSelect = (portalId) => {
+    // Navigate to login page for specific portal
+    window.location.href = `/login/${portalId}`;
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-green-50 to-blue-50 py-12 px-4">
-      <div className="max-w-5xl mx-auto">
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 py-12 px-4">
+      <div className="max-w-6xl mx-auto">
         {/* Header */}
-        <div className="text-center mb-16">
-          <div className="flex items-center justify-center space-x-4 mb-6">
-            <img src="/LOGO.png" alt="Agay-ayan MPC Logo" className="w-24 h-24 object-contain" />
+        <div className="text-center mb-12">
+          <div className="flex items-center justify-center space-x-3 mb-4">
+            <img src="/LOGO.png" alt="Agay-ayan MPC Logo" className="w-16 h-16 object-contain" />
             <div className="text-left">
-              <h1 className="text-4xl font-bold text-gray-900">AMCOMS</h1>
-              <p className="text-base text-gray-600 font-medium">Management System</p>
+              <h1 className="text-3xl font-bold text-gray-900">AMCOMS</h1>
+              <p className="text-sm text-gray-500">MANAGEMENT SYSTEM</p>
             </div>
           </div>
-
-          <h2 className="text-3xl font-bold text-gray-900 mb-3">
+          
+          <h2 className="text-2xl font-bold text-gray-900 mb-2">
             Agay-ayan Multi-Purpose Cooperative
           </h2>
-          <p className="text-xl text-gray-700 font-medium">
-            Please select your portal to continue
+          <p className="text-gray-600">
+            Please select your portal to continue.
           </p>
         </div>
 
-        {/* Portal Options */}
-        <div className="grid md:grid-cols-2 gap-8 max-w-4xl mx-auto mb-12">
-          {/* Staff Portal */}
-          <div
-            onClick={handleStaffLogin}
-            className="bg-white rounded-3xl shadow-2xl hover:shadow-3xl transition-all cursor-pointer transform hover:scale-105 border-4 border-blue-100 hover:border-blue-300"
-          >
-            <div className="p-10">
+        {/* Portal Grid */}
+        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
+          {portals.map((portal) => (
+            <div
+              key={portal.id}
+              className={`bg-white rounded-xl shadow-md ${portal.hoverBg} transition-all hover:shadow-xl cursor-pointer p-6`}
+              onClick={() => handlePortalSelect(portal.id)}
+            >
               {/* Icon */}
-              <div className="bg-gradient-to-br from-blue-600 to-blue-700 w-28 h-28 rounded-2xl flex items-center justify-center mb-6 mx-auto shadow-lg">
-                <svg className="w-16 h-16 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-                </svg>
+              <div className={`${portal.iconBg} w-14 h-14 rounded-xl flex items-center justify-center mb-4`}>
+                <span className="text-2xl">{portal.icon}</span>
               </div>
 
               {/* Title */}
-              <h3 className="text-3xl font-bold text-gray-900 mb-4 text-center">
-                Staff Portal
+              <h3 className="text-xl font-bold text-gray-900 mb-3">
+                {portal.title}
               </h3>
 
               {/* Description */}
-              <p className="text-gray-700 text-lg leading-relaxed mb-6 text-center">
-                For Chairman, Manager, Treasurer, Bookkeeper, and Inventory Staff
+              <p className="text-gray-600 text-sm mb-4 leading-relaxed">
+                {portal.description}
               </p>
 
-              {/* Features List */}
-              <ul className="space-y-3 mb-8">
-                <li className="flex items-center text-base text-gray-700">
-                  <svg className="w-6 h-6 text-blue-600 mr-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                  </svg>
-                  <span>Manage members and applications</span>
-                </li>
-                <li className="flex items-center text-base text-gray-700">
-                  <svg className="w-6 h-6 text-blue-600 mr-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                  </svg>
-                  <span>Process transactions and loans</span>
-                </li>
-                <li className="flex items-center text-base text-gray-700">
-                  <svg className="w-6 h-6 text-blue-600 mr-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                  </svg>
-                  <span>View financial reports</span>
-                </li>
-                <li className="flex items-center text-base text-gray-700">
-                  <svg className="w-6 h-6 text-blue-600 mr-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                  </svg>
-                  <span>Manage inventory and products</span>
-                </li>
-              </ul>
-
               {/* Select Button */}
-              <button className="w-full bg-blue-600 hover:bg-blue-700 text-white text-xl font-bold py-5 px-6 rounded-xl transition-colors shadow-lg flex items-center justify-center space-x-2">
-                <span>Enter Staff Portal</span>
-                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <button className={`${portal.textColor} font-semibold text-sm flex items-center space-x-2 hover:underline`}>
+                <span>Select Portal</span>
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                 </svg>
               </button>
             </div>
-          </div>
-
-          {/* Member Portal */}
-          <div
-            onClick={handleMemberLogin}
-            className="bg-white rounded-3xl shadow-2xl hover:shadow-3xl transition-all cursor-pointer transform hover:scale-105 border-4 border-green-100 hover:border-green-300"
-          >
-            <div className="p-10">
-              {/* Icon */}
-              <div className="bg-gradient-to-br from-green-600 to-green-700 w-28 h-28 rounded-2xl flex items-center justify-center mb-6 mx-auto shadow-lg">
-                <svg className="w-16 h-16 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                </svg>
-              </div>
-
-              {/* Title */}
-              <h3 className="text-3xl font-bold text-gray-900 mb-4 text-center">
-                Member Portal
-              </h3>
-
-              {/* Description */}
-              <p className="text-gray-700 text-lg leading-relaxed mb-6 text-center">
-                For Cooperative Members - Self-Service Portal
-              </p>
-
-              {/* Features List */}
-              <ul className="space-y-3 mb-8">
-                <li className="flex items-center text-base text-gray-700">
-                  <svg className="w-6 h-6 text-green-600 mr-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                  </svg>
-                  <span>View your savings and loans</span>
-                </li>
-                <li className="flex items-center text-base text-gray-700">
-                  <svg className="w-6 h-6 text-green-600 mr-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                  </svg>
-                  <span>Apply for loans online</span>
-                </li>
-                <li className="flex items-center text-base text-gray-700">
-                  <svg className="w-6 h-6 text-green-600 mr-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                  </svg>
-                  <span>Request savings deposits</span>
-                </li>
-                <li className="flex items-center text-base text-gray-700">
-                  <svg className="w-6 h-6 text-green-600 mr-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                  </svg>
-                  <span>Track transaction history</span>
-                </li>
-              </ul>
-
-              {/* Select Button */}
-              <button className="w-full bg-green-600 hover:bg-green-700 text-white text-xl font-bold py-5 px-6 rounded-xl transition-colors shadow-lg flex items-center justify-center space-x-2">
-                <span>Enter Member Portal</span>
-                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                </svg>
-              </button>
-            </div>
-          </div>
-        </div>
-
-        {/* Information Box */}
-        <div className="max-w-3xl mx-auto bg-blue-50 border-2 border-blue-200 rounded-2xl p-8 mb-8">
-          <div className="flex items-start space-x-4">
-            <svg className="w-10 h-10 text-blue-600 flex-shrink-0 mt-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-            </svg>
-            <div>
-              <h4 className="text-xl font-bold text-blue-900 mb-3">Need Help?</h4>
-              <p className="text-lg text-blue-800 leading-relaxed">
-                <strong>Staff:</strong> Use your assigned email and password to access the Staff Portal.
-              </p>
-              <p className="text-lg text-blue-800 leading-relaxed mt-2">
-                <strong>Members:</strong> If you don't have an account yet, you can create one in the Member Portal.
-                Your application will be reviewed by our manager.
-              </p>
-            </div>
-          </div>
+          ))}
         </div>
 
         {/* Footer */}
         <div className="text-center">
-          <p className="text-base text-gray-600 mb-3 font-medium">
-            Agay-Ayan Multi-Purpose Cooperative
+          <p className="text-sm text-gray-500 mb-2">
+            Agay-Ayan Multi-Purpose Cooperative | Agay-ayan, Gingoog City, Misamis Oriental
           </p>
-          <p className="text-sm text-gray-500 mb-4">
-            Agay-ayan, Gingoog City, Misamis Oriental
-          </p>
-          <a
-            href="/"
-            className="text-gray-700 hover:text-green-600 text-lg flex items-center justify-center space-x-2 transition-colors font-medium"
+          <a 
+            href="/" 
+            className="text-gray-600 hover:text-green-600 text-sm flex items-center justify-center space-x-2 transition-colors"
           >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
             </svg>
             <span>Back to Website</span>

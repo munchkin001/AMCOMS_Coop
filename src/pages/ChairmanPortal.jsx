@@ -34,13 +34,13 @@ const ChairmanPortal = () => {
 
   const handleModuleChange = (module) => {
     setActiveModule(module);
-    setIsMobileMenuOpen(false);
+    setIsMobileMenuOpen(false); // Close menu on mobile after selection
   };
 
   const unreadCount = notifications.filter(n => !n.read).length;
 
   const markAsRead = (id) => {
-    setNotifications(notifications.map(n =>
+    setNotifications(notifications.map(n => 
       n.id === id ? { ...n, read: true } : n
     ));
   };
@@ -66,7 +66,7 @@ const ChairmanPortal = () => {
     <div className="flex h-screen bg-gray-50">
       {/* Mobile Overlay */}
       {isMobileMenuOpen && (
-        <div
+        <div 
           className="fixed inset-0 bg-black bg-opacity-50 z-40 lg:hidden"
           onClick={() => setIsMobileMenuOpen(false)}
         />
@@ -85,6 +85,7 @@ const ChairmanPortal = () => {
             <h1 className="text-2xl font-bold text-gray-900">AMCOMS</h1>
             <p className="text-green-600 text-sm mt-1">Chairman Portal</p>
           </div>
+          {/* Close button for mobile */}
           <button
             onClick={() => setIsMobileMenuOpen(false)}
             className="lg:hidden p-2 rounded-lg hover:bg-gray-100"
@@ -100,8 +101,8 @@ const ChairmanPortal = () => {
           <button
             onClick={() => handleModuleChange('dashboard')}
             className={`w-full text-left px-4 py-3 rounded-lg transition-colors ${
-              activeModule === 'dashboard'
-                ? 'bg-blue-50 text-blue-700 font-medium'
+              activeModule === 'dashboard' 
+                ? 'bg-blue-50 text-blue-700 font-medium' 
                 : 'text-gray-700 hover:bg-gray-50'
             }`}
           >
@@ -116,8 +117,8 @@ const ChairmanPortal = () => {
           <button
             onClick={() => handleModuleChange('performance')}
             className={`w-full text-left px-4 py-3 rounded-lg transition-colors ${
-              activeModule === 'performance'
-                ? 'bg-blue-50 text-blue-700 font-medium'
+              activeModule === 'performance' 
+                ? 'bg-blue-50 text-blue-700 font-medium' 
                 : 'text-gray-700 hover:bg-gray-50'
             }`}
           >
@@ -132,8 +133,8 @@ const ChairmanPortal = () => {
           <button
             onClick={() => handleModuleChange('audit')}
             className={`w-full text-left px-4 py-3 rounded-lg transition-colors ${
-              activeModule === 'audit'
-                ? 'bg-blue-50 text-blue-700 font-medium'
+              activeModule === 'audit' 
+                ? 'bg-blue-50 text-blue-700 font-medium' 
                 : 'text-gray-700 hover:bg-gray-50'
             }`}
           >
@@ -148,8 +149,8 @@ const ChairmanPortal = () => {
           <button
             onClick={() => handleModuleChange('policies')}
             className={`w-full text-left px-4 py-3 rounded-lg transition-colors ${
-              activeModule === 'policies'
-                ? 'bg-blue-50 text-blue-700 font-medium'
+              activeModule === 'policies' 
+                ? 'bg-blue-50 text-blue-700 font-medium' 
                 : 'text-gray-700 hover:bg-gray-50'
             }`}
           >
@@ -169,6 +170,7 @@ const ChairmanPortal = () => {
         <div className="bg-white border-b border-gray-200 px-4 lg:px-8 py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-4">
+              {/* Hamburger Menu Button */}
               <button
                 onClick={() => {
                   setIsMobileMenuOpen(true);
@@ -180,7 +182,7 @@ const ChairmanPortal = () => {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
                 </svg>
               </button>
-
+              
               <div>
                 <h2 className="text-xl lg:text-2xl font-bold text-gray-900">
                   {activeModule === 'dashboard' && 'Dashboard'}
@@ -202,7 +204,7 @@ const ChairmanPortal = () => {
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
                   </svg>
                   {unreadCount > 0 && (
-                    <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full" />
+                    <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full"></span>
                   )}
                 </button>
 
@@ -259,7 +261,7 @@ const ChairmanPortal = () => {
 
                 {showUserMenu && (
                   <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-50">
-                    <button
+                    <button 
                       onClick={() => {
                         handleModuleChange('profile');
                         setShowUserMenu(false);
@@ -268,7 +270,7 @@ const ChairmanPortal = () => {
                     >
                       My Profile
                     </button>
-                    <button
+                    <button 
                       onClick={() => {
                         handleModuleChange('profile');
                         setShowUserMenu(false);

@@ -20,7 +20,7 @@ const ForgotPassword = () => {
       });
 
       if (resetError) throw resetError;
-
+      
       setSubmitted(true);
     } catch (err) {
       console.error('Password reset error:', err);
@@ -47,11 +47,11 @@ const ForgotPassword = () => {
             </h2>
 
             <p className="text-gray-600 text-center mb-8">
-              We've sent password reset instructions to <strong>{email}</strong>.
+              We've sent password reset instructions to <strong>{email}</strong>. 
               Please check your inbox and follow the link to reset your password.
             </p>
 
-            <a
+            <a 
               href="/portal-selection"
               className="block w-full bg-blue-800 text-white py-3 rounded-lg font-semibold hover:bg-blue-900 transition-colors text-center"
             >
@@ -84,7 +84,7 @@ const ForgotPassword = () => {
           {/* Form */}
           <div className="px-8 py-8">
             <p className="text-gray-600 text-sm mb-6 text-center">
-              For security reasons, password resets must be done through the cooperative administrator.
+              For security reasons, password resets must be done through the cooperative administrator. 
               Please contact the office for assistance.
             </p>
 
@@ -102,7 +102,7 @@ const ForgotPassword = () => {
               <p className="text-sm text-gray-600 mb-4 text-center">
                 Or request a password reset link via email:
               </p>
-
+              
               <form onSubmit={handleSubmit}>
                 {error && (
                   <div className="mb-4 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">
@@ -140,8 +140,8 @@ const ForgotPassword = () => {
 
         {/* Back to Login */}
         <div className="text-center mt-6">
-          <a
-            href="/portal-selection"
+          <a 
+            href="/portal-selection" 
             className="text-gray-600 hover:text-blue-600 text-sm flex items-center justify-center space-x-2 transition-colors"
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
