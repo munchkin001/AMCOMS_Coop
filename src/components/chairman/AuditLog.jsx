@@ -130,6 +130,22 @@ const AuditLog = () => {
   }, [fetchAuditLogs]);
 
   useEffect(() => {
+    const refreshVisibleLog = () => {
+      if (document.visibilityState === 'visible') {
+        fetchAuditLogs();
+        fetchArchiveMonths();
+      }
+    };
+    const timer = window.setInterval(refreshVisibleLog, 1000);
+    window.addEventListener('focus', refreshVisibleLog);
+
+    return () => {
+      window.clearInterval(timer);
+      window.removeEventListener('focus', refreshVisibleLog);
+    };
+  }, [fetchArchiveMonths, fetchAuditLogs]);
+
+  useEffect(() => {
     let previousMonth = getCurrentMonthKey();
     const timer = window.setInterval(() => {
       const nextMonth = getCurrentMonthKey();

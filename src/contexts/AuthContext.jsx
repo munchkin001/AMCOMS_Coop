@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
 import { getAppUrl } from '../lib/appUrl';
 import { useRealtimeSubscription } from '../hooks/useRealtimeSubscription';
@@ -19,6 +19,23 @@ export const AuthProvider = ({ children }) => {
   const [loading, setLoading] = useState(true);
   const [session, setSession] = useState(null);
   const [authError, setAuthError] = useState(null);
+
+  const logAuthEvent = useCallback(async (event) => {
+    let lastError = null;
+
+    for (let attempt = 1; attempt <= 3; attempt += 1) {
+      const { error } = await supabase.rpc('record_auth_event', { p_event: event });
+      if (!error) return true;
+
+      lastError = error;
+      if (attempt < 3) {
+        await new Promise((resolve) => window.setTimeout(resolve, 250));
+      }
+    }
+
+    console.error(`Failed to record ${event} audit event after 3 attempts:`, lastError);
+    return false;
+  }, []);
 
   const fetchStaffProfile = async (userId) => {
     try {
@@ -107,11 +124,16 @@ export const AuthProvider = ({ children }) => {
     // Listen for auth changes
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
+    } = supabase.auth.onAuthStateChange((event, session) => {
       setSession(session);
       setUser(session?.user ?? null);
       if (session?.user) {
         fetchStaffProfile(session.user.id);
+        if (event === 'SIGNED_IN') {
+          window.setTimeout(() => {
+            logAuthEvent('sign in');
+          }, 0);
+        }
       } else {
         setStaff(null);
         setLoading(false);
@@ -119,7 +141,7 @@ export const AuthProvider = ({ children }) => {
     });
 
     return () => subscription.unsubscribe();
-  }, []);
+  }, [logAuthEvent]);
 
   useRealtimeSubscription(
     'staff',
@@ -152,7 +174,6 @@ export const AuthProvider = ({ children }) => {
           };
         }
 
-        await logAuthEvent('sign in');
       }
 
       return { data, error: null };
@@ -192,13 +213,6 @@ export const AuthProvider = ({ children }) => {
     } catch (error) {
       console.error('Sign out error:', error);
       return { error };
-    }
-  };
-
-  const logAuthEvent = async (event) => {
-    const { error } = await supabase.rpc('record_auth_event', { p_event: event });
-    if (error) {
-      console.error(`Failed to record ${event} audit event:`, error);
     }
   };
 
