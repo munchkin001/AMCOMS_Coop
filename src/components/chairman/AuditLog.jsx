@@ -1,4 +1,4 @@
-import React, { startTransition, useCallback, useState, useEffect } from 'react';
+import React, { startTransition, useCallback, useState, useEffect, useRef } from 'react';
 import { Archive, Download, RefreshCw } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useRealtimeSubscription } from '../../hooks/useRealtimeSubscription';
@@ -57,11 +57,13 @@ const AuditLog = () => {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
   const [archiveLoadError, setArchiveLoadError] = useState('');
+  const latestRequestRef = useRef(0);
 
   const fetchAuditLogs = useCallback(async () => {
     const monthKey = view === 'current' ? currentMonthKey : selectedArchiveMonth;
     if (!monthKey) return;
 
+    const requestId = ++latestRequestRef.current;
     try {
       const { start, end } = getMonthRange(monthKey);
       const rows = [];
@@ -88,18 +90,24 @@ const AuditLog = () => {
         offset += pageSize;
       }
 
-      startTransition(() => {
-        setAuditLogs(rows);
-        setLoadError('');
-      });
+      if (requestId === latestRequestRef.current) {
+        startTransition(() => {
+          setAuditLogs(rows);
+          setLoadError('');
+        });
+      }
     } catch (error) {
       console.error('Error fetching audit logs:', error);
-      startTransition(() => {
-        setAuditLogs([]);
-        setLoadError('System activity could not be loaded. Please try again.');
-      });
+      if (requestId === latestRequestRef.current) {
+        startTransition(() => {
+          setAuditLogs([]);
+          setLoadError('System activity could not be loaded. Please try again.');
+        });
+      }
     } finally {
-      setLoading(false);
+      if (requestId === latestRequestRef.current) {
+        setLoading(false);
+      }
     }
   }, [view, currentMonthKey, selectedArchiveMonth]);
 
@@ -142,10 +150,16 @@ const AuditLog = () => {
     return () => window.clearTimeout(timer);
   }, [fetchArchiveMonths]);
 
-  useRealtimeSubscription('audit_logs', () => {
-    fetchAuditLogs();
+  useRealtimeSubscription('audit_logs', (payload) => {
+    const changedLog = payload.new || payload.old;
+    const changedMonth = changedLog?.created_at && formatDateKeyInManila(changedLog.created_at).slice(0, 7);
+    const activeMonth = view === 'current' ? currentMonthKey : selectedArchiveMonth;
+
+    if (changedMonth === activeMonth || payload.eventType === 'DELETE') {
+      fetchAuditLogs();
+    }
     fetchArchiveMonths();
-  }, null, [view, currentMonthKey, selectedArchiveMonth]);
+  }, null, [fetchArchiveMonths, fetchAuditLogs]);
 
   const handleFilterChange = (field, value) => {
     setFilters((current) => ({ ...current, [field]: value }));
