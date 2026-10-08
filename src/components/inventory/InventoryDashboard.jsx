@@ -1,7 +1,12 @@
 import React, { useState, useEffect } from 'react';
+import { AlertTriangle, ArrowDownToLine, ArrowUpFromLine, Boxes, Factory, Package, PackageCheck } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
+import { useMultipleRealtimeSubscriptions } from '../../hooks/useRealtimeSubscription';
+import { useTimeOfDayGreeting } from '../../hooks/useTimeOfDayGreeting';
+import DashboardMetricCard from '../common/DashboardMetricCard';
 
 const InventoryDashboard = () => {
+  const greeting = useTimeOfDayGreeting();
   const [loading, setLoading] = useState(true);
   const [dashboardData, setDashboardData] = useState({
     totalProducts: 0,
@@ -11,7 +16,8 @@ const InventoryDashboard = () => {
     todayStockIn: 0,
     todayStockOut: 0,
     products: [],
-    lowStockProducts: []
+    lowStockProducts: [],
+    recentActivities: []
   });
 
   useEffect(() => {
@@ -75,6 +81,48 @@ const InventoryDashboard = () => {
 
       const todayStockOut = stockOutData?.reduce((sum, s) => sum + Math.abs(s.quantity || 0), 0) || 0;
 
+      // Fetch recent stock movements for activities
+      const { data: recentMovements } = await supabase
+        .from('stock_movements')
+        .select(`
+          movement_date,
+          movement_type,
+          quantity,
+          created_at,
+          products(product_name)
+        `)
+        .order('created_at', { ascending: false })
+        .limit(10);
+
+      const recentActivities = recentMovements?.map(m => {
+        const activityTypeMap = {
+          purchase: 'Stock In',
+          production: 'Production',
+          sale: 'Stock Out',
+          transfer: 'Transfer Out',
+          return: 'Return In',
+          waste: 'Waste/Loss',
+          adjustment: 'Adjustment'
+        };
+        
+        const activityType = m.movement_type === 'purchase' || m.movement_type === 'production' || m.movement_type === 'return' 
+          ? 'in' 
+          : m.movement_type === 'production' 
+          ? 'production' 
+          : 'out';
+
+        const date = new Date(m.created_at);
+        
+        return {
+          date: m.movement_date,
+          time: date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
+          product: m.products?.product_name || 'Unknown Product',
+          activity: activityTypeMap[m.movement_type] || m.movement_type,
+          type: activityType,
+          quantity: (m.movement_type === 'purchase' || m.movement_type === 'production' || m.movement_type === 'return' ? '+' : '-') + Math.abs(m.quantity)
+        };
+      }) || [];
+
       setDashboardData({
         totalProducts: totalProducts || 0,
         lowStockCount: lowStockProducts.length,
@@ -83,7 +131,8 @@ const InventoryDashboard = () => {
         todayStockIn,
         todayStockOut,
         products: productsData || [],
-        lowStockProducts
+        lowStockProducts,
+        recentActivities
       });
     } catch (error) {
       console.error('Error fetching dashboard data:', error);
@@ -92,28 +141,22 @@ const InventoryDashboard = () => {
     }
   };
 
+  useMultipleRealtimeSubscriptions(
+    ['products', 'product_categories', 'stock_inventory', 'stock_movements', 'production_records']
+      .map((table) => ({ table, onUpdate: fetchDashboardData })),
+    []
+  );
+
   const summaryCards = [
-    { label: 'Total Products', value: loading ? '...' : dashboardData.totalProducts.toString(), sublabel: 'Active products', icon: '📦', color: 'blue' },
-    { label: 'Low Stock', value: loading ? '...' : dashboardData.lowStockCount.toString(), sublabel: 'Needs attention', icon: '⚠️', color: 'amber' },
-    { label: 'Out of Stock', value: loading ? '...' : dashboardData.outOfStockCount.toString(), sublabel: dashboardData.outOfStockCount === 0 ? 'No issues' : 'Action needed', icon: '🔴', color: dashboardData.outOfStockCount > 0 ? 'red' : 'gray' },
-    { label: "Today's Production", value: loading ? '...' : `${dashboardData.todayProduction} units`, sublabel: 'Items produced', icon: '🏭', color: 'green' },
-    { label: "Today's Stock In", value: loading ? '...' : dashboardData.todayStockIn.toString(), sublabel: 'Units received', icon: '📥', color: 'emerald' },
-    { label: "Today's Stock Out", value: loading ? '...' : dashboardData.todayStockOut.toString(), sublabel: 'Units sold/released', icon: '📤', color: 'red' }
+    { label: 'Total Products', value: loading ? '...' : dashboardData.totalProducts.toString(), detail: 'Active products', icon: Package, tone: 'blue' },
+    { label: 'Low Stock', value: loading ? '...' : dashboardData.lowStockCount.toString(), detail: 'Needs attention', icon: AlertTriangle, tone: 'yellow' },
+    { label: 'Out of Stock', value: loading ? '...' : dashboardData.outOfStockCount.toString(), detail: dashboardData.outOfStockCount === 0 ? 'No issues' : 'Action needed', icon: Boxes, tone: dashboardData.outOfStockCount > 0 ? 'red' : 'green' },
+    { label: "Today's Production", value: loading ? '...' : `${dashboardData.todayProduction} units`, detail: 'Items produced', icon: Factory, tone: 'green' },
+    { label: "Today's Stock In", value: loading ? '...' : dashboardData.todayStockIn.toString(), detail: 'Units received', icon: ArrowDownToLine, tone: 'emerald' },
+    { label: "Today's Stock Out", value: loading ? '...' : dashboardData.todayStockOut.toString(), detail: 'Units sold/released', icon: ArrowUpFromLine, tone: 'red' }
   ];
 
-  const recentActivities = [];
-
-  const getColorClasses = (color) => {
-    const colors = {
-      blue: 'bg-blue-50 border-blue-200',
-      amber: 'bg-amber-50 border-amber-200',
-      gray: 'bg-gray-50 border-gray-200',
-      green: 'bg-green-50 border-green-200',
-      emerald: 'bg-emerald-50 border-emerald-200',
-      red: 'bg-red-50 border-red-200'
-    };
-    return colors[color] || colors.blue;
-  };
+  const recentActivities = dashboardData.recentActivities;
 
   const getStatusBadge = (status, color) => {
     const colors = {
@@ -138,21 +181,14 @@ const InventoryDashboard = () => {
     <div className="space-y-6">
       {/* Greeting */}
       <div>
-        <h2 className="text-2xl font-bold text-gray-900">Good morning, Inventory Staff</h2>
+        <h2 className="text-2xl font-bold text-gray-900">{greeting}, Inventory Staff</h2>
         <p className="text-gray-600 mt-1">Here's today's inventory status and activities</p>
       </div>
 
       {/* Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4">
-        {summaryCards.map((card, idx) => (
-          <div key={idx} className={`rounded-lg border p-4 ${getColorClasses(card.color)}`}>
-            <div className="flex items-start justify-between mb-2">
-              <p className="text-xs font-medium text-gray-600 uppercase">{card.label}</p>
-              <span className="text-2xl">{card.icon}</span>
-            </div>
-            <p className="text-2xl font-bold text-gray-900">{card.value}</p>
-            <p className="text-xs text-gray-500 mt-1">{card.sublabel}</p>
-          </div>
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6 gap-4">
+        {summaryCards.map((card) => (
+          <DashboardMetricCard key={card.label} label={card.label} value={card.value} detail={card.detail} icon={card.icon} tone={card.tone} />
         ))}
       </div>
 
@@ -213,7 +249,7 @@ const InventoryDashboard = () => {
                   <div key={idx} className="border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow">
                     <div className="flex items-start justify-between mb-3">
                       <div className="flex items-center space-x-3">
-                        <span className="text-3xl">📦</span>
+                        <PackageCheck aria-hidden="true" className="size-7 shrink-0 text-slate-500" />
                         <div>
                           <h4 className="font-semibold text-gray-900">{item.product_name}</h4>
                           <p className="text-xs text-gray-500">Min: {item.reorder_level} {item.unit_of_measure}</p>

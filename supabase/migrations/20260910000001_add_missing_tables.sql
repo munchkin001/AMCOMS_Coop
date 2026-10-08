@@ -18,10 +18,8 @@ CREATE TABLE IF NOT EXISTS public.cash_receipt_lines (
   description TEXT,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
-
 CREATE INDEX IF NOT EXISTS cash_receipt_lines_receipt_idx ON public.cash_receipt_lines(cash_receipt_id);
 CREATE INDEX IF NOT EXISTS cash_receipt_lines_account_idx ON public.cash_receipt_lines(account_id);
-
 -- Cash Disbursement Lines (for multi-account disbursements)
 CREATE TABLE IF NOT EXISTS public.cash_disbursement_lines (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
@@ -31,10 +29,8 @@ CREATE TABLE IF NOT EXISTS public.cash_disbursement_lines (
   description TEXT,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
-
 CREATE INDEX IF NOT EXISTS cash_disbursement_lines_disbursement_idx ON public.cash_disbursement_lines(cash_disbursement_id);
 CREATE INDEX IF NOT EXISTS cash_disbursement_lines_account_idx ON public.cash_disbursement_lines(account_id);
-
 -- ============================================
 -- 2. DOCUMENT MANAGEMENT
 -- ============================================
@@ -55,11 +51,9 @@ CREATE TABLE IF NOT EXISTS public.documents (
   is_active BOOLEAN DEFAULT true,
   notes TEXT
 );
-
 CREATE INDEX IF NOT EXISTS documents_related_idx ON public.documents(related_table, related_id);
 CREATE INDEX IF NOT EXISTS documents_uploaded_by_idx ON public.documents(uploaded_by);
 CREATE INDEX IF NOT EXISTS documents_uploaded_at_idx ON public.documents(uploaded_at);
-
 -- ============================================
 -- 3. NOTIFICATIONS SYSTEM
 -- ============================================
@@ -79,11 +73,9 @@ CREATE TABLE IF NOT EXISTS public.notifications (
   priority TEXT DEFAULT 'normal' CHECK (priority IN ('low', 'normal', 'high', 'urgent')),
   created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
-
 CREATE INDEX IF NOT EXISTS notifications_user_idx ON public.notifications(user_id);
 CREATE INDEX IF NOT EXISTS notifications_is_read_idx ON public.notifications(is_read);
 CREATE INDEX IF NOT EXISTS notifications_created_idx ON public.notifications(created_at);
-
 -- Announcements
 CREATE TABLE IF NOT EXISTS public.announcements (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
@@ -98,10 +90,8 @@ CREATE TABLE IF NOT EXISTS public.announcements (
   created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
-
 CREATE INDEX IF NOT EXISTS announcements_is_active_idx ON public.announcements(is_active);
 CREATE INDEX IF NOT EXISTS announcements_published_at_idx ON public.announcements(published_at);
-
 -- ============================================
 -- 4. REQUESTS & APPROVALS
 -- ============================================
@@ -125,12 +115,10 @@ CREATE TABLE IF NOT EXISTS public.requests (
   created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
-
 CREATE INDEX IF NOT EXISTS requests_member_idx ON public.requests(member_id);
 CREATE INDEX IF NOT EXISTS requests_status_idx ON public.requests(status);
 CREATE INDEX IF NOT EXISTS requests_type_idx ON public.requests(request_type);
 CREATE INDEX IF NOT EXISTS requests_created_idx ON public.requests(created_at);
-
 -- ============================================
 -- 5. COMMUNICATION LOGS
 -- ============================================
@@ -151,11 +139,9 @@ CREATE TABLE IF NOT EXISTS public.sms_logs (
   sent_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
   delivered_at TIMESTAMP WITH TIME ZONE
 );
-
 CREATE INDEX IF NOT EXISTS sms_logs_status_idx ON public.sms_logs(status);
 CREATE INDEX IF NOT EXISTS sms_logs_sent_idx ON public.sms_logs(sent_at);
 CREATE INDEX IF NOT EXISTS sms_logs_phone_idx ON public.sms_logs(phone_number);
-
 -- Email Logs
 CREATE TABLE IF NOT EXISTS public.email_logs (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
@@ -173,11 +159,9 @@ CREATE TABLE IF NOT EXISTS public.email_logs (
   delivered_at TIMESTAMP WITH TIME ZONE,
   opened_at TIMESTAMP WITH TIME ZONE
 );
-
 CREATE INDEX IF NOT EXISTS email_logs_status_idx ON public.email_logs(status);
 CREATE INDEX IF NOT EXISTS email_logs_sent_idx ON public.email_logs(sent_at);
 CREATE INDEX IF NOT EXISTS email_logs_recipient_idx ON public.email_logs(recipient_email);
-
 -- ============================================
 -- 6. SYSTEM CONFIGURATION
 -- ============================================
@@ -195,10 +179,8 @@ CREATE TABLE IF NOT EXISTS public.system_settings (
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
-
 CREATE INDEX IF NOT EXISTS system_settings_key_idx ON public.system_settings(setting_key);
 CREATE INDEX IF NOT EXISTS system_settings_category_idx ON public.system_settings(category);
-
 -- ============================================
 -- 7. SUPPLIER MANAGEMENT
 -- ============================================
@@ -220,11 +202,9 @@ CREATE TABLE IF NOT EXISTS public.suppliers (
   created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
-
 CREATE INDEX IF NOT EXISTS suppliers_code_idx ON public.suppliers(supplier_code);
 CREATE INDEX IF NOT EXISTS suppliers_status_idx ON public.suppliers(status);
 CREATE INDEX IF NOT EXISTS suppliers_name_idx ON public.suppliers(supplier_name);
-
 -- Purchases (Purchase Orders)
 CREATE TABLE IF NOT EXISTS public.purchases (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
@@ -245,11 +225,9 @@ CREATE TABLE IF NOT EXISTS public.purchases (
   created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
-
 CREATE INDEX IF NOT EXISTS purchases_supplier_idx ON public.purchases(supplier_id);
 CREATE INDEX IF NOT EXISTS purchases_date_idx ON public.purchases(purchase_date);
 CREATE INDEX IF NOT EXISTS purchases_status_idx ON public.purchases(status);
-
 -- Purchase Items
 CREATE TABLE IF NOT EXISTS public.purchase_items (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
@@ -262,10 +240,8 @@ CREATE TABLE IF NOT EXISTS public.purchase_items (
   received_quantity INTEGER DEFAULT 0,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
-
 CREATE INDEX IF NOT EXISTS purchase_items_purchase_idx ON public.purchase_items(purchase_id);
 CREATE INDEX IF NOT EXISTS purchase_items_product_idx ON public.purchase_items(product_id);
-
 -- ============================================
 -- 8. ADD MEMBER LINK TO STAFF TABLE
 -- ============================================
@@ -273,9 +249,7 @@ CREATE INDEX IF NOT EXISTS purchase_items_product_idx ON public.purchase_items(p
 -- Add member_id to staff table for member portal users
 ALTER TABLE public.staff
 ADD COLUMN IF NOT EXISTS member_id UUID REFERENCES public.members(id);
-
 CREATE INDEX IF NOT EXISTS staff_member_id_idx ON public.staff(member_id);
-
 -- ============================================
 -- 9. ENABLE ROW LEVEL SECURITY ON NEW TABLES
 -- ============================================
@@ -292,7 +266,6 @@ ALTER TABLE public.system_settings ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.suppliers ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.purchases ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.purchase_items ENABLE ROW LEVEL SECURITY;
-
 -- ============================================
 -- 10. TEMPORARY BASIC POLICIES (Will be replaced in next migration)
 -- ============================================
@@ -337,7 +310,6 @@ BEGIN
     ', t, t, t, t);
   END LOOP;
 END $$;
-
 -- ============================================
 -- 11. UPDATED_AT TRIGGERS FOR NEW TABLES
 -- ============================================
@@ -365,7 +337,6 @@ BEGIN
     ', t, t);
   END LOOP;
 END $$;
-
 -- ============================================
 -- 12. INSERT DEFAULT SYSTEM SETTINGS
 -- ============================================
@@ -387,7 +358,6 @@ INSERT INTO public.system_settings (setting_key, setting_value, setting_type, ca
   ('withdrawal_approval_amount_limit', '10000', 'number', 'savings', 'Amount requiring treasurer approval', false),
   ('low_stock_alert_threshold', '10', 'number', 'inventory', 'Trigger low stock alert at this quantity', false)
 ON CONFLICT (setting_key) DO NOTHING;
-
 -- ============================================
 -- SUCCESS MESSAGE
 -- ============================================

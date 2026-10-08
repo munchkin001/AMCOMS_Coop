@@ -39,7 +39,6 @@
 -- does not stop the trigger; it stops everything else.
 
 DROP POLICY IF EXISTS "System can insert audit logs" ON public.audit_logs;
-
 DO $$
 DECLARE
   forgeable TEXT;
@@ -63,7 +62,6 @@ BEGIN
 
   RAISE NOTICE '✓ audit_logs, sms_logs, email_logs are no longer client-writable.';
 END $$;
-
 -- Write paths for these tables move to SECURITY DEFINER functions or Edge
 -- Functions (which use service_role and bypass RLS) in a later stage.
 
@@ -72,7 +70,6 @@ END $$;
 -- 2. SEAL POSTED JOURNAL ENTRIES
 -- ============================================
 DROP POLICY IF EXISTS "Bookkeeper can manage journal lines" ON public.journal_entry_lines;
-
 -- Bookkeeper may add, change or remove lines, but ONLY while the parent
 -- journal entry is still a draft. Once posted, the entry is immutable and
 -- corrections must go through a reversing entry.
@@ -88,7 +85,6 @@ CREATE POLICY "Bookkeeper can insert draft journal lines"
         AND je.status = 'draft'
     )
   );
-
 DROP POLICY IF EXISTS "Bookkeeper can update draft journal lines" ON public.journal_entry_lines;
 CREATE POLICY "Bookkeeper can update draft journal lines"
   ON public.journal_entry_lines FOR UPDATE
@@ -110,7 +106,6 @@ CREATE POLICY "Bookkeeper can update draft journal lines"
         AND je.status = 'draft'
     )
   );
-
 DROP POLICY IF EXISTS "Bookkeeper can delete draft journal lines" ON public.journal_entry_lines;
 CREATE POLICY "Bookkeeper can delete draft journal lines"
   ON public.journal_entry_lines FOR DELETE
@@ -123,8 +118,6 @@ CREATE POLICY "Bookkeeper can delete draft journal lines"
         AND je.status = 'draft'
     )
   );
-
-
 -- ============================================
 -- 3. NARROW DOCUMENT VISIBILITY
 -- ============================================
@@ -141,7 +134,6 @@ CREATE POLICY "Financial staff can view documents"
       ARRAY['chairman', 'manager', 'treasurer', 'bookkeeper']::TEXT[]
     )
   );
-
 DROP POLICY IF EXISTS "Staff can upload documents" ON public.documents;
 CREATE POLICY "Financial staff can upload documents"
   ON public.documents FOR INSERT
@@ -150,8 +142,6 @@ CREATE POLICY "Financial staff can upload documents"
       ARRAY['chairman', 'manager', 'treasurer', 'bookkeeper']::TEXT[]
     )
   );
-
-
 -- ============================================
 -- 4. RESTORE PROTECTION ON member_applications
 -- ============================================
@@ -165,27 +155,22 @@ BEGIN
       'public.member_applications does not exist. Apply database/member_applications.sql first, or add it to the migration chain.';
   END IF;
 END $$;
-
 -- Re-enable RLS. This is the single most important line in this migration.
 ALTER TABLE public.member_applications ENABLE ROW LEVEL SECURITY;
-
 -- Remove the over-permissive policy from 20260926000001.
 DROP POLICY IF EXISTS "Authenticated users can create application" ON public.member_applications;
 DROP POLICY IF EXISTS "allow_all_authenticated" ON public.member_applications;
-
 -- An applicant may read only their own application.
 DROP POLICY IF EXISTS "Members can view own application" ON public.member_applications;
 CREATE POLICY "Applicants can view own application"
   ON public.member_applications FOR SELECT
   USING (user_id = auth.uid());
-
 -- An applicant may file an application, but only for their own user id.
 -- This replaces WITH CHECK (auth.uid() IS NOT NULL).
 DROP POLICY IF EXISTS "Members can create application" ON public.member_applications;
 CREATE POLICY "Applicants can create own application"
   ON public.member_applications FOR INSERT
   WITH CHECK (user_id = auth.uid());
-
 -- Staff may read all applications to review them.
 DROP POLICY IF EXISTS "Staff can view all applications" ON public.member_applications;
 CREATE POLICY "Staff can view all applications"
@@ -193,7 +178,6 @@ CREATE POLICY "Staff can view all applications"
   USING (
     public.has_any_role(ARRAY['manager', 'chairman']::TEXT[])
   );
-
 -- Only manager or chairman may approve or reject.
 DROP POLICY IF EXISTS "Managers can update applications" ON public.member_applications;
 CREATE POLICY "Managers can review applications"
@@ -204,7 +188,6 @@ CREATE POLICY "Managers can review applications"
   WITH CHECK (
     public.has_any_role(ARRAY['manager', 'chairman']::TEXT[])
   );
-
 -- Deliberately no DELETE policy. An application is an auditable record.
 
 
@@ -261,8 +244,6 @@ BEGIN
 
   RAISE NOTICE '✓ Restored member_applications_user_id_fkey.';
 END $$;
-
-
 -- ============================================
 -- 6. VERIFICATION
 -- ============================================

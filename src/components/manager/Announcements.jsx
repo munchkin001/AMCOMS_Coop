@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { supabase } from '../../lib/supabase';
 
 const Announcements = () => {
   const [subject, setSubject] = useState('');
@@ -12,6 +13,9 @@ const Announcements = () => {
     recentMembers: false
   });
   const [alsoSendViaSMS, setAlsoSendViaSMS] = useState(false);
+  const [sending, setSending] = useState(false);
+  const [sendError, setSendError] = useState('');
+  const [sendNotice, setSendNotice] = useState('');
 
   const [announcements] = useState([
     {
@@ -49,7 +53,9 @@ const Announcements = () => {
     return Object.values(recipients).filter(Boolean).length;
   };
 
-  const handlePublish = () => {
+  const handlePublish = async () => {
+    setSendError('');
+    setSendNotice('');
     if (!subject.trim() || !message.trim()) {
       alert('Please fill in subject and message');
       return;
@@ -58,6 +64,33 @@ const Announcements = () => {
       alert('Please select at least one recipient');
       return;
     }
+
+    if (alsoSendViaSMS) {
+      setSending(true);
+      try {
+        const groups = Object.entries(recipients).filter(([, selected]) => selected).map(([group]) => group);
+        const { data, error: smsError } = await supabase.functions.invoke('semaphore-sms', {
+          body: { action: 'send-group', groups, message: `${subject.trim()}\n\n${message.trim()}` }
+        });
+        if (smsError) {
+          let serverMessage;
+          try {
+            serverMessage = (await smsError.context?.clone?.().json())?.error;
+          } catch {
+            serverMessage = null;
+          }
+          throw new Error(serverMessage || 'SMS delivery failed. The announcement was not published.');
+        }
+        if (!data?.sent_count) throw new Error('No SMS recipients with valid mobile numbers were found.');
+        setSendNotice(`${data.sent_count} SMS message(s) accepted${data.failed_count ? `; ${data.failed_count} failed` : ''}.`);
+      } catch (smsError) {
+        setSendError(smsError.message || 'SMS delivery failed. The announcement was not published.');
+        setSending(false);
+        return;
+      }
+      setSending(false);
+    }
+
     alert('Announcement published successfully!');
     setSubject('');
     setMessage('');
@@ -205,9 +238,10 @@ const Announcements = () => {
               <div className="flex space-x-3 pt-4">
                 <button
                   onClick={handlePublish}
-                  className="flex-1 px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
+                  disabled={sending}
+                  className="flex-1 px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium disabled:cursor-not-allowed disabled:opacity-60"
                 >
-                  Publish Announcement
+                  {sending ? 'Sending…' : 'Publish Announcement'}
                 </button>
                 <button
                   onClick={handleSaveDraft}
@@ -240,6 +274,8 @@ const Announcements = () => {
       </div>
 
       {/* Published Announcements */}
+      {sendError && <p role="alert" className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{sendError}</p>}
+      {sendNotice && <p role="status" className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">{sendNotice}</p>}
       <div className="bg-white rounded-lg shadow border border-gray-200 p-6">
         <h4 className="text-lg font-semibold text-gray-900 mb-4">Published Announcements</h4>
         <div className="space-y-3">

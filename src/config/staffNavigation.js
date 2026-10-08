@@ -1,0 +1,421 @@
+import {
+  ArrowDownToLine,
+  ArrowUpFromLine,
+  Banknote,
+  BarChart3,
+  BookOpen,
+  ClipboardList,
+  Factory,
+  FileText,
+  HandCoins,
+  Landmark,
+  LayoutDashboard,
+  KeyRound,
+  Megaphone,
+  MessageSquareText,
+  Package,
+  RefreshCw,
+  ShoppingCart,
+  Tags,
+  Users,
+} from 'lucide-react';
+
+const staffNavigationConfig = {
+  chairman: [
+    {
+      id: 'dashboard',
+      name: 'Dashboard',
+      icon: '📊',
+      path: '/staff/dashboard',
+      component: 'ChairmanDashboard'
+    },
+    {
+      id: 'performance',
+      name: 'Performance Report',
+      icon: '📈',
+      path: '/staff/performance',
+      component: 'PerformanceReport'
+    },
+    {
+      id: 'audit-log',
+      name: 'Audit Log',
+      icon: '📋',
+      path: '/staff/audit-log',
+      component: 'AuditLog'
+    },
+    {
+      id: 'policies',
+      name: 'Policies',
+      icon: '📜',
+      path: '/staff/policies',
+      component: 'Policies'
+    },
+    {
+      id: 'member-recovery',
+      name: 'Member Account Recovery',
+      icon: KeyRound,
+      path: '/staff/member-account-recovery',
+      component: 'MemberAccountRecovery'
+    }
+  ],
+
+  manager: [
+    {
+      id: 'dashboard',
+      name: 'Dashboard',
+      icon: '📊',
+      path: '/staff/dashboard',
+      component: 'ManagerDashboard'
+    },
+    {
+      id: 'members',
+      name: 'Members',
+      icon: '👥',
+      path: '/staff/members',
+      component: 'Members'
+    },
+    {
+      id: 'loans',
+      name: 'Loans',
+      icon: '💰',
+      path: '/staff/loans',
+      component: 'Loans'
+    },
+    {
+      id: 'savings',
+      name: 'Savings',
+      icon: '🏦',
+      path: '/staff/savings',
+      component: 'Savings'
+    },
+    {
+      id: 'inventory',
+      name: 'Inventory',
+      icon: '📦',
+      path: '/staff/inventory',
+      component: 'Inventory'
+    },
+    {
+      id: 'reports',
+      name: 'Reports',
+      icon: '📑',
+      path: '/staff/reports',
+      component: 'Reports'
+    },
+    {
+      id: 'audit-log',
+      name: 'Audit Log',
+      icon: 'audit-log',
+      path: '/staff/audit-log',
+      component: 'AuditLog'
+    },
+    {
+      id: 'announcements',
+      name: 'Announcements',
+      icon: '📢',
+      path: '/staff/announcements',
+      component: 'Announcements'
+    },
+    {
+      id: 'member-recovery',
+      name: 'Member Account Recovery',
+      icon: KeyRound,
+      path: '/staff/member-account-recovery',
+      component: 'MemberAccountRecovery'
+    },
+    {
+      id: 'sms',
+      name: 'SMS Center',
+      icon: MessageSquareText,
+      path: '/staff/sms',
+      component: 'SMSCenter'
+    }
+  ],
+
+  treasurer: [
+    {
+      id: 'dashboard',
+      name: 'Dashboard',
+      icon: '📊',
+      path: '/staff/dashboard',
+      component: 'TreasurerDashboard'
+    },
+    {
+      id: 'cash-receipts',
+      name: 'Cash Receipts',
+      icon: '💰',
+      path: '/staff/cash-receipts',
+      component: 'CashReceipts'
+    },
+    {
+      id: 'cash-disbursements',
+      name: 'Cash Disbursements',
+      icon: '💸',
+      path: '/staff/cash-disbursements',
+      component: 'CashDisbursements'
+    },
+    {
+      id: 'savings',
+      name: 'Savings Management',
+      icon: '🏦',
+      path: '/staff/savings',
+      component: 'SavingsManagement'
+    },
+    {
+      id: 'loan-collections',
+      name: 'Loan Collections',
+      icon: '📥',
+      path: '/staff/loan-collections',
+      component: 'LoanCollections'
+    },
+    {
+      id: 'reports',
+      name: 'Reports',
+      icon: '📑',
+      path: '/staff/reports',
+      component: 'TreasurerReports'
+    }
+  ],
+
+  bookkeeper: [
+    {
+      id: 'dashboard',
+      name: 'Dashboard',
+      icon: '📊',
+      path: '/staff/dashboard',
+      component: 'BookkeeperDashboard'
+    },
+    {
+      id: 'members',
+      name: 'Members',
+      icon: Users,
+      path: '/staff/members',
+      component: 'MemberManagement'
+    },
+    {
+      id: 'transactions',
+      name: 'Transactions',
+      icon: '💳',
+      path: '/staff/transactions',
+      component: 'Transactions'
+    },
+    {
+      id: 'books',
+      name: 'Books',
+      icon: '📖',
+      path: '/staff/books',
+      component: 'Books',
+      subMenu: [
+        {
+          id: 'cash-receipts-book',
+          name: 'Cash Receipts',
+          path: '/staff/books/cash-receipts',
+          component: 'CashReceiptsBook'
+        },
+        {
+          id: 'cash-disbursements-book',
+          name: 'Cash Disbursements',
+          path: '/staff/books/cash-disbursements',
+          component: 'CashDisbursementsBook'
+        },
+        {
+          id: 'general-journal',
+          name: 'General Journal',
+          path: '/staff/books/general-journal',
+          component: 'GeneralJournal'
+        },
+        {
+          id: 'ledger',
+          name: 'Ledger',
+          path: '/staff/books/ledger',
+          component: 'Ledger'
+        }
+      ]
+    },
+    {
+      id: 'reconciliation',
+      name: 'Reconciliation',
+      icon: '🔄',
+      path: '/staff/reconciliation',
+      component: 'Reconciliation'
+    },
+    {
+      id: 'reports',
+      name: 'Financial Reports',
+      icon: '📑',
+      path: '/staff/reports',
+      component: 'FinancialReports'
+    }
+  ],
+
+  inventory: [
+    {
+      id: 'dashboard',
+      name: 'Dashboard',
+      icon: '📊',
+      path: '/staff/dashboard',
+      component: 'InventoryDashboard'
+    },
+    {
+      id: 'products',
+      name: 'Products',
+      icon: '🏷️',
+      path: '/staff/products',
+      component: 'Products'
+    },
+    {
+      id: 'stock',
+      name: 'Stock Management',
+      icon: '📦',
+      path: '/staff/stock',
+      component: 'StockManagement'
+    },
+    {
+      id: 'production',
+      name: 'Production',
+      icon: '🏭',
+      path: '/staff/production',
+      component: 'Production'
+    },
+    {
+      id: 'sales',
+      name: 'Inventory History',
+      icon: '🛒',
+      path: '/staff/sales',
+      component: 'SalesOrders'
+    },
+    {
+      id: 'purchases',
+      name: 'Purchases',
+      icon: '📋',
+      path: '/staff/purchases',
+      component: 'Purchases'
+    },
+    {
+      id: 'reports',
+      name: 'Inventory Reports',
+      icon: '📑',
+      path: '/staff/reports',
+      component: 'InventoryReports'
+    }
+  ]
+};
+
+/**
+ * Get navigation items for a specific role
+ * @param {string} role - Staff role (chairman, manager, treasurer, bookkeeper, inventory)
+ * @returns {Array} Navigation items for the role
+ */
+export const getNavigationForRole = (role) => {
+  const icons = {
+    dashboard: LayoutDashboard,
+    performance: BarChart3,
+    'audit-log': ClipboardList,
+    policies: FileText,
+    'member-recovery': KeyRound,
+    members: Users,
+    loans: HandCoins,
+    savings: Landmark,
+    inventory: Package,
+    reports: BarChart3,
+    announcements: Megaphone,
+    sms: MessageSquareText,
+    'cash-receipts': Banknote,
+    'cash-disbursements': ArrowUpFromLine,
+    'loan-collections': ArrowDownToLine,
+    transactions: Banknote,
+    books: BookOpen,
+    reconciliation: RefreshCw,
+    products: Tags,
+    stock: Package,
+    production: Factory,
+    sales: ShoppingCart,
+    purchases: ClipboardList,
+  };
+
+  return (staffNavigationConfig[role] || []).map((item) => ({
+    ...item,
+    icon: icons[item.id] || FileText,
+  }));
+};
+
+/**
+ * Check if a role has access to a specific module
+ * @param {string} role - Staff role
+ * @param {string} moduleId - Module ID to check
+ * @returns {boolean} True if role has access
+ */
+export const hasAccessToModule = (role, moduleId) => {
+  const navigation = staffNavigationConfig[role] || [];
+  return navigation.some(item => item.id === moduleId);
+};
+
+/**
+ * Get display name for a role
+ * @param {string} role - Staff role
+ * @returns {string} Display name
+ */
+export const getRoleDisplayName = (role) => {
+  const roleNames = {
+    chairman: 'Chairman',
+    manager: 'Manager',
+    treasurer: 'Treasurer',
+    bookkeeper: 'Bookkeeper',
+    inventory: 'Inventory Staff'
+  };
+  return roleNames[role] || role;
+};
+
+/**
+ * Get color scheme for a role
+ * @param {string} role - Staff role
+ * @returns {Object} Color configuration
+ */
+export const getRoleColors = (role) => {
+  const colors = {
+    chairman: {
+      primary: 'blue',
+      gradient: 'from-blue-700 to-blue-800',
+      bg: 'bg-blue-600',
+      text: 'text-blue-600',
+      hover: 'hover:bg-blue-50'
+    },
+    manager: {
+      primary: 'green',
+      gradient: 'from-green-700 to-green-800',
+      bg: 'bg-green-600',
+      text: 'text-green-600',
+      hover: 'hover:bg-green-50'
+    },
+    treasurer: {
+      primary: 'teal',
+      gradient: 'from-teal-700 to-teal-800',
+      bg: 'bg-teal-600',
+      text: 'text-teal-600',
+      hover: 'hover:bg-teal-50'
+    },
+    bookkeeper: {
+      primary: 'purple',
+      gradient: 'from-purple-700 to-purple-800',
+      bg: 'bg-purple-600',
+      text: 'text-purple-600',
+      hover: 'hover:bg-purple-50'
+    },
+    inventory: {
+      primary: 'orange',
+      gradient: 'from-orange-700 to-orange-800',
+      bg: 'bg-orange-600',
+      text: 'text-orange-600',
+      hover: 'hover:bg-orange-50'
+    }
+  };
+  return colors[role] || colors.manager;
+};
+
+export default {
+  staffNavigationConfig,
+  getNavigationForRole,
+  hasAccessToModule,
+  getRoleDisplayName,
+  getRoleColors
+};

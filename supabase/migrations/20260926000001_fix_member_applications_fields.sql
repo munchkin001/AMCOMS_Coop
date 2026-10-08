@@ -17,7 +17,6 @@ ALTER TABLE public.member_applications
   ADD COLUMN IF NOT EXISTS tin TEXT,
   ADD COLUMN IF NOT EXISTS ncfrs TEXT,
   ADD COLUMN IF NOT EXISTS pca_id TEXT;
-
 -- 2. UPDATE THE APPROVAL TRIGGER TO INCLUDE NEW FIELDS
 CREATE OR REPLACE FUNCTION public.create_member_from_application()
 RETURNS TRIGGER AS $$
@@ -92,14 +91,12 @@ BEGIN
   RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;
-
 -- 3. ADD RLS POLICY FOR MEMBER APPLICATIONS INSERT
 -- (The existing policies should still work, but let's ensure INSERT is allowed for authenticated users)
 DROP POLICY IF EXISTS "Authenticated users can create application" ON public.member_applications;
 CREATE POLICY "Authenticated users can create application"
   ON public.member_applications FOR INSERT
   WITH CHECK (auth.uid() IS NOT NULL);
-
 -- 4. ADD COMMENTS
 COMMENT ON COLUMN public.member_applications.gender IS 'Member gender';
 COMMENT ON COLUMN public.member_applications.emergency_contact_name IS 'Emergency contact person name';
@@ -110,7 +107,6 @@ COMMENT ON COLUMN public.member_applications.rsbsa IS 'RSBSA (Rural-based Small-
 COMMENT ON COLUMN public.member_applications.tin IS 'Tax Identification Number';
 COMMENT ON COLUMN public.member_applications.ncfrs IS 'NCFRS (National Cooperative Financial Reporting System) number';
 COMMENT ON COLUMN public.member_applications.pca_id IS 'PCA (Philippine Coconut Authority) ID';
-
 -- 5. SUCCESS MESSAGE
 DO $$
 BEGIN

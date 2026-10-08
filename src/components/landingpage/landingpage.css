@@ -1,0 +1,411 @@
+.amcoms-landing {
+  --amcoms-forest: #174b37;
+  --amcoms-green: #28724d;
+  --amcoms-mint: #eaf2ec;
+  --amcoms-ink: #202b25;
+  --amcoms-muted: #65716a;
+  --amcoms-gold: #c28b3d;
+  --amcoms-gold-dark: #956621;
+  --amcoms-gold-light: #e5cb8e;
+  --amcoms-gold-pale: #f6f0e3;
+  color: var(--amcoms-ink);
+  font-family: "Aptos", "Segoe UI", sans-serif;
+  background: #fff;
+}
+
+.amcoms-landing h1,
+.amcoms-landing h2,
+.amcoms-landing h3,
+.amcoms-landing h4 {
+  font-family: Georgia, "Times New Roman", serif;
+  letter-spacing: 0;
+}
+
+.amcoms-navbar {
+  border-bottom: 1px solid #e6ebe7;
+  box-shadow: 0 3px 16px rgb(25 45 34 / 7%);
+}
+
+.amcoms-navbar > div > div:first-child {
+  min-height: 76px;
+}
+
+.amcoms-navbar > div > div:first-child > a:first-child {
+  position: relative;
+  left: -32px;
+}
+
+.amcoms-navbar h1 {
+  font-family: "Aptos", "Segoe UI", sans-serif;
+  font-size: 15px;
+}
+
+.amcoms-navbar a[href^="#"] {
+  color: var(--amcoms-green);
+}
+
+.amcoms-navbar a[href^="#"]:hover,
+.amcoms-navbar a[href^="#"]:active,
+.amcoms-navbar a[href^="#"]:focus-visible,
+html:has(#home:target) .amcoms-navbar a[href="#home"],
+html:has(#about:target) .amcoms-navbar a[href="#about"],
+html:has(#products:target) .amcoms-navbar a[href="#products"],
+html:has(#services:target) .amcoms-navbar a[href="#services"],
+html:has(#membership:target) .amcoms-navbar a[href="#membership"],
+html:has(#reviews:target) .amcoms-navbar a[href="#reviews"],
+html:has(#contact:target) .amcoms-navbar a[href="#contact"] {
+  color: var(--amcoms-gold-dark);
+}
+
+.amcoms-navbar a[href="/portal-selection"] svg {
+  color: var(--amcoms-gold-light);
+}
+
+.amcoms-navbar img[alt="Agay-ayan MPC Logo"] {
+  width: 72px;
+  height: 72px;
+}
+
+.amcoms-navbar a:focus-visible,
+.amcoms-navbar button:focus-visible,
+.amcoms-landing a:focus-visible {
+  outline: 3px solid var(--amcoms-gold);
+  outline-offset: 3px;
+}
+
+.amcoms-hero {
+  min-height: 720px;
+  background-position: center 44%;
+}
+
+.amcoms-hero > div {
+  width: 100%;
+  padding: 144px 24px 52px;
+}
+
+.amcoms-hero > div > div {
+  max-width: 1180px;
+}
+
+.amcoms-hero .max-w-4xl {
+  max-width: 1000px;
+}
+
+.amcoms-hero .mb-8 span {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 14px;
+  border: 1px solid rgb(255 255 255 / 35%);
+  border-radius: 4px;
+  background: rgb(18 53 39 / 58%);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.amcoms-hero .mb-8 span svg {
+  width: 16px;
+  height: 16px;
+}
+
+.amcoms-hero .mb-8 {
+  margin-bottom: 26px;
+}
+
+.amcoms-hero h1 {
+  max-width: 920px;
+  font-size: 48px;
+  line-height: 1.08;
+  margin-bottom: 18px;
+}
+
+.amcoms-hero h1 span {
+  color: var(--amcoms-gold-light);
+}
+
+.amcoms-hero .max-w-3xl {
+  max-width: 660px;
+  font-size: 18px;
+  line-height: 1.7;
+}
+
+.amcoms-hero .flex.flex-col.sm\:flex-row a {
+  min-height: 48px;
+  padding: 12px 20px;
+  border-radius: 4px;
+  font-size: 15px;
+}
+
+.amcoms-hero .flex.flex-col.sm\:flex-row a:first-child {
+  background: var(--amcoms-gold);
+}
+
+.amcoms-hero .flex.flex-col.sm\:flex-row a:first-child:hover {
+  background: var(--amcoms-gold-dark);
+}
+
+.amcoms-hero .flex.flex-col.sm\:flex-row a:nth-child(2) {
+  border-color: var(--amcoms-gold-light);
+}
+
+.amcoms-hero .flex.flex-col.sm\:flex-row a:nth-child(2):hover {
+  background: var(--amcoms-gold-pale);
+  color: var(--amcoms-forest);
+}
+
+.amcoms-hero .grid.grid-cols-2 > div {
+  min-height: 98px;
+  padding: 16px;
+  border: 1px solid rgb(255 255 255 / 24%);
+  border-radius: 4px;
+  background: rgb(15 44 34 / 49%);
+  text-align: left;
+}
+
+.amcoms-hero .grid.grid-cols-2 > div > div:first-child {
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 30px;
+  line-height: 1.1;
+}
+
+.amcoms-hero .grid.grid-cols-2 > div > div:last-child {
+  margin-top: 8px;
+  line-height: 1.35;
+}
+
+.amcoms-landing section[id] {
+  scroll-margin-top: 88px;
+}
+
+.amcoms-landing #about,
+.amcoms-landing #products,
+.amcoms-landing #services,
+.amcoms-landing #membership,
+.amcoms-landing #reviews,
+.amcoms-landing #contact {
+  padding-top: 76px;
+  padding-bottom: 76px;
+}
+
+.amcoms-landing #about > div,
+.amcoms-landing #products > div,
+.amcoms-landing #services > div,
+.amcoms-landing #membership > div,
+.amcoms-landing #reviews > div,
+.amcoms-landing #contact > div,
+.amcoms-landing footer > div {
+  max-width: 1180px;
+}
+
+.amcoms-landing section[id] h2 {
+  line-height: 1.2;
+}
+
+.amcoms-landing #about .bg-green-50,
+.amcoms-landing #about .bg-yellow-50 {
+  border-left: 3px solid var(--amcoms-green);
+  border-radius: 3px;
+  background: #f3f6f2;
+}
+
+.amcoms-landing #about .bg-yellow-50 {
+  border-left-color: var(--amcoms-gold);
+  background: var(--amcoms-gold-pale);
+}
+
+.amcoms-landing #about > div > div:first-child > span,
+.amcoms-landing #products > div > div:first-child > span,
+.amcoms-landing #services > div > div:first-child > span,
+.amcoms-landing #reviews > div > div:first-child > span,
+.amcoms-landing #contact > div > div:first-child > span {
+  color: var(--amcoms-gold-dark);
+}
+
+.amcoms-landing #membership > div > div:first-child > span {
+  color: var(--amcoms-gold-light);
+}
+
+.amcoms-landing #products {
+  background: #f5f7f5;
+}
+
+.amcoms-landing #products .bg-gradient-to-r {
+  border-radius: 4px;
+  border-top: 3px solid var(--amcoms-gold);
+  background: var(--amcoms-forest);
+}
+
+.amcoms-landing #products .mb-16 .grid > div span.text-green-600 {
+  color: var(--amcoms-gold-dark);
+}
+
+.amcoms-landing #products .mb-16 .grid > div,
+.amcoms-landing #products .grid.md\:grid-cols-3 > div {
+  border: 1px solid #e5eae6;
+  border-radius: 4px;
+  box-shadow: 0 5px 18px rgb(28 48 36 / 6%);
+}
+
+.amcoms-landing #products .mb-16 .grid > div:hover {
+  box-shadow: 0 10px 24px rgb(28 48 36 / 10%);
+}
+
+.amcoms-landing #services > div > .grid > div {
+  border: 1px solid #e4e9e5;
+  border-top: 3px solid var(--amcoms-gold);
+  border-radius: 4px;
+  background: #fff;
+  box-shadow: 0 4px 14px rgb(28 48 36 / 4%);
+}
+
+.amcoms-landing #services > div > .grid > div > div:first-child {
+  border-radius: 4px;
+  background: var(--amcoms-mint);
+}
+
+.amcoms-landing #services > div > .mt-12 {
+  border: 1px solid #e2e9e3;
+  border-radius: 4px;
+  background: #f4f7f3;
+}
+
+.amcoms-landing #membership {
+  background: var(--amcoms-forest);
+}
+
+.amcoms-landing #membership > div > .grid > div {
+  border: 1px solid rgb(255 255 255 / 19%);
+  border-radius: 4px;
+  background: rgb(255 255 255 / 8%);
+}
+
+.amcoms-landing #membership > div > .grid > div > div:first-child {
+  border-radius: 4px;
+  background: rgb(255 255 255 / 12%);
+  color: var(--amcoms-gold-light);
+}
+
+.amcoms-landing #membership > div > .grid > div {
+  border-color: rgb(229 203 142 / 35%);
+}
+
+.amcoms-landing #membership > div > div:last-child a {
+  background: var(--amcoms-gold-light);
+  color: var(--amcoms-forest);
+}
+
+.amcoms-landing #membership > div > div:last-child a:hover {
+  background: var(--amcoms-gold-pale);
+}
+
+.amcoms-landing #reviews {
+  background: #f5f7f5;
+}
+
+.amcoms-landing #reviews .bg-white {
+  border: 1px solid #e4e9e5;
+  border-radius: 4px;
+  box-shadow: 0 5px 18px rgb(28 48 36 / 6%);
+}
+
+.amcoms-landing #reviews .bg-yellow-400 {
+  background: var(--amcoms-gold);
+}
+
+.amcoms-landing #reviews .text-yellow-400 {
+  color: var(--amcoms-gold);
+}
+
+.amcoms-landing #contact .bg-green-100,
+.amcoms-landing #contact .bg-green-50 {
+  border-radius: 4px;
+}
+
+.amcoms-landing #contact .bg-green-100 {
+  background: var(--amcoms-gold-pale);
+}
+
+.amcoms-landing #contact .bg-green-100 svg {
+  color: var(--amcoms-gold-dark);
+}
+
+.amcoms-landing #contact iframe {
+  border-radius: 4px;
+}
+
+.amcoms-landing footer {
+  background: #202b25;
+}
+
+.amcoms-landing footer a:hover {
+  color: var(--amcoms-gold-light);
+}
+
+@media (max-width: 768px) {
+  .amcoms-hero {
+    min-height: 0;
+    background-position: 55% center;
+  }
+
+  .amcoms-hero > div {
+    padding: 132px 22px 44px;
+  }
+
+  .amcoms-hero h1 {
+    max-width: 640px;
+    font-size: 44px;
+    line-height: 1.12;
+  }
+
+  .amcoms-hero .max-w-3xl {
+    font-size: 16px;
+  }
+
+  .amcoms-landing #about,
+  .amcoms-landing #products,
+  .amcoms-landing #services,
+  .amcoms-landing #membership,
+  .amcoms-landing #reviews,
+  .amcoms-landing #contact {
+    padding-top: 56px;
+    padding-bottom: 56px;
+  }
+}
+
+@media (max-width: 480px) {
+  .amcoms-navbar > div > div:first-child > a:first-child {
+    left: -12px;
+  }
+
+  .amcoms-navbar img[alt="Agay-ayan MPC Logo"] {
+    width: 60px;
+    height: 60px;
+  }
+
+  .amcoms-navbar > div > div:first-child {
+    min-height: 68px;
+  }
+
+  .amcoms-navbar h1 {
+    max-width: 230px;
+    font-size: 14px;
+    line-height: 1.25;
+  }
+
+  .amcoms-hero > div {
+    padding: 116px 18px 36px;
+  }
+
+  .amcoms-hero h1 {
+    font-size: 36px;
+  }
+
+  .amcoms-hero .grid.grid-cols-2 > div {
+    min-height: 88px;
+    padding: 12px;
+  }
+
+  .amcoms-hero .grid.grid-cols-2 > div > div:first-child {
+    font-size: 25px;
+  }
+}

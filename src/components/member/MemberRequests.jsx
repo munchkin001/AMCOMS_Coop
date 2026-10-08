@@ -1,30 +1,150 @@
-import React, { useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import EmptyState from '../common/EmptyState';
 import InfoIcon from '../common/InfoIcon';
+import { useAuth } from '../../contexts/AuthContext';
+import { useRealtimeSubscription } from '../../hooks/useRealtimeSubscription';
+import { supabase } from '../../lib/supabase';
+
+const requestTypeLabels = {
+  loan_application: 'Loan Application',
+  withdrawal: 'Withdrawal',
+  loan_release: 'Loan Release',
+  membership: 'Membership',
+  other: 'Other Request'
+};
+
+const getStatusColor = (status) => {
+  const colors = {
+    pending: 'yellow',
+    under_review: 'blue',
+    approved: 'green',
+    completed: 'green',
+    rejected: 'red',
+    cancelled: 'gray'
+  };
+  return colors[status] || 'gray';
+};
+
+const formatRequest = (request) => ({
+  ...request,
+  type: request.request_data?.type || requestTypeLabels[request.request_type] || 'Request',
+  date: request.created_at
+    ? new Date(request.created_at).toLocaleDateString('en-PH', { year: 'numeric', month: 'short', day: 'numeric' })
+    : 'Date unavailable',
+  amountLabel: request.amount == null
+    ? '—'
+    : `₱${Number(request.amount).toLocaleString('en-PH', { minimumFractionDigits: 2 })}`,
+  statusLabel: request.status?.replaceAll('_', ' ') || 'pending',
+  color: getStatusColor(request.status)
+});
 
 const MemberRequests = () => {
+  const { staff } = useAuth();
   const [activeTab, setActiveTab] = useState('submit');
   const [requestType, setRequestType] = useState('');
   const [showRequestModal, setShowRequestModal] = useState(false);
+  const [requests, setRequests] = useState([]);
+  const [loadingRequests, setLoadingRequests] = useState(true);
+  const [requestError, setRequestError] = useState('');
+  const [submissionError, setSubmissionError] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [requestForm, setRequestForm] = useState({ amount: '', loanType: 'Agricultural Loan', purpose: '', preferredDate: '' });
 
-  const requests = [
-    { id: 1, type: 'Loan Application', date: 'May 29, 2026', amount: '₱50,000', status: 'Pending', color: 'yellow' },
-    { id: 2, type: 'Savings Deposit', date: 'May 27, 2026', amount: '₱5,000', status: 'Approved', color: 'green' },
-    { id: 3, type: 'Time Deposit', date: 'May 15, 2026', amount: '₱50,000', status: 'Completed', color: 'blue' }
-  ];
+  const fetchRequests = useCallback(async () => {
+    if (!staff?.member_id) {
+      setRequests([]);
+      setLoadingRequests(false);
+      return;
+    }
+
+    setRequestError('');
+    try {
+      const { data, error } = await supabase
+        .from('requests')
+        .select('id, request_number, request_type, request_data, amount, status, created_at, updated_at')
+        .eq('member_id', staff.member_id)
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      setRequests((data || []).map(formatRequest));
+    } catch (error) {
+      console.error('Unable to load member requests:', error);
+      setRequestError('Your request history could not be loaded. Please try again.');
+    } finally {
+      setLoadingRequests(false);
+    }
+  }, [staff?.member_id]);
+
+  useEffect(() => {
+    fetchRequests();
+  }, [fetchRequests]);
+
+  useRealtimeSubscription(
+    'requests',
+    fetchRequests,
+    staff?.member_id ? { column: 'member_id', value: staff.member_id } : null,
+    [staff?.member_id],
+    Boolean(staff?.member_id)
+  );
 
   const getStatusColor = (color) => {
     const colors = {
       yellow: 'bg-yellow-100 text-yellow-800 border-yellow-200',
       green: 'bg-green-100 text-green-800 border-green-200',
-      blue: 'bg-blue-100 text-blue-800 border-blue-200'
+      blue: 'bg-blue-100 text-blue-800 border-blue-200',
+      red: 'bg-red-100 text-red-800 border-red-200',
+      gray: 'bg-gray-100 text-gray-700 border-gray-200'
     };
     return colors[color];
   };
 
   const handleRequestClick = (type) => {
     setRequestType(type);
+    setRequestForm({ amount: '', loanType: 'Agricultural Loan', purpose: '', preferredDate: '' });
+    setSubmissionError('');
     setShowRequestModal(true);
+  };
+
+  const handleRequestSubmit = async (event) => {
+    event.preventDefault();
+    if (!staff?.member_id) {
+      setSubmissionError('Your member profile could not be verified. Please sign in again.');
+      return;
+    }
+
+    setSubmitting(true);
+    setSubmissionError('');
+    try {
+      const requestNumber = globalThis.crypto?.randomUUID?.()
+        || `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+      const requestData = {
+        type: requestType,
+        ...(requestType === 'Loan Application' && {
+          loan_type: requestForm.loanType,
+          purpose: requestForm.purpose.trim()
+        }),
+        ...(requestType === 'Savings Deposit' && { preferred_date: requestForm.preferredDate || null })
+      };
+
+      const { error } = await supabase.from('requests').insert({
+        request_number: `MEM-${requestNumber}`,
+        request_type: requestType === 'Loan Application' ? 'loan_application' : 'other',
+        member_id: staff.member_id,
+        requester_id: staff.id,
+        request_data: requestData,
+        amount: Number(requestForm.amount)
+      });
+
+      if (error) throw error;
+      setShowRequestModal(false);
+      setActiveTab('history');
+      await fetchRequests();
+    } catch (error) {
+      console.error('Unable to submit member request:', error);
+      setSubmissionError(error.message || 'Your request could not be submitted. Please try again.');
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -110,7 +230,10 @@ const MemberRequests = () => {
         {activeTab === 'history' && (
           <div className="p-6">
             <h3 className="text-lg font-semibold text-gray-900 mb-4">Request History</h3>
-            {requests.length === 0 ? (
+            {requestError && <p role="alert" className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{requestError}</p>}
+            {loadingRequests ? (
+              <p className="py-6 text-center text-sm text-gray-500">Loading request history...</p>
+            ) : requests.length === 0 ? (
               <EmptyState
                 icon={
                   <svg className="w-12 h-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -131,13 +254,13 @@ const MemberRequests = () => {
                         <div className="flex items-center space-x-3">
                           <h4 className="font-semibold text-gray-900">{request.type}</h4>
                           <span className={`px-3 py-1 rounded-full text-xs font-medium border ${getStatusColor(request.color)}`}>
-                            {request.status}
+                            {request.statusLabel}
                           </span>
                         </div>
                         <div className="mt-1 text-sm text-gray-600">
                           <span>Submitted: {request.date}</span>
                           <span className="mx-2">•</span>
-                          <span>Amount: {request.amount}</span>
+                          <span>Amount: {request.amountLabel}</span>
                         </div>
                       </div>
                       <button className="px-4 py-2 text-sm text-indigo-600 hover:bg-indigo-50 rounded-lg">
@@ -173,11 +296,17 @@ const MemberRequests = () => {
           <div className="bg-white rounded-lg shadow-xl max-w-md w-full mx-4">
             <div className="p-6">
               <h3 className="text-xl font-bold text-gray-900 mb-4">{requestType}</h3>
-              <div className="space-y-4">
+              <form onSubmit={handleRequestSubmit} className="space-y-4">
+                {submissionError && <p role="alert" className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">{submissionError}</p>}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">Amount</label>
                   <input
                     type="number"
+                    min="0.01"
+                    step="0.01"
+                    required
+                    value={requestForm.amount}
+                    onChange={(event) => setRequestForm((current) => ({ ...current, amount: event.target.value }))}
                     placeholder="Enter amount"
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg"
                   />
@@ -186,7 +315,7 @@ const MemberRequests = () => {
                   <>
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">Loan Type</label>
-                      <select className="w-full px-3 py-2 border border-gray-300 rounded-lg">
+                      <select value={requestForm.loanType} onChange={(event) => setRequestForm((current) => ({ ...current, loanType: event.target.value }))} className="w-full px-3 py-2 border border-gray-300 rounded-lg">
                         <option>Agricultural Loan</option>
                         <option>Business Loan</option>
                         <option>Emergency Loan</option>
@@ -196,6 +325,9 @@ const MemberRequests = () => {
                       <label className="block text-sm font-medium text-gray-700 mb-2">Purpose</label>
                       <textarea
                         rows={3}
+                        required
+                        value={requestForm.purpose}
+                        onChange={(event) => setRequestForm((current) => ({ ...current, purpose: event.target.value }))}
                         placeholder="Describe the purpose of the loan"
                         className="w-full px-3 py-2 border border-gray-300 rounded-lg"
                       ></textarea>
@@ -207,25 +339,29 @@ const MemberRequests = () => {
                     <label className="block text-sm font-medium text-gray-700 mb-2">Preferred Date</label>
                     <input
                       type="date"
+                      value={requestForm.preferredDate}
+                      onChange={(event) => setRequestForm((current) => ({ ...current, preferredDate: event.target.value }))}
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg"
                     />
                   </div>
                 )}
-              </div>
-              <div className="flex space-x-3 mt-6">
+                <div className="flex space-x-3 pt-2">
                 <button
+                  type="button"
                   onClick={() => setShowRequestModal(false)}
                   className="flex-1 px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300"
                 >
                   Cancel
                 </button>
                 <button
-                  onClick={() => setShowRequestModal(false)}
-                  className="flex-1 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700"
+                  type="submit"
+                  disabled={submitting}
+                  className="flex-1 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-60"
                 >
-                  Submit Request
+                  {submitting ? 'Submitting...' : 'Submit Request'}
                 </button>
               </div>
+              </form>
             </div>
           </div>
         </div>

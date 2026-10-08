@@ -1,16 +1,26 @@
 import React, { useState, useEffect } from 'react';
+import { AlertTriangle, Banknote, Building2, Clock3, FileText, HandCoins, Landmark, Receipt, Scale, ShoppingCart, TrendingDown, TrendingUp, Wallet } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
+import { useMultipleRealtimeSubscriptions } from '../../hooks/useRealtimeSubscription';
+import { useTimeOfDayGreeting } from '../../hooks/useTimeOfDayGreeting';
+import DashboardMetricCard from '../common/DashboardMetricCard';
 
 const BookkeeperDashboard = () => {
+  const greeting = useTimeOfDayGreeting();
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
   const [showTransactionModal, setShowTransactionModal] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [recentTransactions, setRecentTransactions] = useState([]);
   const [dashboardData, setDashboardData] = useState({
     cashOnHand: 0,
     cashInBank: 0,
     todayReceipts: 0,
     todayDisbursements: 0,
-    pendingEntries: 0
+    pendingEntries: 0,
+    totalAssets: 0,
+    totalLiabilities: 0,
+    totalEquity: 0,
+    unpostedTransactions: 0
   });
 
   useEffect(() => {
@@ -43,14 +53,104 @@ const BookkeeperDashboard = () => {
         .select('*', { count: 'exact', head: true })
         .eq('status', 'draft');
 
-      // For cash on hand and cash in bank, we'd normally calculate from chart of accounts
-      // For now, setting to 0 until proper calculation is implemented
+      // Fetch cash on hand from general ledger (Cash account)
+      const { data: cashOnHandData } = await supabase
+        .from('general_ledger')
+        .select('debit_amount, credit_amount, accounts!inner(account_name, account_type)')
+        .eq('accounts.account_type', 'asset')
+        .ilike('accounts.account_name', '%cash%');
+      
+      const cashOnHand = cashOnHandData?.reduce((sum, entry) => 
+        sum + (parseFloat(entry.debit_amount) || 0) - (parseFloat(entry.credit_amount) || 0), 0) || 0;
+
+      // Fetch cash in bank from general ledger (Bank account)
+      const { data: bankData } = await supabase
+        .from('general_ledger')
+        .select('debit_amount, credit_amount, accounts!inner(account_name, account_type)')
+        .eq('accounts.account_type', 'asset')
+        .ilike('accounts.account_name', '%bank%');
+      
+      const cashInBank = bankData?.reduce((sum, entry) => 
+        sum + (parseFloat(entry.debit_amount) || 0) - (parseFloat(entry.credit_amount) || 0), 0) || 0;
+
+      // Fetch total assets, liabilities, and equity from accounts
+      const { data: assetAccounts } = await supabase
+        .from('general_ledger')
+        .select('debit_amount, credit_amount, accounts!inner(account_type)')
+        .eq('accounts.account_type', 'asset');
+      
+      const totalAssets = assetAccounts?.reduce((sum, entry) => 
+        sum + (parseFloat(entry.debit_amount) || 0) - (parseFloat(entry.credit_amount) || 0), 0) || 0;
+
+      const { data: liabilityAccounts } = await supabase
+        .from('general_ledger')
+        .select('debit_amount, credit_amount, accounts!inner(account_type)')
+        .eq('accounts.account_type', 'liability');
+      
+      const totalLiabilities = liabilityAccounts?.reduce((sum, entry) => 
+        sum + (parseFloat(entry.credit_amount) || 0) - (parseFloat(entry.debit_amount) || 0), 0) || 0;
+
+      const { data: equityAccounts } = await supabase
+        .from('general_ledger')
+        .select('debit_amount, credit_amount, accounts!inner(account_type)')
+        .eq('accounts.account_type', 'equity');
+      
+      const totalEquity = equityAccounts?.reduce((sum, entry) => 
+        sum + (parseFloat(entry.credit_amount) || 0) - (parseFloat(entry.debit_amount) || 0), 0) || 0;
+
+      // Count unposted transactions (general journal entries not yet posted to ledger)
+      const { count: unpostedTransactions } = await supabase
+        .from('general_journal')
+        .select('*', { count: 'exact', head: true })
+        .is('posted', false);
+
+      // Fetch recent transactions for the selected date
+      const { data: receipts } = await supabase
+        .from('cash_receipts')
+        .select('id, receipt_date, particulars, cv_number, amount')
+        .eq('receipt_date', selectedDate)
+        .order('created_at', { ascending: false })
+        .limit(5);
+
+      const { data: disbursements } = await supabase
+        .from('cash_disbursements')
+        .select('id, disbursement_date, particulars, cv_number, amount')
+        .eq('disbursement_date', selectedDate)
+        .order('created_at', { ascending: false })
+        .limit(5);
+
+      // Combine and format transactions
+      const transactions = [
+        ...(receipts || []).map(r => ({
+          date: r.receipt_date,
+          particulars: r.particulars,
+          refNo: r.cv_number || 'N/A',
+          type: 'Cash Receipt',
+          amount: parseFloat(r.amount || 0),
+          status: 'Recorded'
+        })),
+        ...(disbursements || []).map(d => ({
+          date: d.disbursement_date,
+          particulars: d.particulars,
+          refNo: d.cv_number || 'N/A',
+          type: 'Cash Disbursement',
+          amount: parseFloat(d.amount || 0),
+          status: 'Recorded'
+        }))
+      ].sort((a, b) => new Date(b.date) - new Date(a.date)).slice(0, 10);
+
+      setRecentTransactions(transactions);
+
       setDashboardData({
-        cashOnHand: 0,
-        cashInBank: 0,
+        cashOnHand,
+        cashInBank,
         todayReceipts,
         todayDisbursements,
-        pendingEntries: pendingEntries || 0
+        pendingEntries: pendingEntries || 0,
+        totalAssets,
+        totalLiabilities,
+        totalEquity,
+        unpostedTransactions: unpostedTransactions || 0
       });
     } catch (error) {
       console.error('Error fetching dashboard data:', error);
@@ -59,26 +159,29 @@ const BookkeeperDashboard = () => {
     }
   };
 
+  useMultipleRealtimeSubscriptions([
+    'cash_receipts',
+    'cash_disbursements',
+    'journal_entries',
+    'journal_entry_lines',
+    'general_journal',
+    'general_ledger',
+    'accounts'
+  ].map((table) => ({ table, onUpdate: fetchDashboardData })), [selectedDate]);
+
   const summaryCards = [
-    { label: 'Cash on Hand', amount: dashboardData.cashOnHand, sublabel: 'Current recorded balance', icon: '💵', color: 'blue' },
-    { label: 'Cash in Bank', amount: dashboardData.cashInBank, sublabel: 'Current recorded balance', icon: '🏦', color: 'green' },
-    { label: "Today's Receipts", amount: dashboardData.todayReceipts, sublabel: 'Total recorded cash receipts today', icon: '📈', color: 'emerald' },
-    { label: "Today's Disbursements", amount: dashboardData.todayDisbursements, sublabel: 'Total recorded cash disbursements today', icon: '📉', color: 'red' },
-    { label: 'Pending Entries', amount: dashboardData.pendingEntries, sublabel: 'Transactions awaiting review/completion', icon: '⏳', color: 'amber', isCount: true }
+    { label: 'Cash on Hand', amount: dashboardData.cashOnHand, detail: 'Current recorded balance', icon: Wallet, tone: 'blue' },
+    { label: 'Cash in Bank', amount: dashboardData.cashInBank, detail: 'Current recorded balance', icon: Landmark, tone: 'green' },
+    { label: "Today's Receipts", amount: dashboardData.todayReceipts, detail: 'Total recorded cash receipts today', icon: TrendingUp, tone: 'emerald' },
+    { label: "Today's Disbursements", amount: dashboardData.todayDisbursements, detail: 'Total recorded cash disbursements today', icon: TrendingDown, tone: 'red' },
+    { label: 'Unposted Entries', amount: dashboardData.unpostedTransactions, detail: 'Journal entries not posted to ledger', icon: Clock3, tone: 'yellow', isCount: true }
   ];
 
-  const recentTransactions = [];
-
-  const getColorClasses = (color) => {
-    const colors = {
-      blue: 'bg-blue-50 border-blue-200',
-      green: 'bg-green-50 border-green-200',
-      emerald: 'bg-emerald-50 border-emerald-200',
-      red: 'bg-red-50 border-red-200',
-      amber: 'bg-amber-50 border-amber-200'
-    };
-    return colors[color] || colors.blue;
-  };
+  const accountingCards = [
+    { label: 'Total Assets', amount: dashboardData.totalAssets, detail: 'From general ledger', icon: Building2, tone: 'blue' },
+    { label: 'Total Liabilities', amount: dashboardData.totalLiabilities, detail: 'From general ledger', icon: Scale, tone: 'red' },
+    { label: 'Total Equity', amount: dashboardData.totalEquity, detail: 'From general ledger', icon: Landmark, tone: 'green' }
+  ];
 
   const changeDate = (days) => {
     const current = new Date(selectedDate);
@@ -90,7 +193,7 @@ const BookkeeperDashboard = () => {
     <div className="space-y-6">
       {/* Welcome Section */}
       <div>
-        <h2 className="text-2xl font-bold text-gray-900">Good morning, Bookkeeper</h2>
+        <h2 className="text-2xl font-bold text-gray-900">{greeting}, Bookkeeper</h2>
         <p className="text-gray-600 mt-1">Here's the cooperative's bookkeeping activity for today.</p>
         
         {/* Date Selector */}
@@ -130,17 +233,15 @@ const BookkeeperDashboard = () => {
 
       {/* Financial Summary Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
-        {summaryCards.map((card, idx) => (
-          <div key={idx} className={`rounded-lg border p-4 ${getColorClasses(card.color)}`}>
-            <div className="flex items-start justify-between mb-2">
-              <p className="text-xs font-medium text-gray-600 uppercase">{card.label}</p>
-              <span className="text-2xl">{card.icon}</span>
-            </div>
-            <p className="text-2xl font-bold text-gray-900">
-              {card.isCount ? card.amount.toLocaleString() : `₱${card.amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
-            </p>
-            <p className="text-xs text-gray-500 mt-1">{card.sublabel}</p>
-          </div>
+        {summaryCards.map((card) => (
+          <DashboardMetricCard
+            key={card.label}
+            label={card.label}
+            value={card.isCount ? card.amount.toLocaleString() : `₱${card.amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
+            detail={card.detail}
+            icon={card.icon}
+            tone={card.tone}
+          />
         ))}
       </div>
 
@@ -181,6 +282,42 @@ const BookkeeperDashboard = () => {
             </svg>
             <span className="text-sm font-medium text-gray-900">View Today's Book</span>
           </button>
+        </div>
+      </div>
+
+      {/* Accounting Balances */}
+      <div className="bg-white rounded-lg border border-gray-200 p-6">
+        <h3 className="text-lg font-semibold text-gray-900 mb-4">Accounting Equation</h3>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          {accountingCards.map((card) => (
+            <DashboardMetricCard
+              key={card.label}
+              label={card.label}
+              value={`₱${card.amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
+              detail={card.detail}
+              icon={card.icon}
+              tone={card.tone}
+            />
+          ))}
+        </div>
+        <div className="mt-4 p-4 bg-gray-50 rounded-lg">
+          <p className="text-sm text-gray-600 text-center">
+            <span className="font-semibold">Accounting Equation Check:</span> Assets = Liabilities + Equity
+          </p>
+          <p className="text-lg font-bold text-center mt-2">
+            ₱{dashboardData.totalAssets.toLocaleString('en-PH', { minimumFractionDigits: 2 })} = 
+            ₱{dashboardData.totalLiabilities.toLocaleString('en-PH', { minimumFractionDigits: 2 })} + 
+            ₱{dashboardData.totalEquity.toLocaleString('en-PH', { minimumFractionDigits: 2 })}
+          </p>
+          <p className={`text-sm text-center mt-2 font-medium ${
+            Math.abs(dashboardData.totalAssets - (dashboardData.totalLiabilities + dashboardData.totalEquity)) < 0.01
+              ? 'text-green-600' 
+              : 'text-red-600'
+          }`}>
+            {Math.abs(dashboardData.totalAssets - (dashboardData.totalLiabilities + dashboardData.totalEquity)) < 0.01
+              ? 'Books are balanced'
+              : <><AlertTriangle aria-hidden="true" className="mr-1 inline size-4" />Books are not balanced - please review entries</>}
+          </p>
         </div>
       </div>
 
@@ -274,18 +411,18 @@ const BookkeeperDashboard = () => {
             <div className="p-6">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {[
-                  { title: 'Cash Receipt', desc: 'Money received by the cooperative', icon: '💵', color: 'green' },
-                  { title: 'Cash Disbursement', desc: 'Money paid out by the cooperative', icon: '💸', color: 'red' },
-                  { title: 'Sales', desc: 'Record a sale or income-generating transaction', icon: '🛒', color: 'blue' },
-                  { title: 'Loan Payment', desc: 'Record payment received from a borrower', icon: '💰', color: 'purple' },
-                  { title: 'Savings / Deposit', desc: 'Record savings or time-deposit transactions', icon: '🏦', color: 'teal' },
-                  { title: 'Other Transaction', desc: 'For transactions that don\'t fall under common categories', icon: '📋', color: 'gray' }
+                  { title: 'Cash Receipt', desc: 'Money received by the cooperative', icon: Receipt },
+                  { title: 'Cash Disbursement', desc: 'Money paid out by the cooperative', icon: Banknote },
+                  { title: 'Sales', desc: 'Record a sale or income-generating transaction', icon: ShoppingCart },
+                  { title: 'Loan Payment', desc: 'Record payment received from a borrower', icon: HandCoins },
+                  { title: 'Savings / Deposit', desc: 'Record savings or time-deposit transactions', icon: Landmark },
+                  { title: 'Other Transaction', desc: 'For transactions that don\'t fall under common categories', icon: FileText }
                 ].map((type, idx) => (
                   <button
                     key={idx}
                     className="flex items-start space-x-4 p-4 border-2 border-gray-200 rounded-lg hover:border-purple-300 hover:bg-purple-50 transition-all text-left"
                   >
-                    <span className="text-3xl">{type.icon}</span>
+                    <type.icon aria-hidden="true" className="size-7 shrink-0 text-purple-700" />
                     <div className="flex-1">
                       <p className="font-semibold text-gray-900">{type.title}</p>
                       <p className="text-sm text-gray-600 mt-1">{type.desc}</p>

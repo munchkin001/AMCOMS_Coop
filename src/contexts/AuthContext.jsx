@@ -1,5 +1,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
+import { getAppUrl } from '../lib/appUrl';
+import { useRealtimeSubscription } from '../hooks/useRealtimeSubscription';
 
 const AuthContext = createContext({});
 
@@ -17,6 +19,78 @@ export const AuthProvider = ({ children }) => {
   const [loading, setLoading] = useState(true);
   const [session, setSession] = useState(null);
   const [authError, setAuthError] = useState(null);
+
+  const fetchStaffProfile = async (userId) => {
+    try {
+      setAuthError(null);
+      const { data, error } = await supabase
+        .from('staff')
+        .select('id, email, full_name, role, user_id, is_active, member_id, must_change_password, created_at')
+        .eq('user_id', userId)
+        .maybeSingle();
+      if (error) throw error;
+
+      if (!data) {
+        setAuthError('No staff profile found. Please contact the administrator.');
+        setStaff(null);
+        setLoading(false);
+        return null;
+      }
+
+      console.log('Staff data loaded:', { email: data.email, role: data.role, is_active: data.is_active });
+
+      if (!data.is_active) {
+        setAuthError('Your account has been deactivated. Please contact the administrator.');
+        setStaff(null);
+        setLoading(false);
+        return null;
+      }
+
+      const validRoles = ['chairman', 'manager', 'treasurer', 'bookkeeper', 'inventory', 'member'];
+      if (!validRoles.includes(data.role)) {
+        console.error('Invalid role:', data.role);
+        setAuthError('Invalid user role. Please contact the administrator.');
+        setStaff(null);
+        setLoading(false);
+        return null;
+      }
+
+      let staffProfile = { ...data };
+      if (data.role === 'member') {
+        if (!data.member_id) {
+          setAuthError('This account is not linked to an approved member. Contact the cooperative office.');
+          setStaff(null);
+          setLoading(false);
+          return null;
+        }
+        const { data: member, error: memberError } = await supabase
+          .from('members')
+          .select('member_number, membership_status, archived_at')
+          .eq('id', data.member_id)
+          .maybeSingle();
+        if (memberError) throw memberError;
+        if (!member || member.membership_status !== 'active' || member.archived_at) {
+          setAuthError('This membership is not active. Contact the cooperative office.');
+          setStaff(null);
+          setLoading(false);
+          return null;
+        }
+        staffProfile = { ...staffProfile, ...member };
+      }
+
+      console.log('Staff profile loaded successfully');
+      setStaff(staffProfile);
+      setAuthError(null);
+      setLoading(false);
+      return data;
+    } catch (error) {
+      console.error('Unexpected error fetching staff profile:', error);
+      setAuthError('Failed to load user profile. Please try again.');
+      setStaff(null);
+      setLoading(false);
+      return null;
+    }
+  };
 
   useEffect(() => {
     // Get initial session
@@ -47,56 +121,13 @@ export const AuthProvider = ({ children }) => {
     return () => subscription.unsubscribe();
   }, []);
 
-  const fetchStaffProfile = async (userId) => {
-    try {
-      setAuthError(null);
-      
-      const { data, error } = await supabase
-        .from('staff')
-        .select('*')
-        .eq('user_id', userId)
-        .single();
-
-      if (error) {
-        // If no staff record found, user might not be authorized
-        if (error.code === 'PGRST116') {
-          setAuthError('No staff profile found. Please contact the administrator.');
-          console.error('Staff profile not found for user:', userId);
-        } else {
-          throw error;
-        }
-        setStaff(null);
-        return null;
-      }
-
-      // Validate staff record
-      if (!data.is_active) {
-        setAuthError('Your account has been deactivated. Please contact the administrator.');
-        setStaff(null);
-        return null;
-      }
-
-      // Validate role
-      const validRoles = ['chairman', 'manager', 'treasurer', 'bookkeeper', 'inventory', 'member'];
-      if (!validRoles.includes(data.role)) {
-        setAuthError('Invalid user role. Please contact the administrator.');
-        setStaff(null);
-        return null;
-      }
-
-      setStaff(data);
-      setAuthError(null);
-      return data;
-      
-    } catch (error) {
-      console.error('Error fetching staff profile:', error.message);
-      setAuthError('Failed to load user profile. Please try again.');
-      setStaff(null);
-      return null;
-    } finally {
-      setLoading(false);
-    }
-  };
+  useRealtimeSubscription(
+    'staff',
+    () => user?.id && fetchStaffProfile(user.id),
+    user?.id ? { column: 'user_id', value: user.id } : null,
+    [user?.id],
+    Boolean(user?.id)
+  );
 
   const signIn = async (email, password) => {
     try {
@@ -117,9 +148,11 @@ export const AuthProvider = ({ children }) => {
           await supabase.auth.signOut();
           return { 
             data: null, 
-            error: new Error(authError || 'Unable to load user profile')
+            error: new Error('Unable to load user profile')
           };
         }
+
+        await logAuthEvent('sign in');
       }
 
       return { data, error: null };
@@ -149,6 +182,7 @@ export const AuthProvider = ({ children }) => {
   const signOut = async () => {
     try {
       setAuthError(null);
+      await logAuthEvent('sign out');
       const { error } = await supabase.auth.signOut();
       if (error) throw error;
       setStaff(null);
@@ -161,11 +195,18 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  const logAuthEvent = async (event) => {
+    const { error } = await supabase.rpc('record_auth_event', { p_event: event });
+    if (error) {
+      console.error(`Failed to record ${event} audit event:`, error);
+    }
+  };
+
   const resetPassword = async (email) => {
     try {
       setAuthError(null);
       const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: `${window.location.origin}/reset-password`,
+        redirectTo: `${getAppUrl()}/reset-password`,
       });
       if (error) throw error;
       return { error: null };
@@ -178,6 +219,15 @@ export const AuthProvider = ({ children }) => {
   const updatePassword = async (newPassword) => {
     try {
       setAuthError(null);
+      if (staff?.role === 'member' && staff.must_change_password) {
+        const { error } = await supabase.functions.invoke('member-account', {
+          body: { action: 'complete-password-setup', password: newPassword }
+        });
+        if (error) throw error;
+        setStaff((current) => current ? { ...current, must_change_password: false } : current);
+        return { error: null, activated: true };
+      }
+
       const { error } = await supabase.auth.updateUser({
         password: newPassword,
       });

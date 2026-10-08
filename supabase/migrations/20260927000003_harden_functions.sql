@@ -62,8 +62,6 @@ BEGIN
 
   RAISE NOTICE 'Pinned search_path on % SECURITY DEFINER function(s).', fixed_count;
 END $$;
-
-
 -- ============================================
 -- 2. REPLACE generate_reference_number
 -- ============================================
@@ -79,11 +77,8 @@ CREATE TABLE IF NOT EXISTS public.ref_counters (
   current_value BIGINT NOT NULL DEFAULT 0,
   updated_at    TIMESTAMPTZ NOT NULL DEFAULT now()
 );
-
 COMMENT ON TABLE public.ref_counters IS
   'Gapless, concurrency-safe source for AMCOMS document numbers (OR, DV, JE, LN, ...).';
-
-
 CREATE OR REPLACE FUNCTION public.generate_reference_number(
   prefix TEXT,
   table_name TEXT DEFAULT NULL,
@@ -115,11 +110,8 @@ BEGIN
   RETURN prefix || '-' || year || '-' || lpad(next_value::TEXT, 6, '0');
 END;
 $$;
-
 COMMENT ON FUNCTION public.generate_reference_number(TEXT, TEXT, TEXT) IS
   'Returns PREFIX-YYYY-NNNNNN from the gapless ref_counters table. table_name and column_name are accepted for call compatibility and are ignored.';
-
-
 -- ============================================
 -- 3. FIX get_daily_cash_position
 -- ============================================
@@ -151,11 +143,8 @@ AS $$
                 FROM public.cash_disbursements cd
                 WHERE cd.disbursement_date = p_date), 0) AS net_cash_flow;
 $$;
-
 COMMENT ON FUNCTION public.get_daily_cash_position(DATE) IS
   'Daily cash receipts, disbursements and net flow. Each side is summed independently; the previous implementation cross-joined and multiplied both totals.';
-
-
 -- ============================================
 -- 4. PIN search_path ON audit_trigger EXPLICITLY
 -- ============================================
@@ -208,11 +197,8 @@ BEGIN
   RETURN COALESCE(NEW, OLD);
 END;
 $$;
-
 COMMENT ON FUNCTION public.audit_trigger() IS
   'Writes an immutable row to public.audit_logs for every INSERT/UPDATE/DELETE. Runs as owner, so it is unaffected by the removal of the client INSERT policy.';
-
-
 -- ============================================
 -- 5. FLAG get_next_loan_payment
 -- ============================================
@@ -222,8 +208,6 @@ COMMENT ON FUNCTION public.audit_trigger() IS
 -- against loan_amortization_schedules in the transaction-engine stage.
 COMMENT ON FUNCTION public.get_next_loan_payment(UUID) IS
   'WARNING: the due date is assumed to be CURRENT_DATE + 1 month, not read from an amortisation schedule. Replace when loan_amortization_schedules exists.';
-
-
 -- ============================================
 -- 6. VERIFICATION
 -- ============================================

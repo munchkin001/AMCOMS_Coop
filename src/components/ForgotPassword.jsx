@@ -1,14 +1,12 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
+import { getAppUrl } from '../lib/appUrl';
 
 const ForgotPassword = () => {
   const [email, setEmail] = useState('');
   const [submitted, setSubmitted] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const navigate = useNavigate();
-
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
@@ -16,7 +14,7 @@ const ForgotPassword = () => {
 
     try {
       const { error: resetError } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: `${window.location.origin}/reset-password`,
+        redirectTo: `${getAppUrl()}/reset-password`,
       });
 
       if (resetError) throw resetError;
@@ -24,7 +22,7 @@ const ForgotPassword = () => {
       setSubmitted(true);
     } catch (err) {
       console.error('Password reset error:', err);
-      setError(err.message || 'Failed to send reset email. Please try again.');
+      setError('We could not process that request right now. Please try again later.');
     } finally {
       setLoading(false);
     }
@@ -47,8 +45,7 @@ const ForgotPassword = () => {
             </h2>
 
             <p className="text-gray-600 text-center mb-8">
-              We've sent password reset instructions to <strong>{email}</strong>. 
-              Please check your inbox and follow the link to reset your password.
+              If an account matches that email, password reset instructions will arrive shortly. Check your inbox and follow the secure link.
             </p>
 
             <a 
@@ -84,28 +81,14 @@ const ForgotPassword = () => {
           {/* Form */}
           <div className="px-8 py-8">
             <p className="text-gray-600 text-sm mb-6 text-center">
-              For security reasons, password resets must be done through the cooperative administrator. 
-              Please contact the office for assistance.
+              Enter the email address registered with the cooperative. We will send a secure reset link if an account matches.
             </p>
-
-            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
-              <h3 className="font-semibold text-gray-900 mb-2">Contact Information</h3>
-              <div className="space-y-2 text-sm text-gray-700">
-                <p>📞 +63 XXX XXX XXXX</p>
-                <p>✉️ info@agayayanmpc.coop</p>
-                <p>🏢 Cooperative Office, Agay-Ayan</p>
-              </div>
-            </div>
 
             {/* Alternative: Email Recovery (Optional) */}
             <div className="border-t border-gray-200 pt-6">
-              <p className="text-sm text-gray-600 mb-4 text-center">
-                Or request a password reset link via email:
-              </p>
-              
               <form onSubmit={handleSubmit}>
                 {error && (
-                  <div className="mb-4 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">
+                  <div role="alert" className="mb-4 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">
                     {error}
                   </div>
                 )}

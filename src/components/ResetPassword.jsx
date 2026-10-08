@@ -5,7 +5,7 @@ import { supabase } from '../lib/supabase';
 
 const ResetPassword = () => {
   const navigate = useNavigate();
-  const { updatePassword } = useAuth();
+  const { updatePassword, staff, loading: authLoading } = useAuth();
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -68,17 +68,21 @@ const ResetPassword = () => {
     setLoading(true);
 
     try {
-      const { error: updateError } = await updatePassword(newPassword);
+      const { error: updateError, activated } = await updatePassword(newPassword);
 
       if (updateError) {
         throw updateError;
       }
+      if (!activated) {
+        const { error: auditError } = await supabase.rpc('record_auth_event', { p_event: 'password reset completed' });
+        if (auditError) console.error('Password reset audit event could not be recorded.');
+      }
 
       setSuccess(true);
 
-      // Redirect to portal selection after 2 seconds
+      // Let the auth profile refresh complete before navigating.
       setTimeout(() => {
-        navigate('/portal-selection');
+        navigate(staff?.role === 'member' ? '/login/member' : '/portal-selection', { replace: true });
       }, 2000);
 
     } catch (err) {
@@ -106,7 +110,7 @@ const ResetPassword = () => {
             </h2>
 
             <p className="text-gray-600 text-center mb-8">
-              Your password has been successfully updated. You will be redirected to the login page...
+              Your password has been successfully updated. You will be redirected to sign in...
             </p>
 
             <div className="flex justify-center">
@@ -164,8 +168,8 @@ const ResetPassword = () => {
               </div>
             </div>
 
-            <h1 className="text-3xl font-bold mb-2">Reset Password</h1>
-            <p className="text-blue-200 text-sm">Create a new secure password</p>
+            <h1 className="text-3xl font-bold mb-2">{staff?.must_change_password ? 'Activate your AMCOMS account' : 'Reset Password'}</h1>
+            <p className="text-blue-200 text-sm">{staff?.must_change_password ? 'Your member account is ready. Create your password to continue.' : 'Create a new secure password'}</p>
           </div>
 
           {/* Form */}
@@ -175,6 +179,13 @@ const ResetPassword = () => {
               {error && (
                 <div className="mb-6 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">
                   {error}
+                </div>
+              )}
+
+              {staff?.role === 'member' && staff.member_number && (
+                <div className="mb-5 rounded-lg border border-emerald-200 bg-emerald-50 p-4 text-center">
+                  <p className="text-sm text-emerald-900">Member ID</p>
+                  <p className="mt-1 text-lg font-semibold text-emerald-950">{staff.member_number}</p>
                 </div>
               )}
 
@@ -243,7 +254,7 @@ const ResetPassword = () => {
               {/* Submit Button */}
               <button
                 type="submit"
-                disabled={loading}
+                disabled={loading || authLoading}
                 className="w-full bg-blue-800 text-white py-3 rounded-lg font-semibold hover:bg-blue-900 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {loading ? (

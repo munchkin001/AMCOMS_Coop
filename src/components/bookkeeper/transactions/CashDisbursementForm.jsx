@@ -24,6 +24,7 @@ const CashDisbursementForm = ({ onSave, onCancel, transaction = null }) => {
 
   const [errors, setErrors] = useState({});
   const [isDraft, setIsDraft] = useState(false);
+  const [saving, setSaving] = useState(false);
 
   // All account categories from the physical Cash Disbursement Book
   const accountCategories = [
@@ -129,15 +130,14 @@ const CashDisbursementForm = ({ onSave, onCancel, transaction = null }) => {
   const validateForm = (asDraft = false) => {
     const newErrors = {};
 
-    if (!asDraft) {
-      // Full validation for final submission
-      if (!formData.date) newErrors.date = 'Date is required';
-      if (!formData.particulars.trim()) newErrors.particulars = 'Particulars are required';
-      if (!formData.repCvNumber.trim()) newErrors.repCvNumber = 'Rep./CV # is required';
-      if (!formData.paymentAmount || parseFloat(formData.paymentAmount) <= 0) {
-        newErrors.paymentAmount = 'Valid payment amount is required';
-      }
+    if (!formData.date) newErrors.date = 'Date is required';
+    if (!formData.particulars.trim()) newErrors.particulars = 'Particulars are required';
+    if (!formData.repCvNumber.trim()) newErrors.repCvNumber = 'Rep./CV # is required';
+    if (!formData.paymentAmount || parseFloat(formData.paymentAmount) <= 0) {
+      newErrors.paymentAmount = 'Valid payment amount is required';
+    }
 
+    if (!asDraft) {
       // Validate allocations
       const validAllocations = formData.accountAllocations.filter(
         a => a.account && a.amount && parseFloat(a.amount) > 0
@@ -154,17 +154,16 @@ const CashDisbursementForm = ({ onSave, onCancel, transaction = null }) => {
       if (Math.abs(allocationTotal - paymentAmount) > 0.01) {
         newErrors.allocations = `Allocation total (₱${allocationTotal.toFixed(2)}) must equal payment amount (₱${paymentAmount.toFixed(2)})`;
       }
-    } else {
-      // Minimal validation for draft
-      if (!formData.date) newErrors.date = 'Date is required';
     }
 
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
 
-  const handleSubmit = (asDraft = false) => {
+  const handleSubmit = async (event, asDraft = false) => {
+    event.preventDefault();
     setIsDraft(asDraft);
+    setErrors((current) => ({ ...current, save: '' }));
     
     if (validateForm(asDraft)) {
       // Filter out empty allocations
@@ -180,7 +179,14 @@ const CashDisbursementForm = ({ onSave, onCancel, transaction = null }) => {
         submittedAt: new Date().toISOString()
       };
 
-      onSave(submissionData);
+      setSaving(true);
+      try {
+        await onSave(submissionData);
+      } catch (error) {
+        setErrors((current) => ({ ...current, save: error.message || 'The disbursement could not be saved. Please try again.' }));
+      } finally {
+        setSaving(false);
+      }
     }
   };
 
@@ -190,7 +196,8 @@ const CashDisbursementForm = ({ onSave, onCancel, transaction = null }) => {
 
   return (
     <div className="max-w-5xl mx-auto">
-      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+      <form onSubmit={(event) => handleSubmit(event, event.nativeEvent.submitter?.value !== 'recorded')} className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+        {errors.save && <p role="alert" className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{errors.save}</p>}
         <h2 className="text-xl font-semibold text-gray-900 mb-6">
           Cash Disbursement Entry
         </h2>
@@ -477,18 +484,20 @@ const CashDisbursementForm = ({ onSave, onCancel, transaction = null }) => {
         {/* Action Buttons */}
         <div className="flex flex-col sm:flex-row gap-3 pt-4 border-t border-gray-200">
           <button
-            type="button"
-            onClick={() => handleSubmit(true)}
-            className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+            type="submit"
+            value="draft"
+            disabled={saving}
+            className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-60"
           >
-            Save as Draft
+            {saving && isDraft ? 'Saving...' : 'Save as Draft'}
           </button>
           <button
-            type="button"
-            onClick={() => handleSubmit(false)}
-            className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+            type="submit"
+            value="recorded"
+            disabled={saving}
+            className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-60"
           >
-            Record Disbursement
+            {saving && !isDraft ? 'Recording...' : 'Record Disbursement'}
           </button>
           <button
             type="button"
@@ -498,7 +507,7 @@ const CashDisbursementForm = ({ onSave, onCancel, transaction = null }) => {
             Cancel
           </button>
         </div>
-      </div>
+      </form>
     </div>
   );
 };

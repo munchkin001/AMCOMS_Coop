@@ -5,7 +5,7 @@ import { useAuth } from '../contexts/AuthContext';
 const Login = () => {
   const { portalType } = useParams(); // Get portal type from URL
   const navigate = useNavigate();
-  const { signIn, staff } = useAuth();
+  const { signIn, staff, user } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -17,75 +17,35 @@ const Login = () => {
     name: 'AMCOMS',
     subtitle: 'Login Portal',
     cooperative: 'Agay-ayan Multi-Purpose Cooperative',
-    gradient: 'from-blue-800 to-blue-900',
-    buttonColor: 'bg-blue-800 hover:bg-blue-900',
-    inputFocus: 'focus:ring-blue-500 focus:border-blue-500',
-    linkColor: 'text-blue-600 hover:text-blue-800',
-    backLinkHover: 'hover:text-blue-600'
+    gradient: 'from-blue-950 to-blue-800',
+    buttonColor: 'bg-[#c49a45] hover:bg-[#b18835]',
+    inputFocus: 'focus:ring-[#c49a45] focus:border-[#c49a45]',
+    linkColor: 'text-blue-800 hover:text-amber-700',
+    backLinkHover: 'hover:text-amber-700'
   });
 
   useEffect(() => {
     // Configure the login page based on selected portal
     const configs = {
-      'chairman': {
+      'staff': {
         name: 'AMCOMS',
-        subtitle: 'Chairman Portal',
+        subtitle: 'Staff Portal',
         cooperative: 'Agay-ayan Multi-Purpose Cooperative',
-        gradient: 'from-blue-800 to-blue-900',
-        buttonColor: 'bg-blue-800 hover:bg-blue-900',
-        inputFocus: 'focus:ring-blue-500 focus:border-blue-500',
-        linkColor: 'text-blue-600 hover:text-blue-800',
-        backLinkHover: 'hover:text-blue-600'
-      },
-      'manager': {
-        name: 'AMCOMS',
-        subtitle: 'Manager Portal',
-        cooperative: 'Agay-ayan Multi-Purpose Cooperative',
-        gradient: 'from-green-700 to-green-800',
-        buttonColor: 'bg-green-700 hover:bg-green-800',
-        inputFocus: 'focus:ring-green-500 focus:border-green-500',
-        linkColor: 'text-green-600 hover:text-green-800',
-        backLinkHover: 'hover:text-green-600'
-      },
-      'treasurer': {
-        name: 'AMCOMS',
-        subtitle: 'Treasurer Portal',
-        cooperative: 'Agay-ayan Multi-Purpose Cooperative',
-        gradient: 'from-teal-700 to-teal-800',
-        buttonColor: 'bg-teal-700 hover:bg-teal-800',
-        inputFocus: 'focus:ring-teal-500 focus:border-teal-500',
-        linkColor: 'text-teal-600 hover:text-teal-800',
-        backLinkHover: 'hover:text-teal-600'
-      },
-      'bookkeeper': {
-        name: 'AMCOMS',
-        subtitle: 'Bookkeeper Portal',
-        cooperative: 'Agay-ayan Multi-Purpose Cooperative',
-        gradient: 'from-purple-700 to-purple-800',
-        buttonColor: 'bg-purple-700 hover:bg-purple-800',
-        inputFocus: 'focus:ring-purple-500 focus:border-purple-500',
-        linkColor: 'text-purple-600 hover:text-purple-800',
-        backLinkHover: 'hover:text-purple-600'
-      },
-      'inventory': {
-        name: 'AMCOMS',
-        subtitle: 'Inventory Staff Portal',
-        cooperative: 'Agay-ayan Multi-Purpose Cooperative',
-        gradient: 'from-orange-700 to-orange-800',
-        buttonColor: 'bg-orange-700 hover:bg-orange-800',
-        inputFocus: 'focus:ring-orange-500 focus:border-orange-500',
-        linkColor: 'text-orange-600 hover:text-orange-800',
-        backLinkHover: 'hover:text-orange-600'
+        gradient: 'from-blue-950 to-blue-800',
+        buttonColor: 'bg-[#c49a45] hover:bg-[#b18835]',
+        inputFocus: 'focus:ring-[#c49a45] focus:border-[#c49a45]',
+        linkColor: 'text-blue-800 hover:text-amber-700',
+        backLinkHover: 'hover:text-amber-700'
       },
       'member': {
         name: 'AMCOMS',
         subtitle: 'Member Portal',
         cooperative: 'Agay-ayan Multi-Purpose Cooperative',
-        gradient: 'from-green-800 to-green-900',
-        buttonColor: 'bg-green-800 hover:bg-green-900',
-        inputFocus: 'focus:ring-green-500 focus:border-green-500',
-        linkColor: 'text-green-600 hover:text-green-800',
-        backLinkHover: 'hover:text-green-600'
+        gradient: 'from-[#0d3b2d] via-[#146344] to-[#2a8057]',
+        buttonColor: 'bg-[#c49a45] hover:bg-[#b18835]',
+        inputFocus: 'focus:ring-[#c49a45] focus:border-[#c49a45]',
+        linkColor: 'text-emerald-800 hover:text-amber-700',
+        backLinkHover: 'hover:text-amber-700'
       }
     };
 
@@ -104,6 +64,45 @@ const Login = () => {
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
   }, [portalType, navigate]);
+
+  // Auto-redirect when staff profile loads after login
+  useEffect(() => {
+    // Only act if we're in loading state and have both user and staff
+    if (!user || !staff || !loading) {
+      return;
+    }
+
+    console.log('Staff profile loaded during login, validating and redirecting...');
+    const userRole = staff.role;
+    
+    // Validate portal access
+    const staffRoles = ['chairman', 'manager', 'treasurer', 'bookkeeper', 'inventory'];
+    const isStaffUser = staffRoles.includes(userRole);
+    const isMemberUser = userRole === 'member';
+    
+    // Check if user is accessing the correct portal type
+    if (portalType === 'staff' && !isStaffUser) {
+      setError('You do not have access to the Staff Portal. Please use the Member Portal.');
+      setLoading(false);
+      return;
+    }
+    
+    if (portalType === 'member' && !isMemberUser) {
+      setError('You do not have access to the Member Portal. Please use the Staff Portal.');
+      setLoading(false);
+      return;
+    }
+
+    if (isMemberUser && staff.must_change_password) {
+      navigate('/reset-password', { replace: true });
+      return;
+    }
+
+    // Valid access - redirect to portal
+    console.log('Valid access confirmed for role:', userRole, '- redirecting...');
+    redirectToPortal(userRole);
+    // Note: Keep loading=true until navigation completes
+  }, [user, staff, loading, portalType]);
 
   const handleLogin = async (e) => {
     e.preventDefault();
@@ -131,14 +130,22 @@ const Login = () => {
     setLoading(true);
 
     try {
+      console.log('Attempting login for:', email);
+      
       // Authenticate with Supabase
       const { data, error: signInError } = await signIn(email, password);
 
       if (signInError) {
+        console.error('Sign in error:', signInError.message);
+        
         if (signInError.message.includes('Invalid login credentials')) {
           setError('Invalid email or password. Please try again.');
         } else if (signInError.message.includes('Email not confirmed')) {
           setError('Please verify your email address before logging in.');
+        } else if (signInError.message.includes('Unable to load user profile')) {
+          setError('Unable to load user profile. Please contact the administrator.');
+        } else if (signInError.message.includes('No staff profile found')) {
+          setError('No staff profile found. Please contact the administrator.');
         } else {
           setError(signInError.message || 'An error occurred. Please try again.');
         }
@@ -146,38 +153,20 @@ const Login = () => {
         return;
       }
 
-      // Wait a moment for staff profile to load
-      await new Promise(resolve => setTimeout(resolve, 500));
-
-      // Get the staff data from context (it should be loaded by AuthContext)
-      // We'll check if the user has access to the selected portal
-      if (staff) {
-        // Normalize role comparison (handle both 'role' and 'position' fields)
-        const userRole = staff.role || staff.position;
-        
-        // Check if user's role matches the selected portal
-        if (portalType && userRole !== portalType) {
-          setError('You do not have access to this portal. Please contact the administrator.');
-          setLoading(false);
-          return;
-        }
-
-        // Store remember me preference
-        if (rememberMe) {
-          localStorage.setItem('amcoms_remember', 'true');
-        } else {
-          localStorage.removeItem('amcoms_remember');
-        }
-
-        // Redirect to the appropriate portal
-        redirectToPortal(userRole);
+      // Signin successful - the useEffect will handle the redirect when staff loads
+      console.log('Sign in successful, staff profile should load automatically');
+      
+      // Store remember me preference
+      if (rememberMe) {
+        localStorage.setItem('amcoms_remember', 'true');
       } else {
-        setError('Unable to load user profile. Please try again.');
-        setLoading(false);
+        localStorage.removeItem('amcoms_remember');
       }
+
+      // Don't set loading to false here - let the useEffect handle it after redirect
       
     } catch (err) {
-      console.error('Login error:', err);
+      console.error('Unexpected login error:', err);
       setError('An unexpected error occurred. Please try again.');
       setLoading(false);
     }
@@ -185,28 +174,32 @@ const Login = () => {
 
   // Redirect to appropriate portal based on role
   const redirectToPortal = (role) => {
-    const portals = {
-      'chairman': '/chairman-portal',
-      'manager': '/manager-portal',
-      'treasurer': '/treasurer-portal',
-      'bookkeeper': '/bookkeeper-portal',
-      'inventory': '/inventory-portal',
-      'member': '/member-portal'
-    };
+    const staffRoles = ['chairman', 'manager', 'treasurer', 'bookkeeper', 'inventory'];
     
-    navigate(portals[role] || '/');
+    console.log('Redirecting user with role:', role);
+    
+    if (staffRoles.includes(role)) {
+      console.log('Navigating to Staff Portal at /staff');
+      navigate('/staff', { replace: true });
+    } else if (role === 'member') {
+      console.log('Navigating to Member Portal at /member');
+      navigate('/member', { replace: true });
+    } else {
+      console.warn('Unknown role, redirecting to home');
+      navigate('/', { replace: true });
+    }
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 flex items-center justify-center p-4">
+    <div className="min-h-screen bg-[radial-gradient(ellipse_at_top,_#e7efe8_0%,_#f5f6f3_62%)] flex items-center justify-center p-4">
       <div className="w-full max-w-md">
         {/* Login Card */}
-        <div className="bg-white rounded-2xl shadow-xl overflow-hidden">
+        <div className="overflow-hidden rounded-xl border border-emerald-100 bg-white shadow-[0_24px_60px_rgba(16,44,32,0.14)]">
           {/* Header */}
-          <div className={`bg-gradient-to-br ${portalConfig.gradient} text-white px-8 py-12 text-center`}>
+          <div className={`border-b-4 border-[#c49a45] bg-gradient-to-br ${portalConfig.gradient} px-8 py-10 text-center text-white sm:py-12`}>
             {/* Logo */}
             <div className="mb-4">
-              <div className="w-20 h-20 bg-white bg-opacity-20 backdrop-blur-sm rounded-full mx-auto flex items-center justify-center border-2 border-white border-opacity-30 p-2">
+              <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-full border border-[#e9c46a]/70 bg-white/10 p-2 shadow-[0_0_24px_rgba(233,196,106,0.18)]">
                 <img 
                   src="/LOGO.png" 
                   alt="Agay-ayan MPC Logo" 
@@ -217,16 +210,16 @@ const Login = () => {
 
             {/* System Name */}
             <h1 className="text-3xl font-bold mb-2">{portalConfig.name}</h1>
-            <p className="text-blue-200 text-sm font-medium mb-1">{portalConfig.subtitle}</p>
-            <p className="text-blue-300 text-xs">{portalConfig.cooperative}</p>
+            <p className="mb-1 text-sm font-medium text-[#f0d995]">{portalConfig.subtitle}</p>
+            <p className="text-xs text-white/75">{portalConfig.cooperative}</p>
           </div>
 
           {/* Form */}
-          <div className="px-8 py-8">
+          <div className="px-6 py-7 sm:px-8 sm:py-8">
             <form onSubmit={handleLogin}>
               {/* Error Message */}
               {error && (
-                <div className="mb-6 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">
+                <div role="alert" className="mb-6 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
                   {error}
                 </div>
               )}
@@ -239,6 +232,7 @@ const Login = () => {
                 <input
                   type="email"
                   id="email"
+                  autoComplete="username"
                   value={email}
                   onChange={(e) => {
                     setEmail(e.target.value);
@@ -247,7 +241,7 @@ const Login = () => {
                     }
                   }}
                   placeholder="Enter your email"
-                  className={`w-full px-4 py-3 border-2 ${fieldErrors.email ? 'border-red-300' : 'border-gray-200'} rounded-lg focus:outline-none focus:ring-2 ${portalConfig.inputFocus} transition-all`}
+                  className={`w-full rounded-lg border ${fieldErrors.email ? 'border-red-300' : 'border-gray-200'} px-4 py-3 transition-all focus:outline-none focus:ring-2 ${portalConfig.inputFocus}`}
                   required
                   disabled={loading}
                 />
@@ -270,6 +264,7 @@ const Login = () => {
                   <input
                     type={showPassword ? "text" : "password"}
                     id="password"
+                    autoComplete="current-password"
                     value={password}
                     onChange={(e) => {
                       setPassword(e.target.value);
@@ -278,7 +273,7 @@ const Login = () => {
                       }
                     }}
                     placeholder="Enter your password"
-                    className={`w-full px-4 py-3 border-2 ${fieldErrors.password ? 'border-red-300' : 'border-gray-200'} rounded-lg focus:outline-none focus:ring-2 ${portalConfig.inputFocus} transition-all pr-12`}
+                    className={`w-full rounded-lg border ${fieldErrors.password ? 'border-red-300' : 'border-gray-200'} px-4 py-3 pr-12 transition-all focus:outline-none focus:ring-2 ${portalConfig.inputFocus}`}
                     required
                     disabled={loading}
                   />
@@ -286,6 +281,8 @@ const Login = () => {
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
                     className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                    aria-label={showPassword ? 'Hide password' : 'Show password'}
+                    aria-pressed={showPassword}
                     disabled={loading}
                   >
                     {showPassword ? (
@@ -317,7 +314,7 @@ const Login = () => {
                     type="checkbox"
                     checked={rememberMe}
                     onChange={(e) => setRememberMe(e.target.checked)}
-                    className="mr-2 w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                    className="mr-2 h-4 w-4 rounded border-gray-300 accent-[#c49a45] focus:ring-[#c49a45]"
                   />
                   Remember me
                 </label>
@@ -330,20 +327,28 @@ const Login = () => {
               <button
                 type="submit"
                 disabled={loading}
-                className={`w-full ${portalConfig.buttonColor} text-white py-3 rounded-lg font-semibold transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed flex items-center justify-center`}
+                className={`flex w-full items-center justify-center rounded-lg ${portalConfig.buttonColor} py-3 font-semibold text-[#183c30] shadow-sm transition-colors hover:shadow-md disabled:cursor-not-allowed disabled:bg-gray-400 disabled:text-white`}
               >
                 {loading ? (
                   <>
-                    <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <svg className="-ml-1 mr-3 h-5 w-5 animate-spin text-[#183c30]" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                       <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                       <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                     </svg>
                     Logging in...
                   </>
                 ) : (
-                  'LOGIN'
+                  'Sign in'
                 )}
               </button>
+              {portalType === 'member' && (
+                <p className="mt-5 text-center text-sm text-gray-600">
+                  New Member?{' '}
+                  <Link to="/member-signup" className={`font-semibold ${portalConfig.linkColor}`}>
+                    Create Account
+                  </Link>
+                </p>
+              )}
             </form>
           </div>
         </div>
@@ -363,11 +368,11 @@ const Login = () => {
 
         {/* Footer */}
         <div className="text-center mt-4">
-          <p className="text-xs text-gray-400 mb-2">
-            💡 Tip: Press <kbd className="px-2 py-1 bg-gray-100 border border-gray-300 rounded text-gray-700">Enter</kbd> to login or <kbd className="px-2 py-1 bg-gray-100 border border-gray-300 rounded text-gray-700">Esc</kbd> to go back
+          <p className="mb-2 text-xs text-gray-500">
+            Press <kbd className="rounded border border-gray-300 bg-white px-2 py-1 text-gray-700">Enter</kbd> to sign in or <kbd className="rounded border border-gray-300 bg-white px-2 py-1 text-gray-700">Esc</kbd> to go back
           </p>
-          <p className="text-xs text-gray-400">
-            Protected by Design — Secured Through & All
+          <p className="text-xs text-gray-500">
+            Secure sign-in for cooperative staff and members
           </p>
         </div>
       </div>

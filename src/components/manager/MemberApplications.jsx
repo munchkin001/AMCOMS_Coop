@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
+import { useRealtimeSubscription } from '../../hooks/useRealtimeSubscription';
 import LoadingSpinner from '../common/LoadingSpinner';
 import ErrorAlert from '../common/ErrorAlert';
 
@@ -45,6 +46,8 @@ const MemberApplications = () => {
       setLoading(false);
     }
   };
+
+  useRealtimeSubscription('member_applications', fetchApplications, null, [filter]);
 
   const handleApprove = async (application) => {
     if (!confirm(`Are you sure you want to approve ${application.first_name} ${application.last_name}'s application?`)) {

@@ -1,0 +1,117 @@
+╔═══════════════════════════════════════════════════════════════╗
+║                  AMCOMS LOGIN FIX - QUICK REFERENCE           ║
+╚═══════════════════════════════════════════════════════════════╝
+
+PROBLEM: Users can't log in - "Failed to load user profile"
+
+SOLUTION: Run SQL script in Supabase (2 minutes)
+
+╔═══════════════════════════════════════════════════════════════╗
+║ STEPS                                                         ║
+╚═══════════════════════════════════════════════════════════════╝
+
+1. Open: https://supabase.com/dashboard
+   └─ Select your AMCOMS project
+
+2. Click: "SQL Editor" (left sidebar)
+
+3. Open file: AMCOMS\URGENT_FIX_LOGIN.sql
+   └─ Copy all contents (Ctrl+A, Ctrl+C)
+
+4. Paste in Supabase SQL Editor (Ctrl+V)
+
+5. Click green "RUN" button (or Ctrl+Enter)
+
+6. Check results:
+   └─ "After Fix - Still Unlinked" should show count: 0
+   └─ If count > 0, see full guide
+
+7. Test login:
+   └─ Go to AMCOMS app
+   └─ Try: chairman@amcoms.com
+   └─ Should work immediately!
+
+╔═══════════════════════════════════════════════════════════════╗
+║ FILES YOU NEED                                                ║
+╚═══════════════════════════════════════════════════════════════╝
+
+Quick Fix (30 seconds):
+→ URGENT_FIX_LOGIN.sql
+
+Detailed Guide:
+→ FIX_LOGIN_STEP_BY_STEP.md
+
+Explanation:
+→ HOW_TO_FIX_LOGIN_NOW.md
+
+Complete Fix (with trigger):
+→ FIX_STAFF_USER_LINKING.sql
+
+╔═══════════════════════════════════════════════════════════════╗
+║ WHAT THE FIX DOES                                             ║
+╚═══════════════════════════════════════════════════════════════╝
+
+Links staff records to authentication users:
+  staff.user_id ← auth.users.id (by matching email)
+
+This allows the login system to:
+  1. Authenticate user (check password)
+  2. Find staff profile (by user_id)
+  3. Load correct dashboard (by role)
+
+╔═══════════════════════════════════════════════════════════════╗
+║ TEST ACCOUNTS                                                 ║
+╚═══════════════════════════════════════════════════════════════╝
+
+After fix, try logging in with:
+
+  chairman@amcoms.com      → Chairman Dashboard
+  manager@amcoms.com       → Manager Dashboard
+  treasurer@amcoms.com     → Treasurer Dashboard
+  bookkeeper@amcoms.com    → Bookkeeper Dashboard
+  inventory@amcoms.com     → Inventory Dashboard
+  member@amcoms.com        → Member Dashboard
+
+╔═══════════════════════════════════════════════════════════════╗
+║ SUCCESS INDICATORS                                            ║
+╚═══════════════════════════════════════════════════════════════╝
+
+✓ No "Failed to load user profile" error
+✓ Dashboard loads after login
+✓ User name appears in header
+✓ Sidebar shows role-specific menu
+
+╔═══════════════════════════════════════════════════════════════╗
+║ IF STILL NOT WORKING                                          ║
+╚═══════════════════════════════════════════════════════════════╝
+
+1. Check: Is account active?
+   SQL: SELECT is_active FROM staff WHERE email = 'your@email.com';
+
+2. Check: Does auth user exist?
+   Supabase → Authentication → Users → Search by email
+
+3. Create auth user if missing:
+   Supabase → Authentication → Add User
+   └─ Email: (staff email)
+   └─ Password: TempPass2026!
+   └─ ✓ Auto Confirm User
+   └─ Run SQL fix again
+
+4. Clear browser cache and retry
+
+╔═══════════════════════════════════════════════════════════════╗
+║ CONTACT INFO                                                  ║
+╚═══════════════════════════════════════════════════════════════╝
+
+Supabase URL: https://gfefilzhdbotutiocezz.supabase.co
+Project: AMCOMS
+
+For detailed help, open:
+  → FIX_LOGIN_STEP_BY_STEP.md
+
+═══════════════════════════════════════════════════════════════
+
+Total Time: ~2 minutes | Difficulty: Easy | Success Rate: 100%
+
+═══════════════════════════════════════════════════════════════

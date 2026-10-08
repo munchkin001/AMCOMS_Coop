@@ -53,8 +53,6 @@ BEGIN
       'public.member_applications does not exist. Apply database/member_applications.sql first.';
   END IF;
 END $$;
-
-
 -- ============================================
 -- 2. submit_member_application
 -- ============================================
@@ -173,14 +171,11 @@ BEGIN
   RETURN v_app_id;
 END;
 $$;
-
 COMMENT ON FUNCTION public.submit_member_application(
   TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, TEXT,
   DATE, TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, TEXT
 ) IS
   'Creates a pending membership application. user_id is stamped from auth.uid() and may be NULL when email confirmation is required; link_application_to_current_user() fills it in later.';
-
-
 -- ============================================
 -- 3. link_application_to_current_user
 -- ============================================
@@ -222,11 +217,8 @@ BEGIN
   RETURN app_id;
 END;
 $$;
-
 COMMENT ON FUNCTION public.link_application_to_current_user() IS
   'Links a pending application to the signed-in user by matching the verified JWT email. Returns NULL when there is nothing to link.';
-
-
 -- ============================================
 -- 4. APPROVAL TRIGGER RESOLVES A MISSING user_id
 -- ============================================
@@ -328,11 +320,8 @@ BEGIN
   RETURN NEW;
 END;
 $$;
-
 COMMENT ON FUNCTION public.create_member_from_application() IS
   'On approval, resolves the auth user (by user_id, else by email), copies every field into members, and links the account via a staff row with role=member.';
-
-
 -- ============================================
 -- 5. GRANT EXECUTION
 -- ============================================
@@ -347,17 +336,13 @@ REVOKE ALL ON FUNCTION public.submit_member_application(
   TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, TEXT,
   DATE, TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, TEXT
 ) FROM PUBLIC;
-
 GRANT EXECUTE ON FUNCTION public.submit_member_application(
   TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, TEXT,
   DATE, TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, TEXT
 ) TO anon, authenticated;
-
 -- This one requires a session; it reads the verified JWT.
 REVOKE ALL ON FUNCTION public.link_application_to_current_user() FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.link_application_to_current_user() TO authenticated;
-
-
 -- ============================================
 -- 6. NO CLIENT INSERT POLICY
 -- ============================================
@@ -369,8 +354,6 @@ DROP POLICY IF EXISTS "Authenticated users can create application" ON public.mem
 DROP POLICY IF EXISTS "allow_all_authenticated" ON public.member_applications;
 DROP POLICY IF EXISTS "signup_insert" ON public.member_applications;
 DROP POLICY IF EXISTS "authenticated_can_insert" ON public.member_applications;
-
-
 -- ============================================
 -- 7. VERIFICATION
 -- ============================================

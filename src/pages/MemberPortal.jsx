@@ -1,5 +1,9 @@
-import React, { useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { Menu } from 'lucide-react';
+import { useAuth } from '../contexts/AuthContext';
+import { useRealtimeSubscription } from '../hooks/useRealtimeSubscription';
+import { supabase } from '../lib/supabase';
 import MemberDashboard from '../components/member/MemberDashboard';
 import MyProfile from '../components/member/MyProfile';
 import MySavings from '../components/member/MySavings';
@@ -11,36 +15,87 @@ import MemberAnnouncements from '../components/member/MemberAnnouncements';
 
 const MemberPortal = () => {
   const navigate = useNavigate();
+  const { signOut, staff, user } = useAuth();
   const [activeModule, setActiveModule] = useState('dashboard');
   const [activeSubModule, setActiveSubModule] = useState(''); // For My Accounts submenu
   const [showAccountsMenu, setShowAccountsMenu] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  const [notifications, setNotifications] = useState([
-    { id: 1, message: 'Your loan request has been approved', time: '1 hour ago', read: false },
-    { id: 2, message: 'New announcement: Annual General Assembly', time: '3 hours ago', read: false },
-    { id: 3, message: 'Loan payment due in 5 days', time: '1 day ago', read: true }
-  ]);
+  const [isDesktopSidebarOpen, setIsDesktopSidebarOpen] = useState(true);
+  const [notifications, setNotifications] = useState([]);
+  const [notificationsLoading, setNotificationsLoading] = useState(true);
   const [showNotifications, setShowNotifications] = useState(false);
   const [showLogoutModal, setShowLogoutModal] = useState(false);
   const [showUserMenu, setShowUserMenu] = useState(false);
-  const [showProfileModal, setShowProfileModal] = useState(false);
+  const userMenuRef = useRef(null);
+
+  const fetchNotifications = useCallback(async () => {
+    if (!staff?.id) {
+      setNotifications([]);
+      setNotificationsLoading(false);
+      return;
+    }
+
+    try {
+      const { data, error } = await supabase
+        .from('notifications')
+        .select('id, title, message, is_read, priority, action_url, created_at')
+        .eq('user_id', staff.id)
+        .order('created_at', { ascending: false })
+        .limit(30);
+
+      if (error) throw error;
+      setNotifications(data || []);
+    } catch (error) {
+      console.error('Unable to load member notifications:', error);
+    } finally {
+      setNotificationsLoading(false);
+    }
+  }, [staff?.id]);
+
+  useEffect(() => {
+    fetchNotifications();
+  }, [fetchNotifications]);
+
+  useRealtimeSubscription(
+    'notifications',
+    fetchNotifications,
+    staff?.id ? { column: 'user_id', value: staff.id } : null,
+    [staff?.id],
+    Boolean(staff?.id)
+  );
+
+  useEffect(() => {
+    if (!showUserMenu) return undefined;
+
+    const dismissOnOutsideClick = (event) => {
+      if (!userMenuRef.current?.contains(event.target)) setShowUserMenu(false);
+    };
+    const dismissOnEscape = (event) => {
+      if (event.key === 'Escape') setShowUserMenu(false);
+    };
+
+    document.addEventListener('pointerdown', dismissOnOutsideClick);
+    document.addEventListener('keydown', dismissOnEscape);
+    return () => {
+      document.removeEventListener('pointerdown', dismissOnOutsideClick);
+      document.removeEventListener('keydown', dismissOnEscape);
+    };
+  }, [showUserMenu]);
 
   const handleLogout = () => {
+    setShowUserMenu(false);
     setShowLogoutModal(true);
   };
 
   const handleProfileClick = () => {
-    setShowProfileModal(true);
-    setShowUserMenu(false);
-  };
-
-  const handleSettingsClick = () => {
-    setActiveModule('settings');
+    setActiveModule('profile');
     setShowAccountsMenu(false);
+    setIsMobileMenuOpen(false);
     setShowUserMenu(false);
   };
 
-  const confirmLogout = () => {
+  const confirmLogout = async () => {
+    await signOut();
     setShowLogoutModal(false);
     navigate('/portal-selection');
   };
@@ -49,12 +104,27 @@ const MemberPortal = () => {
     setShowLogoutModal(false);
   };
 
-  const unreadCount = notifications.filter(n => !n.read).length;
+  const unreadCount = notifications.filter((notification) => !notification.is_read).length;
 
-  const markAsRead = (id) => {
-    setNotifications(notifications.map(n => 
-      n.id === id ? { ...n, read: true } : n
+  const markAsRead = async (notification) => {
+    if (notification.is_read || !staff?.id) return;
+
+    setNotifications((current) => current.map((item) =>
+      item.id === notification.id ? { ...item, is_read: true } : item
     ));
+
+    const { error } = await supabase
+      .from('notifications')
+      .update({ is_read: true, read_at: new Date().toISOString() })
+      .eq('id', notification.id)
+      .eq('user_id', staff.id);
+
+    if (error) {
+      console.error('Unable to mark notification as read:', error);
+      setNotifications((current) => current.map((item) =>
+        item.id === notification.id ? { ...item, is_read: false } : item
+      ));
+    }
   };
 
   const handleAccountsClick = (subModule) => {
@@ -87,81 +157,12 @@ const MemberPortal = () => {
     switch (activeModule) {
       case 'dashboard':
         return <MemberDashboard />;
+      case 'profile':
+        return <MyProfile />;
       case 'requests':
         return <MemberRequests />;
       case 'transactions':
         return <MemberTransactionHistory />;
-      case 'settings':
-        return (
-          <div className="bg-white rounded-lg border border-gray-200 p-6">
-            <h3 className="text-lg font-semibold text-gray-900 mb-6">Settings</h3>
-            <div className="space-y-6">
-              <div>
-                <h4 className="text-md font-semibold text-gray-900 mb-3">Change Password</h4>
-                <div className="space-y-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Current Password</label>
-                    <input type="password" className="w-full px-3 py-2 border border-gray-300 rounded-lg" />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">New Password</label>
-                    <input type="password" className="w-full px-3 py-2 border border-gray-300 rounded-lg" />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Confirm New Password</label>
-                    <input type="password" className="w-full px-3 py-2 border border-gray-300 rounded-lg" />
-                  </div>
-                </div>
-              </div>
-              <div>
-                <h4 className="text-md font-semibold text-gray-900 mb-3">Notification Preferences</h4>
-                <div className="space-y-2">
-                  <label className="flex items-center">
-                    <input type="checkbox" defaultChecked className="mr-2" />
-                    <span className="text-sm text-gray-700">Email notifications</span>
-                  </label>
-                  <label className="flex items-center">
-                    <input type="checkbox" defaultChecked className="mr-2" />
-                    <span className="text-sm text-gray-700">Loan payment reminders</span>
-                  </label>
-                  <label className="flex items-center">
-                    <input type="checkbox" defaultChecked className="mr-2" />
-                    <span className="text-sm text-gray-700">Request status updates</span>
-                  </label>
-                </div>
-              </div>
-              <div>
-                <h4 className="text-md font-semibold text-gray-900 mb-3">Security</h4>
-                <div className="space-y-2">
-                  <label className="flex items-center">
-                    <input type="checkbox" defaultChecked className="mr-2" />
-                    <span className="text-sm text-gray-700">Two-factor authentication</span>
-                  </label>
-                  <label className="flex items-center">
-                    <input type="checkbox" className="mr-2" />
-                    <span className="text-sm text-gray-700">Login alerts</span>
-                  </label>
-                </div>
-              </div>
-              <div>
-                <h4 className="text-md font-semibold text-gray-900 mb-3">Accessibility</h4>
-                <div className="space-y-2">
-                  <label className="flex items-center">
-                    <input type="checkbox" className="mr-2" />
-                    <span className="text-sm text-gray-700">Large text mode</span>
-                  </label>
-                  <label className="flex items-center">
-                    <input type="checkbox" className="mr-2" />
-                    <span className="text-sm text-gray-700">High contrast mode</span>
-                  </label>
-                </div>
-              </div>
-              <button className="px-6 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700">
-                Save Changes
-              </button>
-            </div>
-          </div>
-        );
       default:
         return <MemberDashboard />;
     }
@@ -184,12 +185,12 @@ const MemberPortal = () => {
     switch (activeModule) {
       case 'dashboard':
         return 'Dashboard';
+      case 'profile':
+        return 'My Profile';
       case 'requests':
         return 'Requests';
       case 'transactions':
         return 'Transactions';
-      case 'settings':
-        return 'Settings';
       default:
         return 'Dashboard';
     }
@@ -206,21 +207,22 @@ const MemberPortal = () => {
       )}
 
       {/* Sidebar */}
-      <div className={`
+      <div id="member-sidebar" className={`
         fixed lg:static inset-y-0 left-0 z-50
-        w-64 bg-white border-r border-gray-200 flex flex-col
-        transform transition-transform duration-300 ease-in-out
+        w-64 shrink-0 flex flex-col border-r border-[#e9c46a]/30 bg-gradient-to-b from-[#0d3b2d] via-[#146344] to-[#2a8057] shadow-xl
+        transform transition-[margin,transform] duration-300 ease-in-out
         ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
+        ${isDesktopSidebarOpen ? 'lg:ml-0' : 'lg:-ml-64'}
       `}>
-        <div className="p-6 border-b border-gray-200 flex items-center justify-between">
+        <div className="flex items-center justify-between border-b border-[#e9c46a]/25 p-6">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">AMCOMS</h1>
-            <p className="text-indigo-600 text-sm mt-1">Member Portal</p>
+            <h1 className="text-2xl font-bold text-white">AMCOMS</h1>
+            <p className="mt-1 text-sm text-[#e9c46a]">Member Portal</p>
           </div>
           {/* Close button for mobile */}
           <button
             onClick={() => setIsMobileMenuOpen(false)}
-            className="lg:hidden p-2 rounded-lg hover:bg-gray-100"
+            className="rounded-lg p-2 text-white hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#e9c46a] lg:hidden"
           >
             <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -232,10 +234,10 @@ const MemberPortal = () => {
           {/* Dashboard */}
           <button
             onClick={() => handleModuleChange('dashboard')}
-            className={`w-full text-left px-4 py-3 rounded-lg transition-colors ${
+            className={`w-full rounded-lg px-4 py-3 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#e9c46a] ${
               activeModule === 'dashboard' 
-                ? 'bg-indigo-50 text-indigo-700 font-medium' 
-                : 'text-gray-700 hover:bg-gray-50'
+                ? 'bg-gradient-to-r from-[#e9c46a] to-[#d6ab4a] font-semibold text-[#0d3b2d] shadow-md' 
+                : 'text-green-50/95 hover:bg-white/10 hover:text-[#f0d995]'
             }`}
           >
             <div className="flex items-center space-x-3">
@@ -248,10 +250,10 @@ const MemberPortal = () => {
           <div>
             <button
               onClick={() => setShowAccountsMenu(!showAccountsMenu)}
-              className={`w-full text-left px-4 py-3 rounded-lg transition-colors ${
+              className={`w-full rounded-lg px-4 py-3 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#e9c46a] ${
                 activeModule === 'my-accounts'
-                  ? 'bg-indigo-50 text-indigo-700 font-medium' 
-                  : 'text-gray-700 hover:bg-gray-50'
+                  ? 'bg-gradient-to-r from-[#e9c46a] to-[#d6ab4a] font-semibold text-[#0d3b2d] shadow-md' 
+                  : 'text-green-50/95 hover:bg-white/10 hover:text-[#f0d995]'
               }`}
             >
               <div className="flex items-center justify-between">
@@ -274,30 +276,30 @@ const MemberPortal = () => {
               <div className="ml-4 mt-1 space-y-1">
                 <button
                   onClick={() => handleAccountsClick('savings')}
-                  className={`w-full text-left px-4 py-2 rounded-lg text-sm transition-colors ${
+                  className={`w-full rounded-lg px-4 py-2 text-left text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#e9c46a] ${
                     activeSubModule === 'savings'
-                      ? 'bg-indigo-50 text-indigo-700 font-medium'
-                      : 'text-gray-600 hover:bg-gray-50'
+                      ? 'bg-gradient-to-r from-[#e9c46a] to-[#d6ab4a] font-semibold text-[#0d3b2d] shadow-md'
+                      : 'text-green-50/90 hover:bg-white/10 hover:text-[#f0d995]'
                   }`}
                 >
                   Savings
                 </button>
                 <button
                   onClick={() => handleAccountsClick('time-deposit')}
-                  className={`w-full text-left px-4 py-2 rounded-lg text-sm transition-colors ${
+                  className={`w-full rounded-lg px-4 py-2 text-left text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#e9c46a] ${
                     activeSubModule === 'time-deposit'
-                      ? 'bg-indigo-50 text-indigo-700 font-medium'
-                      : 'text-gray-600 hover:bg-gray-50'
+                      ? 'bg-gradient-to-r from-[#e9c46a] to-[#d6ab4a] font-semibold text-[#0d3b2d] shadow-md'
+                      : 'text-green-50/90 hover:bg-white/10 hover:text-[#f0d995]'
                   }`}
                 >
                   Time Deposit
                 </button>
                 <button
                   onClick={() => handleAccountsClick('loans')}
-                  className={`w-full text-left px-4 py-2 rounded-lg text-sm transition-colors ${
+                  className={`w-full rounded-lg px-4 py-2 text-left text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#e9c46a] ${
                     activeSubModule === 'loans'
-                      ? 'bg-indigo-50 text-indigo-700 font-medium'
-                      : 'text-gray-600 hover:bg-gray-50'
+                      ? 'bg-gradient-to-r from-[#e9c46a] to-[#d6ab4a] font-semibold text-[#0d3b2d] shadow-md'
+                      : 'text-green-50/90 hover:bg-white/10 hover:text-[#f0d995]'
                   }`}
                 >
                   Loans
@@ -309,10 +311,10 @@ const MemberPortal = () => {
           {/* Requests */}
           <button
             onClick={() => handleModuleChange('requests')}
-            className={`w-full text-left px-4 py-3 rounded-lg transition-colors ${
+            className={`w-full rounded-lg px-4 py-3 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#e9c46a] ${
               activeModule === 'requests' 
-                ? 'bg-indigo-50 text-indigo-700 font-medium' 
-                : 'text-gray-700 hover:bg-gray-50'
+                ? 'bg-gradient-to-r from-[#e9c46a] to-[#d6ab4a] font-semibold text-[#0d3b2d] shadow-md' 
+                : 'text-green-50/95 hover:bg-white/10 hover:text-[#f0d995]'
             }`}
           >
             <div className="flex items-center space-x-3">
@@ -324,10 +326,10 @@ const MemberPortal = () => {
           {/* Transactions */}
           <button
             onClick={() => handleModuleChange('transactions')}
-            className={`w-full text-left px-4 py-3 rounded-lg transition-colors ${
+            className={`w-full rounded-lg px-4 py-3 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#e9c46a] ${
               activeModule === 'transactions' 
-                ? 'bg-indigo-50 text-indigo-700 font-medium' 
-                : 'text-gray-700 hover:bg-gray-50'
+                ? 'bg-gradient-to-r from-[#e9c46a] to-[#d6ab4a] font-semibold text-[#0d3b2d] shadow-md' 
+                : 'text-green-50/95 hover:bg-white/10 hover:text-[#f0d995]'
             }`}
           >
             <div className="flex items-center space-x-3">
@@ -350,10 +352,24 @@ const MemberPortal = () => {
                   setShowUserMenu(false);
                 }}
                 className="lg:hidden p-2 rounded-lg hover:bg-gray-100"
+                aria-label="Open member navigation"
+                aria-expanded={isMobileMenuOpen}
               >
                 <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
                 </svg>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setIsDesktopSidebarOpen((open) => !open)}
+                className="hidden shrink-0 items-center justify-center rounded-lg p-2 text-gray-600 transition-colors hover:bg-gray-100 hover:text-gray-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#e9c46a] lg:inline-flex"
+                aria-label={isDesktopSidebarOpen ? 'Close member sidebar' : 'Open member sidebar'}
+                aria-expanded={isDesktopSidebarOpen}
+                aria-controls="member-sidebar"
+                title={isDesktopSidebarOpen ? 'Close sidebar' : 'Open sidebar'}
+              >
+                <Menu aria-hidden="true" size={22} />
               </button>
               
               <div>
@@ -381,17 +397,24 @@ const MemberPortal = () => {
                       <h3 className="font-semibold text-gray-800">Notifications</h3>
                     </div>
                     <div className="max-h-96 overflow-y-auto">
-                      {notifications.map(notif => (
-                        <div
-                          key={notif.id}
-                          className={`p-4 border-b border-gray-100 hover:bg-gray-50 cursor-pointer ${
-                            !notif.read ? 'bg-indigo-50' : ''
-                          }`}
-                          onClick={() => markAsRead(notif.id)}
+                      {notificationsLoading ? (
+                        <p className="p-4 text-sm text-gray-500">Loading notifications...</p>
+                      ) : notifications.length === 0 ? (
+                        <p className="p-4 text-sm text-gray-500">You’re all caught up.</p>
+                      ) : notifications.map((notification) => (
+                        <button
+                          key={notification.id}
+                          type="button"
+                          className={`block w-full border-b border-gray-100 p-4 text-left transition-colors hover:bg-gray-50 ${notification.is_read ? '' : 'bg-emerald-50'}`}
+                          onClick={() => markAsRead(notification)}
                         >
-                          <p className="text-sm font-medium text-gray-800">{notif.message}</p>
-                          <p className="text-xs text-gray-500 mt-1">{notif.time}</p>
-                        </div>
+                          <span className="flex items-start justify-between gap-3">
+                            <span className="text-sm font-medium text-gray-800">{notification.title}</span>
+                            {!notification.is_read && <span className="mt-1 size-2 shrink-0 rounded-full bg-emerald-600" aria-label="Unread" />}
+                          </span>
+                          <span className="mt-1 block text-sm text-gray-600">{notification.message}</span>
+                          <span className="mt-2 block text-xs text-gray-500">{new Date(notification.created_at).toLocaleString()}</span>
+                        </button>
                       ))}
                     </div>
                   </div>
@@ -404,8 +427,11 @@ const MemberPortal = () => {
                 </p>
               </div>
 
-              <div className="relative">
+              <div className="relative" ref={userMenuRef}>
                 <button
+                  type="button"
+                  aria-expanded={showUserMenu}
+                  aria-controls="member-user-menu"
                   onClick={() => {
                     setShowUserMenu(!showUserMenu);
                     setIsMobileMenuOpen(false);
@@ -413,11 +439,11 @@ const MemberPortal = () => {
                   className="flex items-center space-x-3 px-3 py-2 rounded-lg hover:bg-gray-50"
                 >
                   <div className="text-right">
-                    <p className="text-sm font-medium text-gray-900">Juan Dela Cruz</p>
-                    <p className="text-xs text-gray-500">Member #M-00125</p>
+                    <p className="text-sm font-medium text-gray-900">{staff?.full_name || 'Member'}</p>
+                    <p className="text-xs text-gray-500">{user?.email || 'Member account'}</p>
                   </div>
                   <div className="w-10 h-10 bg-indigo-100 rounded-full flex items-center justify-center">
-                    <span className="text-indigo-600 font-semibold">J</span>
+                    <span className="text-indigo-600 font-semibold">{staff?.full_name?.charAt(0) || 'M'}</span>
                   </div>
                   <svg className="w-4 h-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
@@ -425,18 +451,12 @@ const MemberPortal = () => {
                 </button>
 
                 {showUserMenu && (
-                  <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-50">
+                  <div id="member-user-menu" className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-50">
                     <button 
                       onClick={handleProfileClick}
                       className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
                     >
                       My Profile
-                    </button>
-                    <button 
-                      onClick={handleSettingsClick}
-                      className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
-                    >
-                      Settings
                     </button>
                     <hr className="my-1" />
                     <button
@@ -458,28 +478,28 @@ const MemberPortal = () => {
       </div>
 
       {showLogoutModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg shadow-xl max-w-md w-full mx-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/55 p-4">
+          <div className="w-full max-w-md rounded-xl border border-[#e9c46a]/50 bg-gradient-to-br from-[#0d3b2d] via-[#146344] to-[#2a8057] text-white shadow-2xl">
             <div className="p-6">
-              <div className="flex items-center justify-center w-12 h-12 bg-indigo-100 rounded-full mx-auto mb-4">
-                <svg className="w-6 h-6 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full border border-[#e9c46a]/50 bg-white/10 text-[#f0d995]">
+                <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
                 </svg>
               </div>
-              <h3 className="text-xl font-bold text-gray-900 text-center mb-2">Confirm Logout</h3>
-              <p className="text-gray-600 text-center mb-6">
+              <h3 className="mb-2 text-center text-xl font-bold text-white">Confirm Logout</h3>
+              <p className="mb-6 text-center text-green-50/85">
                 Are you sure you want to logout from the Member Portal?
               </p>
               <div className="flex space-x-3">
                 <button
                   onClick={cancelLogout}
-                  className="flex-1 px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors font-medium"
+                  className="min-h-11 flex-1 rounded-lg border border-white/25 bg-white/10 px-4 py-2 font-medium text-white transition-colors hover:bg-white/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#e9c46a]"
                 >
                   Cancel
                 </button>
                 <button
                   onClick={confirmLogout}
-                  className="flex-1 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors font-medium"
+                  className="min-h-11 flex-1 rounded-lg bg-gradient-to-r from-[#e9c46a] to-[#d6ab4a] px-4 py-2 font-semibold text-[#0d3b2d] transition hover:brightness-105 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#e9c46a] focus-visible:ring-offset-2 focus-visible:ring-offset-[#0d3b2d]"
                 >
                   Logout
                 </button>
@@ -489,30 +509,6 @@ const MemberPortal = () => {
         </div>
       )}
 
-      {/* Profile Modal */}
-      {showProfileModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
-            {/* Modal Header */}
-            <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between">
-              <h2 className="text-2xl font-bold text-gray-900">My Profile</h2>
-              <button
-                onClick={() => setShowProfileModal(false)}
-                className="p-2 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-100"
-              >
-                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-            </div>
-
-            {/* Modal Content */}
-            <div className="p-6">
-              <MyProfile />
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 };

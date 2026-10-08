@@ -27,11 +27,9 @@ CREATE TABLE IF NOT EXISTS public.members (
   created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
-
 CREATE INDEX IF NOT EXISTS members_member_number_idx ON public.members(member_number);
 CREATE INDEX IF NOT EXISTS members_status_idx ON public.members(membership_status);
 CREATE INDEX IF NOT EXISTS members_email_idx ON public.members(email);
-
 -- ============================================
 -- 2. FINANCIAL/BOOKKEEPING MODULE
 -- ============================================
@@ -49,10 +47,8 @@ CREATE TABLE IF NOT EXISTS public.chart_of_accounts (
   created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
-
 CREATE INDEX IF NOT EXISTS coa_account_code_idx ON public.chart_of_accounts(account_code);
 CREATE INDEX IF NOT EXISTS coa_account_type_idx ON public.chart_of_accounts(account_type);
-
 -- General Journal Entries
 CREATE TABLE IF NOT EXISTS public.journal_entries (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
@@ -68,10 +64,8 @@ CREATE TABLE IF NOT EXISTS public.journal_entries (
   created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
-
 CREATE INDEX IF NOT EXISTS journal_entries_entry_date_idx ON public.journal_entries(entry_date);
 CREATE INDEX IF NOT EXISTS journal_entries_status_idx ON public.journal_entries(status);
-
 -- Journal Entry Lines (debits and credits)
 CREATE TABLE IF NOT EXISTS public.journal_entry_lines (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
@@ -82,10 +76,8 @@ CREATE TABLE IF NOT EXISTS public.journal_entry_lines (
   description TEXT,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
-
 CREATE INDEX IF NOT EXISTS journal_lines_entry_id_idx ON public.journal_entry_lines(journal_entry_id);
 CREATE INDEX IF NOT EXISTS journal_lines_account_id_idx ON public.journal_entry_lines(account_id);
-
 -- Cash Receipts Book
 CREATE TABLE IF NOT EXISTS public.cash_receipts (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
@@ -103,10 +95,8 @@ CREATE TABLE IF NOT EXISTS public.cash_receipts (
   created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
-
 CREATE INDEX IF NOT EXISTS cash_receipts_date_idx ON public.cash_receipts(receipt_date);
 CREATE INDEX IF NOT EXISTS cash_receipts_member_idx ON public.cash_receipts(member_id);
-
 -- Cash Disbursements Book
 CREATE TABLE IF NOT EXISTS public.cash_disbursements (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
@@ -125,9 +115,7 @@ CREATE TABLE IF NOT EXISTS public.cash_disbursements (
   created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
-
 CREATE INDEX IF NOT EXISTS cash_disbursements_date_idx ON public.cash_disbursements(disbursement_date);
-
 -- ============================================
 -- 3. INVENTORY MODULE
 -- ============================================
@@ -142,7 +130,6 @@ CREATE TABLE IF NOT EXISTS public.product_categories (
   created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
-
 -- Products
 CREATE TABLE IF NOT EXISTS public.products (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
@@ -161,10 +148,8 @@ CREATE TABLE IF NOT EXISTS public.products (
   created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
-
 CREATE INDEX IF NOT EXISTS products_code_idx ON public.products(product_code);
 CREATE INDEX IF NOT EXISTS products_category_idx ON public.products(category_id);
-
 -- Stock Inventory
 CREATE TABLE IF NOT EXISTS public.stock_inventory (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
@@ -178,9 +163,7 @@ CREATE TABLE IF NOT EXISTS public.stock_inventory (
   created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
-
 CREATE INDEX IF NOT EXISTS stock_inventory_product_idx ON public.stock_inventory(product_id);
-
 -- Stock Movements (History)
 CREATE TABLE IF NOT EXISTS public.stock_movements (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
@@ -194,11 +177,9 @@ CREATE TABLE IF NOT EXISTS public.stock_movements (
   created_by UUID REFERENCES public.staff(id),
   created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
-
 CREATE INDEX IF NOT EXISTS stock_movements_product_idx ON public.stock_movements(product_id);
 CREATE INDEX IF NOT EXISTS stock_movements_date_idx ON public.stock_movements(movement_date);
 CREATE INDEX IF NOT EXISTS stock_movements_type_idx ON public.stock_movements(movement_type);
-
 -- Production Records
 CREATE TABLE IF NOT EXISTS public.production_records (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
@@ -215,10 +196,8 @@ CREATE TABLE IF NOT EXISTS public.production_records (
   created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
-
 CREATE INDEX IF NOT EXISTS production_records_product_idx ON public.production_records(product_id);
 CREATE INDEX IF NOT EXISTS production_records_date_idx ON public.production_records(production_date);
-
 -- ============================================
 -- 4. SALES & ORDERS MODULE
 -- ============================================
@@ -241,11 +220,9 @@ CREATE TABLE IF NOT EXISTS public.sales_orders (
   created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
-
 CREATE INDEX IF NOT EXISTS sales_orders_date_idx ON public.sales_orders(order_date);
 CREATE INDEX IF NOT EXISTS sales_orders_member_idx ON public.sales_orders(member_id);
 CREATE INDEX IF NOT EXISTS sales_orders_status_idx ON public.sales_orders(order_status);
-
 -- Sales Order Items
 CREATE TABLE IF NOT EXISTS public.sales_order_items (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
@@ -257,10 +234,8 @@ CREATE TABLE IF NOT EXISTS public.sales_order_items (
   line_total DECIMAL(15, 2) NOT NULL,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
-
 CREATE INDEX IF NOT EXISTS sales_order_items_order_idx ON public.sales_order_items(sales_order_id);
 CREATE INDEX IF NOT EXISTS sales_order_items_product_idx ON public.sales_order_items(product_id);
-
 -- ============================================
 -- 5. LOANS MODULE
 -- ============================================
@@ -282,7 +257,6 @@ CREATE TABLE IF NOT EXISTS public.loan_products (
   created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
-
 -- Member Loans
 CREATE TABLE IF NOT EXISTS public.loans (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
@@ -306,10 +280,8 @@ CREATE TABLE IF NOT EXISTS public.loans (
   created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
-
 CREATE INDEX IF NOT EXISTS loans_member_idx ON public.loans(member_id);
 CREATE INDEX IF NOT EXISTS loans_status_idx ON public.loans(status);
-
 -- Loan Payments
 CREATE TABLE IF NOT EXISTS public.loan_payments (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
@@ -327,10 +299,8 @@ CREATE TABLE IF NOT EXISTS public.loan_payments (
   created_by UUID REFERENCES public.staff(id),
   created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
-
 CREATE INDEX IF NOT EXISTS loan_payments_loan_idx ON public.loan_payments(loan_id);
 CREATE INDEX IF NOT EXISTS loan_payments_date_idx ON public.loan_payments(payment_date);
-
 -- ============================================
 -- 6. SAVINGS MODULE
 -- ============================================
@@ -349,10 +319,8 @@ CREATE TABLE IF NOT EXISTS public.savings_accounts (
   created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
-
 CREATE INDEX IF NOT EXISTS savings_accounts_member_idx ON public.savings_accounts(member_id);
 CREATE INDEX IF NOT EXISTS savings_accounts_status_idx ON public.savings_accounts(status);
-
 -- Savings Transactions
 CREATE TABLE IF NOT EXISTS public.savings_transactions (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
@@ -368,10 +336,8 @@ CREATE TABLE IF NOT EXISTS public.savings_transactions (
   created_by UUID REFERENCES public.staff(id),
   created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
-
 CREATE INDEX IF NOT EXISTS savings_transactions_account_idx ON public.savings_transactions(savings_account_id);
 CREATE INDEX IF NOT EXISTS savings_transactions_date_idx ON public.savings_transactions(transaction_date);
-
 -- ============================================
 -- 7. AUDIT LOG MODULE
 -- ============================================
@@ -389,11 +355,9 @@ CREATE TABLE IF NOT EXISTS public.audit_logs (
   user_agent TEXT,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
-
 CREATE INDEX IF NOT EXISTS audit_logs_user_idx ON public.audit_logs(user_id);
 CREATE INDEX IF NOT EXISTS audit_logs_table_idx ON public.audit_logs(table_name);
 CREATE INDEX IF NOT EXISTS audit_logs_created_idx ON public.audit_logs(created_at);
-
 -- ============================================
 -- TRIGGERS FOR UPDATED_AT
 -- ============================================
@@ -405,7 +369,6 @@ BEGIN
   RETURN NEW;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
-
 -- Apply updated_at trigger to all tables with updated_at column
 DO $$
 DECLARE
@@ -427,7 +390,6 @@ BEGIN
     ', t, t);
   END LOOP;
 END $$;
-
 -- ============================================
 -- ENABLE ROW LEVEL SECURITY
 -- ============================================
@@ -451,7 +413,6 @@ ALTER TABLE public.loan_payments ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.savings_accounts ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.savings_transactions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.audit_logs ENABLE ROW LEVEL SECURITY;
-
 -- ============================================
 -- RLS POLICIES (Basic - authenticated users can access)
 -- ============================================
@@ -484,7 +445,6 @@ BEGIN
     ', t, t, t, t);
   END LOOP;
 END $$;
-
 -- Success message
 DO $$
 BEGIN

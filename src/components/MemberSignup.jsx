@@ -36,8 +36,8 @@ const MemberSignup = () => {
       return;
     }
 
-    if (formData.password.length < 6) {
-      setError('Password must be at least 6 characters long');
+    if (formData.password.length < 8 || !/[A-Z]/.test(formData.password) || !/[a-z]/.test(formData.password) || !/[0-9]/.test(formData.password)) {
+      setError('Use at least 8 characters with an uppercase letter, a lowercase letter, and a number.');
       return;
     }
 
@@ -63,31 +63,13 @@ const MemberSignup = () => {
         throw new Error('Failed to create user account');
       }
 
-      // Step 2: Wait for session to be established
-      await new Promise(resolve => setTimeout(resolve, 1000));
-
-      // Step 3: Get the session
-      const { data: sessionData } = await supabase.auth.getSession();
-      
-      if (!sessionData.session) {
-        throw new Error('Session not established. Please try logging in.');
-      }
-
-      // Step 4: Create member application
-      const { error: applicationError } = await supabase
-        .from('member_applications')
-        .insert([
-          {
-            user_id: authData.user.id,
-            email: formData.email,
-            first_name: formData.firstName,
-            last_name: formData.lastName,
-            phone: formData.phone,
-            address: formData.address,
-            status: 'pending'
-          }
-        ]);
-
+      const { error: applicationError } = await supabase.rpc('submit_member_application', {
+        p_first_name: formData.firstName,
+        p_last_name: formData.lastName,
+        p_email: formData.email,
+        p_phone: formData.phone,
+        p_address: formData.address
+      });
       if (applicationError) throw applicationError;
 
       // Success!
@@ -95,8 +77,7 @@ const MemberSignup = () => {
       
       // Sign out the user (they'll need to wait for approval)
       await supabase.auth.signOut();
-      
-      navigate('/member-login');
+      navigate('/login/member');
     } catch (err) {
       console.error('Signup error:', err);
       setError(err.message || 'Failed to create application. Please try again.');
@@ -154,7 +135,7 @@ const MemberSignup = () => {
 
             <div className="flex space-x-3">
               <button
-                onClick={() => navigate('/member-login')}
+                onClick={() => navigate('/login/member')}
                 className="flex-1 px-6 py-3 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors font-medium"
               >
                 Go Back
@@ -175,7 +156,7 @@ const MemberSignup = () => {
         <div className="max-w-2xl mx-auto">
           {/* Back Button */}
           <button
-            onClick={() => navigate('/member-login')}
+            onClick={() => navigate('/login/member')}
             className="mb-6 flex items-center space-x-2 text-gray-700 hover:text-green-600 transition-colors"
           >
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -323,7 +304,7 @@ const MemberSignup = () => {
                     )}
                   </button>
                 </div>
-                <p className="text-xs text-gray-500 mt-1">At least 6 characters</p>
+                <p className="text-xs text-gray-500 mt-1">At least 8 characters, including uppercase, lowercase, and a number</p>
               </div>
 
               <div>
@@ -406,7 +387,7 @@ const MemberSignup = () => {
             <p className="text-gray-600 text-sm">
               Already have an account?{' '}
               <button
-                onClick={() => navigate('/member-login')}
+                onClick={() => navigate('/login/member')}
                 className="text-green-600 hover:text-green-700 font-medium"
               >
                 Sign in here

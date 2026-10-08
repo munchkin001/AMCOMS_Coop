@@ -1,6 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { Line } from 'react-chartjs-2';
+import { AlertTriangle, Banknote, CircleCheck, ClipboardCheck, FileText, Gem, HandCoins, Landmark, Megaphone, Package, UserPlus, Users, Clock3 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
+import { useMultipleRealtimeSubscriptions } from '../../hooks/useRealtimeSubscription';
+import DashboardMetricCard from '../common/DashboardMetricCard';
 
 const ManagerDashboard = () => {
   const [loading, setLoading] = useState(true);
@@ -15,7 +18,13 @@ const ManagerDashboard = () => {
     todaySavingsTransactions: 0,
     todayTimeDepositTransactions: 0,
     todayNewMembers: 0,
-    todayPendingTransactions: 0
+    todayPendingTransactions: 0,
+    totalIncome: 0,
+    totalExpenses: 0,
+    netIncome: 0,
+    cashOnHand: 0,
+    monthlyIncome: [],
+    monthlyExpenses: []
   });
 
   useEffect(() => {
@@ -27,11 +36,12 @@ const ManagerDashboard = () => {
       setLoading(true);
       const today = new Date().toISOString().split('T')[0];
 
-      // Fetch pending loan requests
+      // Fetch pending member loan applications
       const { count: pendingRequests } = await supabase
-        .from('loans')
-        .select('*', { count: 'exact', head: true })
-        .eq('status', 'pending');
+        .from('requests')
+        .select('id', { count: 'exact', head: true })
+        .eq('request_type', 'loan_application')
+        .in('status', ['pending', 'under_review']);
 
       // Fetch active loans
       const { count: activeLoans } = await supabase
@@ -84,6 +94,82 @@ const ManagerDashboard = () => {
         .select('*', { count: 'exact', head: true })
         .gte('created_at', today);
 
+      // Fetch financial data
+      // Get total income from loan payments (interest portion)
+      const { data: loanPayments } = await supabase
+        .from('loan_payments')
+        .select('interest_amount');
+      
+      const totalInterestIncome = loanPayments?.reduce((sum, payment) => 
+        sum + (parseFloat(payment.interest_amount) || 0), 0) || 0;
+
+      // Get income from sales
+      const { data: sales } = await supabase
+        .from('sales')
+        .select('total_amount');
+      
+      const totalSalesIncome = sales?.reduce((sum, sale) => 
+        sum + (parseFloat(sale.total_amount) || 0), 0) || 0;
+
+      const totalIncome = totalInterestIncome + totalSalesIncome;
+
+      // Get expenses from general journal (debit entries for expense accounts)
+      const { data: expenses } = await supabase
+        .from('general_journal')
+        .select('debit_amount, accounts(account_type)')
+        .eq('accounts.account_type', 'expense');
+      
+      const totalExpenses = expenses?.reduce((sum, entry) => 
+        sum + (parseFloat(entry.debit_amount) || 0), 0) || 0;
+
+      // Get cash on hand from cash account in general ledger
+      const { data: cashAccount } = await supabase
+        .from('general_ledger')
+        .select('debit_amount, credit_amount, accounts!inner(account_name)')
+        .ilike('accounts.account_name', '%cash%');
+      
+      const cashOnHand = cashAccount?.reduce((sum, entry) => 
+        sum + (parseFloat(entry.debit_amount) || 0) - (parseFloat(entry.credit_amount) || 0), 0) || 0;
+
+      // Get monthly income/expense data for chart (last 6 months)
+      const sixMonthsAgo = new Date();
+      sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
+      
+      const { data: monthlyPayments } = await supabase
+        .from('loan_payments')
+        .select('payment_date, interest_amount')
+        .gte('payment_date', sixMonthsAgo.toISOString().split('T')[0])
+        .order('payment_date');
+
+      const { data: monthlyJournalExpenses } = await supabase
+        .from('general_journal')
+        .select('transaction_date, debit_amount, accounts!inner(account_type)')
+        .eq('accounts.account_type', 'expense')
+        .gte('transaction_date', sixMonthsAgo.toISOString().split('T')[0])
+        .order('transaction_date');
+
+      // Aggregate by month
+      const monthlyIncome = Array(6).fill(0);
+      const monthlyExpenses = Array(6).fill(0);
+      
+      monthlyPayments?.forEach(payment => {
+        const monthIndex = new Date(payment.payment_date).getMonth();
+        const currentMonth = new Date().getMonth();
+        const offset = (currentMonth - monthIndex + 12) % 12;
+        if (offset < 6) {
+          monthlyIncome[5 - offset] += parseFloat(payment.interest_amount) || 0;
+        }
+      });
+
+      monthlyJournalExpenses?.forEach(expense => {
+        const monthIndex = new Date(expense.transaction_date).getMonth();
+        const currentMonth = new Date().getMonth();
+        const offset = (currentMonth - monthIndex + 12) % 12;
+        if (offset < 6) {
+          monthlyExpenses[5 - offset] += parseFloat(expense.debit_amount) || 0;
+        }
+      });
+
       setDashboardData({
         pendingRequests: pendingRequests || 0,
         activeLoans: activeLoans || 0,
@@ -93,9 +179,15 @@ const ManagerDashboard = () => {
         lowStockProducts,
         todayLoanApprovals: todayLoanApprovals || 0,
         todaySavingsTransactions: todaySavingsTransactions || 0,
-        todayTimeDepositTransactions: 0, // Will calculate when you have time deposit transactions
+        todayTimeDepositTransactions: 0,
         todayNewMembers: todayNewMembers || 0,
-        todayPendingTransactions: 0 // Will calculate from pending transactions
+        todayPendingTransactions: 0,
+        totalIncome,
+        totalExpenses,
+        netIncome: totalIncome - totalExpenses,
+        cashOnHand,
+        monthlyIncome,
+        monthlyExpenses
       });
     } catch (error) {
       console.error('Error fetching dashboard data:', error);
@@ -104,30 +196,55 @@ const ManagerDashboard = () => {
     }
   };
 
+  useMultipleRealtimeSubscriptions([
+    'loans',
+    'requests',
+    'loan_payments',
+    'savings_accounts',
+    'savings_transactions',
+    'members',
+    'products',
+    'sales',
+    'general_journal',
+    'general_ledger',
+    'accounts'
+  ].map((table) => ({ table, onUpdate: fetchDashboardData })), []);
+
   // Summary cards data
   const summaryCards = [
-    { label: 'Pending Requests', value: loading ? '...' : dashboardData.pendingRequests.toString(), icon: '⏳', color: 'yellow', change: 'Loan requests' },
-    { label: 'Active Loans', value: loading ? '...' : dashboardData.activeLoans.toString(), icon: '💰', color: 'blue', change: 'Being serviced' },
-    { label: 'Active Savings', value: loading ? '...' : dashboardData.activeSavings.toString(), icon: '🏦', color: 'green', change: 'Regular accounts' },
-    { label: 'Active Time Deposits', value: loading ? '...' : dashboardData.activeTimeDeposits.toString(), icon: '💎', color: 'purple', change: 'Time deposits' },
-    { label: 'Total Members', value: loading ? '...' : dashboardData.totalMembers.toString(), icon: '👥', color: 'cyan', change: 'Cooperative members' },
-    { label: 'Inventory Status', value: loading ? '...' : (dashboardData.lowStockProducts > 0 ? 'Alert' : 'Good'), icon: '📦', color: dashboardData.lowStockProducts > 0 ? 'yellow' : 'green', change: `${dashboardData.lowStockProducts} low stock` }
+    { label: 'Pending Requests', value: loading ? '...' : dashboardData.pendingRequests.toString(), icon: Clock3, tone: 'yellow', detail: 'Loan requests' },
+    { label: 'Active Loans', value: loading ? '...' : dashboardData.activeLoans.toString(), icon: HandCoins, tone: 'blue', detail: 'Being serviced' },
+    { label: 'Active Savings', value: loading ? '...' : dashboardData.activeSavings.toString(), icon: Landmark, tone: 'green', detail: 'Regular accounts' },
+    { label: 'Active Time Deposits', value: loading ? '...' : dashboardData.activeTimeDeposits.toString(), icon: Gem, tone: 'purple', detail: 'Time deposits' },
+    { label: 'Total Members', value: loading ? '...' : dashboardData.totalMembers.toString(), icon: Users, tone: 'cyan', detail: 'Cooperative members' },
+    { label: 'Inventory Status', value: loading ? '...' : (dashboardData.lowStockProducts > 0 ? 'Alert' : 'Good'), icon: Package, tone: dashboardData.lowStockProducts > 0 ? 'yellow' : 'green', detail: `${dashboardData.lowStockProducts} low stock` }
   ];
 
   // Financial data for chart
+  const getMonthLabels = () => {
+    const months = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+    const currentMonth = new Date().getMonth();
+    const labels = [];
+    for (let i = 5; i >= 0; i--) {
+      const monthIndex = (currentMonth - i + 12) % 12;
+      labels.push(months[monthIndex]);
+    }
+    return labels;
+  };
+
   const financialData = {
-    labels: ['January', 'February', 'March', 'April', 'May', 'June'],
+    labels: getMonthLabels(),
     datasets: [
       {
         label: 'Income',
-        data: [0, 0, 0, 0, 0, 0],
+        data: dashboardData.monthlyIncome,
         borderColor: 'rgb(34, 197, 94)',
         backgroundColor: 'rgba(34, 197, 94, 0.1)',
         tension: 0.4
       },
       {
         label: 'Expenses',
-        data: [0, 0, 0, 0, 0, 0],
+        data: dashboardData.monthlyExpenses,
         borderColor: 'rgb(239, 68, 68)',
         backgroundColor: 'rgba(239, 68, 68, 0.1)',
         tension: 0.4
@@ -155,27 +272,20 @@ const ManagerDashboard = () => {
 
   // Today's activities
   const todayActivities = [
-    { type: 'Loan Approved', count: dashboardData.todayLoanApprovals, icon: '✅', color: 'text-green-600' },
-    { type: 'Savings Transactions', count: dashboardData.todaySavingsTransactions, icon: '💵', color: 'text-blue-600' },
-    { type: 'Time Deposit Transactions', count: dashboardData.todayTimeDepositTransactions, icon: '💎', color: 'text-purple-600' },
-    { type: 'New Members', count: dashboardData.todayNewMembers, icon: '👤', color: 'text-cyan-600' },
-    { type: 'Low Stock Products', count: dashboardData.lowStockProducts, icon: '⚠️', color: 'text-yellow-600' },
-    { type: 'Pending Transactions', count: dashboardData.todayPendingTransactions, icon: '⏰', color: 'text-orange-600' }
+    { type: 'Loan Approved', count: dashboardData.todayLoanApprovals, icon: ClipboardCheck, color: 'text-green-600' },
+    { type: 'Savings Transactions', count: dashboardData.todaySavingsTransactions, icon: Banknote, color: 'text-blue-600' },
+    { type: 'Time Deposit Transactions', count: dashboardData.todayTimeDepositTransactions, icon: Gem, color: 'text-purple-600' },
+    { type: 'New Members', count: dashboardData.todayNewMembers, icon: UserPlus, color: 'text-cyan-600' },
+    { type: 'Low Stock Products', count: dashboardData.lowStockProducts, icon: AlertTriangle, color: 'text-yellow-600' },
+    { type: 'Pending Transactions', count: dashboardData.todayPendingTransactions, icon: Clock3, color: 'text-orange-600' }
   ];
 
   return (
     <div className="space-y-6">
       {/* Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {summaryCards.map((card, idx) => (
-          <div key={idx} className="bg-white rounded-lg shadow p-6 border border-gray-200 hover:shadow-md transition-shadow">
-            <div className="flex items-center justify-between mb-2">
-              <p className="text-sm font-medium text-gray-600">{card.label}</p>
-              <span className="text-2xl">{card.icon}</span>
-            </div>
-            <p className="text-3xl font-bold text-gray-900 mb-1">{card.value}</p>
-            <p className="text-xs text-gray-500">{card.change}</p>
-          </div>
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+        {summaryCards.map((card) => (
+          <DashboardMetricCard key={card.label} label={card.label} value={card.value} detail={card.detail} icon={card.icon} tone={card.tone} />
         ))}
       </div>
 
@@ -190,19 +300,27 @@ const ManagerDashboard = () => {
           <div className="mt-4 grid grid-cols-4 gap-4 text-center">
             <div>
               <p className="text-sm text-gray-600">Total Income</p>
-              <p className="text-lg font-bold text-green-600">₱0.00</p>
+              <p className="text-lg font-bold text-green-600">
+                ₱{dashboardData.totalIncome.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              </p>
             </div>
             <div>
               <p className="text-sm text-gray-600">Total Expenses</p>
-              <p className="text-lg font-bold text-red-600">₱0.00</p>
+              <p className="text-lg font-bold text-red-600">
+                ₱{dashboardData.totalExpenses.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              </p>
             </div>
             <div>
               <p className="text-sm text-gray-600">Net Income</p>
-              <p className="text-lg font-bold text-blue-600">₱0.00</p>
+              <p className="text-lg font-bold text-blue-600">
+                ₱{dashboardData.netIncome.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              </p>
             </div>
             <div>
               <p className="text-sm text-gray-600">Cash on Hand</p>
-              <p className="text-lg font-bold text-purple-600">₱0.00</p>
+              <p className="text-lg font-bold text-purple-600">
+                ₱{dashboardData.cashOnHand.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              </p>
             </div>
           </div>
         </div>
@@ -214,7 +332,7 @@ const ManagerDashboard = () => {
             {todayActivities.map((activity, idx) => (
               <div key={idx} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors">
                 <div className="flex items-center space-x-3">
-                  <span className="text-xl">{activity.icon}</span>
+                  <activity.icon aria-hidden="true" className={`size-5 shrink-0 ${activity.color}`} />
                   <div>
                     <p className="text-sm font-medium text-gray-900">{activity.type}</p>
                     <p className="text-xs text-gray-500">Today</p>
@@ -270,7 +388,7 @@ const ManagerDashboard = () => {
           <div className="space-y-3">
             {dashboardData.lowStockProducts > 0 && (
               <div className="flex items-start space-x-3 p-3 bg-red-50 border border-red-200 rounded-lg">
-                <span className="text-red-600 text-xl">🚨</span>
+                <AlertTriangle aria-hidden="true" className="size-5 shrink-0 text-red-600" />
                 <div className="flex-1">
                   <p className="text-sm font-medium text-red-900">Low Stock Alert</p>
                   <p className="text-xs text-red-700">{dashboardData.lowStockProducts} products are running low on stock</p>
@@ -278,7 +396,7 @@ const ManagerDashboard = () => {
               </div>
             )}
             <div className="flex items-start space-x-3 p-3 bg-green-50 border border-green-200 rounded-lg">
-              <span className="text-green-600 text-xl">✅</span>
+              <CircleCheck aria-hidden="true" className="size-5 shrink-0 text-green-600" />
               <div className="flex-1">
                 <p className="text-sm font-medium text-green-900">System Status</p>
                 <p className="text-xs text-green-700">All systems operating normally</p>
@@ -302,28 +420,28 @@ const ManagerDashboard = () => {
             onClick={() => alert('Navigate to the Loans section using the sidebar menu to review pending loan applications.')}
             className="bg-white bg-opacity-20 hover:bg-opacity-30 backdrop-blur-sm rounded-lg p-4 transition-all text-center cursor-pointer"
           >
-            <span className="text-3xl mb-2 block">📝</span>
+            <ClipboardCheck aria-hidden="true" className="mx-auto mb-2 size-7" />
             <span className="text-sm font-medium">Review Requests</span>
           </button>
           <button 
             onClick={() => alert('Feature Coming Soon!\n\nTo add a new member, please use the Members section from the sidebar menu or contact the cooperative office.\n\nContact: +63 XXX XXX XXXX')}
             className="bg-white bg-opacity-20 hover:bg-opacity-30 backdrop-blur-sm rounded-lg p-4 transition-all text-center cursor-pointer"
           >
-            <span className="text-3xl mb-2 block">👥</span>
+            <UserPlus aria-hidden="true" className="mx-auto mb-2 size-7" />
             <span className="text-sm font-medium">Add Member</span>
           </button>
           <button 
             onClick={() => alert('Navigate to the Reports section using the sidebar menu to generate various management reports.')}
             className="bg-white bg-opacity-20 hover:bg-opacity-30 backdrop-blur-sm rounded-lg p-4 transition-all text-center cursor-pointer"
           >
-            <span className="text-3xl mb-2 block">📊</span>
+            <FileText aria-hidden="true" className="mx-auto mb-2 size-7" />
             <span className="text-sm font-medium">Generate Report</span>
           </button>
           <button 
             onClick={() => alert('Feature Coming Soon!\n\nAnnouncement system will be available in a future update. For now, please contact members directly or post announcements at the cooperative office.')}
             className="bg-white bg-opacity-20 hover:bg-opacity-30 backdrop-blur-sm rounded-lg p-4 transition-all text-center cursor-pointer"
           >
-            <span className="text-3xl mb-2 block">📢</span>
+            <Megaphone aria-hidden="true" className="mx-auto mb-2 size-7" />
             <span className="text-sm font-medium">Send Announcement</span>
           </button>
         </div>

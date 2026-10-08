@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import LoadingSpinner from './common/LoadingSpinner';
@@ -60,6 +60,10 @@ const ProtectedRoute = ({
         </div>
       </div>
     );
+  }
+
+  if (staff.role === 'member' && staff.must_change_password) {
+    return <Navigate to="/reset-password" state={{ from: location }} replace />;
   }
 
   // Check role authorization

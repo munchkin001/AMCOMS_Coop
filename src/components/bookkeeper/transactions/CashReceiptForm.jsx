@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
 
+const getDefaultSide = (account) => ['Cash on Hand', 'Cash in Bank'].includes(account) ? 'debit' : 'credit';
+
 const CashReceiptForm = ({ onSave, onCancel, transaction = null }) => {
   const [formData, setFormData] = useState(transaction ? {
     date: transaction.date,
@@ -21,23 +23,60 @@ const CashReceiptForm = ({ onSave, onCancel, transaction = null }) => {
     transaction && transaction.accountAllocations 
       ? transaction.accountAllocations 
       : [
-          { account: 'Cash on Hand', amount: '' },
-          { account: '', amount: '' }
+          { account: 'Cash on Hand', amount: '', side: 'debit' },
+          { account: '', amount: '', side: 'credit' }
         ]
   );
+  const [formError, setFormError] = useState('');
+  const [saving, setSaving] = useState(false);
 
-  const handleSubmit = (e, status = 'draft') => {
+  const handleSubmit = async (e, status = 'draft') => {
     e.preventDefault();
-    onSave({ ...formData, accountDistribution, status });
+    setFormError('');
+    if (!formData.date || !formData.receiptNo.trim() || !formData.member.trim() || !formData.particulars.trim() || Number(formData.amount) <= 0) {
+      setFormError('Enter the date, receipt number, customer, particulars, and a positive amount before saving.');
+      return;
+    }
+    const allocations = accountDistribution
+      .filter((item) => item.account && Number(item.amount) > 0)
+      .map((item) => ({ ...item, amount: Number(item.amount) }));
+
+    if (status === 'recorded') {
+      const debitTotal = allocations.filter((item) => item.side === 'debit').reduce((sum, item) => sum + item.amount, 0);
+      const creditTotal = allocations.filter((item) => item.side === 'credit').reduce((sum, item) => sum + item.amount, 0);
+      const receiptAmount = Number(formData.amount);
+
+      if (Math.abs(debitTotal - creditTotal) > 0.01) {
+        setFormError(`Debits (₱${debitTotal.toFixed(2)}) and credits (₱${creditTotal.toFixed(2)}) must balance.`);
+        return;
+      }
+      if (Math.abs(debitTotal - receiptAmount) > 0.01) {
+        setFormError(`Debit total (₱${debitTotal.toFixed(2)}) must equal amount received (₱${receiptAmount.toFixed(2)}).`);
+        return;
+      }
+    }
+
+    setSaving(true);
+    try {
+      await onSave({ ...formData, accountDistribution: allocations, status, type: 'cash-receipt' });
+    } catch (error) {
+      setFormError(error.message || 'The receipt could not be saved. Please try again.');
+    } finally {
+      setSaving(false);
+    }
   };
 
   const addAccount = () => {
-    setAccountDistribution([...accountDistribution, { account: '', amount: '' }]);
+    setAccountDistribution([...accountDistribution, { account: '', amount: '', side: 'credit' }]);
   };
 
   const updateAccount = (index, field, value) => {
     const updated = [...accountDistribution];
-    updated[index][field] = value;
+    updated[index] = {
+      ...updated[index],
+      [field]: value,
+      ...(field === 'account' ? { side: getDefaultSide(value) } : {})
+    };
     setAccountDistribution(updated);
   };
 
@@ -53,6 +92,10 @@ const CashReceiptForm = ({ onSave, onCancel, transaction = null }) => {
     'Savings / Time Deposit',
     'Capital Share',
     'Sales',
+    'Charge Sales',
+    'Marketing',
+    'Barangay Food Terminal (BFT)',
+    'Membership Fee',
     'Interest Income',
     'Service Fee Income',
     'Other Income'
@@ -75,7 +118,8 @@ const CashReceiptForm = ({ onSave, onCancel, transaction = null }) => {
         </button>
       </div>
 
-      <form onSubmit={(e) => handleSubmit(e, 'recorded')} className="space-y-6">
+      <form onSubmit={(e) => handleSubmit(e, e.nativeEvent.submitter?.value || 'recorded')} className="space-y-6">
+        {formError && <p role="alert" className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{formError}</p>}
         {/* Transaction Information */}
         <div className="bg-white rounded-lg border border-gray-200 p-4 lg:p-6">
           <h3 className="text-base lg:text-lg font-semibold text-gray-900 mb-4">Transaction Information</h3>
@@ -165,17 +209,25 @@ const CashReceiptForm = ({ onSave, onCancel, transaction = null }) => {
 
           <div className="space-y-3">
             {accountDistribution.map((item, index) => (
-              <div key={index} className="flex gap-2">
+              <div key={index} className="grid grid-cols-1 gap-2 sm:grid-cols-[minmax(0,1fr)_130px_160px]">
                 <select
                   value={item.account}
                   onChange={(e) => updateAccount(index, 'account', e.target.value)}
                   className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm lg:text-base"
-                  required
                 >
                   <option value="">Select Account</option>
                   {accountOptions.map((acc) => (
                     <option key={acc} value={acc}>{acc}</option>
                   ))}
+                </select>
+                <select
+                  value={item.side || getDefaultSide(item.account)}
+                  onChange={(e) => updateAccount(index, 'side', e.target.value)}
+                  className="px-3 py-2 border border-gray-300 rounded-lg text-sm lg:text-base"
+                  aria-label={`Debit or credit for ${item.account || `account ${index + 1}`}`}
+                >
+                  <option value="debit">Debit</option>
+                  <option value="credit">Credit</option>
                 </select>
                 <div className="relative w-40">
                   <span className="absolute left-3 top-2 text-gray-500 text-sm">₱</span>
@@ -186,7 +238,6 @@ const CashReceiptForm = ({ onSave, onCancel, transaction = null }) => {
                     onChange={(e) => updateAccount(index, 'amount', e.target.value)}
                     placeholder="0.00"
                     className="w-full pl-7 pr-3 py-2 border border-gray-300 rounded-lg text-sm lg:text-base"
-                    required
                   />
                 </div>
                 {accountDistribution.length > 2 && (
@@ -206,7 +257,8 @@ const CashReceiptForm = ({ onSave, onCancel, transaction = null }) => {
 
           <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
             <p className="text-xs lg:text-sm text-blue-800">
-              <strong>Tip:</strong> Debits and credits should balance. For example: Cash on Hand (debit) = Loan Receivable (credit)
+              <strong>Balance:</strong> Debits ₱{accountDistribution.filter((item) => item.side === 'debit').reduce((sum, item) => sum + (Number(item.amount) || 0), 0).toFixed(2)}
+              {' '}| Credits ₱{accountDistribution.filter((item) => item.side === 'credit').reduce((sum, item) => sum + (Number(item.amount) || 0), 0).toFixed(2)}
             </p>
           </div>
         </div>
@@ -221,17 +273,20 @@ const CashReceiptForm = ({ onSave, onCancel, transaction = null }) => {
             Cancel
           </button>
           <button
-            type="button"
-            onClick={(e) => handleSubmit(e, 'draft')}
-            className="px-6 py-2 border border-purple-300 text-purple-700 rounded-lg hover:bg-purple-50 font-medium"
+            type="submit"
+            value="draft"
+            disabled={saving}
+            className="px-6 py-2 border border-purple-300 text-purple-700 rounded-lg hover:bg-purple-50 font-medium disabled:opacity-60"
           >
-            Save as Draft
+            {saving ? 'Saving...' : 'Save as Draft'}
           </button>
           <button
             type="submit"
-            className="px-6 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 font-medium"
+            value="recorded"
+            disabled={saving}
+            className="px-6 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 font-medium disabled:opacity-60"
           >
-            Record Transaction
+            {saving ? 'Recording...' : 'Record Transaction'}
           </button>
         </div>
       </form>

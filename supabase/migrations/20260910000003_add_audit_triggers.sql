@@ -54,9 +54,7 @@ BEGIN
   RETURN COALESCE(NEW, OLD);
 END;
 $$;
-
 COMMENT ON FUNCTION public.audit_trigger IS 'Automatically logs all INSERT, UPDATE, DELETE operations to audit_logs table';
-
 -- ============================================
 -- 2. APPLY AUDIT TRIGGERS TO FINANCIAL TABLES
 -- ============================================
@@ -69,46 +67,39 @@ CREATE TRIGGER audit_journal_entries
   AFTER INSERT OR UPDATE OR DELETE ON public.journal_entries
   FOR EACH ROW
   EXECUTE FUNCTION public.audit_trigger();
-
 DROP TRIGGER IF EXISTS audit_journal_entry_lines ON public.journal_entry_lines;
 CREATE TRIGGER audit_journal_entry_lines
   AFTER INSERT OR UPDATE OR DELETE ON public.journal_entry_lines
   FOR EACH ROW
   EXECUTE FUNCTION public.audit_trigger();
-
 -- Cash Receipts
 DROP TRIGGER IF EXISTS audit_cash_receipts ON public.cash_receipts;
 CREATE TRIGGER audit_cash_receipts
   AFTER INSERT OR UPDATE OR DELETE ON public.cash_receipts
   FOR EACH ROW
   EXECUTE FUNCTION public.audit_trigger();
-
 DROP TRIGGER IF EXISTS audit_cash_receipt_lines ON public.cash_receipt_lines;
 CREATE TRIGGER audit_cash_receipt_lines
   AFTER INSERT OR UPDATE OR DELETE ON public.cash_receipt_lines
   FOR EACH ROW
   EXECUTE FUNCTION public.audit_trigger();
-
 -- Cash Disbursements
 DROP TRIGGER IF EXISTS audit_cash_disbursements ON public.cash_disbursements;
 CREATE TRIGGER audit_cash_disbursements
   AFTER INSERT OR UPDATE OR DELETE ON public.cash_disbursements
   FOR EACH ROW
   EXECUTE FUNCTION public.audit_trigger();
-
 DROP TRIGGER IF EXISTS audit_cash_disbursement_lines ON public.cash_disbursement_lines;
 CREATE TRIGGER audit_cash_disbursement_lines
   AFTER INSERT OR UPDATE OR DELETE ON public.cash_disbursement_lines
   FOR EACH ROW
   EXECUTE FUNCTION public.audit_trigger();
-
 -- Chart of Accounts
 DROP TRIGGER IF EXISTS audit_chart_of_accounts ON public.chart_of_accounts;
 CREATE TRIGGER audit_chart_of_accounts
   AFTER INSERT OR UPDATE OR DELETE ON public.chart_of_accounts
   FOR EACH ROW
   EXECUTE FUNCTION public.audit_trigger();
-
 -- ============================================
 -- 3. APPLY AUDIT TRIGGERS TO MEMBER ACCOUNTS
 -- ============================================
@@ -119,42 +110,36 @@ CREATE TRIGGER audit_members
   AFTER INSERT OR UPDATE OR DELETE ON public.members
   FOR EACH ROW
   EXECUTE FUNCTION public.audit_trigger();
-
 -- Savings Accounts
 DROP TRIGGER IF EXISTS audit_savings_accounts ON public.savings_accounts;
 CREATE TRIGGER audit_savings_accounts
   AFTER INSERT OR UPDATE OR DELETE ON public.savings_accounts
   FOR EACH ROW
   EXECUTE FUNCTION public.audit_trigger();
-
 -- Savings Transactions
 DROP TRIGGER IF EXISTS audit_savings_transactions ON public.savings_transactions;
 CREATE TRIGGER audit_savings_transactions
   AFTER INSERT OR UPDATE OR DELETE ON public.savings_transactions
   FOR EACH ROW
   EXECUTE FUNCTION public.audit_trigger();
-
 -- Loans
 DROP TRIGGER IF EXISTS audit_loans ON public.loans;
 CREATE TRIGGER audit_loans
   AFTER INSERT OR UPDATE OR DELETE ON public.loans
   FOR EACH ROW
   EXECUTE FUNCTION public.audit_trigger();
-
 -- Loan Payments
 DROP TRIGGER IF EXISTS audit_loan_payments ON public.loan_payments;
 CREATE TRIGGER audit_loan_payments
   AFTER INSERT OR UPDATE OR DELETE ON public.loan_payments
   FOR EACH ROW
   EXECUTE FUNCTION public.audit_trigger();
-
 -- Loan Products
 DROP TRIGGER IF EXISTS audit_loan_products ON public.loan_products;
 CREATE TRIGGER audit_loan_products
   AFTER INSERT OR UPDATE OR DELETE ON public.loan_products
   FOR EACH ROW
   EXECUTE FUNCTION public.audit_trigger();
-
 -- ============================================
 -- 4. APPLY AUDIT TRIGGERS TO INVENTORY
 -- ============================================
@@ -165,28 +150,24 @@ CREATE TRIGGER audit_products
   AFTER INSERT OR UPDATE OR DELETE ON public.products
   FOR EACH ROW
   EXECUTE FUNCTION public.audit_trigger();
-
 -- Stock Inventory
 DROP TRIGGER IF EXISTS audit_stock_inventory ON public.stock_inventory;
 CREATE TRIGGER audit_stock_inventory
   AFTER INSERT OR UPDATE OR DELETE ON public.stock_inventory
   FOR EACH ROW
   EXECUTE FUNCTION public.audit_trigger();
-
 -- Stock Movements
 DROP TRIGGER IF EXISTS audit_stock_movements ON public.stock_movements;
 CREATE TRIGGER audit_stock_movements
   AFTER INSERT OR UPDATE OR DELETE ON public.stock_movements
   FOR EACH ROW
   EXECUTE FUNCTION public.audit_trigger();
-
 -- Production Records
 DROP TRIGGER IF EXISTS audit_production_records ON public.production_records;
 CREATE TRIGGER audit_production_records
   AFTER INSERT OR UPDATE OR DELETE ON public.production_records
   FOR EACH ROW
   EXECUTE FUNCTION public.audit_trigger();
-
 -- ============================================
 -- 5. APPLY AUDIT TRIGGERS TO SALES & PURCHASES
 -- ============================================
@@ -197,21 +178,18 @@ CREATE TRIGGER audit_sales_orders
   AFTER INSERT OR UPDATE OR DELETE ON public.sales_orders
   FOR EACH ROW
   EXECUTE FUNCTION public.audit_trigger();
-
 -- Purchases
 DROP TRIGGER IF EXISTS audit_purchases ON public.purchases;
 CREATE TRIGGER audit_purchases
   AFTER INSERT OR UPDATE OR DELETE ON public.purchases
   FOR EACH ROW
   EXECUTE FUNCTION public.audit_trigger();
-
 -- Suppliers
 DROP TRIGGER IF EXISTS audit_suppliers ON public.suppliers;
 CREATE TRIGGER audit_suppliers
   AFTER INSERT OR UPDATE OR DELETE ON public.suppliers
   FOR EACH ROW
   EXECUTE FUNCTION public.audit_trigger();
-
 -- ============================================
 -- 6. APPLY AUDIT TRIGGERS TO STAFF & REQUESTS
 -- ============================================
@@ -222,21 +200,18 @@ CREATE TRIGGER audit_staff
   AFTER INSERT OR UPDATE OR DELETE ON public.staff
   FOR EACH ROW
   EXECUTE FUNCTION public.audit_trigger();
-
 -- Requests (Track approval/rejection actions)
 DROP TRIGGER IF EXISTS audit_requests ON public.requests;
 CREATE TRIGGER audit_requests
   AFTER INSERT OR UPDATE OR DELETE ON public.requests
   FOR EACH ROW
   EXECUTE FUNCTION public.audit_trigger();
-
 -- System Settings (Track configuration changes)
 DROP TRIGGER IF EXISTS audit_system_settings ON public.system_settings;
 CREATE TRIGGER audit_system_settings
   AFTER INSERT OR UPDATE OR DELETE ON public.system_settings
   FOR EACH ROW
   EXECUTE FUNCTION public.audit_trigger();
-
 -- ============================================
 -- 7. CREATE AUDIT QUERY HELPER FUNCTIONS
 -- ============================================
@@ -278,9 +253,7 @@ BEGIN
   LIMIT p_limit;
 END;
 $$;
-
 COMMENT ON FUNCTION public.get_audit_trail IS 'Returns audit trail for a specific record';
-
 -- Get recent audit activities for current user
 CREATE OR REPLACE FUNCTION public.get_my_recent_activities(p_limit INTEGER DEFAULT 20)
 RETURNS TABLE (
@@ -308,9 +281,7 @@ BEGIN
   LIMIT p_limit;
 END;
 $$;
-
 COMMENT ON FUNCTION public.get_my_recent_activities IS 'Returns recent audit activities for current user';
-
 -- Get system-wide recent activities (for chairman/manager)
 CREATE OR REPLACE FUNCTION public.get_recent_system_activities(
   p_limit INTEGER DEFAULT 50,
@@ -351,9 +322,7 @@ BEGIN
   LIMIT p_limit;
 END;
 $$;
-
 COMMENT ON FUNCTION public.get_recent_system_activities IS 'Returns recent system-wide activities (chairman/manager only)';
-
 -- ============================================
 -- 8. AUDIT LOG CLEANUP FUNCTION
 -- ============================================
@@ -395,9 +364,7 @@ BEGIN
   RETURN archived_count;
 END;
 $$;
-
 COMMENT ON FUNCTION public.archive_old_audit_logs IS 'Archives audit logs older than specified days (chairman only)';
-
 -- ============================================
 -- SUCCESS MESSAGE
 -- ============================================

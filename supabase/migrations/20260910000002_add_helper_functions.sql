@@ -48,9 +48,7 @@ BEGIN
   RETURN ref_number;
 END;
 $$;
-
 COMMENT ON FUNCTION public.generate_reference_number IS 'Generates unique reference numbers in format: PREFIX-YYYY-000001';
-
 -- ============================================
 -- 2. USER ROLE FUNCTIONS
 -- ============================================
@@ -72,9 +70,7 @@ BEGIN
   RETURN user_role;
 END;
 $$;
-
 COMMENT ON FUNCTION public.get_user_role IS 'Returns the role of the currently authenticated user';
-
 -- Check if user has a specific role
 CREATE OR REPLACE FUNCTION public.has_role(required_role TEXT)
 RETURNS BOOLEAN
@@ -92,9 +88,7 @@ BEGIN
   );
 END;
 $$;
-
 COMMENT ON FUNCTION public.has_role IS 'Checks if current user has a specific role';
-
 -- Check if user has any of the specified roles
 CREATE OR REPLACE FUNCTION public.has_any_role(required_roles TEXT[])
 RETURNS BOOLEAN
@@ -112,9 +106,7 @@ BEGIN
   );
 END;
 $$;
-
 COMMENT ON FUNCTION public.has_any_role IS 'Checks if current user has any of the specified roles';
-
 -- Get current user's staff ID
 CREATE OR REPLACE FUNCTION public.get_staff_id()
 RETURNS UUID
@@ -132,9 +124,7 @@ BEGIN
   RETURN staff_id;
 END;
 $$;
-
 COMMENT ON FUNCTION public.get_staff_id IS 'Returns the staff ID of the currently authenticated user';
-
 -- Get current user's member ID (for member portal users)
 CREATE OR REPLACE FUNCTION public.get_member_id()
 RETURNS UUID
@@ -152,9 +142,7 @@ BEGIN
   RETURN member_id;
 END;
 $$;
-
 COMMENT ON FUNCTION public.get_member_id IS 'Returns the member ID of the currently authenticated user (for member portal)';
-
 -- Check if user is a member (not staff)
 CREATE OR REPLACE FUNCTION public.is_member_user()
 RETURNS BOOLEAN
@@ -172,9 +160,7 @@ BEGIN
   );
 END;
 $$;
-
 COMMENT ON FUNCTION public.is_member_user IS 'Checks if current user is a member (has member_id)';
-
 -- ============================================
 -- 3. FINANCIAL CALCULATIONS
 -- ============================================
@@ -199,9 +185,7 @@ BEGIN
   RETURN total_balance;
 END;
 $$;
-
 COMMENT ON FUNCTION public.get_member_total_savings IS 'Calculates total regular savings balance for a member';
-
 -- Calculate member's total time deposit balance
 CREATE OR REPLACE FUNCTION public.get_member_total_time_deposit(p_member_id UUID)
 RETURNS DECIMAL(15, 2)
@@ -222,9 +206,7 @@ BEGIN
   RETURN total_balance;
 END;
 $$;
-
 COMMENT ON FUNCTION public.get_member_total_time_deposit IS 'Calculates total time deposit balance for a member';
-
 -- Calculate member's total loan balance
 CREATE OR REPLACE FUNCTION public.get_member_total_loan_balance(p_member_id UUID)
 RETURNS DECIMAL(15, 2)
@@ -244,9 +226,7 @@ BEGIN
   RETURN total_balance;
 END;
 $$;
-
 COMMENT ON FUNCTION public.get_member_total_loan_balance IS 'Calculates total outstanding loan balance for a member';
-
 -- Calculate next loan payment amount and date
 CREATE OR REPLACE FUNCTION public.get_next_loan_payment(p_member_id UUID)
 RETURNS TABLE (
@@ -272,9 +252,7 @@ BEGIN
   LIMIT 1;
 END;
 $$;
-
 COMMENT ON FUNCTION public.get_next_loan_payment IS 'Returns the next loan payment amount and due date for a member';
-
 -- ============================================
 -- 4. VALIDATION FUNCTIONS
 -- ============================================
@@ -299,9 +277,7 @@ BEGIN
   RETURN (current_balance >= p_amount);
 END;
 $$;
-
 COMMENT ON FUNCTION public.validate_withdrawal_balance IS 'Validates if savings account has sufficient balance for withdrawal';
-
 -- Check if member has active loans
 CREATE OR REPLACE FUNCTION public.member_has_active_loans(p_member_id UUID)
 RETURNS BOOLEAN
@@ -319,9 +295,7 @@ BEGIN
   );
 END;
 $$;
-
 COMMENT ON FUNCTION public.member_has_active_loans IS 'Checks if member has any active loans with outstanding balance';
-
 -- Check if product is low stock
 CREATE OR REPLACE FUNCTION public.is_low_stock(p_product_id UUID)
 RETURNS BOOLEAN
@@ -344,9 +318,7 @@ BEGIN
   RETURN (current_qty <= reorder_level);
 END;
 $$;
-
 COMMENT ON FUNCTION public.is_low_stock IS 'Checks if product stock is at or below reorder level';
-
 -- ============================================
 -- 5. BUSINESS LOGIC FUNCTIONS
 -- ============================================
@@ -390,9 +362,7 @@ BEGIN
   RETURN notification_id;
 END;
 $$;
-
 COMMENT ON FUNCTION public.create_notification IS 'Creates a new notification for a user';
-
 -- Mark notification as read
 CREATE OR REPLACE FUNCTION public.mark_notification_read(p_notification_id UUID)
 RETURNS BOOLEAN
@@ -410,9 +380,7 @@ BEGIN
   RETURN FOUND;
 END;
 $$;
-
 COMMENT ON FUNCTION public.mark_notification_read IS 'Marks a notification as read by the current user';
-
 -- Get unread notification count for current user
 CREATE OR REPLACE FUNCTION public.get_unread_notification_count()
 RETURNS INTEGER
@@ -432,9 +400,7 @@ BEGIN
   RETURN unread_count;
 END;
 $$;
-
 COMMENT ON FUNCTION public.get_unread_notification_count IS 'Returns count of unread notifications for current user';
-
 -- ============================================
 -- 6. REPORTING FUNCTIONS
 -- ============================================
@@ -464,9 +430,7 @@ BEGIN
   ) cd ON true;
 END;
 $$;
-
 COMMENT ON FUNCTION public.get_daily_cash_position IS 'Returns daily cash receipts, disbursements, and net flow';
-
 -- Get account balance (from ledger)
 CREATE OR REPLACE FUNCTION public.get_account_balance(
   p_account_id UUID,
@@ -511,9 +475,7 @@ BEGIN
   RETURN account_balance;
 END;
 $$;
-
 COMMENT ON FUNCTION public.get_account_balance IS 'Calculates account balance from journal entries as of a specific date';
-
 -- ============================================
 -- SUCCESS MESSAGE
 -- ============================================

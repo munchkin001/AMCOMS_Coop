@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
+import { useMultipleRealtimeSubscriptions } from '../../hooks/useRealtimeSubscription';
 import EmptyState from '../common/EmptyState';
 
 const MemberTransactionHistory = () => {
@@ -94,6 +95,11 @@ const MemberTransactionHistory = () => {
       setLoading(false);
     }
   };
+
+  useMultipleRealtimeSubscriptions([
+    { table: 'savings_transactions', onUpdate: fetchTransactions },
+    { table: 'loan_payments', onUpdate: fetchTransactions }
+  ], []);
 
   const applyFilters = () => {
     fetchTransactions();

@@ -44,8 +44,6 @@ BEGIN
       'public.member_applications does not exist. Apply database/member_applications.sql first.';
   END IF;
 END $$;
-
-
 -- ============================================
 -- 2. COLUMNS ON members
 -- ============================================
@@ -61,7 +59,6 @@ ALTER TABLE public.members
   ADD COLUMN IF NOT EXISTS emergency_contact_name  TEXT,
   ADD COLUMN IF NOT EXISTS emergency_contact_phone TEXT,
   ADD COLUMN IF NOT EXISTS family_members JSONB DEFAULT '[]'::jsonb;
-
 COMMENT ON COLUMN public.members.rsbsa   IS 'Rural-based Small-scale Agricultural number, from the membership application';
 COMMENT ON COLUMN public.members.tin     IS 'Tax Identification Number, from the membership application';
 COMMENT ON COLUMN public.members.ncfrs   IS 'National Cooperative Financial Reporting System number';
@@ -73,8 +70,6 @@ COMMENT ON COLUMN public.members.province     IS 'Province, from the membership 
 COMMENT ON COLUMN public.members.emergency_contact_name  IS 'Emergency contact person';
 COMMENT ON COLUMN public.members.emergency_contact_phone IS 'Emergency contact number';
 COMMENT ON COLUMN public.members.family_members IS 'Family members declared at signup, as a JSONB array';
-
-
 -- ============================================
 -- 3. ENSURE THE SAME COLUMNS EXIST ON member_applications
 -- ============================================
@@ -96,8 +91,6 @@ ALTER TABLE public.member_applications
   ADD COLUMN IF NOT EXISTS barangay     TEXT,
   ADD COLUMN IF NOT EXISTS municipality TEXT,
   ADD COLUMN IF NOT EXISTS province     TEXT;
-
-
 -- ============================================
 -- 4. REWRITE THE APPROVAL TRIGGER
 -- ============================================
@@ -173,11 +166,8 @@ BEGIN
   RETURN NEW;
 END;
 $$;
-
 COMMENT ON FUNCTION public.create_member_from_application() IS
   'On approval, copies every field from member_applications into members and links the auth user via a staff row with role=member.';
-
-
 -- ============================================
 -- 5. BACKFILL FROM EXISTING APPLICATIONS
 -- ============================================
@@ -211,8 +201,6 @@ BEGIN
   GET DIAGNOSTICS filled = ROW_COUNT;
   RAISE NOTICE 'Backfilled % existing member record(s) from their application.', filled;
 END $$;
-
-
 -- ============================================
 -- 6. VERIFICATION
 -- ============================================

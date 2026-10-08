@@ -1,6 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { Line } from 'react-chartjs-2';
+import { Banknote, HandCoins, Landmark, PiggyBank, TrendingDown, TrendingUp, UserCheck, Users } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
+import DashboardMetricCard from '../common/DashboardMetricCard';
+import { useMultipleRealtimeSubscriptions } from '../../hooks/useRealtimeSubscription';
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -32,12 +35,44 @@ const ChairmanDashboard = () => {
     totalSavings: 0,
     totalTimeDeposits: 0,
     paidLoans: 0,
-    overdueLoans: 0
+    overdueLoans: 0,
+    totalProducts: 0,
+    lowStockCount: 0,
+    outOfStockCount: 0,
+    totalProduction: 0
   });
 
   useEffect(() => {
     fetchDashboardData();
   }, []);
+
+  // Set up real-time subscriptions for live updates
+  useMultipleRealtimeSubscriptions([
+    {
+      table: 'members',
+      onUpdate: () => fetchDashboardData()
+    },
+    {
+      table: 'loans',
+      onUpdate: () => fetchDashboardData()
+    },
+    {
+      table: 'savings_accounts',
+      onUpdate: () => fetchDashboardData()
+    },
+    {
+      table: 'products',
+      onUpdate: () => fetchDashboardData()
+    },
+    {
+      table: 'stock_inventory',
+      onUpdate: () => fetchDashboardData()
+    },
+    {
+      table: 'production_records',
+      onUpdate: () => fetchDashboardData()
+    }
+  ], []);
 
   const fetchDashboardData = async () => {
     try {
@@ -92,6 +127,41 @@ const ChairmanDashboard = () => {
 
       const totalTimeDeposits = timeDepositsData?.reduce((sum, account) => sum + parseFloat(account.balance || 0), 0) || 0;
 
+      // Fetch inventory data
+      const { count: totalProducts } = await supabase
+        .from('products')
+        .select('*', { count: 'exact', head: true })
+        .eq('is_active', true);
+
+      const { data: stockData } = await supabase
+        .from('stock_inventory')
+        .select('quantity_on_hand, product:products!inner(reorder_level, is_active)')
+        .eq('product.is_active', true);
+
+      let lowStockCount = 0;
+      let outOfStockCount = 0;
+
+      stockData?.forEach(item => {
+        const qty = item.quantity_on_hand || 0;
+        const reorderLevel = item.product?.reorder_level || 10;
+        
+        if (qty === 0) {
+          outOfStockCount++;
+        } else if (qty <= reorderLevel) {
+          lowStockCount++;
+        }
+      });
+
+      // Fetch production for current month
+      const firstDayOfMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString();
+      const { data: productionData } = await supabase
+        .from('production_records')
+        .select('quantity_produced')
+        .eq('status', 'completed')
+        .gte('production_date', firstDayOfMonth);
+
+      const totalProduction = productionData?.reduce((sum, record) => sum + (record.quantity_produced || 0), 0) || 0;
+
       setDashboardData({
         totalMembers: totalMembers || 0,
         activeMembers: activeMembers || 0,
@@ -100,7 +170,11 @@ const ChairmanDashboard = () => {
         totalSavings,
         totalTimeDeposits,
         paidLoans: paidLoans || 0,
-        overdueLoans: overdueLoans || 0
+        overdueLoans: overdueLoans || 0,
+        totalProducts: totalProducts || 0,
+        lowStockCount,
+        outOfStockCount,
+        totalProduction
       });
     } catch (error) {
       console.error('Error fetching dashboard data:', error);
@@ -110,14 +184,14 @@ const ChairmanDashboard = () => {
   };
 
   const summaryCards = [
-    { label: 'Total Members', value: loading ? '...' : dashboardData.totalMembers.toString(), icon: 'users', color: 'blue' },
-    { label: 'Active Members', value: loading ? '...' : dashboardData.activeMembers.toString(), icon: 'user-check', color: 'green' },
-    { label: 'Active Loans', value: loading ? '...' : dashboardData.activeLoans.toString(), icon: 'dollar', color: 'yellow' },
-    { label: 'Total Loan Balance', value: loading ? '...' : `₱${dashboardData.totalLoanBalance.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, icon: 'money', color: 'purple' },
-    { label: 'Total Savings', value: loading ? '...' : `₱${dashboardData.totalSavings.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, icon: 'piggy', color: 'cyan' },
-    { label: 'Total Time Deposits', value: loading ? '...' : `₱${dashboardData.totalTimeDeposits.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, icon: 'bank', color: 'indigo' },
-    { label: 'Current Income', value: '₱0.00', icon: 'trending-up', color: 'green' },
-    { label: 'Current Expenses', value: '₱0.00', icon: 'trending-down', color: 'red' }
+    { label: 'Total Members', value: loading ? '...' : dashboardData.totalMembers.toString(), icon: Users, tone: 'blue' },
+    { label: 'Active Members', value: loading ? '...' : dashboardData.activeMembers.toString(), icon: UserCheck, tone: 'green' },
+    { label: 'Active Loans', value: loading ? '...' : dashboardData.activeLoans.toString(), icon: HandCoins, tone: 'yellow' },
+    { label: 'Total Loan Balance', value: loading ? '...' : `₱${dashboardData.totalLoanBalance.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, icon: Banknote, tone: 'purple' },
+    { label: 'Total Savings', value: loading ? '...' : `₱${dashboardData.totalSavings.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, icon: PiggyBank, tone: 'cyan' },
+    { label: 'Total Time Deposits', value: loading ? '...' : `₱${dashboardData.totalTimeDeposits.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, icon: Landmark, tone: 'indigo' },
+    { label: 'Current Income', value: '₱0.00', icon: TrendingUp, tone: 'green' },
+    { label: 'Current Expenses', value: '₱0.00', icon: TrendingDown, tone: 'red' }
   ];
 
   const financialData = {
@@ -171,18 +245,8 @@ const ChairmanDashboard = () => {
     <div className="space-y-6">
       {/* Summary Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        {summaryCards.map((card, idx) => (
-          <div key={idx} className="bg-white rounded-lg shadow p-6 border border-gray-200 hover:shadow-md transition-shadow">
-            <div className="flex items-center justify-between mb-2">
-              <p className="text-sm font-medium text-gray-600">{card.label}</p>
-              <div className={`w-10 h-10 rounded-lg bg-${card.color}-100 flex items-center justify-center`}>
-                <svg className={`w-5 h-5 text-${card.color}-600`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                </svg>
-              </div>
-            </div>
-            <p className="text-2xl font-bold text-gray-900">{card.value}</p>
-          </div>
+        {summaryCards.map((card) => (
+          <DashboardMetricCard key={card.label} label={card.label} value={card.value} icon={card.icon} tone={card.tone} />
         ))}
       </div>
 
@@ -282,24 +346,32 @@ const ChairmanDashboard = () => {
         {/* Inventory Summary */}
         <div className="bg-white rounded-lg shadow p-6 border border-gray-200">
           <h3 className="text-lg font-semibold text-gray-900 mb-4">Inventory Summary</h3>
-          <div className="space-y-3">
-            <div className="flex justify-between items-center">
-              <span className="text-sm text-gray-600">Available Products</span>
-              <span className="font-semibold text-gray-900">0</span>
+          {loading ? (
+            <div className="space-y-3">
+              <div className="h-5 bg-gray-200 rounded animate-pulse"></div>
+              <div className="h-5 bg-gray-200 rounded animate-pulse"></div>
+              <div className="h-5 bg-gray-200 rounded animate-pulse"></div>
             </div>
-            <div className="flex justify-between items-center">
-              <span className="text-sm text-gray-600">Low Stock Items</span>
-              <span className="font-semibold text-yellow-600">0</span>
+          ) : (
+            <div className="space-y-3">
+              <div className="flex justify-between items-center">
+                <span className="text-sm text-gray-600">Available Products</span>
+                <span className="font-semibold text-gray-900">{dashboardData.totalProducts}</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-sm text-gray-600">Low Stock Items</span>
+                <span className="font-semibold text-yellow-600">{dashboardData.lowStockCount}</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-sm text-gray-600">Out of Stock</span>
+                <span className="font-semibold text-red-600">{dashboardData.outOfStockCount}</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-sm text-gray-600">Production (This Month)</span>
+                <span className="font-semibold text-green-600">{dashboardData.totalProduction} units</span>
+              </div>
             </div>
-            <div className="flex justify-between items-center">
-              <span className="text-sm text-gray-600">Out of Stock</span>
-              <span className="font-semibold text-red-600">0</span>
-            </div>
-            <div className="flex justify-between items-center">
-              <span className="text-sm text-gray-600">Production (This Month)</span>
-              <span className="font-semibold text-green-600">0 kg</span>
-            </div>
-          </div>
+          )}
         </div>
       </div>
 

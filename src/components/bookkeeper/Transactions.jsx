@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { supabase } from '../../lib/supabase';
 import TransactionList from './transactions/TransactionList';
 import TransactionTypeSelector from './transactions/TransactionTypeSelector';
 import CashReceiptForm from './transactions/CashReceiptForm';
@@ -25,12 +26,51 @@ const Transactions = () => {
     setSelectedTransaction(null);
   };
 
-  const handleSaveTransaction = (data) => {
-    console.log('Saving transaction:', data);
-    // TODO: Save to backend
-    alert(`Transaction ${data.status === 'draft' ? 'saved as draft' : 'recorded'} successfully!`);
+  const handleSaveTransaction = async (data) => {
+    if (selectedType === 'cash-receipt' || data.type === 'cash-receipt') {
+      const { error } = await supabase.rpc('save_cash_receipt', {
+        p_receipt: {
+          receipt_date: data.date,
+          receipt_number: data.receiptNo.trim(),
+          received_from: data.member.trim(),
+          amount: Number(data.amount),
+          payment_method: data.paymentMethod,
+          description: data.particulars.trim(),
+          status: data.status
+        },
+        p_allocations: data.accountDistribution.map((allocation) => ({
+          account: allocation.account,
+          amount: Number(allocation.amount),
+          side: allocation.side
+        }))
+      });
+
+      if (error) throw error;
+    } else if (selectedType === 'cash-disbursement' || data.type === 'cash-disbursement') {
+      const { error } = await supabase.rpc('save_cash_disbursement', {
+        p_disbursement: {
+          disbursement_date: data.date,
+          voucher_number: data.repCvNumber.trim(),
+          payee: data.particulars.trim(),
+          amount: Number(data.paymentAmount),
+          payment_source: data.paymentSource,
+          description: data.particulars.trim(),
+          status: data.status
+        },
+        p_allocations: data.accountAllocations.map((allocation) => ({
+          account: allocation.account,
+          amount: Number(allocation.amount)
+        }))
+      });
+
+      if (error) throw error;
+    } else {
+      throw new Error('Unsupported transaction type.');
+    }
+
     setView('list');
     setSelectedType(null);
+    setSelectedTransaction(null);
   };
 
   const handleViewTransaction = (transaction) => {

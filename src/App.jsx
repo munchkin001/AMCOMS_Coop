@@ -7,13 +7,12 @@ import Login from './components/Login'
 import PortalSelection from './components/PortalSelection'
 import ForgotPassword from './components/ForgotPassword'
 import ResetPassword from './components/ResetPassword'
+import MemberSignup from './components/MemberSignup'
 import DemoPages from './pages/DemoPages'
-import ChairmanPortal from './pages/ChairmanPortal'
-import ManagerPortal from './pages/ManagerPortal'
-import TreasurerPortal from './pages/TreasurerPortal'
-import BookkeeperPortal from './pages/BookkeeperPortal'
-import InventoryPortal from './pages/InventoryPortal'
+import StaffPortal from './pages/StaffPortal'
 import MemberPortal from './pages/MemberPortal'
+import DebugAuth from './pages/DebugAuth'
+import FormSubmissionConfirmation from './components/FormSubmissionConfirmation'
 
 function App() {
   return (
@@ -23,54 +22,26 @@ function App() {
           {/* Public Routes */}
           <Route path="/" element={<LandingPage />} />
           <Route path="/demo" element={<DemoPages />} />
+          <Route path="/debug-auth" element={<DebugAuth />} />
           <Route path="/portal-selection" element={<PortalSelection />} />
           <Route path="/login/:portalType" element={<Login />} />
+          <Route path="/member-signup" element={<MemberSignup />} />
           <Route path="/forgot-password" element={<ForgotPassword />} />
           <Route path="/reset-password" element={<ResetPassword />} />
           
-          {/* Protected Portal Routes */}
+          {/* Staff Portal - All staff roles access this */}
           <Route 
-            path="/chairman-portal" 
+            path="/staff/*" 
             element={
-              <ProtectedRoute allowedRoles={['chairman']}>
-                <ChairmanPortal />
+              <ProtectedRoute allowedRoles={['chairman', 'manager', 'treasurer', 'bookkeeper', 'inventory']}>
+                <StaffPortal />
               </ProtectedRoute>
             } 
           />
+          
+          {/* Member Portal */}
           <Route 
-            path="/manager-portal" 
-            element={
-              <ProtectedRoute allowedRoles={['manager']}>
-                <ManagerPortal />
-              </ProtectedRoute>
-            } 
-          />
-          <Route 
-            path="/treasurer-portal" 
-            element={
-              <ProtectedRoute allowedRoles={['treasurer']}>
-                <TreasurerPortal />
-              </ProtectedRoute>
-            } 
-          />
-          <Route 
-            path="/bookkeeper-portal" 
-            element={
-              <ProtectedRoute allowedRoles={['bookkeeper']}>
-                <BookkeeperPortal />
-              </ProtectedRoute>
-            } 
-          />
-          <Route 
-            path="/inventory-portal" 
-            element={
-              <ProtectedRoute allowedRoles={['inventory']}>
-                <InventoryPortal />
-              </ProtectedRoute>
-            } 
-          />
-          <Route 
-            path="/member-portal" 
+            path="/member" 
             element={
               <ProtectedRoute allowedRoles={['member']}>
                 <MemberPortal />
@@ -78,6 +49,7 @@ function App() {
             } 
           />
         </Routes>
+        <FormSubmissionConfirmation />
       </Router>
     </AuthProvider>
   )

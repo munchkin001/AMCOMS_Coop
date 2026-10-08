@@ -1,49 +1,77 @@
-import React, { useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
+import { useAuth } from '../../contexts/AuthContext';
+import { useRealtimeSubscription } from '../../hooks/useRealtimeSubscription';
+import { supabase } from '../../lib/supabase';
+
+const requestTypeLabels = {
+  loan_application: 'Loan Application',
+  withdrawal: 'Withdrawal',
+  loan_release: 'Loan Release',
+  membership: 'Membership',
+  other: 'Other Request'
+};
+
+const formatAmount = (amount) => {
+  const numericAmount = Number(amount);
+  return `₱${(Number.isFinite(numericAmount) ? numericAmount : 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })}`;
+};
 
 const RequestManagement = () => {
+  const { staff } = useAuth();
   const [filter, setFilter] = useState('all');
   const [selectedRequest, setSelectedRequest] = useState(null);
   const [showApprovalModal, setShowApprovalModal] = useState(false);
   const [approvalAction, setApprovalAction] = useState(null);
   const [rejectionReason, setRejectionReason] = useState('');
+  const [requests, setRequests] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [processing, setProcessing] = useState(false);
 
-  const [requests] = useState([
-    {
-      id: 'LR-2026-00321',
-      type: 'Loan',
-      member: 'Juan Dela Cruz',
-      memberId: '12345',
-      amount: 50000,
-      date: '2026-06-01',
-      status: 'pending',
-      details: 'Loan for small business expansion',
-      loanHistory: 'Good - 3 previous loans, all paid on time',
-      savingsBalance: 25000
-    },
-    {
-      id: 'WR-2026-00089',
-      type: 'Withdrawal',
-      member: 'Maria Santos',
-      memberId: '12367',
-      amount: 15000,
-      date: '2026-06-02',
-      status: 'pending',
-      details: 'Emergency withdrawal for medical expenses',
-      savingsBalance: 45000
-    },
-    {
-      id: 'TD-2026-00045',
-      type: 'Time Deposit',
-      member: 'Pedro Reyes',
-      memberId: '12389',
-      amount: 30000,
-      date: '2026-06-03',
-      status: 'pending',
-      details: '12-month time deposit',
-      term: '12 months',
-      savingsBalance: 60000
+  const fetchRequests = useCallback(async () => {
+    setError('');
+    try {
+      const { data, error: fetchError } = await supabase
+        .from('requests')
+        .select('id, request_number, request_type, request_data, amount, status, created_at, member:members(member_number, first_name, middle_name, last_name)')
+        .order('created_at', { ascending: false });
+
+      if (fetchError) throw fetchError;
+
+      setRequests((data || []).map((request) => {
+        const requestData = request.request_data || {};
+        const member = Array.isArray(request.member) ? request.member[0] : request.member;
+        const memberName = [member?.first_name, member?.middle_name, member?.last_name].filter(Boolean).join(' ');
+        const type = requestData.type || requestTypeLabels[request.request_type] || 'Other Request';
+
+        return {
+          id: request.request_number,
+          recordId: request.id,
+          type,
+          filterKey: type.toLowerCase().replace(/\s+/g, '_'),
+          member: memberName || 'Member',
+          memberId: member?.member_number || '—',
+          amount: Number(request.amount) || 0,
+          date: new Date(request.created_at).toLocaleDateString('en-PH', { year: 'numeric', month: 'short', day: 'numeric' }),
+          status: request.status,
+          details: requestData.purpose || 'No additional details provided',
+          loanType: requestData.loan_type,
+          requestData
+        };
+      }));
+    } catch (fetchError) {
+      console.error('Unable to load manager requests:', fetchError);
+      setError('Requests could not be loaded. Please try again.');
+    } finally {
+      setLoading(false);
     }
-  ]);
+  }, []);
+
+  useEffect(() => {
+    fetchRequests();
+  }, [fetchRequests]);
+
+  useRealtimeSubscription('requests', fetchRequests, null, [fetchRequests]);
 
   const handleApprove = (request) => {
     setSelectedRequest(request);
@@ -58,24 +86,49 @@ const RequestManagement = () => {
     setShowApprovalModal(true);
   };
 
-  const confirmAction = () => {
+  const confirmAction = async () => {
+    if (approvalAction === 'reject' && !rejectionReason.trim()) return;
+
+    setProcessing(true);
+    setError('');
+    const reviewedAt = new Date().toISOString();
+    const update = {
+      status: approvalAction === 'approve' ? 'approved' : 'rejected',
+      reviewed_by: staff?.id,
+      reviewed_at: reviewedAt,
+      review_notes: approvalAction === 'reject' ? rejectionReason.trim() : null
+    };
+
     if (approvalAction === 'approve') {
-      alert(`Request ${selectedRequest.id} has been approved. The Treasurer will handle the financial transaction.`);
-    } else {
-      if (!rejectionReason.trim()) {
-        alert('Please provide a reason for rejection');
-        return;
-      }
-      alert(`Request ${selectedRequest.id} has been rejected. Member will be notified.`);
+      update.approved_by = staff?.id;
+      update.approved_at = reviewedAt;
+      update.approval_notes = 'Approved by manager';
     }
-    setShowApprovalModal(false);
-    setSelectedRequest(null);
+
+    try {
+      const { error: updateError } = await supabase
+        .from('requests')
+        .update(update)
+        .eq('id', selectedRequest.recordId);
+
+      if (updateError) throw updateError;
+      setShowApprovalModal(false);
+      setSelectedRequest(null);
+      await fetchRequests();
+    } catch (updateError) {
+      console.error('Unable to update request status:', updateError);
+      setError('The request status could not be updated. Please try again.');
+    } finally {
+      setProcessing(false);
+    }
   };
 
   const getRequestTypeColor = (type) => {
     const colors = {
       'Loan': 'bg-blue-100 text-blue-800',
+      'Loan Application': 'bg-blue-100 text-blue-800',
       'Withdrawal': 'bg-green-100 text-green-800',
+      'Savings Deposit': 'bg-green-100 text-green-800',
       'Time Deposit': 'bg-purple-100 text-purple-800'
     };
     return colors[type] || 'bg-gray-100 text-gray-800';
@@ -84,20 +137,26 @@ const RequestManagement = () => {
   const getStatusColor = (status) => {
     const colors = {
       'pending': 'bg-yellow-100 text-yellow-800 border-yellow-200',
+      'under_review': 'bg-blue-100 text-blue-800 border-blue-200',
       'approved': 'bg-green-100 text-green-800 border-green-200',
       'rejected': 'bg-red-100 text-red-800 border-red-200'
     };
     return colors[status] || 'bg-gray-100 text-gray-800';
   };
 
-  const filteredRequests = filter === 'all' 
-    ? requests 
-    : requests.filter(r => r.type.toLowerCase() === filter);
+  const filteredRequests = filter === 'all'
+    ? requests
+    : requests.filter((request) => request.filterKey === filter);
+  const loanRequests = requests.filter((request) => request.filterKey === 'loan_application' || request.type === 'Loan');
+  const withdrawalRequests = requests.filter((request) => request.type === 'Withdrawal');
+  const timeDepositRequests = requests.filter((request) => request.type === 'Time Deposit');
 
   return (
     <div className="space-y-6">
       {/* Header with Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+      {error && <p role="alert" className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{error}</p>}
+
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-5">
         <div className="bg-white rounded-lg shadow p-6 border border-gray-200">
           <div className="flex items-center justify-between">
             <div>
@@ -115,11 +174,23 @@ const RequestManagement = () => {
             <div>
               <p className="text-sm font-medium text-gray-600">Loan Requests</p>
               <p className="text-3xl font-bold text-blue-600">
-                {requests.filter(r => r.type === 'Loan').length}
+                {loanRequests.length}
               </p>
             </div>
             <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
               <span className="text-2xl">💰</span>
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-white rounded-lg shadow p-6 border border-gray-200">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium text-gray-600">Savings Deposits</p>
+              <p className="text-3xl font-bold text-green-600">{requests.filter((request) => request.type === 'Savings Deposit').length}</p>
+            </div>
+            <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
+              <span className="text-2xl">💵</span>
             </div>
           </div>
         </div>
@@ -155,7 +226,7 @@ const RequestManagement = () => {
 
       {/* Filters */}
       <div className="bg-white rounded-lg shadow p-4 border border-gray-200">
-        <div className="flex items-center space-x-3">
+        <div className="flex flex-wrap items-center gap-3">
           <span className="text-sm font-medium text-gray-700">Filter by type:</span>
           <button
             onClick={() => setFilter('all')}
@@ -168,14 +239,24 @@ const RequestManagement = () => {
             All Requests
           </button>
           <button
-            onClick={() => setFilter('loan')}
+            onClick={() => setFilter('loan_application')}
             className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-              filter === 'loan' 
+              filter === 'loan_application' 
                 ? 'bg-blue-600 text-white' 
                 : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
             }`}
           >
-            Loans
+            Loan Applications
+          </button>
+          <button
+            onClick={() => setFilter('savings_deposit')}
+            className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+              filter === 'savings_deposit'
+                ? 'bg-blue-600 text-white'
+                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+            }`}
+          >
+            Savings Deposits
           </button>
           <button
             onClick={() => setFilter('withdrawal')}
@@ -188,9 +269,9 @@ const RequestManagement = () => {
             Withdrawals
           </button>
           <button
-            onClick={() => setFilter('time deposit')}
+            onClick={() => setFilter('time_deposit')}
             className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-              filter === 'time deposit' 
+              filter === 'time_deposit' 
                 ? 'bg-blue-600 text-white' 
                 : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
             }`}
@@ -202,7 +283,11 @@ const RequestManagement = () => {
 
       {/* Requests List */}
       <div className="space-y-4">
-        {filteredRequests.map((request) => (
+        {loading ? (
+          <div className="rounded-lg border border-gray-200 bg-white p-8 text-center text-sm text-gray-500">Loading requests...</div>
+        ) : filteredRequests.length === 0 ? (
+          <div className="rounded-lg border border-gray-200 bg-white p-8 text-center text-sm text-gray-500">No requests match this filter.</div>
+        ) : filteredRequests.map((request) => (
           <div key={request.id} className="bg-white rounded-lg shadow border border-gray-200 p-6 hover:shadow-md transition-shadow">
             <div className="flex items-start justify-between mb-4">
               <div className="flex-1">
@@ -211,29 +296,31 @@ const RequestManagement = () => {
                     {request.type}
                   </span>
                   <span className={`px-3 py-1 rounded-full text-xs font-semibold border ${getStatusColor(request.status)}`}>
-                    {request.status.toUpperCase()}
+                    {request.status.replaceAll('_', ' ').toUpperCase()}
                   </span>
                 </div>
                 <h3 className="text-lg font-bold text-gray-900">{request.id}</h3>
                 <p className="text-sm text-gray-600 mt-1">Submitted: {request.date}</p>
               </div>
-              <div className="flex space-x-2">
-                <button
-                  onClick={() => handleApprove(request)}
-                  className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-sm font-medium"
-                >
-                  Approve
-                </button>
-                <button
-                  onClick={() => handleReject(request)}
-                  className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors text-sm font-medium"
-                >
-                  Reject
-                </button>
-              </div>
+              {['pending', 'under_review'].includes(request.status) && (
+                <div className="flex space-x-2">
+                  <button
+                    onClick={() => handleApprove(request)}
+                    className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-sm font-medium"
+                  >
+                    Approve
+                  </button>
+                  <button
+                    onClick={() => handleReject(request)}
+                    className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors text-sm font-medium"
+                  >
+                    Reject
+                  </button>
+                </div>
+              )}
             </div>
 
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 p-4 bg-gray-50 rounded-lg">
+            <div className="grid grid-cols-1 gap-4 rounded-lg bg-gray-50 p-4 sm:grid-cols-3">
               <div>
                 <p className="text-xs text-gray-500 mb-1">Member Name</p>
                 <p className="text-sm font-semibold text-gray-900">{request.member}</p>
@@ -244,25 +331,21 @@ const RequestManagement = () => {
               </div>
               <div>
                 <p className="text-xs text-gray-500 mb-1">Amount</p>
-                <p className="text-sm font-semibold text-blue-600">₱{request.amount.toLocaleString()}</p>
-              </div>
-              <div>
-                <p className="text-xs text-gray-500 mb-1">Savings Balance</p>
-                <p className="text-sm font-semibold text-green-600">₱{request.savingsBalance.toLocaleString()}</p>
+                <p className="text-sm font-semibold text-blue-600">{formatAmount(request.amount)}</p>
               </div>
             </div>
 
             <div className="mt-4">
               <p className="text-xs text-gray-500 mb-1">Request Details</p>
               <p className="text-sm text-gray-700">{request.details}</p>
-              {request.loanHistory && (
+              {request.loanType && (
                 <p className="text-sm text-gray-600 mt-2">
-                  <span className="font-medium">Loan History:</span> {request.loanHistory}
+                  <span className="font-medium">Loan Type:</span> {request.loanType}
                 </p>
               )}
-              {request.term && (
+              {request.requestData.preferred_date && (
                 <p className="text-sm text-gray-600 mt-2">
-                  <span className="font-medium">Term:</span> {request.term}
+                  <span className="font-medium">Preferred Date:</span> {request.requestData.preferred_date}
                 </p>
               )}
             </div>
@@ -291,7 +374,7 @@ const RequestManagement = () => {
               </div>
               <div className="mb-4">
                 <p className="text-sm text-gray-600">Amount:</p>
-                <p className="text-lg font-semibold text-blue-600">₱{selectedRequest.amount.toLocaleString()}</p>
+                <p className="text-lg font-semibold text-blue-600">{formatAmount(selectedRequest.amount)}</p>
               </div>
 
               {approvalAction === 'reject' && (
@@ -306,6 +389,7 @@ const RequestManagement = () => {
                     rows={4}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   />
+                  {!rejectionReason.trim() && <p className="mt-1 text-xs text-gray-500">A reason is required to reject a request.</p>}
                 </div>
               )}
 
@@ -321,19 +405,21 @@ const RequestManagement = () => {
             <div className="p-6 bg-gray-50 border-t border-gray-200 flex space-x-3">
               <button
                 onClick={() => setShowApprovalModal(false)}
+                disabled={processing}
                 className="flex-1 px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors font-medium"
               >
                 Cancel
               </button>
               <button
                 onClick={confirmAction}
+                disabled={processing || (approvalAction === 'reject' && !rejectionReason.trim())}
                 className={`flex-1 px-4 py-2 text-white rounded-lg transition-colors font-medium ${
                   approvalAction === 'approve' 
                     ? 'bg-green-600 hover:bg-green-700' 
                     : 'bg-red-600 hover:bg-red-700'
-                }`}
+                } disabled:cursor-not-allowed disabled:opacity-60`}
               >
-                {approvalAction === 'approve' ? 'Approve Request' : 'Reject Request'}
+                {processing ? 'Saving...' : approvalAction === 'approve' ? 'Approve Request' : 'Reject Request'}
               </button>
             </div>
           </div>

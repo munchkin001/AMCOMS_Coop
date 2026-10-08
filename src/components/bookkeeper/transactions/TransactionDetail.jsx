@@ -204,6 +204,9 @@ const TransactionDetail = ({ transaction, onBack, onEdit, onDelete }) => {
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Account
                   </th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Side
+                  </th>
                   <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Amount
                   </th>
@@ -215,6 +218,9 @@ const TransactionDetail = ({ transaction, onBack, onEdit, onDelete }) => {
                     <td className="px-4 py-3 text-sm text-gray-900">
                       {allocation.account}
                     </td>
+                    <td className="px-4 py-3 text-sm capitalize text-gray-600">
+                      {allocation.side || 'debit'}
+                    </td>
                     <td className="px-4 py-3 text-sm text-gray-900 text-right font-medium">
                       {formatCurrency(allocation.amount)}
                     </td>
@@ -223,13 +229,13 @@ const TransactionDetail = ({ transaction, onBack, onEdit, onDelete }) => {
               </tbody>
               <tfoot className="bg-gray-50">
                 <tr>
-                  <td className="px-4 py-3 text-sm font-semibold text-gray-900">
-                    Total
+                  <td colSpan="2" className="px-4 py-3 text-sm font-semibold text-gray-900">
+                    Debits / Credits
                   </td>
                   <td className="px-4 py-3 text-sm font-semibold text-gray-900 text-right">
-                    {formatCurrency(
-                      transaction.accountAllocations.reduce((sum, a) => sum + parseFloat(a.amount), 0)
-                    )}
+                    {formatCurrency(transaction.accountAllocations.filter((allocation) => (allocation.side || 'debit') === 'debit').reduce((sum, allocation) => sum + (Number(allocation.amount) || 0), 0))}
+                    {' / '}
+                    {formatCurrency(transaction.accountAllocations.filter((allocation) => allocation.side === 'credit').reduce((sum, allocation) => sum + (Number(allocation.amount) || 0), 0))}
                   </td>
                 </tr>
               </tfoot>
