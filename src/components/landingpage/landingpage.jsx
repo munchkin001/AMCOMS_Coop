@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
 import { BadgeDollarSign, ChartNoAxesCombined, Check, ClipboardList, Clock3, Handshake, IdCard, Sprout, Store } from 'lucide-react';
+import CooperativeMap from './CooperativeMap';
 import './landingpage.css';
 
 
@@ -483,7 +484,7 @@ const Products = () => {
         </div>
 
         {/* Additional Info */}
-        <div className="hidden grid md:grid-cols-3 gap-8">
+        <div className="hidden md:grid md:grid-cols-3 gap-8">
           <div className="bg-white rounded-xl p-6 shadow-md">
             <div className="bg-green-100 w-12 h-12 rounded-lg flex items-center justify-center mb-4">
               <svg className="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -952,7 +953,7 @@ const Reviews = () => {
         {/* View More Button */}
         <div className="text-center">
           <a 
-            href="https://www.google.com/search?q=Agay-ayan+Multi-Purpose+Cooperative+Inc.+Gingoog+reviews" 
+            href="https://www.google.com/maps/place/Agay-Ayan+Multi-Purpose+Cooperative/@8.8595116,125.0518517,17z/data=!4m8!3m7!1s0x33002f0986577b49:0xb2ca9ac866969672!8m2!3d8.8595116!4d125.0518517!9m1!1b1!16s%2Fg%2F1pzy89zxb" 
             target="_blank" 
             rel="noopener noreferrer"
             className="inline-flex items-center gap-2 bg-yellow-400 text-gray-900 px-6 py-3 rounded-lg hover:bg-yellow-500 transition-colors font-semibold"
@@ -976,7 +977,6 @@ const Reviews = () => {
 
 const Contact = () => {
   // Coordinates for Agay-Ayan, Gingoog City, Misamis Oriental
-  const mapEmbedUrl = "https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d63334.65602938794!2d125.0186!3d8.8286!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x33014f3c5e5a0001%3A0x3e6d1e0a5e5a0001!2sAgay-ayan%2C%20Gingoog%20City%2C%20Misamis%20Oriental!5e0!3m2!1sen!2sph!4v1234567890";
 
   return (
     <section id="contact" className="py-20 bg-white">
@@ -1085,19 +1085,9 @@ const Contact = () => {
           <div>
             <h3 className="text-2xl font-bold text-gray-900 mb-8">Our Location</h3>
             
-            {/* Embedded Google Map */}
-            <div className="rounded-lg overflow-hidden shadow-lg mb-6 h-96">
-              <iframe
-                src={mapEmbedUrl}
-                width="100%"
-                height="100%"
-                style={{ border: 0 }}
-                allowFullScreen=""
-                loading="lazy"
-                referrerPolicy="no-referrer-when-downgrade"
-                title="Agay-Ayan Multipurpose Cooperative Location"
-                className="w-full h-full"
-              ></iframe>
+            {/* Interactive map */}
+            <div className="rounded-lg overflow-hidden shadow-lg mb-6 h-96" style={{ height: 384 }}>
+              <CooperativeMap />
             </div>
 
             {/* Getting Here Card */}
@@ -1122,7 +1112,7 @@ const Contact = () => {
             {/* Alternative: Direct Links */}
             <div className="mt-6 flex gap-3">
               <a 
-                href="https://www.google.com/maps/dir//Agay-ayan,+Gingoog+City,+Misamis+Oriental"
+                href="https://www.google.com/maps/dir/?api=1&destination=8.8595116,125.0518517"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="flex-1 bg-green-600 text-white px-4 py-3 rounded-lg hover:bg-green-700 transition-colors text-center text-sm font-semibold"
@@ -1130,7 +1120,7 @@ const Contact = () => {
                 Get Directions
               </a>
               <a 
-                href="https://www.google.com/maps/search/?api=1&query=Agay-ayan,Gingoog+City,Misamis+Oriental"
+                href="https://www.google.com/maps/search/?api=1&query=8.8595116,125.0518517"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="flex-1 bg-white border-2 border-green-600 text-green-600 px-4 py-3 rounded-lg hover:bg-green-50 transition-colors text-center text-sm font-semibold"
