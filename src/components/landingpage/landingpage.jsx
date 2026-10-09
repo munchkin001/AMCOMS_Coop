@@ -1,5 +1,6 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { supabase } from '../../lib/supabase';
 import { BadgeDollarSign, ChartNoAxesCombined, Check, ClipboardList, Clock3, Handshake, IdCard, Sprout, Store } from 'lucide-react';
 import './landingpage.css';
 
@@ -23,6 +24,7 @@ const Navbar = () => {
           {/* Desktop Navigation Links */}
           <div className="hidden lg:flex items-center space-x-6 xl:space-x-8">
             <a href="#home" className="text-gray-700 hover:text-green-700 font-medium text-sm xl:text-base">Home</a>
+            <a href="#announcements" className="text-gray-700 hover:text-green-700 font-medium text-sm xl:text-base">Announcements</a>
             <a href="#about" className="text-gray-700 hover:text-green-700 font-medium text-sm xl:text-base">About</a>
             <a href="#products" className="text-gray-700 hover:text-green-700 font-medium text-sm xl:text-base">Products</a>
             <a href="#services" className="text-green-700 hover:text-green-800 font-medium text-sm xl:text-base">Services</a>
@@ -68,6 +70,7 @@ const Navbar = () => {
           <div className="lg:hidden pb-4 border-t border-gray-100">
             <div className="flex flex-col space-y-3 pt-4">
               <a href="#home" onClick={() => setIsMenuOpen(false)} className="text-gray-700 hover:text-green-700 font-medium py-2 px-4 hover:bg-gray-50 rounded">Home</a>
+              <a href="#announcements" onClick={() => setIsMenuOpen(false)} className="text-gray-700 hover:text-green-700 font-medium py-2 px-4 hover:bg-gray-50 rounded">Announcements</a>
               <a href="#about" onClick={() => setIsMenuOpen(false)} className="text-gray-700 hover:text-green-700 font-medium py-2 px-4 hover:bg-gray-50 rounded">About</a>
               <a href="#products" onClick={() => setIsMenuOpen(false)} className="text-gray-700 hover:text-green-700 font-medium py-2 px-4 hover:bg-gray-50 rounded">Products</a>
               <a href="#services" onClick={() => setIsMenuOpen(false)} className="text-green-700 hover:text-green-800 font-medium py-2 px-4 hover:bg-gray-50 rounded">Services</a>
@@ -163,6 +166,73 @@ const Hero = () => {
 
 
 
+
+const Announcements = () => {
+  const [items, setItems] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let active = true;
+    const load = async () => {
+      const { data, error } = await supabase
+        .from('announcements')
+        .select('id, title, content, published_at')
+        .eq('is_active', true)
+        .contains('target_roles', ['public'])
+        .order('published_at', { ascending: false })
+        .limit(6);
+
+      if (!active) return;
+      if (error) console.error('Unable to load announcements:', error);
+      setItems(data || []);
+      setLoading(false);
+    };
+
+    load();
+    const channel = supabase
+      .channel('landing-announcements')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'announcements' }, load)
+      .subscribe((status) => {
+        if (status === 'SUBSCRIBED') load();
+      });
+    const poll = setInterval(load, 30000);
+
+    return () => {
+      active = false;
+      clearInterval(poll);
+      supabase.removeChannel(channel);
+    };
+  }, []);
+
+  return (
+    <section id="announcements" className="py-12 sm:py-16 bg-gray-50">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="text-center mb-8">
+          <span className="text-green-600 font-semibold text-xs sm:text-sm uppercase tracking-wide">Announcements</span>
+          <h2 className="mt-2 text-2xl sm:text-3xl font-bold text-gray-900">Latest from the Cooperative</h2>
+        </div>
+
+        {loading ? (
+          <p className="text-center text-gray-500 text-sm">Loading announcements...</p>
+        ) : items.length === 0 ? (
+          <p className="text-center text-gray-500 text-sm">There are no announcements at this time.</p>
+        ) : (
+          <div className="flex flex-wrap justify-center gap-4">
+            {items.map((item) => (
+              <article key={item.id} style={{ flex: '0 1 380px' }} className="bg-white rounded-lg border border-gray-200 shadow-sm p-5 text-center">
+                <p className="text-xs font-medium text-green-700">
+                  {new Date(item.published_at).toLocaleDateString('en-PH', { year: 'numeric', month: 'long', day: 'numeric' })}
+                </p>
+                <h3 className="mt-2 text-lg font-semibold text-gray-900">{item.title}</h3>
+                <p className="mt-2 text-sm text-gray-600 whitespace-pre-line">{item.content}</p>
+              </article>
+            ))}
+          </div>
+        )}
+      </div>
+    </section>
+  );
+};
 
 const About = () => {
   return (
@@ -1137,6 +1207,7 @@ function LandingPage() {
     <div className="amcoms-landing min-h-screen">
       <Navbar />
       <Hero />
+      <Announcements />
       <About />
       <Products />
       <Services />

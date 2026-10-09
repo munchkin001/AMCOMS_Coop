@@ -1,7 +1,27 @@
-import React, { useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { supabase } from '../../lib/supabase';
+import { useAuth } from '../../contexts/AuthContext';
+import { useRealtimeSubscription } from '../../hooks/useRealtimeSubscription';
+
+const roleKeys = {
+  allMembers: 'member',
+  recentMembers: 'member',
+  manager: 'manager',
+  treasurer: 'treasurer',
+  bookkeeper: 'bookkeeper',
+  inventoryStaff: 'inventory'
+};
+
+const roleLabels = {
+  member: 'All Members',
+  manager: 'Manager',
+  treasurer: 'Treasurer',
+  bookkeeper: 'Bookkeeper',
+  inventory: 'Inventory Staff'
+};
 
 const Announcements = () => {
+  const { staff } = useAuth();
   const [subject, setSubject] = useState('');
   const [message, setMessage] = useState('');
   const [recipients, setRecipients] = useState({
@@ -16,17 +36,45 @@ const Announcements = () => {
   const [sending, setSending] = useState(false);
   const [sendError, setSendError] = useState('');
   const [sendNotice, setSendNotice] = useState('');
+  const [announcements, setAnnouncements] = useState([]);
 
-  const [announcements] = useState([
-    {
-      id: 1,
-      subject: 'Annual General Assembly — August 10, 2026',
-      message: 'All cooperative members are invited to attend the Annual General Meeting.',
-      date: '2026-06-01',
-      recipients: ['All Members', 'Manager'],
-      status: 'Board Notice'
+  const loadAnnouncements = useCallback(async () => {
+    const { data, error } = await supabase
+      .from('announcements')
+      .select('id, title, content, target_roles, published_at')
+      .eq('is_active', true)
+      .order('published_at', { ascending: false });
+
+    if (error) {
+      console.error('Unable to load announcements:', error);
+      setSendError('Published announcements could not be loaded.');
+      return;
     }
-  ]);
+
+    setAnnouncements((data || []).map((item) => ({
+      id: item.id,
+      subject: item.title,
+      message: item.content,
+      date: new Date(item.published_at).toLocaleDateString('en-PH', { year: 'numeric', month: 'short', day: 'numeric' }),
+      recipients: (item.target_roles || []).filter((role) => role !== 'public').map((role) => roleLabels[role] || role)
+    })));
+  }, []);
+
+  useEffect(() => {
+    loadAnnouncements();
+  }, [loadAnnouncements]);
+
+  useRealtimeSubscription('announcements', loadAnnouncements, null, [loadAnnouncements]);
+
+  const handleDelete = async (id) => {
+    if (!window.confirm('Remove this announcement? It will no longer appear for members or on the landing page.')) return;
+    const { error } = await supabase.from('announcements').update({ is_active: false }).eq('id', id);
+    if (error) {
+      setSendError('The announcement could not be removed. Please try again.');
+      return;
+    }
+    loadAnnouncements();
+  };
 
   const templates = [
     'General Assembly Reminder',
@@ -69,6 +117,7 @@ const Announcements = () => {
       setSending(true);
       try {
         const groups = Object.entries(recipients).filter(([, selected]) => selected).map(([group]) => group);
+        if (groups.length === 0) throw new Error('Select at least one member or staff group to send SMS.');
         const { data, error: smsError } = await supabase.functions.invoke('semaphore-sms', {
           body: { action: 'send-group', groups, message: `${subject.trim()}\n\n${message.trim()}` }
         });
@@ -89,6 +138,20 @@ const Announcements = () => {
         return;
       }
       setSending(false);
+    }
+
+    // 'public' makes every announcement visible on the landing page; it is not a listed recipient.
+    const targetRoles = [...new Set([...Object.entries(recipients).filter(([, selected]) => selected).map(([key]) => roleKeys[key]), 'public'])];
+    const { error: insertError } = await supabase.from('announcements').insert({
+      title: subject.trim(),
+      content: message.trim(),
+      target_roles: targetRoles,
+      published_by: staff?.id || null
+    });
+    if (insertError) {
+      console.error('Unable to publish announcement:', insertError);
+      setSendError('The announcement could not be published. Please try again.');
+      return;
     }
 
     alert('Announcement published successfully!');
@@ -284,21 +347,15 @@ const Announcements = () => {
               <div className="flex-1">
                 <div className="flex items-center space-x-3 mb-2">
                   <h5 className="font-semibold text-gray-900">{announcement.subject}</h5>
-                  <span className="bg-blue-100 text-blue-800 text-xs font-semibold px-2 py-1 rounded">
-                    {announcement.status}
-                  </span>
                 </div>
                 <p className="text-sm text-gray-600 mb-2">{announcement.message}</p>
                 <div className="flex items-center space-x-4 text-xs text-gray-500">
-                  <span>📅 {announcement.date}</span>
+                  <span>{announcement.date}</span>
                   <span>• Recipients: {announcement.recipients.join(', ')}</span>
                 </div>
               </div>
               <div className="flex space-x-2 ml-4">
-                <button className="px-3 py-1 bg-gray-600 text-white rounded text-xs hover:bg-gray-700">
-                  Edit
-                </button>
-                <button className="px-3 py-1 bg-red-600 text-white rounded text-xs hover:bg-red-700">
+                <button onClick={() => handleDelete(announcement.id)} className="px-3 py-1 bg-red-600 text-white rounded text-xs hover:bg-red-700">
                   Delete
                 </button>
               </div>
