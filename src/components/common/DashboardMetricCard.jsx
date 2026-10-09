@@ -13,8 +13,40 @@ const tones = {
   yellow: { accent: 'border-t-amber-600', iconBg: 'bg-amber-50', iconText: 'text-amber-700' },
 };
 
-const DashboardMetricCard = ({ label, value, detail, icon: Icon, tone = 'teal', actionLabel, onAction }) => {
+const solidTones = {
+  green: 'from-green-500 to-green-700',
+  indigo: 'from-indigo-500 to-indigo-700',
+  orange: 'from-orange-500 to-orange-600',
+  red: 'from-rose-500 to-red-600',
+  blue: 'from-blue-500 to-blue-700',
+  teal: 'from-teal-500 to-teal-700'
+};
+
+const DashboardMetricCard = ({ label, value, detail, icon: Icon, tone = 'teal', actionLabel, onAction, solid = false }) => {
   const toneClasses = tones[tone] || tones.teal;
+
+  if (solid) {
+    return (
+      <article className={`min-w-0 rounded-xl bg-gradient-to-br p-4 text-white shadow-md ${solidTones[tone] || solidTones.teal}`}>
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <p className="text-xs font-semibold uppercase text-white/80">{label}</p>
+            <p className="mt-3 break-words text-2xl font-semibold tabular-nums">{value}</p>
+            {detail && <p className="mt-1 text-xs text-white/80">{detail}</p>}
+            {actionLabel && onAction && (
+              <button onClick={onAction} className="mt-3 inline-flex items-center gap-1 text-xs font-semibold text-white hover:underline">
+                {actionLabel}
+                <ArrowRight aria-hidden="true" className="size-3.5" />
+              </button>
+            )}
+          </div>
+          <span className="grid size-10 shrink-0 place-items-center rounded-md bg-white/20">
+            {Icon && <Icon aria-hidden="true" className="size-5" />}
+          </span>
+        </div>
+      </article>
+    );
+  }
 
   return (
     <article className={`min-w-0 rounded-lg border border-slate-200 border-t-2 bg-white p-4 shadow-sm transition-shadow hover:shadow-md ${toneClasses.accent}`}>

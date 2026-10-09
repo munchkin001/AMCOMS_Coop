@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import EmptyState from '../common/EmptyState';
 import InfoIcon from '../common/InfoIcon';
 import { useAuth } from '../../contexts/AuthContext';
@@ -25,6 +25,9 @@ const getStatusColor = (status) => {
   return colors[status] || 'gray';
 };
 
+const emptyForm = { amount: '', loanType: 'Agricultural Loan', purpose: '', termMonths: 12, frequency: 'monthly' };
+const peso = (value) => `₱${Number(value).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
 const formatRequest = (request) => ({
   ...request,
   type: request.request_data?.type || requestTypeLabels[request.request_type] || 'Request',
@@ -48,7 +51,26 @@ const MemberRequests = () => {
   const [requestError, setRequestError] = useState('');
   const [submissionError, setSubmissionError] = useState('');
   const [submitting, setSubmitting] = useState(false);
-  const [requestForm, setRequestForm] = useState({ amount: '', loanType: 'Agricultural Loan', purpose: '', preferredDate: '' });
+  const [requestForm, setRequestForm] = useState(emptyForm);
+  const [termOptions, setTermOptions] = useState([]);
+
+  useEffect(() => {
+    supabase
+      .from('loan_term_options')
+      .select('term_months, payment_frequency, annual_rate, penalty_rate')
+      .order('term_months')
+      .then(({ data }) => setTermOptions(data || []));
+  }, []);
+
+  const quote = useMemo(() => {
+    const amount = Number(requestForm.amount);
+    const option = termOptions.find((item) => item.term_months === Number(requestForm.termMonths) && item.payment_frequency === requestForm.frequency);
+    if (!option || !(amount > 0)) return null;
+    const count = option.payment_frequency === 'weekly' ? Math.round(option.term_months * 52 / 12) : option.term_months;
+    const interest = Math.round(amount * option.annual_rate * option.term_months / 12) / 100;
+    const total = amount + interest;
+    return { ...option, count, interest, total, installment: total / count };
+  }, [requestForm.amount, requestForm.termMonths, requestForm.frequency, termOptions]);
 
   const fetchRequests = useCallback(async () => {
     if (!staff?.member_id) {
@@ -100,7 +122,7 @@ const MemberRequests = () => {
 
   const handleRequestClick = (type) => {
     setRequestType(type);
-    setRequestForm({ amount: '', loanType: 'Agricultural Loan', purpose: '', preferredDate: '' });
+    setRequestForm(emptyForm);
     setSubmissionError('');
     setShowRequestModal(true);
   };
@@ -115,24 +137,12 @@ const MemberRequests = () => {
     setSubmitting(true);
     setSubmissionError('');
     try {
-      const requestNumber = globalThis.crypto?.randomUUID?.()
-        || `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
-      const requestData = {
-        type: requestType,
-        ...(requestType === 'Loan Application' && {
-          loan_type: requestForm.loanType,
-          purpose: requestForm.purpose.trim()
-        }),
-        ...(requestType === 'Savings Deposit' && { preferred_date: requestForm.preferredDate || null })
-      };
-
-      const { error } = await supabase.from('requests').insert({
-        request_number: `MEM-${requestNumber}`,
-        request_type: requestType === 'Loan Application' ? 'loan_application' : 'other',
-        member_id: staff.member_id,
-        requester_id: staff.id,
-        request_data: requestData,
-        amount: Number(requestForm.amount)
+      const { error } = await supabase.rpc('submit_loan_request', {
+        p_amount: Number(requestForm.amount),
+        p_loan_type: requestForm.loanType,
+        p_purpose: requestForm.purpose.trim(),
+        p_term_months: Number(requestForm.termMonths),
+        p_frequency: requestForm.frequency
       });
 
       if (error) throw error;
@@ -183,33 +193,7 @@ const MemberRequests = () => {
               <h3 className="text-lg font-semibold text-gray-900">Choose Request Type</h3>
               <InfoIcon text="Select a request type to submit. After approval, visit the office to complete the transaction." position="right" />
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <button
-                onClick={() => handleRequestClick('Savings Deposit')}
-                className="p-6 border-2 border-gray-200 rounded-lg hover:border-indigo-500 hover:bg-indigo-50 transition-colors text-left"
-              >
-                <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center mb-3">
-                  <svg className="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" />
-                  </svg>
-                </div>
-                <h4 className="font-semibold text-gray-900 mb-1">Savings Deposit</h4>
-                <p className="text-sm text-gray-600">Request to deposit to your savings account</p>
-              </button>
-
-              <button
-                onClick={() => handleRequestClick('Time Deposit')}
-                className="p-6 border-2 border-gray-200 rounded-lg hover:border-indigo-500 hover:bg-indigo-50 transition-colors text-left"
-              >
-                <div className="w-12 h-12 bg-indigo-100 rounded-lg flex items-center justify-center mb-3">
-                  <svg className="w-6 h-6 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  </svg>
-                </div>
-                <h4 className="font-semibold text-gray-900 mb-1">Time Deposit</h4>
-                <p className="text-sm text-gray-600">Open a new time deposit account</p>
-              </button>
-
+            <div className="grid grid-cols-1 gap-4 md:max-w-sm">
               <button
                 onClick={() => handleRequestClick('Loan Application')}
                 className="p-6 border-2 border-gray-200 rounded-lg hover:border-indigo-500 hover:bg-indigo-50 transition-colors text-left"
@@ -241,7 +225,7 @@ const MemberRequests = () => {
                   </svg>
                 }
                 title="No Requests Yet"
-                description="You haven't submitted any requests yet. Use the 'Submit New Request' tab to create your first request for savings, time deposits, or loans."
+                description="You haven't submitted any requests yet. Use the 'Submit New Request' tab to create your first loan application."
                 actionLabel="Submit Request"
                 onAction={() => setActiveTab('submit')}
               />
@@ -293,7 +277,7 @@ const MemberRequests = () => {
       {/* Request Modal */}
       {showRequestModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg shadow-xl max-w-md w-full mx-4">
+          <div className="bg-white rounded-lg shadow-xl max-w-md w-full mx-4 max-h-[90vh] overflow-y-auto">
             <div className="p-6">
               <h3 className="text-xl font-bold text-gray-900 mb-4">{requestType}</h3>
               <form onSubmit={handleRequestSubmit} className="space-y-4">
@@ -332,18 +316,38 @@ const MemberRequests = () => {
                         className="w-full px-3 py-2 border border-gray-300 rounded-lg"
                       ></textarea>
                     </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Payment Schedule</label>
+                      <div className="grid grid-cols-2 gap-2">
+                        {['monthly', 'weekly'].map((frequency) => (
+                          <button
+                            key={frequency}
+                            type="button"
+                            onClick={() => setRequestForm((current) => ({ ...current, frequency }))}
+                            className={`rounded-lg border px-3 py-2 text-sm font-medium capitalize ${requestForm.frequency === frequency ? 'border-green-600 bg-green-50 text-green-800' : 'border-gray-300 text-gray-700'}`}
+                          >
+                            {frequency}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Loan Term</label>
+                      <select value={requestForm.termMonths} onChange={(event) => setRequestForm((current) => ({ ...current, termMonths: event.target.value }))} className="w-full px-3 py-2 border border-gray-300 rounded-lg">
+                        {[...new Set(termOptions.filter((item) => item.payment_frequency === requestForm.frequency).map((item) => item.term_months))].map((months) => (
+                          <option key={months} value={months}>{months / 12} {months === 12 ? 'year' : 'years'}</option>
+                        ))}
+                      </select>
+                    </div>
+                    {quote && (
+                      <div className="rounded-lg bg-gray-50 border border-gray-200 p-3 text-sm space-y-1">
+                        <div className="flex justify-between"><span className="text-gray-600">Interest ({quote.annual_rate}% per year)</span><span>{peso(quote.interest)}</span></div>
+                        <div className="flex justify-between"><span className="text-gray-600">Total to pay</span><span className="font-semibold">{peso(quote.total)}</span></div>
+                        <div className="flex justify-between"><span className="text-gray-600">{quote.count} {quote.payment_frequency} payments of</span><span className="font-semibold text-green-700">{peso(quote.installment)}</span></div>
+                        <p className="pt-1 text-xs text-gray-500">Late payments are charged {quote.penalty_rate}% of the missed installment. Rates are estimates until approved.</p>
+                      </div>
+                    )}
                   </>
-                )}
-                {requestType === 'Savings Deposit' && (
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Preferred Date</label>
-                    <input
-                      type="date"
-                      value={requestForm.preferredDate}
-                      onChange={(event) => setRequestForm((current) => ({ ...current, preferredDate: event.target.value }))}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                    />
-                  </div>
                 )}
                 <div className="flex space-x-3 pt-2">
                 <button

@@ -23,7 +23,6 @@ import MemberAccountRecovery from '../components/manager/MemberAccountRecovery';
 import Announcements from '../components/manager/Announcements';
 import SMSCenter from '../components/manager/SMSCenter';
 import ManagerReports from '../components/manager/Reports';
-import RequestManagement from '../components/manager/RequestManagement';
 import OperationsMonitoring from '../components/manager/OperationsMonitoring';
 
 // Treasurer Components - Existing
@@ -42,6 +41,7 @@ import Ledger from '../components/bookkeeper/books/Ledger';
 import Reconciliation from '../components/bookkeeper/Reconciliation';
 import FinancialReports from '../components/bookkeeper/FinancialReports';
 import BookkeeperMemberManagement from '../components/bookkeeper/MemberManagement';
+import Requests from '../components/bookkeeper/Requests';
 
 // Inventory Components - Existing
 import Products from '../components/inventory/Products';
@@ -98,7 +98,9 @@ const StaffPortal = () => {
 
         {/* Manager Routes */}
         <Route path="/members" element={staff.role === 'bookkeeper' ? <BookkeeperMemberManagement /> : <MemberManagement />} />
-        <Route path="/loans" element={<RequestManagement />} />
+        <Route path="/requests" element={staff.role === 'bookkeeper' ? <Requests /> : <Navigate to="/staff/dashboard" replace />} />
+        <Route path="/member-requests" element={<Navigate to="/staff/requests" replace />} />
+        <Route path="/loans" element={<Navigate to="/staff/requests" replace />} />
         <Route path="/savings" element={<MemberAccounts />} />
         <Route path="/inventory" element={<OperationsMonitoring />} />
         <Route path="/announcements" element={<Announcements />} />

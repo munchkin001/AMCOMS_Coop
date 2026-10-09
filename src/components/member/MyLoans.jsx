@@ -1,169 +1,120 @@
-import React from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
+import { useAuth } from '../../contexts/AuthContext';
+import { supabase } from '../../lib/supabase';
+import { useMultipleRealtimeSubscriptions } from '../../hooks/useRealtimeSubscription';
+
+const peso = (value) => `₱${Number(value || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+const fmtDate = (value) => (value ? new Date(`${String(value).slice(0, 10)}T00:00:00`).toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' }) : '—');
+
+const statusStyle = {
+  paid: 'bg-green-100 text-green-800',
+  overdue: 'bg-red-100 text-red-800',
+  pending: 'bg-gray-100 text-gray-700'
+};
 
 const MyLoans = () => {
-  const paymentSchedule = [
-    { id: 1, dueDate: 'April 10', amount: 2500, status: 'Paid', color: 'green' },
-    { id: 2, dueDate: 'May 10', amount: 2500, status: 'Paid', color: 'green' },
-    { id: 3, dueDate: 'June 10', amount: 2500, status: 'Upcoming', color: 'blue' },
-    { id: 4, dueDate: 'July 10', amount: 2500, status: 'Upcoming', color: 'gray' },
-    { id: 5, dueDate: 'August 10', amount: 2500, status: 'Upcoming', color: 'gray' }
-  ];
+  const { staff } = useAuth();
+  const [loans, setLoans] = useState([]);
+  const [schedule, setSchedule] = useState({});
+  const [loading, setLoading] = useState(true);
 
-  const getStatusColor = (color) => {
-    const colors = {
-      green: 'bg-green-100 text-green-800 border-green-200',
-      blue: 'bg-blue-100 text-blue-800 border-blue-200',
-      gray: 'bg-gray-100 text-gray-800 border-gray-200'
-    };
-    return colors[color];
-  };
+  const load = useCallback(async () => {
+    if (!staff?.member_id) return;
+    const { data: loanRows } = await supabase
+      .from('loans')
+      .select('id, loan_number, principal_amount, interest_rate, term_months, total_amount, balance, status, payment_frequency, installments, installment_amount, penalty_rate, penalty_total, maturity_date, notes')
+      .eq('member_id', staff.member_id)
+      .in('status', ['active', 'completed'])
+      .order('created_at', { ascending: false });
+    setLoans(loanRows || []);
+
+    if (loanRows?.length) {
+      const { data: rows } = await supabase
+        .from('loan_schedule')
+        .select('id, loan_id, installment_number, due_date, amount_due, amount_paid, penalty_amount, status')
+        .in('loan_id', loanRows.map((loan) => loan.id))
+        .order('installment_number');
+      const grouped = {};
+      (rows || []).forEach((row) => { (grouped[row.loan_id] ||= []).push(row); });
+      setSchedule(grouped);
+    }
+    setLoading(false);
+  }, [staff?.member_id]);
+
+  useEffect(() => { load(); }, [load]);
+  useMultipleRealtimeSubscriptions([
+    { table: 'loans', onUpdate: load },
+    { table: 'loan_schedule', onUpdate: load }
+  ], [load]);
+
+  if (loading) return <p className="py-6 text-center text-sm text-gray-500">Loading...</p>;
+  if (!loans.length) {
+    return <p className="rounded-lg bg-gray-50 p-4 text-center text-sm text-gray-500">You have no active loans. Approved loan requests will appear here automatically.</p>;
+  }
 
   return (
     <div className="space-y-6">
-      {/* Current Loan Card */}
-      <div className="bg-gradient-to-br from-orange-500 to-orange-600 rounded-lg shadow-lg p-8 text-white">
-        <p className="text-sm font-medium opacity-90">Agricultural Loan</p>
-        <p className="text-5xl font-bold mt-2">₱32,500</p>
-        <p className="text-sm opacity-90 mt-1">Remaining Balance</p>
-        <div className="grid grid-cols-3 gap-4 mt-6">
-          <div>
-            <p className="text-xs opacity-80">Original Amount</p>
-            <p className="text-lg font-semibold">₱50,000</p>
-          </div>
-          <div>
-            <p className="text-xs opacity-80">Monthly Payment</p>
-            <p className="text-lg font-semibold">₱2,500</p>
-          </div>
-          <div>
-            <p className="text-xs opacity-80">Next Due</p>
-            <p className="text-lg font-semibold">June 10, 2026</p>
-          </div>
-        </div>
-      </div>
-
-      {/* Loan Details */}
-      <div className="bg-white rounded-lg shadow border border-gray-200 p-6">
-        <h3 className="text-lg font-semibold text-gray-900 mb-6">Loan Details</h3>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Loan Type</label>
-            <div className="text-lg font-semibold text-gray-900">Agricultural Loan</div>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Loan Status</label>
-            <span className="px-3 py-1 bg-green-100 text-green-800 rounded-full text-sm font-medium border border-green-200">
-              Active
-            </span>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Original Amount</label>
-            <div className="text-lg font-semibold text-gray-900">₱50,000.00</div>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Remaining Balance</label>
-            <div className="text-lg font-semibold text-orange-600">₱32,500.00</div>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Interest Rate</label>
-            <div className="text-lg font-semibold text-gray-900">5% per annum</div>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Payment Amount</label>
-            <div className="text-lg font-semibold text-gray-900">₱2,500.00 / month</div>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Payment Frequency</label>
-            <div className="text-lg font-semibold text-gray-900">Monthly</div>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Next Due Date</label>
-            <div className="text-lg font-semibold text-red-600">June 10, 2026</div>
-          </div>
-        </div>
-      </div>
-
-      {/* Payment Progress */}
-      <div className="bg-white rounded-lg shadow border border-gray-200 p-6">
-        <h3 className="text-lg font-semibold text-gray-900 mb-4">Payment Progress</h3>
-        <div className="space-y-4">
-          <div>
-            <div className="flex justify-between text-sm mb-2">
-              <span className="text-gray-700">₱17,500 paid of ₱50,000</span>
-              <span className="font-medium text-gray-900">35% Complete</span>
+      {loans.map((loan) => {
+        const rows = schedule[loan.id] || [];
+        const next = rows.find((row) => row.status !== 'paid');
+        const paidCount = rows.filter((row) => row.status === 'paid').length;
+        const progress = rows.length ? Math.round((paidCount / rows.length) * 100) : 0;
+        return (
+          <section key={loan.id} className="space-y-4 rounded-xl border border-gray-200 bg-white p-4">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="text-sm text-gray-500">{loan.loan_number}{loan.status === 'completed' ? ' · Fully paid' : ''}</p>
+                <p className="text-sm text-gray-500">Remaining balance</p>
+                <p className="text-3xl font-bold text-orange-600">{peso(loan.balance)}</p>
+              </div>
+              {next && (
+                <div className="rounded-lg bg-orange-50 px-3 py-2 text-right">
+                  <p className="text-xs text-orange-700">Next due</p>
+                  <p className="text-sm font-semibold text-orange-900">{fmtDate(next.due_date)}</p>
+                  <p className="text-xs text-orange-700">{peso(Number(next.amount_due) + Number(next.penalty_amount) - Number(next.amount_paid))}</p>
+                </div>
+              )}
             </div>
-            <div className="h-3 bg-gray-200 rounded-full overflow-hidden">
-              <div className="h-full bg-orange-500 rounded-full" style={{ width: '35%' }}></div>
-            </div>
-          </div>
-          <div className="grid grid-cols-3 gap-4 text-center">
-            <div className="p-3 bg-green-50 rounded-lg border border-green-200">
-              <p className="text-2xl font-bold text-green-600">7</p>
-              <p className="text-xs text-gray-600">Paid</p>
-            </div>
-            <div className="p-3 bg-blue-50 rounded-lg border border-blue-200">
-              <p className="text-2xl font-bold text-blue-600">13</p>
-              <p className="text-xs text-gray-600">Remaining</p>
-            </div>
-            <div className="p-3 bg-gray-50 rounded-lg border border-gray-200">
-              <p className="text-2xl font-bold text-gray-900">20</p>
-              <p className="text-xs text-gray-600">Total Months</p>
-            </div>
-          </div>
-        </div>
-      </div>
 
-      {/* Payment Schedule */}
-      <div className="bg-white rounded-lg shadow border border-gray-200 p-6">
-        <h3 className="text-lg font-semibold text-gray-900 mb-4">Payment Schedule</h3>
-        <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead>
-              <tr className="border-b border-gray-200">
-                <th className="text-left py-3 px-4 text-sm font-medium text-gray-700">Due Date</th>
-                <th className="text-right py-3 px-4 text-sm font-medium text-gray-700">Amount</th>
-                <th className="text-center py-3 px-4 text-sm font-medium text-gray-700">Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              {paymentSchedule.map((payment) => (
-                <tr key={payment.id} className="border-b border-gray-100 hover:bg-gray-50">
-                  <td className="py-3 px-4 text-sm text-gray-900">{payment.dueDate}</td>
-                  <td className="py-3 px-4 text-sm text-right text-gray-900 font-medium">
-                    ₱{payment.amount.toLocaleString()}
-                  </td>
-                  <td className="py-3 px-4 text-center">
-                    <span className={`px-3 py-1 rounded-full text-xs font-medium border ${getStatusColor(payment.color)}`}>
-                      {payment.status}
-                    </span>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
+            <dl className="grid grid-cols-2 gap-3 text-sm">
+              <div><dt className="text-gray-500">Loan amount</dt><dd className="font-medium">{peso(loan.principal_amount)}</dd></div>
+              <div><dt className="text-gray-500">Total to pay</dt><dd className="font-medium">{peso(loan.total_amount)}</dd></div>
+              <div><dt className="text-gray-500">Term</dt><dd className="font-medium">{loan.term_months / 12} yr · {loan.payment_frequency}</dd></div>
+              <div><dt className="text-gray-500">Interest</dt><dd className="font-medium">{loan.interest_rate}% per year</dd></div>
+              <div><dt className="text-gray-500">Each payment</dt><dd className="font-medium">{peso(loan.installment_amount)}</dd></div>
+              <div><dt className="text-gray-500">Late charge</dt><dd className="font-medium">{loan.penalty_rate}% of missed payment</dd></div>
+              {Number(loan.penalty_total) > 0 && (
+                <div className="col-span-2"><dt className="text-gray-500">Late charges added</dt><dd className="font-medium text-red-600">{peso(loan.penalty_total)}</dd></div>
+              )}
+            </dl>
 
-      {/* Payment Reminder */}
-      <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-        <div className="flex items-start space-x-3">
-          <svg className="w-5 h-5 text-red-600 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-          </svg>
-          <div>
-            <p className="text-sm font-medium text-red-900">Payment Reminder</p>
-            <p className="text-sm text-red-700 mt-1">
-              Your next loan payment of ₱2,500 is due on June 10, 2026. Please visit the cooperative office to make your payment. Late payments may incur penalties.
-            </p>
-          </div>
-        </div>
-      </div>
+            <div>
+              <div className="mb-1 flex justify-between text-xs text-gray-600">
+                <span>{paidCount} of {rows.length} payments made</span><span>{progress}%</span>
+              </div>
+              <div className="h-2 overflow-hidden rounded-full bg-gray-200"><div className="h-full rounded-full bg-orange-500" style={{ width: `${progress}%` }} /></div>
+            </div>
+
+            {rows.length > 0 && (
+              <details className="rounded-lg border border-gray-200">
+                <summary className="cursor-pointer px-3 py-2 text-sm font-medium text-gray-800">Payment schedule</summary>
+                <ul className="max-h-72 divide-y divide-gray-100 overflow-y-auto">
+                  {rows.map((row) => (
+                    <li key={row.id} className="flex items-center justify-between gap-2 px-3 py-2 text-sm">
+                      <span className="text-gray-700">#{row.installment_number} · {fmtDate(row.due_date)}</span>
+                      <span className="flex items-center gap-2">
+                        <span className="font-medium">{peso(Number(row.amount_due) + Number(row.penalty_amount))}</span>
+                        <span className={`rounded-full px-2 py-0.5 text-xs capitalize ${statusStyle[row.status]}`}>{row.status}</span>
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </details>
+            )}
+          </section>
+        );
+      })}
+      <p className="text-xs text-gray-500">Payments are made at the cooperative office. You will get SMS reminders 7, 3 and 1 day before each due date.</p>
     </div>
   );
 };

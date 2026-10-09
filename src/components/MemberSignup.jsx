@@ -5,6 +5,7 @@ import { supabase } from '../lib/supabase';
 const MemberSignup = () => {
   const navigate = useNavigate();
   const [showWarningModal, setShowWarningModal] = useState(true);
+  const [showSubmittedModal, setShowSubmittedModal] = useState(false);
   const [formData, setFormData] = useState({
     email: '',
     password: '',
@@ -45,16 +46,25 @@ const MemberSignup = () => {
 
     try {
       // Step 1: Sign up the user with Supabase Auth
-      const { data: authData, error: authError } = await supabase.auth.signUp({
-        email: formData.email,
-        password: formData.password,
-        options: {
-          data: {
-            first_name: formData.firstName,
-            last_name: formData.lastName,
-            phone: formData.phone
-          }
+      const { data: created, error: createError } = await supabase.functions.invoke('member-signup', {
+        body: {
+          email: formData.email,
+          password: formData.password,
+          first_name: formData.firstName,
+          last_name: formData.lastName,
+          phone: formData.phone
         }
+      });
+      if (createError) {
+        let message = '';
+        try { message = (await createError.context?.json())?.error; } catch { /* ignore */ }
+        throw new Error(message || 'Failed to create user account');
+      }
+      if (!created?.created) throw new Error('Failed to create user account');
+
+      const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
+        email: formData.email,
+        password: formData.password
       });
 
       if (authError) throw authError;
@@ -72,12 +82,8 @@ const MemberSignup = () => {
       });
       if (applicationError) throw applicationError;
 
-      // Success!
-      alert('Application submitted successfully! Your application will be reviewed by our manager. Please check back later.');
-      
-      // Sign out the user (they'll need to wait for approval)
       await supabase.auth.signOut();
-      navigate('/login/member');
+      setShowSubmittedModal(true);
     } catch (err) {
       console.error('Signup error:', err);
       setError(err.message || 'Failed to create application. Please try again.');
@@ -88,6 +94,29 @@ const MemberSignup = () => {
 
   return (
     <>
+      {showSubmittedModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4" role="dialog" aria-modal="true" aria-labelledby="submitted-title">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-8 text-center">
+            <div className="flex items-center justify-center w-20 h-20 bg-green-100 rounded-full mx-auto mb-6">
+              <svg className="w-10 h-10 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            </div>
+            <h2 id="submitted-title" className="text-2xl font-bold text-gray-900 mb-3">Application Received</h2>
+            <p className="text-gray-600 mb-6">
+              This may take a while. We will notify you via Email for the update.
+            </p>
+            <button
+              type="button"
+              onClick={() => navigate('/login/member')}
+              className="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-6 rounded-lg transition-colors"
+            >
+              OK
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Warning Modal */}
       {showWarningModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
@@ -374,7 +403,7 @@ const MemberSignup = () => {
                   <div>
                     <p className="text-sm text-gray-700 font-medium mb-1">What happens next?</p>
                     <p className="text-sm text-gray-600">
-                      Your application will be reviewed by our manager. You'll be notified once your account is approved.
+                      Your application will be reviewed by the cooperative. You'll be notified once your account is approved.
                     </p>
                   </div>
                 </div>

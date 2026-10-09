@@ -1,13 +1,12 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Menu } from 'lucide-react';
+import { ArrowLeft, ChevronDown, ClipboardList, FileText, Home, Menu, UserRound } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useRealtimeSubscription } from '../hooks/useRealtimeSubscription';
 import { supabase } from '../lib/supabase';
 import MemberDashboard from '../components/member/MemberDashboard';
-import MyProfile from '../components/member/MyProfile';
-import MySavings from '../components/member/MySavings';
-import MyTimeDeposit from '../components/member/MyTimeDeposit';
+import MemberProfileHub from '../components/member/MemberProfileHub';
+import MemberAccountList from '../components/member/MemberAccountList';
 import MyLoans from '../components/member/MyLoans';
 import MemberRequests from '../components/member/MemberRequests';
 import MemberTransactionHistory from '../components/member/MemberTransactionHistory';
@@ -17,9 +16,8 @@ const MemberPortal = () => {
   const navigate = useNavigate();
   const { signOut, staff, user } = useAuth();
   const [activeModule, setActiveModule] = useState('dashboard');
-  const [activeSubModule, setActiveSubModule] = useState(''); // For My Accounts submenu
-  const [showAccountsMenu, setShowAccountsMenu] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [accountsOpen, setAccountsOpen] = useState(false);
   const [isDesktopSidebarOpen, setIsDesktopSidebarOpen] = useState(true);
   const [notifications, setNotifications] = useState([]);
   const [notificationsLoading, setNotificationsLoading] = useState(true);
@@ -89,7 +87,6 @@ const MemberPortal = () => {
 
   const handleProfileClick = () => {
     setActiveModule('profile');
-    setShowAccountsMenu(false);
     setIsMobileMenuOpen(false);
     setShowUserMenu(false);
   };
@@ -127,70 +124,67 @@ const MemberPortal = () => {
     }
   };
 
-  const handleAccountsClick = (subModule) => {
-    setActiveModule('my-accounts');
-    setActiveSubModule(subModule);
-    setShowAccountsMenu(true);
-    setIsMobileMenuOpen(false); // Close mobile menu
-  };
-
   const handleModuleChange = (module) => {
     setActiveModule(module);
-    setShowAccountsMenu(false);
     setIsMobileMenuOpen(false); // Close mobile menu
   };
 
-  const renderModule = () => {
-    if (activeModule === 'my-accounts') {
-      switch (activeSubModule) {
-        case 'savings':
-          return <MySavings />;
-        case 'time-deposit':
-          return <MyTimeDeposit />;
-        case 'loans':
-          return <MyLoans />;
-        default:
-          return <MySavings />;
-      }
-    }
+  const handleDashboardNavigate = (target) => handleModuleChange(target);
 
+  const renderAccountPage = (page) => (
+    <div className="space-y-4">
+      <button
+        type="button"
+        onClick={() => handleModuleChange('profile')}
+        className="inline-flex items-center gap-1 text-sm font-medium text-[#146344] lg:hidden"
+      >
+        <ArrowLeft aria-hidden="true" size={18} /> Back to profile
+      </button>
+      {page}
+    </div>
+  );
+
+  const renderModule = () => {
     switch (activeModule) {
       case 'dashboard':
-        return <MemberDashboard />;
+        return <MemberDashboard onNavigate={handleDashboardNavigate} />;
+      case 'savings':
+        return renderAccountPage(<MemberAccountList kind="savings" />);
+      case 'time-deposit':
+        return renderAccountPage(<MemberAccountList kind="time-deposit" />);
+      case 'loans':
+        return renderAccountPage(<MyLoans />);
       case 'profile':
-        return <MyProfile />;
+        return <MemberProfileHub onOpen={handleModuleChange} />;
       case 'requests':
         return <MemberRequests />;
       case 'transactions':
         return <MemberTransactionHistory />;
+      case 'announcements':
+        return <MemberAnnouncements />;
       default:
-        return <MemberDashboard />;
+        return <MemberDashboard onNavigate={handleDashboardNavigate} />;
     }
   };
 
   const getModuleTitle = () => {
-    if (activeModule === 'my-accounts') {
-      switch (activeSubModule) {
-        case 'savings':
-          return 'Savings';
-        case 'time-deposit':
-          return 'Time Deposit';
-        case 'loans':
-          return 'Loans';
-        default:
-          return 'My Accounts';
-      }
-    }
-
     switch (activeModule) {
       case 'dashboard':
         return 'Dashboard';
+      case 'savings':
+        return 'Savings';
+      case 'time-deposit':
+        return 'Time Deposit';
+      case 'loans':
+        return 'Loans';
       case 'profile':
         return 'My Profile';
       case 'requests':
         return 'Requests';
       case 'transactions':
         return 'Transactions';
+      case 'announcements':
+        return 'Announcements';
       default:
         return 'Dashboard';
     }
@@ -246,67 +240,56 @@ const MemberPortal = () => {
             </div>
           </button>
 
-          {/* My Accounts */}
-          <div>
-            <button
-              onClick={() => setShowAccountsMenu(!showAccountsMenu)}
-              className={`w-full rounded-lg px-4 py-3 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#e9c46a] ${
-                activeModule === 'my-accounts'
-                  ? 'bg-gradient-to-r from-[#e9c46a] to-[#d6ab4a] font-semibold text-[#0d3b2d] shadow-md' 
-                  : 'text-green-50/95 hover:bg-white/10 hover:text-[#f0d995]'
-              }`}
-            >
-              <div className="flex items-center justify-between">
-                <div className="flex items-center space-x-3">
-                  <span className="text-lg">💰</span>
-                  <span>My Accounts</span>
-                </div>
-                <svg 
-                  className={`w-4 h-4 transition-transform ${showAccountsMenu ? 'rotate-180' : ''}`} 
-                  fill="none" 
-                  stroke="currentColor" 
-                  viewBox="0 0 24 24"
+          {/* My Accounts (collapsible) */}
+          {(() => {
+            const accountItems = [
+              { id: 'savings', label: 'Savings', icon: '🐖' },
+              { id: 'time-deposit', label: 'Time Deposit', icon: '🏦' },
+              { id: 'loans', label: 'Loans', icon: '💰' }
+            ];
+            const groupActive = accountItems.some((item) => item.id === activeModule);
+            const expanded = accountsOpen || groupActive;
+            return (
+              <div>
+                <button
+                  type="button"
+                  aria-expanded={expanded}
+                  onClick={() => setAccountsOpen(!expanded)}
+                  className={`w-full rounded-lg px-4 py-3 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#e9c46a] ${
+                    groupActive && !expanded ? 'bg-white/10 text-[#f0d995]' : 'text-green-50/95 hover:bg-white/10 hover:text-[#f0d995]'
+                  }`}
                 >
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                </svg>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center space-x-3">
+                      <span className="text-lg">💰</span>
+                      <span>My Accounts</span>
+                    </div>
+                    <ChevronDown aria-hidden="true" size={18} className={`transition-transform ${expanded ? 'rotate-180' : ''}`} />
+                  </div>
+                </button>
+                {expanded && (
+                  <div className="mt-1 ml-4 space-y-1 border-l border-white/20 pl-3">
+                    {accountItems.map((item) => (
+                      <button
+                        key={item.id}
+                        onClick={() => handleModuleChange(item.id)}
+                        className={`w-full rounded-lg px-3 py-2.5 text-left text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#e9c46a] ${
+                          activeModule === item.id
+                            ? 'bg-gradient-to-r from-[#e9c46a] to-[#d6ab4a] font-semibold text-[#0d3b2d] shadow-md'
+                            : 'text-green-50/95 hover:bg-white/10 hover:text-[#f0d995]'
+                        }`}
+                      >
+                        <div className="flex items-center space-x-3">
+                          <span>{item.icon}</span>
+                          <span>{item.label}</span>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
-            </button>
-            
-            {showAccountsMenu && (
-              <div className="ml-4 mt-1 space-y-1">
-                <button
-                  onClick={() => handleAccountsClick('savings')}
-                  className={`w-full rounded-lg px-4 py-2 text-left text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#e9c46a] ${
-                    activeSubModule === 'savings'
-                      ? 'bg-gradient-to-r from-[#e9c46a] to-[#d6ab4a] font-semibold text-[#0d3b2d] shadow-md'
-                      : 'text-green-50/90 hover:bg-white/10 hover:text-[#f0d995]'
-                  }`}
-                >
-                  Savings
-                </button>
-                <button
-                  onClick={() => handleAccountsClick('time-deposit')}
-                  className={`w-full rounded-lg px-4 py-2 text-left text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#e9c46a] ${
-                    activeSubModule === 'time-deposit'
-                      ? 'bg-gradient-to-r from-[#e9c46a] to-[#d6ab4a] font-semibold text-[#0d3b2d] shadow-md'
-                      : 'text-green-50/90 hover:bg-white/10 hover:text-[#f0d995]'
-                  }`}
-                >
-                  Time Deposit
-                </button>
-                <button
-                  onClick={() => handleAccountsClick('loans')}
-                  className={`w-full rounded-lg px-4 py-2 text-left text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#e9c46a] ${
-                    activeSubModule === 'loans'
-                      ? 'bg-gradient-to-r from-[#e9c46a] to-[#d6ab4a] font-semibold text-[#0d3b2d] shadow-md'
-                      : 'text-green-50/90 hover:bg-white/10 hover:text-[#f0d995]'
-                  }`}
-                >
-                  Loans
-                </button>
-              </div>
-            )}
-          </div>
+            );
+          })()}
 
           {/* Requests */}
           <button
@@ -335,6 +318,20 @@ const MemberPortal = () => {
             <div className="flex items-center space-x-3">
               <span className="text-lg">📄</span>
               <span>Transactions</span>
+            </div>
+          </button>
+
+          <button
+            onClick={() => handleModuleChange('announcements')}
+            className={`w-full rounded-lg px-4 py-3 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#e9c46a] ${
+              activeModule === 'announcements'
+                ? 'bg-gradient-to-r from-[#e9c46a] to-[#d6ab4a] font-semibold text-[#0d3b2d] shadow-md'
+                : 'text-green-50/95 hover:bg-white/10 hover:text-[#f0d995]'
+            }`}
+          >
+            <div className="flex items-center space-x-3">
+              <span className="text-lg">📢</span>
+              <span>Announcements</span>
             </div>
           </button>
         </nav>
@@ -472,9 +469,32 @@ const MemberPortal = () => {
           </div>
         </div>
 
-        <div className="flex-1 overflow-auto p-4 lg:p-8">
+        <div className="flex-1 overflow-auto p-4 pb-24 lg:p-8 lg:pb-8">
           {renderModule()}
         </div>
+
+        <nav aria-label="Member quick navigation" className="fixed inset-x-0 bottom-0 z-30 grid grid-cols-4 border-t border-gray-200 bg-white pb-[env(safe-area-inset-bottom)] shadow-[0_-2px_8px_rgba(0,0,0,0.05)] lg:hidden">
+          {[
+            { id: 'dashboard', label: 'Home', Icon: Home },
+            { id: 'requests', label: 'Requests', Icon: ClipboardList },
+            { id: 'transactions', label: 'Transactions', Icon: FileText },
+            { id: 'profile', label: 'Profile', Icon: UserRound }
+          ].map(({ id, label, Icon }) => {
+            const active = activeModule === id || (id === 'profile' && ['savings', 'time-deposit', 'loans'].includes(activeModule));
+            return (
+              <button
+                key={id}
+                type="button"
+                onClick={() => handleModuleChange(id)}
+                aria-current={active ? 'page' : undefined}
+                className={`flex min-h-14 flex-col items-center justify-center gap-0.5 text-xs font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-emerald-700 ${active ? 'text-[#146344]' : 'text-gray-500'}`}
+              >
+                <Icon aria-hidden="true" size={22} strokeWidth={active ? 2.4 : 1.8} />
+                {label}
+              </button>
+            );
+          })}
+        </nav>
       </div>
 
       {showLogoutModal && (

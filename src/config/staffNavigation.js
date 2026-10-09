@@ -17,6 +17,7 @@ import {
   RefreshCw,
   ShoppingCart,
   Tags,
+  UserPlus,
   Users,
 } from 'lucide-react';
 
@@ -73,13 +74,6 @@ const staffNavigationConfig = {
       icon: '👥',
       path: '/staff/members',
       component: 'Members'
-    },
-    {
-      id: 'loans',
-      name: 'Loans',
-      icon: '💰',
-      path: '/staff/loans',
-      component: 'Loans'
     },
     {
       id: 'inventory',
@@ -177,6 +171,13 @@ const staffNavigationConfig = {
       icon: Users,
       path: '/staff/members',
       component: 'MemberManagement'
+    },
+    {
+      id: 'requests',
+      name: 'Requests',
+      icon: UserPlus,
+      path: '/staff/requests',
+      component: 'Requests'
     },
     {
       id: 'transactions',
@@ -300,6 +301,7 @@ export const getNavigationForRole = (role) => {
     policies: FileText,
     'member-recovery': KeyRound,
     members: Users,
+    requests: ClipboardList,
     loans: HandCoins,
     savings: Landmark,
     inventory: Package,

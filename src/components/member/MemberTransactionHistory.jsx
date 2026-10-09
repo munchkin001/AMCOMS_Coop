@@ -1,276 +1,155 @@
-import React, { useState, useEffect } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
+import { useAuth } from '../../contexts/AuthContext';
 import { supabase } from '../../lib/supabase';
 import { useMultipleRealtimeSubscriptions } from '../../hooks/useRealtimeSubscription';
 import EmptyState from '../common/EmptyState';
 
+const peso = (value) => `₱${Number(value || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+const fmtDate = (value) => new Date(value).toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' });
+
+const statusStyles = {
+  Submitted: 'bg-yellow-100 text-yellow-800',
+  Approved: 'bg-green-100 text-green-800',
+  Declined: 'bg-red-100 text-red-800',
+  Completed: 'bg-blue-100 text-blue-800'
+};
+
 const MemberTransactionHistory = () => {
+  const { staff } = useAuth();
   const [filter, setFilter] = useState('all');
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
   const [transactions, setTransactions] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    fetchTransactions();
-  }, []);
+  const fetchTransactions = useCallback(async () => {
+    const memberId = staff?.member_id;
+    if (!memberId) {
+      setLoading(false);
+      return;
+    }
 
-  const fetchTransactions = async () => {
     try {
-      setLoading(true);
+      const items = [];
 
-      // Get current user
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
+      const { data: requests } = await supabase
+        .from('requests')
+        .select('id, amount, status, created_at, reviewed_at, updated_at')
+        .eq('member_id', memberId)
+        .eq('request_type', 'loan_application');
 
-      // Get member details
-      const { data: memberInfo } = await supabase
-        .from('members')
-        .select('member_id')
-        .eq('user_id', user.id)
-        .single();
-
-      if (!memberInfo) return;
-
-      const memberId = memberInfo.member_id;
-      const allTransactions = [];
-
-      // Fetch savings transactions
-      const { data: savingsTransactions } = await supabase
-        .from('savings_transactions')
-        .select(`
-          *,
-          savings_account:savings_accounts(account_number),
-          recorded_by_staff:staff(full_name)
-        `)
-        .eq('savings_accounts.member_id', memberId)
-        .order('transaction_date', { ascending: false });
-
-      if (savingsTransactions) {
-        savingsTransactions.forEach(txn => {
-          allTransactions.push({
-            id: `savings-${txn.transaction_id}`,
-            date: new Date(txn.transaction_date).toLocaleDateString(),
-            type: txn.transaction_type === 'deposit' ? 'Savings Deposit' : 'Savings Withdrawal',
-            category: 'Savings',
-            amount: txn.transaction_type === 'deposit' ? parseFloat(txn.amount) : -parseFloat(txn.amount),
-            badge: `🔷 ${txn.recorded_by_staff?.full_name || 'TREASURER'}`,
-            rawDate: txn.transaction_date
-          });
-        });
-      }
-
-      // Fetch loan payments
-      const { data: loanPayments } = await supabase
-        .from('loan_payments')
-        .select(`
-          *,
-          loan:loans(loan_number, member_id),
-          recorded_by_staff:staff(full_name)
-        `)
-        .eq('loans.member_id', memberId)
-        .order('payment_date', { ascending: false });
-
-      if (loanPayments) {
-        loanPayments.forEach(payment => {
-          allTransactions.push({
-            id: `loan-${payment.payment_id}`,
-            date: new Date(payment.payment_date).toLocaleDateString(),
-            type: 'Loan Payment',
+      (requests || []).forEach((request) => {
+        items.push({ id: `${request.id}-applied`, rawDate: request.created_at, type: 'Applied for loan', category: 'Loan', amount: Number(request.amount), signed: false, status: 'Submitted' });
+        if (request.status === 'approved' || request.status === 'rejected') {
+          const approved = request.status === 'approved';
+          items.push({
+            id: `${request.id}-${request.status}`,
+            rawDate: request.reviewed_at || request.updated_at,
+            type: approved ? 'Loan approved' : 'Loan request declined',
             category: 'Loan',
-            amount: -parseFloat(payment.amount_paid),
-            badge: `🟣 ${payment.recorded_by_staff?.full_name || 'TREASURER'}`,
-            rawDate: payment.payment_date
+            amount: Number(request.amount),
+            signed: false,
+            status: approved ? 'Approved' : 'Declined'
           });
+        }
+      });
+
+      const { data: accounts } = await supabase.from('savings_accounts').select('id').eq('member_id', memberId);
+      if (accounts?.length) {
+        const { data: savings } = await supabase
+          .from('savings_transactions')
+          .select('id, transaction_type, amount, transaction_date')
+          .in('savings_account_id', accounts.map((account) => account.id));
+        (savings || []).forEach((txn) => {
+          const deposit = txn.transaction_type === 'deposit';
+          items.push({ id: `savings-${txn.id}`, rawDate: txn.transaction_date, type: deposit ? 'Savings deposit' : 'Savings withdrawal', category: 'Savings', amount: deposit ? Number(txn.amount) : -Number(txn.amount), signed: true, status: 'Completed' });
         });
       }
 
-      // Sort all transactions by date (newest first)
-      allTransactions.sort((a, b) => new Date(b.rawDate) - new Date(a.rawDate));
+      const { data: loans } = await supabase.from('loans').select('id').eq('member_id', memberId);
+      if (loans?.length) {
+        const { data: payments } = await supabase
+          .from('loan_payments')
+          .select('id, payment_date, amount_paid')
+          .in('loan_id', loans.map((loan) => loan.id));
+        (payments || []).forEach((payment) => {
+          items.push({ id: `loan-${payment.id}`, rawDate: payment.payment_date, type: 'Loan payment', category: 'Loan', amount: -Number(payment.amount_paid), signed: true, status: 'Completed' });
+        });
+      }
 
-      setTransactions(allTransactions);
+      items.sort((a, b) => new Date(b.rawDate) - new Date(a.rawDate));
+      setTransactions(items);
     } catch (error) {
       console.error('Error fetching transactions:', error);
       setTransactions([]);
     } finally {
       setLoading(false);
     }
-  };
+  }, [staff?.member_id]);
+
+  useEffect(() => { fetchTransactions(); }, [fetchTransactions]);
 
   useMultipleRealtimeSubscriptions([
+    { table: 'requests', onUpdate: fetchTransactions },
     { table: 'savings_transactions', onUpdate: fetchTransactions },
     { table: 'loan_payments', onUpdate: fetchTransactions }
-  ], []);
+  ], [fetchTransactions]);
 
-  const applyFilters = () => {
-    fetchTransactions();
-  };
-
-  const filteredTransactions = transactions.filter(t => {
-    // Category filter
-    if (filter !== 'all' && t.category.toLowerCase() !== filter) {
-      return false;
-    }
-
-    // Date range filter
-    if (dateFrom && new Date(t.rawDate) < new Date(dateFrom)) {
-      return false;
-    }
-    if (dateTo && new Date(t.rawDate) > new Date(dateTo)) {
-      return false;
-    }
-
+  const filtered = transactions.filter((t) => {
+    if (filter !== 'all' && t.category.toLowerCase() !== filter) return false;
+    if (dateFrom && new Date(t.rawDate) < new Date(dateFrom)) return false;
+    if (dateTo && new Date(t.rawDate) > new Date(`${dateTo}T23:59:59`)) return false;
     return true;
   });
 
-  // Calculate summaries
-  const moneyReceived = filteredTransactions
-    .filter(t => t.amount > 0)
-    .reduce((sum, t) => sum + t.amount, 0);
-
-  const moneyReleased = filteredTransactions
-    .filter(t => t.amount < 0)
-    .reduce((sum, t) => sum + Math.abs(t.amount), 0);
-
-  const netFlow = moneyReceived - moneyReleased;
-
   return (
-    <div className="space-y-6">
-      {/* Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="bg-green-50 border border-green-200 rounded-lg p-6">
-          <p className="text-sm text-green-700 font-medium mb-1">Money Received</p>
-          <p className="text-2xl font-bold text-green-900">
-            ₱{moneyReceived.toLocaleString('en-US', { minimumFractionDigits: 2 })}
-          </p>
-        </div>
-        <div className="bg-red-50 border border-red-200 rounded-lg p-6">
-          <p className="text-sm text-red-700 font-medium mb-1">Money Released</p>
-          <p className="text-2xl font-bold text-red-900">
-            ₱{moneyReleased.toLocaleString('en-US', { minimumFractionDigits: 2 })}
-          </p>
-        </div>
-        <div className="bg-blue-50 border border-blue-200 rounded-lg p-6">
-          <p className="text-sm text-blue-700 font-medium mb-1">Net Flow</p>
-          <p className={`text-2xl font-bold ${netFlow >= 0 ? 'text-blue-900' : 'text-red-900'}`}>
-            {netFlow >= 0 ? '+' : ''}₱{netFlow.toLocaleString('en-US', { minimumFractionDigits: 2 })}
-          </p>
-        </div>
+    <div className="space-y-4">
+      <div className="grid grid-cols-1 gap-3 rounded-xl border border-gray-200 bg-white p-4 sm:grid-cols-3">
+        <label className="text-sm font-medium text-gray-700">
+          Category
+          <select value={filter} onChange={(e) => setFilter(e.target.value)} className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2">
+            <option value="all">All</option>
+            <option value="savings">Savings</option>
+            <option value="loan">Loan</option>
+          </select>
+        </label>
+        <label className="text-sm font-medium text-gray-700">
+          From
+          <input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2" />
+        </label>
+        <label className="text-sm font-medium text-gray-700">
+          To
+          <input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2" />
+        </label>
       </div>
 
-      {/* Filters */}
-      <div className="bg-white rounded-lg shadow border border-gray-200 p-6">
-        <h3 className="text-lg font-semibold text-gray-900 mb-4">Filter Transactions</h3>
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Category</label>
-            <select
-              value={filter}
-              onChange={(e) => setFilter(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-            >
-              <option value="all">All Transactions</option>
-              <option value="savings">Savings</option>
-              <option value="loan">Loan</option>
-              <option value="time deposit">Time Deposit</option>
-            </select>
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Date From</label>
-            <input
-              type="date"
-              value={dateFrom}
-              onChange={(e) => setDateFrom(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Date To</label>
-            <input
-              type="date"
-              value={dateTo}
-              onChange={(e) => setDateTo(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-            />
-          </div>
-          <div className="flex items-end">
-            <button 
-              onClick={applyFilters}
-              className="w-full px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700"
-            >
-              Apply Filters
-            </button>
-          </div>
-        </div>
-      </div>
-
-      {/* Transaction List */}
-      <div className="bg-white rounded-lg shadow border border-gray-200 p-6">
-        <h3 className="text-lg font-semibold text-gray-900 mb-4">Transaction History</h3>
+      <div className="rounded-xl border border-gray-200 bg-white">
         {loading ? (
-          <div className="text-center py-12">
-            <p className="text-gray-500">Loading transactions...</p>
-          </div>
-        ) : filteredTransactions.length === 0 ? (
+          <p className="py-10 text-center text-sm text-gray-500">Loading transactions...</p>
+        ) : filtered.length === 0 ? (
           <EmptyState
-            icon={
-              <svg className="w-12 h-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-              </svg>
-            }
+            icon={<span className="text-3xl">📄</span>}
             title="No Transactions Found"
-            description={filter === 'all' 
-              ? "You don't have any transactions yet. When cooperative staff processes your savings, loans, or other financial activities, they will appear here."
-              : `No ${filter} transactions found. Try selecting a different category or date range.`}
+            description="Loan applications, approvals, savings and loan payments will appear here."
           />
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead>
-                <tr className="border-b border-gray-200">
-                  <th className="text-left py-3 px-4 text-sm font-medium text-gray-700">Date</th>
-                  <th className="text-left py-3 px-4 text-sm font-medium text-gray-700">Type</th>
-                  <th className="text-left py-3 px-4 text-sm font-medium text-gray-700">Category</th>
-                  <th className="text-right py-3 px-4 text-sm font-medium text-gray-700">Amount</th>
-                  <th className="text-left py-3 px-4 text-sm font-medium text-gray-700">Recorded By</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredTransactions.map((transaction) => (
-                  <tr key={transaction.id} className="border-b border-gray-100 hover:bg-gray-50">
-                    <td className="py-3 px-4 text-sm text-gray-900">{transaction.date}</td>
-                    <td className="py-3 px-4 text-sm text-gray-900">{transaction.type}</td>
-                    <td className="py-3 px-4">
-                      <span className="px-2 py-1 bg-gray-100 text-gray-700 rounded text-xs">
-                        {transaction.category}
-                      </span>
-                    </td>
-                    <td className={`py-3 px-4 text-sm text-right font-medium ${
-                      transaction.amount > 0 ? 'text-green-600' : 'text-red-600'
-                    }`}>
-                      {transaction.amount > 0 ? '+' : ''}₱{Math.abs(transaction.amount).toLocaleString()}
-                    </td>
-                    <td className="py-3 px-4 text-sm text-gray-600">{transaction.badge}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <ul className="divide-y divide-gray-100">
+            {filtered.map((t) => (
+              <li key={t.id} className="flex items-center justify-between gap-3 p-4">
+                <div className="min-w-0">
+                  <p className="text-sm font-medium text-gray-900">{t.type}</p>
+                  <p className="text-xs text-gray-500">{fmtDate(t.rawDate)} · {t.category}</p>
+                </div>
+                <div className="text-right">
+                  <p className={`text-sm font-semibold ${!t.signed ? 'text-gray-900' : t.amount > 0 ? 'text-green-600' : 'text-red-600'}`}>
+                    {t.signed && t.amount > 0 ? '+' : ''}{t.signed && t.amount < 0 ? '-' : ''}{peso(Math.abs(t.amount))}
+                  </p>
+                  <span className={`mt-1 inline-block rounded-full px-2 py-0.5 text-xs font-medium ${statusStyles[t.status]}`}>{t.status}</span>
+                </div>
+              </li>
+            ))}
+          </ul>
         )}
-      </div>
-
-      {/* Note */}
-      <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
-        <div className="flex items-start space-x-3">
-          <svg className="w-5 h-5 text-amber-600 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-          </svg>
-          <div>
-            <p className="text-sm font-medium text-amber-900">View Only</p>
-            <p className="text-sm text-amber-700 mt-1">
-              This is a view-only record of your financial transactions. You cannot edit or delete completed transactions. All transactions are recorded by cooperative staff with color-coded badges showing who processed them.
-            </p>
-          </div>
-        </div>
       </div>
     </div>
   );

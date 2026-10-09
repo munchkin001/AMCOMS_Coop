@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Eye, EyeOff, KeyRound, Save, UserRound } from 'lucide-react';
+import { ChevronDown, Eye, EyeOff, KeyRound, Save, UserRound } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 
@@ -204,31 +204,42 @@ const ProfileEditor = ({ profileType = 'staff', roleLabel }) => {
     return <div className="rounded-xl border border-gray-200 bg-white p-8 text-sm text-gray-600">Loading profile...</div>;
   }
 
+  const displayName = [profile.first_name, profile.last_name].filter(Boolean).join(' ') || roleName;
+  const initials = (profile.first_name?.[0] || displayName[0] || '?').toUpperCase();
+
   return (
-    <div className="space-y-6">
-      <section className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
-        <div className="flex flex-col gap-4 border-b border-gray-200 bg-gray-50 px-5 py-5 sm:flex-row sm:items-center sm:justify-between sm:px-7">
-          <div className="flex items-center gap-3">
-            <span className="flex size-11 items-center justify-center rounded-xl bg-emerald-100 text-emerald-800">
-              <UserRound aria-hidden="true" size={22} />
-            </span>
-            <div>
-              <h2 className="text-lg font-semibold text-gray-950">Personal information</h2>
-              <p className="text-sm capitalize text-gray-600">{roleName}</p>
-            </div>
-          </div>
+    <div className="mx-auto max-w-3xl space-y-4 sm:space-y-6">
+      <section className="flex items-center gap-4 rounded-2xl bg-gradient-to-br from-[#0d3b2d] via-[#146344] to-[#2a8057] p-4 text-white shadow-sm sm:p-6">
+        <span aria-hidden="true" className="flex size-14 shrink-0 items-center justify-center rounded-full bg-white/15 text-xl font-semibold ring-2 ring-white/30 sm:size-16 sm:text-2xl">
+          {initials}
+        </span>
+        <div className="min-w-0">
+          <h2 className="truncate text-lg font-semibold sm:text-xl">{displayName}</h2>
+          <p className="truncate text-sm capitalize text-green-100/90">{roleName}</p>
           {memberSummary && (
-            <span className="w-fit rounded-full bg-emerald-50 px-3 py-1.5 text-sm font-medium text-emerald-800">
-              Member #{memberSummary.member_number}
-            </span>
+            <div className="mt-2 flex flex-wrap gap-2">
+              <span className="rounded-full bg-white/15 px-2.5 py-1 text-xs font-medium">#{memberSummary.member_number}</span>
+              {memberSummary.membership_status && (
+                <span className="rounded-full bg-[#e9c46a] px-2.5 py-1 text-xs font-semibold capitalize text-[#0d3b2d]">{memberSummary.membership_status}</span>
+              )}
+            </div>
           )}
         </div>
+      </section>
 
-        <form onSubmit={saveProfile} className="space-y-6 p-5 sm:p-7">
+      <section className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
+        <div className="flex items-center gap-3 border-b border-gray-100 px-4 py-4 sm:px-6">
+          <span className="flex size-9 items-center justify-center rounded-xl bg-emerald-50 text-emerald-800">
+            <UserRound aria-hidden="true" size={19} />
+          </span>
+          <h2 className="text-base font-semibold text-gray-950">Personal information</h2>
+        </div>
+
+        <form onSubmit={saveProfile} className="space-y-6 p-4 sm:p-6">
           {profileError && <p role="alert" className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{profileError}</p>}
           {profileNotice && <p role="status" className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">{profileNotice}</p>}
 
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="grid gap-4 sm:grid-cols-2">
             <div>
               <label htmlFor="profile-first-name" className={labelClass}>First name</label>
               <input id="profile-first-name" name="first_name" autoComplete="given-name" required maxLength={80} value={profile.first_name} onChange={handleProfileChange} className={fieldClass} />
@@ -257,15 +268,15 @@ const ProfileEditor = ({ profileType = 'staff', roleLabel }) => {
               <label htmlFor="profile-phone" className={labelClass}>Contact number</label>
               <input id="profile-phone" name="phone" type="tel" autoComplete="tel" maxLength={32} value={profile.phone} onChange={handleProfileChange} className={fieldClass} />
             </div>
-            <div className="sm:col-span-2 lg:col-span-3">
+            <div className="sm:col-span-2">
               <label htmlFor="profile-address" className={labelClass}>Address</label>
               <textarea id="profile-address" name="address" autoComplete="street-address" rows={2} maxLength={300} value={profile.address} onChange={handleProfileChange} className={fieldClass} />
             </div>
           </div>
 
-          <div className="border-t border-gray-200 pt-5">
+          <div className="border-t border-gray-100 pt-5">
             <h3 className="mb-4 text-base font-semibold text-gray-900">Emergency contact</h3>
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            <div className="grid gap-4 sm:grid-cols-2">
               <div>
                 <label htmlFor="profile-emergency-name" className={labelClass}>Full name</label>
                 <input id="profile-emergency-name" name="emergency_contact_name" autoComplete="off" maxLength={120} value={profile.emergency_contact_name} onChange={handleProfileChange} className={fieldClass} />
@@ -292,8 +303,8 @@ const ProfileEditor = ({ profileType = 'staff', roleLabel }) => {
             </div>
           )}
 
-          <div className="flex justify-end border-t border-gray-200 pt-5">
-            <button type="submit" disabled={saving} className="inline-flex min-h-11 items-center gap-2 rounded-lg bg-emerald-700 px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-emerald-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-700 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60">
+          <div className={`sticky -mx-4 border-t border-gray-100 bg-white/95 px-4 py-3 backdrop-blur sm:static sm:mx-0 sm:flex sm:justify-end sm:bg-transparent sm:px-0 sm:pb-0 ${profileType === 'member' ? 'bottom-16 lg:bottom-0' : 'bottom-0'}`}>
+            <button type="submit" disabled={saving} className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-emerald-700 px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-emerald-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-700 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto">
               <Save aria-hidden="true" size={17} />
               {saving ? 'Saving...' : 'Save profile'}
             </button>
@@ -301,18 +312,19 @@ const ProfileEditor = ({ profileType = 'staff', roleLabel }) => {
         </form>
       </section>
 
-      <section className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
-        <div className="flex items-center gap-3 border-b border-gray-200 bg-gray-50 px-5 py-5 sm:px-7">
-          <span className="flex size-11 items-center justify-center rounded-xl bg-slate-100 text-slate-700">
-            <KeyRound aria-hidden="true" size={21} />
+      <details className="group overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
+        <summary className="flex cursor-pointer list-none items-center gap-3 px-4 py-4 sm:px-6 [&::-webkit-details-marker]:hidden">
+          <span className="flex size-9 items-center justify-center rounded-xl bg-slate-100 text-slate-700">
+            <KeyRound aria-hidden="true" size={18} />
           </span>
-          <div>
-            <h2 className="text-lg font-semibold text-gray-950">Change password</h2>
-            <p className="text-sm text-gray-600">Verify your current password before choosing a new one.</p>
+          <div className="min-w-0 flex-1">
+            <h2 className="text-base font-semibold text-gray-950">Change password</h2>
+            <p className="truncate text-sm text-gray-600">Verify your current password first.</p>
           </div>
-        </div>
+          <ChevronDown aria-hidden="true" size={18} className="text-gray-400 transition-transform group-open:rotate-180" />
+        </summary>
 
-        <form onSubmit={updatePassword} className="space-y-4 p-5 sm:p-7">
+        <form onSubmit={updatePassword} className="space-y-4 border-t border-gray-100 p-4 sm:p-6">
           {passwordError && <p role="alert" className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{passwordError}</p>}
           {passwordNotice && <p role="status" className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">{passwordNotice}</p>}
           <div className="grid gap-4 sm:grid-cols-2">
@@ -342,7 +354,7 @@ const ProfileEditor = ({ profileType = 'staff', roleLabel }) => {
             </button>
           </div>
         </form>
-      </section>
+      </details>
     </div>
   );
 };

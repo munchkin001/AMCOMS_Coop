@@ -4,19 +4,13 @@ import { useRealtimeSubscription } from '../../hooks/useRealtimeSubscription';
 import { supabase } from '../../lib/supabase';
 
 const categories = [
-  { key: 'loan', label: 'Loan Requests', filterLabel: 'Loan Requests', accent: 'text-slate-800', badge: 'bg-sky-50 text-sky-800 ring-sky-200' },
-  { key: 'savings', label: 'Savings', filterLabel: 'Savings', accent: 'text-slate-800', badge: 'bg-emerald-50 text-emerald-800 ring-emerald-200' },
-  { key: 'withdrawal', label: 'Withdrawals', filterLabel: 'Withdrawals', accent: 'text-slate-800', badge: 'bg-amber-50 text-amber-800 ring-amber-200' },
-  { key: 'time_deposit', label: 'Time Deposits', filterLabel: 'Time Deposits', accent: 'text-slate-800', badge: 'bg-indigo-50 text-indigo-800 ring-indigo-200' }
+  { key: 'loan', label: 'Loan Requests', filterLabel: 'Loan Requests', accent: 'text-slate-800', badge: 'bg-sky-50 text-sky-800 ring-sky-200' }
 ];
 
 const categoryByKey = Object.fromEntries(categories.map((category) => [category.key, category]));
 
 const getCategory = (request) => {
   const type = String(request.request_data?.type || '').toLowerCase();
-  if (request.request_type === 'withdrawal' || type.includes('withdraw')) return 'withdrawal';
-  if (type.includes('time deposit')) return 'time_deposit';
-  if (type.includes('savings')) return 'savings';
   if (request.request_type === 'loan_application' || request.request_type === 'loan_release' || type.startsWith('loan')) return 'loan';
   return null;
 };
@@ -80,7 +74,10 @@ const RequestManagement = () => {
           amount: Number(request.amount) || 0,
           date: new Date(request.created_at).toLocaleDateString('en-PH', { year: 'numeric', month: 'short', day: 'numeric' }),
           status: request.status,
-          details: requestData.purpose || 'No additional details provided',
+          details: [
+            requestData.purpose || 'No additional details provided',
+            requestData.installments && `Term: ${requestData.term_months / 12} yr, ${requestData.payment_frequency} — ${requestData.installments} payments of ₱${Number(requestData.installment_amount).toLocaleString('en-PH', { minimumFractionDigits: 2 })} (total ₱${Number(requestData.total_payable).toLocaleString('en-PH', { minimumFractionDigits: 2 })} at ${requestData.annual_rate}%/yr)`
+          ].filter(Boolean).join('\n'),
           loanType: requestData.loan_type,
           requestData
         }];
@@ -128,7 +125,7 @@ const RequestManagement = () => {
     if (approvalAction === 'approve') {
       update.approved_by = staff?.id;
       update.approved_at = reviewedAt;
-      update.approval_notes = 'Approved by manager';
+      update.approval_notes = 'Approved by bookkeeper';
     }
 
     try {
@@ -138,9 +135,16 @@ const RequestManagement = () => {
         .eq('id', selectedRequest.recordId);
 
       if (updateError) throw updateError;
+      const decidedId = selectedRequest.recordId;
       closeModals();
       setSelectedRequest(null);
       await fetchRequests();
+      const { error: emailError } = await supabase.functions.invoke('member-request-email', {
+        body: { request_id: decidedId }
+      });
+      if (emailError) {
+        setError('The decision was saved, but the email to the member could not be sent. Please contact them directly.');
+      }
     } catch (updateError) {
       console.error('Unable to update request status:', updateError);
       setError('The request status could not be updated. Please try again.');
@@ -259,7 +263,7 @@ const RequestManagement = () => {
 
             <div className="mt-4 space-y-1 text-sm text-slate-700">
               <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Request details</p>
-              <p>{request.details}</p>
+              <p className="whitespace-pre-line">{request.details}</p>
               {request.loanType && <p className="text-slate-600"><span className="font-medium">Loan type:</span> {request.loanType}</p>}
               {request.requestData.preferred_date && <p className="text-slate-600"><span className="font-medium">Preferred date:</span> {request.requestData.preferred_date}</p>}
             </div>
