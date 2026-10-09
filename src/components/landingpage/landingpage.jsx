@@ -5,8 +5,51 @@ import { BadgeDollarSign, ChartNoAxesCombined, Check, ClipboardList, Clock3, Han
 import './landingpage.css';
 
 
+const navLinks = [
+  { id: 'home', label: 'Home' },
+  { id: 'announcements', label: 'Announcements' },
+  { id: 'about', label: 'About' },
+  { id: 'products', label: 'Products' },
+  { id: 'services', label: 'Services' },
+  { id: 'membership', label: 'Membership' },
+  { id: 'reviews', label: 'Reviews' },
+  { id: 'contact', label: 'Contact' }
+];
+
+const activeLinkStyle = { color: '#ca8a04', fontWeight: 700, textShadow: '0 0 12px rgba(250, 204, 21, 0.55)' };
+
+const useActiveSection = () => {
+  const [activeSection, setActiveSection] = useState('home');
+
+  useEffect(() => {
+    const update = () => {
+      const marker = 120;
+      let current = navLinks[0].id;
+      navLinks.forEach(({ id }) => {
+        const element = document.getElementById(id);
+        if (element && element.getBoundingClientRect().top <= marker) current = id;
+      });
+      if (window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 4) {
+        current = navLinks[navLinks.length - 1].id;
+      }
+      setActiveSection(current);
+    };
+
+    update();
+    window.addEventListener('scroll', update, { passive: true });
+    window.addEventListener('resize', update);
+    return () => {
+      window.removeEventListener('scroll', update);
+      window.removeEventListener('resize', update);
+    };
+  }, []);
+
+  return activeSection;
+};
+
 const Navbar = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const activeSection = useActiveSection();
 
   return (
     <nav className="amcoms-navbar bg-white shadow-sm fixed w-full top-0 z-50">
@@ -23,14 +66,9 @@ const Navbar = () => {
 
           {/* Desktop Navigation Links */}
           <div className="hidden lg:flex items-center space-x-6 xl:space-x-8">
-            <a href="#home" className="text-gray-700 hover:text-green-700 font-medium text-sm xl:text-base">Home</a>
-            <a href="#announcements" className="text-gray-700 hover:text-green-700 font-medium text-sm xl:text-base">Announcements</a>
-            <a href="#about" className="text-gray-700 hover:text-green-700 font-medium text-sm xl:text-base">About</a>
-            <a href="#products" className="text-gray-700 hover:text-green-700 font-medium text-sm xl:text-base">Products</a>
-            <a href="#services" className="text-green-700 hover:text-green-800 font-medium text-sm xl:text-base">Services</a>
-            <a href="#membership" className="text-gray-700 hover:text-green-700 font-medium text-sm xl:text-base">Membership</a>
-            <a href="#reviews" className="text-gray-700 hover:text-green-700 font-medium text-sm xl:text-base">Reviews</a>
-            <a href="#contact" className="text-gray-700 hover:text-green-700 font-medium text-sm xl:text-base">Contact</a>
+            {navLinks.map(({ id, label }) => (
+              <a key={id} href={`#${id}`} style={activeSection === id ? activeLinkStyle : undefined} className="text-gray-700 hover:text-green-700 font-medium text-sm xl:text-base border-b-2 border-transparent pb-1 transition-colors" aria-current={activeSection === id ? 'true' : undefined}>{label}</a>
+            ))}
             
             {/* Login Button */}
             <Link 
@@ -69,14 +107,9 @@ const Navbar = () => {
         {isMenuOpen && (
           <div className="lg:hidden pb-4 border-t border-gray-100">
             <div className="flex flex-col space-y-3 pt-4">
-              <a href="#home" onClick={() => setIsMenuOpen(false)} className="text-gray-700 hover:text-green-700 font-medium py-2 px-4 hover:bg-gray-50 rounded">Home</a>
-              <a href="#announcements" onClick={() => setIsMenuOpen(false)} className="text-gray-700 hover:text-green-700 font-medium py-2 px-4 hover:bg-gray-50 rounded">Announcements</a>
-              <a href="#about" onClick={() => setIsMenuOpen(false)} className="text-gray-700 hover:text-green-700 font-medium py-2 px-4 hover:bg-gray-50 rounded">About</a>
-              <a href="#products" onClick={() => setIsMenuOpen(false)} className="text-gray-700 hover:text-green-700 font-medium py-2 px-4 hover:bg-gray-50 rounded">Products</a>
-              <a href="#services" onClick={() => setIsMenuOpen(false)} className="text-green-700 hover:text-green-800 font-medium py-2 px-4 hover:bg-gray-50 rounded">Services</a>
-              <a href="#membership" onClick={() => setIsMenuOpen(false)} className="text-gray-700 hover:text-green-700 font-medium py-2 px-4 hover:bg-gray-50 rounded">Membership</a>
-              <a href="#reviews" onClick={() => setIsMenuOpen(false)} className="text-gray-700 hover:text-green-700 font-medium py-2 px-4 hover:bg-gray-50 rounded">Reviews</a>
-              <a href="#contact" onClick={() => setIsMenuOpen(false)} className="text-gray-700 hover:text-green-700 font-medium py-2 px-4 hover:bg-gray-50 rounded">Contact</a>
+              {navLinks.map(({ id, label }) => (
+                <a key={id} href={`#${id}`} onClick={() => setIsMenuOpen(false)} style={activeSection === id ? activeLinkStyle : undefined} className="text-gray-700 hover:text-green-700 font-medium py-2 px-4 hover:bg-gray-50 rounded" aria-current={activeSection === id ? 'true' : undefined}>{label}</a>
+              ))}
               
               {/* Mobile Login Button */}
               <Link 
@@ -374,7 +407,7 @@ const Products = () => {
         </h2>
         
         <p className="text-center text-gray-600 mb-12 max-w-3xl mx-auto">
-          Affordable agricultural products and essential commodities for the community — 
+          Affordable agricultural products and essential commodities for the community â€” 
           supporting local farmers while delivering quality to every household.
         </p>
 
@@ -554,7 +587,7 @@ const Services = () => {
         </h2>
         
         <p className="text-center text-sm sm:text-base text-gray-600 mb-12 sm:mb-16 max-w-3xl mx-auto px-4">
-          Comprehensive support for members and the community — from savings and loans to 
+          Comprehensive support for members and the community â€” from savings and loans to 
           production and marketing.
         </p>
 
@@ -680,11 +713,11 @@ const Membership = () => {
             <div className="space-y-4">
               <div className="flex justify-between items-center border-b border-white border-opacity-20 pb-3">
                 <span className="text-sm sm:text-base text-green-100">Membership Fee</span>
-                <span className="text-lg sm:text-xl font-bold">₱100</span>
+                <span className="text-lg sm:text-xl font-bold">â‚±100</span>
               </div>
               <div className="flex justify-between items-center pb-3">
                 <span className="text-sm sm:text-base text-green-100">Initial Capital Share</span>
-                <span className="text-lg sm:text-xl font-bold">₱5,000 <span className="text-xs sm:text-sm font-normal">min</span></span>
+                <span className="text-lg sm:text-xl font-bold">â‚±5,000 <span className="text-xs sm:text-sm font-normal">min</span></span>
               </div>
             </div>
           </div>
@@ -801,7 +834,7 @@ const Membership = () => {
 const Reviews = () => {
   const reviews = [
     {
-      name: 'Jeff Doñahan',
+      name: 'Jeff DoÃ±ahan',
       role: 'Google Reviewer',
       rating: 5,
       text: 'Known for their organic products such as coconut sugar.',
@@ -818,9 +851,9 @@ const Reviews = () => {
     },
     {
       name: 'Marie C.',
-      role: 'Local Guide · Level 3',
+      role: 'Local Guide Â· Level 3',
       rating: 4,
-      text: 'Rating only — no text review provided',
+      text: 'Rating only â€” no text review provided',
       avatar: 'M',
       color: 'bg-green-600'
     },
@@ -828,15 +861,15 @@ const Reviews = () => {
       name: 'Rodel S.',
       role: 'Google Reviewer',
       rating: 5,
-      text: 'Rating only — no text review provided',
+      text: 'Rating only â€” no text review provided',
       avatar: 'R',
       color: 'bg-teal-500'
     },
     {
       name: 'Ana Fernandez',
-      role: 'Local Guide · Level 2',
+      role: 'Local Guide Â· Level 2',
       rating: 4,
-      text: 'Rating only — no text review provided',
+      text: 'Rating only â€” no text review provided',
       avatar: 'A',
       color: 'bg-blue-600'
     },
@@ -844,7 +877,7 @@ const Reviews = () => {
       name: 'Mark Dela Cruz',
       role: 'Google Reviewer',
       rating: 4,
-      text: 'Rating only — no text review provided',
+      text: 'Rating only â€” no text review provided',
       avatar: 'M',
       color: 'bg-purple-600'
     }
@@ -919,7 +952,7 @@ const Reviews = () => {
         {/* View More Button */}
         <div className="text-center">
           <a 
-            href="https://www.google.com/maps/place/Agay-Ayan+Multi-Purpose+Cooperative+Inc./@8.8194,125.0895,17z" 
+            href="https://www.google.com/search?q=Agay-ayan+Multi-Purpose+Cooperative+Inc.+Gingoog+reviews" 
             target="_blank" 
             rel="noopener noreferrer"
             className="inline-flex items-center gap-2 bg-yellow-400 text-gray-900 px-6 py-3 rounded-lg hover:bg-yellow-500 transition-colors font-semibold"
@@ -1183,7 +1216,7 @@ const Footer = () => {
         <div className="border-t border-gray-800 pt-8">
           <div className="flex flex-col md:flex-row justify-between items-center space-y-4 md:space-y-0">
             <div className="text-sm text-gray-400">
-              © 2026 Agay-Ayan Multi-Purpose Cooperative. All Rights Reserved.
+              Â© 2026 Agay-Ayan Multi-Purpose Cooperative. All Rights Reserved.
             </div>
             <div className="flex space-x-6 text-sm text-gray-400">
               <a href="#" className="hover:text-green-400 transition-colors">Privacy Policy</a>
