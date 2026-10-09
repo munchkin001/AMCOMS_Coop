@@ -147,8 +147,8 @@ Deno.serve(async (request) => {
       return jsonResponse({ completed: true }, 200, origin);
     }
 
-    if (!['bookkeeper', 'manager', 'chairman'].includes(actor.role)) {
-      return jsonResponse({ error: 'This role cannot manage member account recovery.' }, 403, origin);
+    if (!['bookkeeper', 'chairman'].includes(actor.role)) {
+      return jsonResponse({ error: 'Only Bookkeepers and the Chairman can manage member accounts.' }, 403, origin);
     }
     const memberId = String(payload?.member_id || '');
     if (!memberId) return jsonResponse({ error: 'A member record is required.' }, 400, origin);
@@ -254,9 +254,6 @@ Deno.serve(async (request) => {
     };
 
     if (action === 'reset' || action === 'resend-activation') {
-      if (action === 'resend-activation' && actor.role !== 'bookkeeper') {
-        return jsonResponse({ error: 'Only Bookkeepers can resend initial activation instructions.' }, 403, origin);
-      }
       if (!linkedStaff?.user_id || linkedStaff.role !== 'member') {
         return jsonResponse({ error: 'No linked Member Portal account was found.' }, 404, origin);
       }

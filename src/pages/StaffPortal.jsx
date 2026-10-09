@@ -103,7 +103,7 @@ const StaffPortal = () => {
         <Route path="/inventory" element={<OperationsMonitoring />} />
         <Route path="/announcements" element={<Announcements />} />
         <Route path="/sms" element={['manager', 'chairman'].includes(staff.role) ? <SMSCenter /> : <Navigate to="/staff/dashboard" replace />} />
-        <Route path="/member-account-recovery" element={['manager', 'chairman'].includes(staff.role) ? <MemberAccountRecovery /> : <Navigate to="/staff/dashboard" replace />} />
+        <Route path="/member-account-recovery" element={staff.role === 'chairman' ? <MemberAccountRecovery /> : <Navigate to="/staff/dashboard" replace />} />
         <Route path="/reports" element={<ManagerReports />} />
 
         {/* Treasurer Routes */}

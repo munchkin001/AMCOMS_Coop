@@ -36,7 +36,7 @@ const getAccountActionError = async (error) => {
   return error?.message || 'The account instructions could not be sent.';
 };
 
-const MemberManagement = () => {
+const MemberManagement = ({ canManageMembers = true }) => {
   const [members, setMembers] = useState([]);
   const [archivedMembers, setArchivedMembers] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -149,6 +149,7 @@ const MemberManagement = () => {
   }, [activeMembers, archivedMembers, search, statusFilter, view]);
 
   const startAdd = () => {
+    if (!canManageMembers) return;
     setForm(emptyForm);
     setSelectedMember(null);
     setDuplicateMatches([]);
@@ -160,6 +161,7 @@ const MemberManagement = () => {
   };
 
   const startEdit = (member) => {
+    if (!canManageMembers) return;
     setSelectedMember(member);
     setForm({ ...emptyForm, ...member, date_of_birth: member.date_of_birth || '', date_joined: member.date_joined || '' });
     setDuplicateMatches([]);
@@ -170,6 +172,7 @@ const MemberManagement = () => {
   };
 
   const sendMemberAccountLink = async (member, requestedAction) => {
+    if (!canManageMembers) return;
     if (!member.email) {
       setError('Add a registered email before sending activation instructions.');
       return;
@@ -198,6 +201,7 @@ const MemberManagement = () => {
   };
 
   const handleMemberAccountAction = (member) => {
+    if (!canManageMembers) return;
     if (getAccountAction(member) === 'reset') {
       setSelectedMember(member);
       setError('');
@@ -208,12 +212,14 @@ const MemberManagement = () => {
   };
 
   const confirmPasswordReset = async () => {
+    if (!canManageMembers) return;
     if (!selectedMember) return;
     setModal('');
     await sendMemberAccountLink(selectedMember, 'reset');
   };
 
   const startArchive = async (member) => {
+    if (!canManageMembers) return;
     setSelectedMember(member);
     setArchiveReason('');
     setArchiveReview(null);
@@ -231,6 +237,7 @@ const MemberManagement = () => {
 
   const handleSave = async (event) => {
     event.preventDefault();
+    if (!canManageMembers) return;
     setSaving(true);
     setError('');
     setPortalNotice('');
@@ -318,6 +325,7 @@ const MemberManagement = () => {
 
   const handleArchive = async (event) => {
     event.preventDefault();
+    if (!canManageMembers) return;
     if (!archiveReason.trim() || !selectedMember) return;
     setSaving(true);
     setError('');
@@ -342,6 +350,7 @@ const MemberManagement = () => {
 
   const handleReactivate = async (event) => {
     event.preventDefault();
+    if (!canManageMembers) return;
     if (!selectedMember) return;
     setSaving(true);
     setError('');
@@ -377,11 +386,13 @@ const MemberManagement = () => {
       <header className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
         <div>
           <h1 className="text-2xl font-bold text-gray-950">Members</h1>
-          <p className="mt-1 text-sm text-gray-600">View and maintain cooperative member records.</p>
+          <p className="mt-1 text-sm text-gray-600">{canManageMembers ? 'View and maintain cooperative member records.' : 'View cooperative member records and account details.'}</p>
         </div>
-        <button type="button" onClick={startAdd} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg bg-blue-700 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-700 focus-visible:ring-offset-2">
-          <Plus size={17} aria-hidden="true" /> Add Member
-        </button>
+        {canManageMembers && (
+          <button type="button" onClick={startAdd} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg bg-blue-700 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-700 focus-visible:ring-offset-2">
+            <Plus size={17} aria-hidden="true" /> Add Member
+          </button>
+        )}
       </header>
 
       <div className="flex flex-col gap-3 border-b border-gray-200 sm:flex-row sm:items-center sm:justify-between">
@@ -425,7 +436,7 @@ const MemberManagement = () => {
                   <th className="px-4 py-3 text-left text-xs font-semibold uppercase text-gray-500">Status</th>
                   <th className="px-4 py-3 text-left text-xs font-semibold uppercase text-gray-500">Account</th>
                   {view === 'archived' && <th className="px-4 py-3 text-left text-xs font-semibold uppercase text-gray-500">Archived</th>}
-                  <th className="px-4 py-3 text-right text-xs font-semibold uppercase text-gray-500">Actions</th>
+                  <th className="px-4 py-3 text-right text-xs font-semibold uppercase text-gray-500">{canManageMembers ? 'Actions' : 'Details'}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
@@ -444,12 +455,12 @@ const MemberManagement = () => {
                     <td className="px-4 py-3">
                       <div className="flex justify-end gap-1">
                         <button type="button" onClick={() => { setSelectedMember(member); setModal('view'); }} aria-label={`View ${fullName(member)}`} title="View" className="rounded-md p-2 text-gray-600 hover:bg-gray-100 hover:text-blue-700"><Eye size={17} /></button>
-                        {view === 'active' && <>
+                        {view === 'active' && canManageMembers && <>
                           <button type="button" onClick={() => startEdit(member)} aria-label={`Edit ${fullName(member)}`} title="Edit" className="rounded-md p-2 text-gray-600 hover:bg-gray-100 hover:text-blue-700"><Pencil size={17} /></button>
                           {member.membership_status === 'active' && member.email && <button type="button" onClick={() => handleMemberAccountAction(member)} disabled={accountActionMemberId === member.id} aria-label={`${getAccountAction(member) === 'reactivate-member' ? 'Restore portal access for' : getAccountAction(member) === 'resend-activation' ? 'Resend activation for' : getAccountAction(member) === 'reset' ? 'Initiate password reset for' : 'Create portal account for'} ${fullName(member)}`} title={getAccountAction(member) === 'reactivate-member' ? 'Restore portal access' : getAccountAction(member) === 'resend-activation' ? 'Resend activation' : getAccountAction(member) === 'reset' ? 'Initiate password reset' : 'Create portal account'} className="rounded-md p-2 text-gray-600 hover:bg-blue-50 hover:text-blue-700 disabled:opacity-50">{accountActionMemberId === member.id ? <Mail size={17} className="animate-pulse" /> : getAccountAction(member) === 'reactivate-member' ? <RotateCcw size={17} /> : <KeyRound size={17} />}</button>}
                           {member.membership_status === 'active' && <button type="button" onClick={() => startArchive(member)} aria-label={`Archive ${fullName(member)}`} title="Archive member" className="rounded-md p-2 text-gray-600 hover:bg-amber-50 hover:text-amber-800"><Archive size={17} /></button>}
                         </>}
-                        {view === 'archived' && <button type="button" onClick={() => { setSelectedMember(member); setError(''); setModal('reactivate'); }} aria-label={`Reactivate ${fullName(member)}`} title="Reactivate member" className="rounded-md p-2 text-gray-600 hover:bg-emerald-50 hover:text-emerald-700"><RotateCcw size={17} /></button>}
+                        {view === 'archived' && canManageMembers && <button type="button" onClick={() => { setSelectedMember(member); setError(''); setModal('reactivate'); }} aria-label={`Reactivate ${fullName(member)}`} title="Reactivate member" className="rounded-md p-2 text-gray-600 hover:bg-emerald-50 hover:text-emerald-700"><RotateCcw size={17} /></button>}
                       </div>
                     </td>
                   </tr>

@@ -82,15 +82,8 @@ const staffNavigationConfig = {
       component: 'Loans'
     },
     {
-      id: 'savings',
-      name: 'Savings',
-      icon: '🏦',
-      path: '/staff/savings',
-      component: 'Savings'
-    },
-    {
       id: 'inventory',
-      name: 'Inventory',
+      name: 'Operations Monitoring',
       icon: '📦',
       path: '/staff/inventory',
       component: 'Inventory'
@@ -115,13 +108,6 @@ const staffNavigationConfig = {
       icon: '📢',
       path: '/staff/announcements',
       component: 'Announcements'
-    },
-    {
-      id: 'member-recovery',
-      name: 'Member Account Recovery',
-      icon: KeyRound,
-      path: '/staff/member-account-recovery',
-      component: 'MemberAccountRecovery'
     },
     {
       id: 'sms',
