@@ -174,7 +174,7 @@ const staffNavigationConfig = {
     },
     {
       id: 'requests',
-      name: 'Requests',
+      name: 'Member Requests',
       icon: UserPlus,
       path: '/staff/requests',
       component: 'Requests'

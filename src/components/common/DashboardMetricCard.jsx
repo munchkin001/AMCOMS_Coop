@@ -27,11 +27,11 @@ const DashboardMetricCard = ({ label, value, detail, icon: Icon, tone = 'teal', 
 
   if (solid) {
     return (
-      <article className={`min-w-0 rounded-xl bg-gradient-to-br p-4 text-white shadow-md ${solidTones[tone] || solidTones.teal}`}>
+      <article className={`min-w-0 rounded-xl bg-gradient-to-br p-3 text-white sm:p-4 shadow-md ${solidTones[tone] || solidTones.teal}`}>
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
             <p className="text-xs font-semibold uppercase text-white/80">{label}</p>
-            <p className="mt-3 break-words text-2xl font-semibold tabular-nums">{value}</p>
+            <p className="mt-2 break-words text-lg font-semibold tabular-nums sm:mt-3 sm:text-2xl">{value}</p>
             {detail && <p className="mt-1 text-xs text-white/80">{detail}</p>}
             {actionLabel && onAction && (
               <button onClick={onAction} className="mt-3 inline-flex items-center gap-1 text-xs font-semibold text-white hover:underline">
@@ -40,7 +40,7 @@ const DashboardMetricCard = ({ label, value, detail, icon: Icon, tone = 'teal', 
               </button>
             )}
           </div>
-          <span className="grid size-10 shrink-0 place-items-center rounded-md bg-white/20">
+          <span className="hidden size-10 shrink-0 place-items-center rounded-md bg-white/20 sm:grid">
             {Icon && <Icon aria-hidden="true" className="size-5" />}
           </span>
         </div>

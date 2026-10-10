@@ -8,9 +8,7 @@ const peso = (value) => `₱${Number(value || 0).toLocaleString('en-PH', { minim
 const fmtDate = (value) => new Date(value).toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' });
 
 const statusStyles = {
-  Submitted: 'bg-yellow-100 text-yellow-800',
-  Approved: 'bg-green-100 text-green-800',
-  Declined: 'bg-red-100 text-red-800',
+  Recorded: 'bg-green-100 text-green-800',
   Completed: 'bg-blue-100 text-blue-800'
 };
 
@@ -32,26 +30,21 @@ const MemberTransactionHistory = () => {
     try {
       const items = [];
 
-      const { data: requests } = await supabase
-        .from('requests')
-        .select('id, amount, status, created_at, reviewed_at, updated_at')
-        .eq('member_id', memberId)
-        .eq('request_type', 'loan_application');
+      const { data: activity } = await supabase
+        .from('member_activity')
+        .select('id, activity_type, title, amount, created_at')
+        .eq('member_id', memberId);
 
-      (requests || []).forEach((request) => {
-        items.push({ id: `${request.id}-applied`, rawDate: request.created_at, type: 'Applied for loan', category: 'Loan', amount: Number(request.amount), signed: false, status: 'Submitted' });
-        if (request.status === 'approved' || request.status === 'rejected') {
-          const approved = request.status === 'approved';
-          items.push({
-            id: `${request.id}-${request.status}`,
-            rawDate: request.reviewed_at || request.updated_at,
-            type: approved ? 'Loan approved' : 'Loan request declined',
-            category: 'Loan',
-            amount: Number(request.amount),
-            signed: false,
-            status: approved ? 'Approved' : 'Declined'
-          });
-        }
+      (activity || []).forEach((row) => {
+        items.push({
+          id: `activity-${row.id}`,
+          rawDate: row.created_at,
+          type: row.title,
+          category: /loan/i.test(row.activity_type) ? 'Loan' : 'Other',
+          amount: Number(row.amount || 0),
+          signed: false,
+          status: 'Recorded'
+        });
       });
 
       const { data: accounts } = await supabase.from('savings_accounts').select('id').eq('member_id', memberId);
@@ -90,7 +83,7 @@ const MemberTransactionHistory = () => {
   useEffect(() => { fetchTransactions(); }, [fetchTransactions]);
 
   useMultipleRealtimeSubscriptions([
-    { table: 'requests', onUpdate: fetchTransactions },
+    { table: 'member_activity', onUpdate: fetchTransactions },
     { table: 'savings_transactions', onUpdate: fetchTransactions },
     { table: 'loan_payments', onUpdate: fetchTransactions }
   ], [fetchTransactions]);
@@ -130,7 +123,7 @@ const MemberTransactionHistory = () => {
           <EmptyState
             icon={<span className="text-3xl">📄</span>}
             title="No Transactions Found"
-            description="Loan applications, approvals, savings and loan payments will appear here."
+            description="Loans released, disbursements, savings and loan payments will appear here."
           />
         ) : (
           <ul className="divide-y divide-gray-100">

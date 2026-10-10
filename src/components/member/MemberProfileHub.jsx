@@ -1,6 +1,5 @@
 import React from 'react';
 import { ChevronRight, HandCoins, Landmark, PiggyBank } from 'lucide-react';
-import MyProfile from './MyProfile';
 
 const links = [
   { id: 'savings', label: 'Savings', Icon: PiggyBank },
@@ -11,8 +10,7 @@ const links = [
 // On phones the account pages are reached from the profile; on desktop they are in the sidebar.
 const MemberProfileHub = ({ onOpen }) => (
   <div className="space-y-4">
-    <MyProfile />
-    <div className="overflow-hidden rounded-xl border border-gray-200 bg-white lg:hidden">
+    <div className="overflow-hidden rounded-xl border border-gray-200 bg-white">
       <p className="px-4 pt-3 text-xs font-semibold uppercase text-gray-500">My accounts</p>
       {links.map(({ id, label, Icon }) => (
         <button

@@ -13,7 +13,8 @@ const emptyProfile = {
   date_of_birth: '',
   emergency_contact_name: '',
   emergency_contact_phone: '',
-  emergency_contact_relationship: ''
+  emergency_contact_relationship: '',
+  additional_emergency_contacts: []
 };
 
 const fieldClass = 'w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm text-gray-900 shadow-sm focus:border-emerald-600 focus:outline-none focus:ring-2 focus:ring-emerald-600/20 disabled:bg-gray-50 disabled:text-gray-500';
@@ -73,7 +74,7 @@ const ProfileEditor = ({ profileType = 'staff', roleLabel }) => {
         if (profileType === 'member' && staffRecord.member_id) {
           const { data, error } = await supabase
             .from('members')
-            .select('member_number, first_name, middle_name, last_name, email, phone, address, date_of_birth, emergency_contact_name, emergency_contact_phone, emergency_contact_relationship, membership_status, date_joined, total_capital')
+            .select('member_number, first_name, middle_name, last_name, email, phone, address, date_of_birth, emergency_contact_name, emergency_contact_phone, emergency_contact_relationship, additional_emergency_contacts, membership_status, date_joined, total_capital')
             .eq('id', staffRecord.member_id)
             .single();
           if (error) throw error;
@@ -94,7 +95,8 @@ const ProfileEditor = ({ profileType = 'staff', roleLabel }) => {
           date_of_birth: source.date_of_birth || staffRecord.date_of_birth || '',
           emergency_contact_name: source.emergency_contact_name || staffRecord.emergency_contact_name || '',
           emergency_contact_phone: source.emergency_contact_phone || staffRecord.emergency_contact_phone || '',
-          emergency_contact_relationship: source.emergency_contact_relationship || staffRecord.emergency_contact_relationship || ''
+          emergency_contact_relationship: source.emergency_contact_relationship || staffRecord.emergency_contact_relationship || '',
+          additional_emergency_contacts: Array.isArray(source.additional_emergency_contacts) ? source.additional_emergency_contacts : []
         });
         setMemberSummary(memberRecord);
       } catch (error) {
@@ -118,6 +120,29 @@ const ProfileEditor = ({ profileType = 'staff', roleLabel }) => {
     setProfileNotice('');
   };
 
+  const updateExtraContact = (index, field, value) => {
+    setProfile((current) => ({
+      ...current,
+      additional_emergency_contacts: current.additional_emergency_contacts.map((contact, i) => (i === index ? { ...contact, [field]: value } : contact))
+    }));
+    setProfileError('');
+    setProfileNotice('');
+  };
+
+  const addExtraContact = () => {
+    setProfile((current) => ({
+      ...current,
+      additional_emergency_contacts: [...current.additional_emergency_contacts, { name: '', phone: '', relationship: '' }]
+    }));
+  };
+
+  const removeExtraContact = (index) => {
+    setProfile((current) => ({
+      ...current,
+      additional_emergency_contacts: current.additional_emergency_contacts.filter((_, i) => i !== index)
+    }));
+  };
+
   const saveProfile = async (event) => {
     event.preventDefault();
     setSaving(true);
@@ -138,7 +163,11 @@ const ProfileEditor = ({ profileType = 'staff', roleLabel }) => {
       }
 
       const { error } = await supabase.rpc('update_own_profile', {
-        p_profile: { ...profile, email: verifiedEmail }
+        p_profile: {
+          ...profile,
+          email: verifiedEmail,
+          additional_emergency_contacts: profile.additional_emergency_contacts.filter((c) => c.name?.trim() || c.phone?.trim())
+        }
       });
       if (error) throw error;
 
@@ -290,6 +319,35 @@ const ProfileEditor = ({ profileType = 'staff', roleLabel }) => {
                 <input id="profile-emergency-relationship" name="emergency_contact_relationship" maxLength={80} value={profile.emergency_contact_relationship} onChange={handleProfileChange} className={fieldClass} placeholder="e.g. Parent, spouse, sibling" />
               </div>
             </div>
+            {profileType === 'member' && (
+              <>
+                {profile.additional_emergency_contacts.map((contact, index) => (
+                  <div key={index} className="mt-4 rounded-xl border border-gray-200 bg-gray-50 p-3 sm:p-4">
+                    <div className="mb-3 flex items-center justify-between">
+                      <p className="text-sm font-semibold text-gray-800">Contact {index + 2}</p>
+                      <button type="button" onClick={() => removeExtraContact(index)} className="text-sm font-medium text-red-600 hover:underline">Remove</button>
+                    </div>
+                    <div className="grid gap-4 sm:grid-cols-2">
+                      <div>
+                        <label className={labelClass}>Full name</label>
+                        <input maxLength={120} value={contact.name || ''} onChange={(e) => updateExtraContact(index, 'name', e.target.value)} className={fieldClass} />
+                      </div>
+                      <div>
+                        <label className={labelClass}>Contact number</label>
+                        <input type="tel" maxLength={32} value={contact.phone || ''} onChange={(e) => updateExtraContact(index, 'phone', e.target.value)} className={fieldClass} />
+                      </div>
+                      <div className="sm:col-span-2">
+                        <label className={labelClass}>Relationship</label>
+                        <input maxLength={80} value={contact.relationship || ''} onChange={(e) => updateExtraContact(index, 'relationship', e.target.value)} className={fieldClass} placeholder="e.g. Parent, spouse, sibling" />
+                      </div>
+                    </div>
+                  </div>
+                ))}
+                <button type="button" onClick={addExtraContact} className="mt-4 inline-flex items-center gap-1.5 rounded-lg border border-emerald-700 px-3 py-2 text-sm font-medium text-emerald-800 hover:bg-emerald-50">
+                  + Add another contact
+                </button>
+              </>
+            )}
           </div>
 
           {memberSummary && (

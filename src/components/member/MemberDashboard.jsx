@@ -20,7 +20,6 @@ const MemberDashboard = ({ onNavigate }) => {
     nextPaymentAmount: 0,
     nextPaymentDate: null,
     recentTransactions: [],
-    pendingRequests: [],
     announcements: []
   });
 
@@ -65,7 +64,7 @@ const MemberDashboard = ({ onNavigate }) => {
       }
     },
     {
-      table: 'requests',
+      table: 'member_activity',
       onUpdate: () => {
         if (staff?.member_id) {
           fetchMemberData();
@@ -189,37 +188,22 @@ const MemberDashboard = ({ onNavigate }) => {
       if (loanPaymentsError) console.error('Error fetching loan payments:', loanPaymentsError);
 
       // Combine transactions
-      // Loan applications and their outcome appear alongside payments
-      const { data: loanRequests } = await supabase
-        .from('requests')
-        .select('id, amount, status, created_at, reviewed_at, updated_at')
+      // Bookkeeper actions (loan released, disbursements) are mirrored here
+      const { data: activityRows } = await supabase
+        .from('member_activity')
+        .select('id, title, amount, created_at')
         .eq('member_id', memberId)
-        .eq('request_type', 'loan_application')
         .order('created_at', { ascending: false })
         .limit(10);
 
-      const requestActivity = (loanRequests || []).flatMap((request) => {
-        const rows = [{
-          id: `${request.id}-applied`,
-          rawDate: request.created_at,
-          type: 'Applied for loan',
-          amount: null,
-          requested: request.amount,
-          status: 'Submitted'
-        }];
-        if (request.status === 'approved' || request.status === 'rejected') {
-          rows.push({
-            id: `${request.id}-${request.status}`,
-            rawDate: request.reviewed_at || request.updated_at,
-            type: request.status === 'approved' ? 'Loan approved' : 'Loan request declined',
-            amount: null,
-            requested: request.amount,
-            status: request.status === 'approved' ? 'Approved' : 'Declined'
-          });
-        }
-        return rows;
-      });
-
+      const requestActivity = (activityRows || []).map((row) => ({
+        id: row.id,
+        rawDate: row.created_at,
+        type: row.title,
+        amount: null,
+        requested: row.amount,
+        status: 'Recorded'
+      }));
       const recentTransactions = [
         ...requestActivity,
         ...(savingsTransactions || []).map(t => ({
@@ -241,23 +225,6 @@ const MemberDashboard = ({ onNavigate }) => {
         .slice(0, 6)
         .map((item) => ({ ...item, date: new Date(item.rawDate).toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' }) }));
       
-      // Fetch pending requests
-      const { data: pendingRows, error: pendingError } = await supabase
-        .from('requests')
-        .select('id, request_number, amount, created_at')
-        .eq('member_id', memberId)
-        .eq('request_type', 'loan_application')
-        .in('status', ['pending', 'under_review'])
-        .order('created_at', { ascending: false });
-      const pendingLoans = (pendingRows || []).map((row) => ({
-        id: row.id,
-        loan_number: row.request_number,
-        principal_amount: row.amount,
-        application_date: row.created_at
-      }));
-
-      if (pendingError) console.error('Error fetching pending requests:', pendingError);
-
       // Fetch announcements for members
       const { data: announcements, error: announcementsError } = await supabase
         .from('announcements')
@@ -281,7 +248,6 @@ const MemberDashboard = ({ onNavigate }) => {
         nextPaymentAmount,
         nextPaymentDate,
         recentTransactions,
-        pendingRequests: pendingLoans || [],
         announcements: announcements || []
       });
     } catch (error) {
@@ -297,9 +263,9 @@ const MemberDashboard = ({ onNavigate }) => {
     <div className="space-y-6">
       {/* Greeting and account summary */}
       <div>
-        <h2 className="text-2xl font-bold text-gray-900">Hi, {memberData.firstName || 'Member'}!</h2>
+        <h2 className="text-xl font-bold text-gray-900 sm:text-2xl">Hi, {memberData.firstName || 'Member'}!</h2>
         <p className="text-sm text-gray-600 mb-4">Here is a summary of your account.</p>
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 xl:grid-cols-4 gap-3 sm:gap-4">
           <DashboardMetricCard
             label="Savings"
             value={loading ? '...' : `₱${memberData.totalSavings.toLocaleString('en-US', { minimumFractionDigits: 2 })}`}
@@ -373,54 +339,7 @@ const MemberDashboard = ({ onNavigate }) => {
       </div>
 
       {/* Two Column Layout */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Pending Requests */}
-        <div className="bg-white rounded-lg shadow border border-gray-200 p-6">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-semibold text-gray-900">Pending Requests</h3>
-            <button 
-              onClick={() => onNavigate?.('requests')}
-              className="text-sm text-indigo-600 hover:text-indigo-800 font-medium cursor-pointer"
-            >
-              View All
-            </button>
-          </div>
-          <div className="space-y-3">
-            {loading ? (
-              <div className="p-4 bg-gray-50 rounded-lg text-center text-gray-500">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600 mx-auto"></div>
-                <p className="text-sm mt-2">Loading...</p>
-              </div>
-            ) : memberData.pendingRequests.length === 0 ? (
-              <div className="p-4 bg-gray-50 rounded-lg text-center text-gray-500">
-                <svg className="w-12 h-12 mx-auto mb-2 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-                <p className="text-sm">No pending requests</p>
-              </div>
-            ) : (
-              memberData.pendingRequests.map((request) => (
-                <div key={request.id} className="p-4 bg-yellow-50 rounded-lg border border-yellow-200">
-                  <div className="flex items-start justify-between">
-                    <div className="flex-1">
-                      <p className="text-sm font-semibold text-gray-900">Loan Application</p>
-                      <p className="text-sm text-gray-600 mt-1">
-                        {request.loan_number} • ₱{parseFloat(request.principal_amount || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}
-                      </p>
-                      <p className="text-xs text-gray-500 mt-1">
-                        Applied: {new Date(request.application_date).toLocaleDateString()}
-                      </p>
-                    </div>
-                    <span className="px-3 py-1 bg-yellow-100 text-yellow-800 rounded-full text-xs font-medium">
-                      {request.status}
-                    </span>
-                  </div>
-                </div>
-              ))
-            )}
-          </div>
-        </div>
-
+      <div className="grid grid-cols-1 gap-6">
         {/* Announcements */}
         <div className="bg-white rounded-lg shadow border border-gray-200 p-6">
           <div className="flex items-center justify-between mb-4">
