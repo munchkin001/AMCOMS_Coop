@@ -2,6 +2,28 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 
+const inputClass = 'w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all';
+
+const fields = [
+  ['firstName', 'First name', true],
+  ['middleName', 'Middle name', false],
+  ['lastName', 'Last name', true],
+  ['dateOfBirth', 'Date of birth', true, 'date'],
+  ['email', 'Email', true, 'email'],
+  ['phone', 'Contact number', true, 'tel'],
+  ['gender', 'Gender', false, 'select'],
+  ['occupation', 'Occupation', false],
+  ['barangay', 'Barangay', false],
+  ['municipality', 'Municipality / city', false],
+  ['province', 'Province', false],
+  ['emergencyContactName', 'Emergency contact name', false],
+  ['emergencyContactPhone', 'Emergency contact phone', false, 'tel'],
+  ['rsbsa', 'RSBSA', false],
+  ['tin', 'TIN', false],
+  ['ncfrs', 'NCFRS', false],
+  ['pcaId', 'PCA ID', false]
+];
+
 const MemberSignup = () => {
   const navigate = useNavigate();
   const [showWarningModal, setShowWarningModal] = useState(true);
@@ -11,8 +33,21 @@ const MemberSignup = () => {
     password: '',
     confirmPassword: '',
     firstName: '',
+    middleName: '',
     lastName: '',
+    dateOfBirth: '',
+    gender: '',
     phone: '',
+    occupation: '',
+    barangay: '',
+    municipality: '',
+    province: '',
+    emergencyContactName: '',
+    emergencyContactPhone: '',
+    rsbsa: '',
+    tin: '',
+    ncfrs: '',
+    pcaId: '',
     address: ''
   });
   const [error, setError] = useState('');
@@ -75,10 +110,23 @@ const MemberSignup = () => {
 
       const { error: applicationError } = await supabase.rpc('submit_member_application', {
         p_first_name: formData.firstName,
+        p_middle_name: formData.middleName || null,
         p_last_name: formData.lastName,
         p_email: formData.email,
         p_phone: formData.phone,
-        p_address: formData.address
+        p_address: formData.address,
+        p_barangay: formData.barangay || null,
+        p_municipality: formData.municipality || null,
+        p_province: formData.province || null,
+        p_date_of_birth: formData.dateOfBirth || null,
+        p_occupation: formData.occupation || null,
+        p_gender: formData.gender || null,
+        p_emergency_contact_name: formData.emergencyContactName || null,
+        p_emergency_contact_phone: formData.emergencyContactPhone || null,
+        p_rsbsa: formData.rsbsa || null,
+        p_tin: formData.tin || null,
+        p_ncfrs: formData.ncfrs || null,
+        p_pca_id: formData.pcaId || null
       });
       if (applicationError) throw applicationError;
 
@@ -226,81 +274,31 @@ const MemberSignup = () => {
 
             {/* Signup Form */}
             <form onSubmit={handleSubmit} className="space-y-6">
-              {/* Personal Information */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div>
-                  <label className="block text-gray-700 font-medium mb-2">
-                    First Name <span className="text-red-500">*</span>
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+                {fields.map(([name, label, required, type = 'text']) => (
+                  <div key={name}>
+                    <label className="mb-2 block font-medium text-gray-700">
+                      {label} {required && <span className="text-red-500">*</span>}
+                    </label>
+                    {type === 'select' ? (
+                      <select name={name} value={formData[name]} onChange={handleChange} required={required} className={inputClass}>
+                        <option value="">Not specified</option>
+                        <option value="male">Male</option>
+                        <option value="female">Female</option>
+                        <option value="other">Other</option>
+                      </select>
+                    ) : (
+                      <input type={type} name={name} value={formData[name]} onChange={handleChange} required={required} max={type === 'date' ? new Date().toISOString().slice(0, 10) : undefined} className={inputClass} />
+                    )}
+                  </div>
+                ))}
+                <div className="md:col-span-3">
+                  <label className="mb-2 block font-medium text-gray-700">
+                    Address <span className="text-red-500">*</span>
                   </label>
-                  <input
-                    type="text"
-                    name="firstName"
-                    value={formData.firstName}
-                    onChange={handleChange}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all"
-                    required
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-gray-700 font-medium mb-2">
-                    Last Name <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    type="text"
-                    name="lastName"
-                    value={formData.lastName}
-                    onChange={handleChange}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all"
-                    required
-                  />
+                  <textarea name="address" value={formData.address} onChange={handleChange} rows="2" className={inputClass} required />
                 </div>
               </div>
-
-              {/* Contact Information */}
-              <div>
-                <label className="block text-gray-700 font-medium mb-2">
-                  Email Address <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="email"
-                  name="email"
-                  value={formData.email}
-                  onChange={handleChange}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all"
-                  required
-                />
-              </div>
-
-              <div>
-                <label className="block text-gray-700 font-medium mb-2">
-                  Phone Number <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="tel"
-                  name="phone"
-                  value={formData.phone}
-                  onChange={handleChange}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all"
-                  placeholder="+63 XXX XXX XXXX"
-                  required
-                />
-              </div>
-
-              <div>
-                <label className="block text-gray-700 font-medium mb-2">
-                  Address <span className="text-red-500">*</span>
-                </label>
-                <textarea
-                  name="address"
-                  value={formData.address}
-                  onChange={handleChange}
-                  rows="3"
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all"
-                  required
-                />
-              </div>
-
               {/* Password */}
               <div>
                 <label className="block text-gray-700 font-medium mb-2">

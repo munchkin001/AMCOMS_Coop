@@ -4,6 +4,7 @@ import { AlertTriangle, Banknote, CircleCheck, ClipboardCheck, FileText, Gem, Ha
 import { supabase } from '../../lib/supabase';
 import { useMultipleRealtimeSubscriptions } from '../../hooks/useRealtimeSubscription';
 import DashboardMetricCard from '../common/DashboardMetricCard';
+import DiscrepancyPanel from '../common/DiscrepancyPanel';
 
 const ManagerDashboard = () => {
   const [loading, setLoading] = useState(true);
@@ -282,6 +283,7 @@ const ManagerDashboard = () => {
 
   return (
     <div className="space-y-6">
+      <DiscrepancyPanel />
       {/* Summary Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
         {summaryCards.map((card) => (

@@ -388,11 +388,6 @@ const MemberManagement = ({ canManageMembers = true }) => {
           <h1 className="text-2xl font-bold text-gray-950">Members</h1>
           <p className="mt-1 text-sm text-gray-600">{canManageMembers ? 'View and maintain cooperative member records.' : 'View cooperative member records and account details.'}</p>
         </div>
-        {canManageMembers && (
-          <button type="button" onClick={startAdd} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg bg-blue-700 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-700 focus-visible:ring-offset-2">
-            <Plus size={17} aria-hidden="true" /> Add Member
-          </button>
-        )}
       </header>
 
       <div className="flex flex-col gap-3 border-b border-gray-200 sm:flex-row sm:items-center sm:justify-between">

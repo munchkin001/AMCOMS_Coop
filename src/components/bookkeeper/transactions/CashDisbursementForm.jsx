@@ -1,11 +1,14 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { supabase } from '../../../lib/supabase';
 import { Upload, Plus, X, AlertCircle } from 'lucide-react';
 
 const CashDisbursementForm = ({ onSave, onCancel, transaction = null }) => {
   const [formData, setFormData] = useState(transaction ? {
     date: transaction.date,
     particulars: transaction.particulars || '',
-    repCvNumber: transaction.repCvNumber || '',
+    memberId: transaction.memberId || '',
+    termMonths: transaction.termMonths || '12',
+    paymentFrequency: transaction.paymentFrequency || 'monthly',
     paymentSource: transaction.paymentSource || 'cash-on-hand',
     paymentAmount: transaction.paymentAmount || transaction.amount || '',
     accountAllocations: transaction.accountAllocations || [{ account: '', amount: '' }],
@@ -13,7 +16,9 @@ const CashDisbursementForm = ({ onSave, onCancel, transaction = null }) => {
   } : {
     date: new Date().toISOString().split('T')[0],
     particulars: '',
-    repCvNumber: '',
+    memberId: '',
+    termMonths: '12',
+    paymentFrequency: 'monthly',
     paymentSource: 'cash-on-hand',
     paymentAmount: '',
     accountAllocations: [
@@ -25,6 +30,26 @@ const CashDisbursementForm = ({ onSave, onCancel, transaction = null }) => {
   const [errors, setErrors] = useState({});
   const [isDraft, setIsDraft] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [members, setMembers] = useState([]);
+
+  useEffect(() => {
+    let active = true;
+    supabase
+      .from('members')
+      .select('id, member_number, first_name, middle_name, last_name')
+      .eq('membership_status', 'active')
+      .is('archived_at', null)
+      .order('last_name')
+      .then(({ data }) => {
+        if (active) setMembers(data || []);
+      });
+    return () => { active = false; };
+  }, []);
+
+  const memberName = (m) => [m.first_name, m.middle_name, m.last_name].filter(Boolean).join(' ');
+  const hasLoanPayable = formData.accountAllocations.some(
+    (a) => a.account === 'Loan Payable' && parseFloat(a.amount) > 0
+  );
 
   // All account categories from the physical Cash Disbursement Book
   const accountCategories = [
@@ -46,7 +71,7 @@ const CashDisbursementForm = ({ onSave, onCancel, transaction = null }) => {
     'Equipment',
     'Building Improvements',
     'CETF',
-    'Military Aid',
+    'Mortuary Aid',
     'Labor Fee',
     'Traveling Allowance',
     'Internet',
@@ -132,7 +157,7 @@ const CashDisbursementForm = ({ onSave, onCancel, transaction = null }) => {
 
     if (!formData.date) newErrors.date = 'Date is required';
     if (!formData.particulars.trim()) newErrors.particulars = 'Particulars are required';
-    if (!formData.repCvNumber.trim()) newErrors.repCvNumber = 'Rep./CV # is required';
+    if (!formData.memberId) newErrors.memberId = 'Select a member';
     if (!formData.paymentAmount || parseFloat(formData.paymentAmount) <= 0) {
       newErrors.paymentAmount = 'Valid payment amount is required';
     }
@@ -223,23 +248,48 @@ const CashDisbursementForm = ({ onSave, onCancel, transaction = null }) => {
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
-              Rep./CV # <span className="text-red-500">*</span>
+              Member <span className="text-red-500">*</span>
             </label>
-            <input
-              type="text"
-              value={formData.repCvNumber}
-              onChange={(e) => handleInputChange('repCvNumber', e.target.value)}
-              placeholder="e.g., CV-2025-001"
-              className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
-                errors.repCvNumber ? 'border-red-500' : 'border-gray-300'
+            <select
+              value={formData.memberId}
+              onChange={(e) => handleInputChange('memberId', e.target.value)}
+              className={`w-full px-3 py-2 border rounded-lg bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+                errors.memberId ? 'border-red-500' : 'border-gray-300'
               }`}
-            />
-            {errors.repCvNumber && (
-              <p className="mt-1 text-sm text-red-600">{errors.repCvNumber}</p>
+            >
+              <option value="">Select member</option>
+              {members.map((m) => (
+                <option key={m.id} value={m.id}>{memberName(m)}</option>
+              ))}
+            </select>
+            {errors.memberId && (
+              <p className="mt-1 text-sm text-red-600">{errors.memberId}</p>
             )}
           </div>
         </div>
 
+        {hasLoanPayable && (
+          <div className="mb-6 grid grid-cols-1 gap-4 rounded-lg border border-blue-200 bg-blue-50 p-4 md:grid-cols-2">
+            <p className="text-sm text-blue-900 md:col-span-2">
+              The Loan Payable amount will be added to the selected member's loan balance.
+            </p>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Loan term</label>
+              <select value={formData.termMonths} onChange={(e) => handleInputChange('termMonths', e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white">
+                <option value="12">1 year</option>
+                <option value="24">2 years</option>
+                <option value="36">3 years</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Payment frequency</label>
+              <select value={formData.paymentFrequency} onChange={(e) => handleInputChange('paymentFrequency', e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white">
+                <option value="monthly">Monthly</option>
+                <option value="weekly">Weekly</option>
+              </select>
+            </div>
+          </div>
+        )}
         {/* Particulars */}
         <div className="mb-6">
           <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -299,6 +349,7 @@ const CashDisbursementForm = ({ onSave, onCancel, transaction = null }) => {
                 type="number"
                 step="0.01"
                 value={formData.paymentAmount}
+                onWheel={(e) => e.currentTarget.blur()}
                 onChange={(e) => handleInputChange('paymentAmount', e.target.value)}
                 placeholder="0.00"
                 className={`w-full pl-8 pr-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
@@ -366,6 +417,7 @@ const CashDisbursementForm = ({ onSave, onCancel, transaction = null }) => {
                             type="number"
                             step="0.01"
                             value={allocation.amount}
+                            onWheel={(e) => e.currentTarget.blur()}
                             onChange={(e) => handleAllocationChange(index, 'amount', e.target.value)}
                             placeholder="0.00"
                             className="w-full pl-8 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"

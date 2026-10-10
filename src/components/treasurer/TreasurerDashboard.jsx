@@ -3,6 +3,7 @@ import { ArrowDownLeft, ArrowDownToLine, ArrowUpFromLine, Banknote, Gem, HandCoi
 import { supabase } from '../../lib/supabase';
 import { useMultipleRealtimeSubscriptions } from '../../hooks/useRealtimeSubscription';
 import DashboardMetricCard from '../common/DashboardMetricCard';
+import DiscrepancyPanel from '../common/DiscrepancyPanel';
 
 const TreasurerDashboard = () => {
   const [loading, setLoading] = useState(true);
@@ -198,6 +199,7 @@ const TreasurerDashboard = () => {
 
   return (
     <div className="space-y-6">
+      <DiscrepancyPanel />
       {/* Summary Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         {todaySummary.map((card) => (

@@ -44,6 +44,7 @@ const MyLoans = () => {
   useEffect(() => { load(); }, [load]);
   useMultipleRealtimeSubscriptions([
     { table: 'loans', onUpdate: load },
+    { table: 'loan_payments', onUpdate: load },
     { table: 'loan_schedule', onUpdate: load }
   ], [load]);
 

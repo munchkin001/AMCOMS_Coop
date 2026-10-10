@@ -179,6 +179,7 @@ const MemberDashboard = ({ onNavigate }) => {
           principal_paid,
           interest_paid,
           balance_after,
+          receipt_id,
           loans!inner(loan_number, member_id)
         `)
         .eq('loans.member_id', memberId)
@@ -191,7 +192,7 @@ const MemberDashboard = ({ onNavigate }) => {
       // Bookkeeper actions (loan released, disbursements) are mirrored here
       const { data: activityRows } = await supabase
         .from('member_activity')
-        .select('id, title, amount, created_at')
+        .select('id, title, amount, created_at, is_discrepancy, note')
         .eq('member_id', memberId)
         .order('created_at', { ascending: false })
         .limit(10);
@@ -202,7 +203,8 @@ const MemberDashboard = ({ onNavigate }) => {
         type: row.title,
         amount: null,
         requested: row.amount,
-        status: 'Recorded'
+        status: row.is_discrepancy ? 'Discrepancy' : 'Recorded',
+        note: row.note
       }));
       const recentTransactions = [
         ...requestActivity,
@@ -213,7 +215,7 @@ const MemberDashboard = ({ onNavigate }) => {
           amount: t.amount,
           status: 'Completed'
         })),
-        ...(loanPayments || []).map(t => ({
+        ...(loanPayments || []).filter((t) => !t.receipt_id).map(t => ({
           id: t.id,
           rawDate: t.payment_date,
           type: 'Loan Payment',
@@ -438,7 +440,10 @@ const MemberDashboard = ({ onNavigate }) => {
                 memberData.recentTransactions.map((transaction) => (
                   <tr key={transaction.id} className="border-b border-gray-100 hover:bg-gray-50">
                     <td className="py-3 px-4 text-sm text-gray-900">{transaction.date}</td>
-                    <td className="py-3 px-4 text-sm text-gray-900">{transaction.type}</td>
+                    <td className="py-3 px-4 text-sm text-gray-900">
+                      {transaction.type}
+                      {transaction.note && <p className="mt-1 text-xs text-red-700">Reason: {transaction.note}</p>}
+                    </td>
                     <td className={`py-3 px-4 text-sm text-right font-medium ${
                       transaction.amount == null ? 'text-gray-900' : transaction.amount > 0 ? 'text-green-600' : 'text-red-600'
                     }`}>
@@ -447,7 +452,7 @@ const MemberDashboard = ({ onNavigate }) => {
                         : `${transaction.amount > 0 ? '+' : ''}₱${Math.abs(transaction.amount).toLocaleString()}`}
                     </td>
                     <td className="py-3 px-4">
-                      <span className="px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-xs font-medium">
+                      <span className={`px-3 py-1 rounded-full text-xs font-medium ${transaction.status === 'Discrepancy' ? 'bg-red-100 text-red-800' : 'bg-blue-100 text-blue-800'}`}>
                         {transaction.status}
                       </span>
                     </td>

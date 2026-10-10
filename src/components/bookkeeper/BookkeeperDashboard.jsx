@@ -4,6 +4,7 @@ import { supabase } from '../../lib/supabase';
 import { useMultipleRealtimeSubscriptions } from '../../hooks/useRealtimeSubscription';
 import { useTimeOfDayGreeting } from '../../hooks/useTimeOfDayGreeting';
 import DashboardMetricCard from '../common/DashboardMetricCard';
+import DiscrepancyPanel from '../common/DiscrepancyPanel';
 
 const BookkeeperDashboard = () => {
   const greeting = useTimeOfDayGreeting();
@@ -191,6 +192,7 @@ const BookkeeperDashboard = () => {
 
   return (
     <div className="space-y-6">
+      <DiscrepancyPanel />
       {/* Welcome Section */}
       <div>
         <h2 className="text-2xl font-bold text-gray-900">{greeting}, Bookkeeper</h2>

@@ -33,6 +33,7 @@ const Transactions = () => {
           receipt_date: data.date,
           receipt_number: data.receiptNo.trim(),
           received_from: data.member.trim(),
+          member_id: data.memberId || null,
           amount: Number(data.amount),
           payment_method: data.paymentMethod,
           description: data.particulars.trim(),
@@ -50,8 +51,9 @@ const Transactions = () => {
       const { error } = await supabase.rpc('save_cash_disbursement', {
         p_disbursement: {
           disbursement_date: data.date,
-          voucher_number: data.repCvNumber.trim(),
-          payee: data.particulars.trim(),
+          member_id: data.memberId,
+          term_months: data.termMonths ? Number(data.termMonths) : null,
+          payment_frequency: data.paymentFrequency,
           amount: Number(data.paymentAmount),
           payment_source: data.paymentSource,
           description: data.particulars.trim(),
@@ -84,10 +86,14 @@ const Transactions = () => {
     setView('form');
   };
 
-  const handleDeleteTransaction = (transaction) => {
-    console.log('Deleting transaction:', transaction);
-    // TODO: Delete from backend
-    alert(`Transaction ${transaction.referenceNo} deleted successfully!`);
+  const handleDeleteTransaction = async (transaction) => {
+    const fn = transaction.type === 'cash-disbursement' ? 'delete_cash_disbursement' : 'delete_cash_receipt';
+    const param = transaction.type === 'cash-disbursement' ? 'p_disbursement_id' : 'p_receipt_id';
+    const { error } = await supabase.rpc(fn, { [param]: transaction.id });
+    if (error) {
+      alert(error.message);
+      return;
+    }
     setView('list');
     setSelectedTransaction(null);
   };

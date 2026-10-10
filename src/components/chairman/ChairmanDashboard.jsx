@@ -3,6 +3,7 @@ import { Line } from 'react-chartjs-2';
 import { Banknote, HandCoins, Landmark, PiggyBank, TrendingDown, TrendingUp, UserCheck, Users } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import DashboardMetricCard from '../common/DashboardMetricCard';
+import DiscrepancyPanel from '../common/DiscrepancyPanel';
 import { useMultipleRealtimeSubscriptions } from '../../hooks/useRealtimeSubscription';
 import {
   Chart as ChartJS,
@@ -54,6 +55,10 @@ const ChairmanDashboard = () => {
     },
     {
       table: 'loans',
+      onUpdate: () => fetchDashboardData()
+    },
+    {
+      table: 'loan_payments',
       onUpdate: () => fetchDashboardData()
     },
     {
@@ -243,6 +248,7 @@ const ChairmanDashboard = () => {
 
   return (
     <div className="space-y-6">
+      <DiscrepancyPanel />
       {/* Summary Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         {summaryCards.map((card) => (

@@ -9,6 +9,7 @@ const fmtDate = (value) => new Date(value).toLocaleDateString('en-PH', { month: 
 
 const statusStyles = {
   Recorded: 'bg-green-100 text-green-800',
+  Discrepancy: 'bg-red-100 text-red-800',
   Completed: 'bg-blue-100 text-blue-800'
 };
 
@@ -32,7 +33,7 @@ const MemberTransactionHistory = () => {
 
       const { data: activity } = await supabase
         .from('member_activity')
-        .select('id, activity_type, title, amount, created_at')
+        .select('id, activity_type, title, amount, created_at, is_discrepancy, note')
         .eq('member_id', memberId);
 
       (activity || []).forEach((row) => {
@@ -43,7 +44,8 @@ const MemberTransactionHistory = () => {
           category: /loan/i.test(row.activity_type) ? 'Loan' : 'Other',
           amount: Number(row.amount || 0),
           signed: false,
-          status: 'Recorded'
+          status: row.is_discrepancy ? 'Discrepancy' : 'Recorded',
+          note: row.note
         });
       });
 
@@ -63,9 +65,9 @@ const MemberTransactionHistory = () => {
       if (loans?.length) {
         const { data: payments } = await supabase
           .from('loan_payments')
-          .select('id, payment_date, amount_paid')
+          .select('id, payment_date, amount_paid, receipt_id')
           .in('loan_id', loans.map((loan) => loan.id));
-        (payments || []).forEach((payment) => {
+        (payments || []).filter((payment) => !payment.receipt_id).forEach((payment) => {
           items.push({ id: `loan-${payment.id}`, rawDate: payment.payment_date, type: 'Loan payment', category: 'Loan', amount: -Number(payment.amount_paid), signed: true, status: 'Completed' });
         });
       }
@@ -132,6 +134,7 @@ const MemberTransactionHistory = () => {
                 <div className="min-w-0">
                   <p className="text-sm font-medium text-gray-900">{t.type}</p>
                   <p className="text-xs text-gray-500">{fmtDate(t.rawDate)} · {t.category}</p>
+                  {t.note && <p className="mt-1 text-xs text-red-700">Reason: {t.note}</p>}
                 </div>
                 <div className="text-right">
                   <p className={`text-sm font-semibold ${!t.signed ? 'text-gray-900' : t.amount > 0 ? 'text-green-600' : 'text-red-600'}`}>
