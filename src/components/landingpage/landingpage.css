@@ -1,3 +1,13 @@
+html {
+  scroll-behavior: smooth;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+}
+
 .amcoms-landing {
   --amcoms-forest: #174b37;
   --amcoms-green: #28724d;
@@ -175,6 +185,12 @@ html:has(#contact:target) .amcoms-navbar a[href="#contact"] {
 
 .amcoms-landing section[id] {
   scroll-margin-top: 88px;
+}
+
+.amcoms-landing [id="core-identity"],
+.amcoms-landing [id="accreditations"],
+.amcoms-landing [id="history"] {
+  scroll-margin-top: 96px;
 }
 
 .amcoms-landing #about,

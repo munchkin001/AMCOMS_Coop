@@ -10,6 +10,7 @@ import {
   HandCoins,
   Landmark,
   LayoutDashboard,
+  Library,
   KeyRound,
   Megaphone,
   MessageSquareText,
@@ -36,6 +37,13 @@ const staffNavigationConfig = {
       icon: '📈',
       path: '/staff/performance',
       component: 'PerformanceReport'
+    },
+    {
+      id: 'general-ledger',
+      name: 'General Ledger',
+      icon: '📒',
+      path: '/staff/general-ledger',
+      component: 'GeneralLedger'
     },
     {
       id: 'audit-log',
@@ -81,6 +89,13 @@ const staffNavigationConfig = {
       icon: '📦',
       path: '/staff/inventory',
       component: 'Inventory'
+    },
+    {
+      id: 'general-ledger',
+      name: 'General Ledger',
+      icon: '📒',
+      path: '/staff/general-ledger',
+      component: 'GeneralLedger'
     },
     {
       id: 'reports',
@@ -149,6 +164,13 @@ const staffNavigationConfig = {
       component: 'LoanCollections'
     },
     {
+      id: 'general-ledger',
+      name: 'General Ledger',
+      icon: '📒',
+      path: '/staff/general-ledger',
+      component: 'GeneralLedger'
+    },
+    {
       id: 'reports',
       name: 'Reports',
       icon: '📑',
@@ -173,13 +195,6 @@ const staffNavigationConfig = {
       component: 'MemberManagement'
     },
     {
-      id: 'requests',
-      name: 'Member Requests',
-      icon: UserPlus,
-      path: '/staff/requests',
-      component: 'Requests'
-    },
-    {
       id: 'transactions',
       name: 'Transactions',
       icon: '💳',
@@ -187,37 +202,11 @@ const staffNavigationConfig = {
       component: 'Transactions'
     },
     {
-      id: 'books',
-      name: 'Books',
-      icon: '📖',
-      path: '/staff/books',
-      component: 'Books',
-      subMenu: [
-        {
-          id: 'cash-receipts-book',
-          name: 'Cash Receipts',
-          path: '/staff/books/cash-receipts',
-          component: 'CashReceiptsBook'
-        },
-        {
-          id: 'cash-disbursements-book',
-          name: 'Cash Disbursements',
-          path: '/staff/books/cash-disbursements',
-          component: 'CashDisbursementsBook'
-        },
-        {
-          id: 'general-journal',
-          name: 'General Journal',
-          path: '/staff/books/general-journal',
-          component: 'GeneralJournal'
-        },
-        {
-          id: 'ledger',
-          name: 'Ledger',
-          path: '/staff/books/ledger',
-          component: 'Ledger'
-        }
-      ]
+      id: 'general-ledger',
+      name: 'General Ledger',
+      icon: '📒',
+      path: '/staff/general-ledger',
+      component: 'GeneralLedger'
     },
     {
       id: 'reconciliation',
@@ -313,6 +302,7 @@ export const getNavigationForRole = (role) => {
     'loan-collections': ArrowDownToLine,
     transactions: Banknote,
     books: BookOpen,
+    'general-ledger': Library,
     reconciliation: RefreshCw,
     products: Tags,
     stock: Package,

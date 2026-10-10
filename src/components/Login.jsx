@@ -341,14 +341,6 @@ const Login = () => {
                   'Sign in'
                 )}
               </button>
-              {portalType === 'member' && (
-                <p className="mt-5 text-center text-sm text-gray-600">
-                  New Member?{' '}
-                  <Link to="/member-signup" className={`font-semibold ${portalConfig.linkColor}`}>
-                    Create Account
-                  </Link>
-                </p>
-              )}
             </form>
           </div>
         </div>

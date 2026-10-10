@@ -33,15 +33,10 @@ import TransactionHistory from '../components/treasurer/TransactionHistory';
 
 // Bookkeeper Components
 import Transactions from '../components/bookkeeper/Transactions';
-import Books from '../components/bookkeeper/Books';
-import CashReceiptsBook from '../components/bookkeeper/books/CashReceiptsBook';
-import CashDisbursementsBook from '../components/bookkeeper/books/CashDisbursementsBook';
-import GeneralJournal from '../components/bookkeeper/books/GeneralJournal';
-import Ledger from '../components/bookkeeper/books/Ledger';
 import Reconciliation from '../components/bookkeeper/Reconciliation';
+import GeneralLedger from '../components/accounting/GeneralLedger';
 import FinancialReports from '../components/bookkeeper/FinancialReports';
 import BookkeeperMemberManagement from '../components/bookkeeper/MemberManagement';
-import Requests from '../components/bookkeeper/Requests';
 
 // Inventory Components - Existing
 import Products from '../components/inventory/Products';
@@ -98,9 +93,9 @@ const StaffPortal = () => {
 
         {/* Manager Routes */}
         <Route path="/members" element={staff.role === 'bookkeeper' ? <BookkeeperMemberManagement /> : <MemberManagement />} />
-        <Route path="/requests" element={staff.role === 'bookkeeper' ? <Requests /> : <Navigate to="/staff/dashboard" replace />} />
-        <Route path="/member-requests" element={<Navigate to="/staff/requests" replace />} />
-        <Route path="/loans" element={<Navigate to="/staff/requests" replace />} />
+        <Route path="/requests" element={<Navigate to="/staff/dashboard" replace />} />
+        <Route path="/member-requests" element={<Navigate to="/staff/dashboard" replace />} />
+        <Route path="/loans" element={<Navigate to="/staff/dashboard" replace />} />
         <Route path="/savings" element={<MemberAccounts />} />
         <Route path="/inventory" element={<OperationsMonitoring />} />
         <Route path="/announcements" element={<Announcements />} />
@@ -115,12 +110,12 @@ const StaffPortal = () => {
 
         {/* Bookkeeper Routes */}
         <Route path="/transactions" element={<Transactions />} />
-        <Route path="/books" element={<Books />} />
-        <Route path="/books/cash-receipts" element={<CashReceiptsBook />} />
-        <Route path="/books/cash-disbursements" element={<CashDisbursementsBook />} />
-        <Route path="/books/general-journal" element={<GeneralJournal />} />
-        <Route path="/books/ledger" element={<Ledger />} />
+        <Route path="/books/*" element={<Navigate to="/staff/general-ledger" replace />} />
         <Route path="/reconciliation" element={<Reconciliation />} />
+        <Route
+          path="/general-ledger"
+          element={['bookkeeper', 'treasurer', 'manager', 'chairman'].includes(staff.role) ? <GeneralLedger /> : <Navigate to="/staff/dashboard" replace />}
+        />
 
         {/* Inventory Routes */}
         <Route path="/products" element={<Products />} />

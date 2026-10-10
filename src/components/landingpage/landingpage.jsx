@@ -1,17 +1,23 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
-import { BadgeDollarSign, ChartNoAxesCombined, Check, ClipboardList, Clock3, Handshake, IdCard, Sprout, Store } from 'lucide-react';
+import { BadgeDollarSign, ChartNoAxesCombined, Check, ChevronDown, ClipboardList, Clock3, Handshake, IdCard, Sprout, Store } from 'lucide-react';
 import CooperativeMap from './CooperativeMap';
 import './landingpage.css';
 
 
+const aboutLinks = [
+  { id: 'core-identity', label: 'Core Identity' },
+  { id: 'accreditations', label: 'Accreditations & Partnerships' },
+  { id: 'history', label: 'History' }
+];
+
 const navLinks = [
   { id: 'home', label: 'Home' },
-  { id: 'announcements', label: 'Announcements' },
-  { id: 'about', label: 'About' },
+  { id: 'about', label: 'About', children: aboutLinks },
   { id: 'products', label: 'Products' },
   { id: 'services', label: 'Services' },
+  { id: 'announcements', label: 'Announcements' },
   { id: 'membership', label: 'Membership' },
   { id: 'reviews', label: 'Reviews' },
   { id: 'contact', label: 'Contact' }
@@ -53,28 +59,50 @@ const Navbar = () => {
   const activeSection = useActiveSection();
 
   return (
-    <nav className="amcoms-navbar bg-white shadow-sm fixed w-full top-0 z-50">
+    <nav aria-label="Main navigation" className="amcoms-navbar bg-white shadow-sm fixed w-full top-0 z-50">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex justify-between items-center h-16 sm:h-20">
+        <div className="flex justify-between items-center h-16 sm:h-20 gap-6 xl:gap-10">
           {/* Logo and Brand */}
-          <Link to="/" className="flex items-center space-x-2 sm:space-x-3">
+          <Link to="/" className="flex items-center space-x-2 sm:space-x-3 min-w-0 flex-shrink-0">
             <img src="/LOGO.png" alt="Agay-ayan MPC Logo" className="w-10 h-10 sm:w-12 sm:h-12 object-contain" />
             <div>
-              <h1 className="text-sm sm:text-base lg:text-lg font-bold text-gray-900">Agay-ayan Multi-Purpose Cooperative</h1>
+              <h1 className="text-sm sm:text-base lg:text-lg font-bold text-gray-900 leading-tight"><span className="block whitespace-nowrap">Agay-Ayan</span><span className="block whitespace-nowrap">Multi-Purpose Cooperative</span></h1>
               <p className="text-xs text-gray-500 hidden sm:block">EST. 30+ YEARS</p>
             </div>
           </Link>
 
           {/* Desktop Navigation Links */}
-          <div className="hidden lg:flex items-center space-x-6 xl:space-x-8">
-            {navLinks.map(({ id, label }) => (
-              <a key={id} href={`#${id}`} style={activeSection === id ? activeLinkStyle : undefined} className="text-gray-700 hover:text-green-700 font-medium text-sm xl:text-base border-b-2 border-transparent pb-1 transition-colors" aria-current={activeSection === id ? 'true' : undefined}>{label}</a>
-            ))}
+          <div className="hidden lg:flex items-center space-x-4 xl:space-x-8 flex-shrink-0">
+            {navLinks.map(({ id, label, children }) => {
+              const linkClass = 'whitespace-nowrap text-gray-700 hover:text-green-700 font-medium text-sm xl:text-base border-b-2 border-transparent pb-1 transition-colors';
+              if (!children) {
+                return (
+                  <a key={id} href={`#${id}`} style={activeSection === id ? activeLinkStyle : undefined} className={linkClass} aria-current={activeSection === id ? 'true' : undefined}>{label}</a>
+                );
+              }
+              return (
+                <div key={id} className="relative group">
+                  <a href={`#${id}`} style={activeSection === id ? activeLinkStyle : undefined} className={`${linkClass} inline-flex items-center gap-1`} aria-haspopup="true" aria-current={activeSection === id ? 'true' : undefined}>
+                    {label}
+                    <ChevronDown className="w-4 h-4" aria-hidden="true" />
+                  </a>
+                  <div className="absolute left-0 top-full pt-3 hidden group-hover:block group-focus-within:block">
+                    <ul className="min-w-[15rem] bg-white rounded-lg shadow-lg border border-gray-100 py-2">
+                      {children.map((child) => (
+                        <li key={child.id}>
+                          <a href={`#${child.id}`} className="block px-4 py-2 text-sm text-gray-700 hover:bg-green-50 hover:text-green-700 whitespace-nowrap">{child.label}</a>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                </div>
+              );
+            })}
             
             {/* Login Button */}
             <Link 
               to="/portal-selection"
-              className="bg-green-700 text-white px-4 xl:px-6 py-2 rounded-lg hover:bg-green-800 transition-colors flex items-center space-x-2 text-sm xl:text-base lg:translate-x-6"
+              className="bg-green-700 text-white px-4 xl:px-6 py-2 rounded-lg hover:bg-green-800 transition-colors flex items-center space-x-2 whitespace-nowrap text-sm xl:text-base"
             >
               <svg className="w-4 h-4 xl:w-5 xl:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1" />
@@ -108,8 +136,19 @@ const Navbar = () => {
         {isMenuOpen && (
           <div className="lg:hidden pb-4 border-t border-gray-100">
             <div className="flex flex-col space-y-3 pt-4">
-              {navLinks.map(({ id, label }) => (
-                <a key={id} href={`#${id}`} onClick={() => setIsMenuOpen(false)} style={activeSection === id ? activeLinkStyle : undefined} className="text-gray-700 hover:text-green-700 font-medium py-2 px-4 hover:bg-gray-50 rounded" aria-current={activeSection === id ? 'true' : undefined}>{label}</a>
+              {navLinks.map(({ id, label, children }) => (
+                <div key={id}>
+                  <a href={`#${id}`} onClick={() => setIsMenuOpen(false)} style={activeSection === id ? activeLinkStyle : undefined} className="block text-gray-700 hover:text-green-700 font-medium py-2 px-4 hover:bg-gray-50 rounded" aria-current={activeSection === id ? 'true' : undefined}>{label}</a>
+                  {children && (
+                    <ul className="ml-4 border-l border-gray-200">
+                      {children.map((child) => (
+                        <li key={child.id}>
+                          <a href={`#${child.id}`} onClick={() => setIsMenuOpen(false)} className="block text-sm text-gray-600 hover:text-green-700 py-2 px-4 hover:bg-gray-50 rounded">{child.label}</a>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
               ))}
               
               {/* Mobile Login Button */}
@@ -173,7 +212,7 @@ const Hero = () => {
             </div>
 
             {/* Stats */}
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 md:gap-8">
+            <div className="grid grid-cols-3 gap-3 sm:gap-6 md:gap-8">
               <div className="bg-white bg-opacity-10 backdrop-blur-sm p-4 sm:p-6 rounded-lg text-center">
                 <div className="text-2xl sm:text-3xl md:text-4xl font-bold text-white mb-1 sm:mb-2">260</div>
                 <div className="text-white text-opacity-80 text-xs sm:text-sm">Registered Members</div>
@@ -185,10 +224,6 @@ const Hero = () => {
               <div className="bg-white bg-opacity-10 backdrop-blur-sm p-4 sm:p-6 rounded-lg text-center">
                 <div className="text-2xl sm:text-3xl md:text-4xl font-bold text-white mb-1 sm:mb-2">30+</div>
                 <div className="text-white text-opacity-80 text-xs sm:text-sm">Years of Service</div>
-              </div>
-              <div className="bg-white bg-opacity-10 backdrop-blur-sm p-4 sm:p-6 rounded-lg text-center">
-                <div className="text-2xl sm:text-3xl md:text-4xl font-bold text-white mb-1 sm:mb-2">BFT</div>
-                <div className="text-white text-opacity-80 text-xs sm:text-sm">Food Terminal Partner</div>
               </div>
             </div>
           </div>
@@ -327,48 +362,32 @@ const About = () => {
               production, and community development.
             </p>
 
-            {/* Services Grid */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 mb-6 sm:mb-8">
-              <div className="flex items-center space-x-2">
-                <svg className="w-5 h-5 text-green-600 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+            {/* Core Business Operations */}
+            <div className="grid grid-cols-1 gap-3 sm:gap-4 mb-6 sm:mb-8">
+              <div className="flex items-start space-x-2">
+                <svg className="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
                   <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
                 </svg>
-                <span className="text-sm sm:text-base text-gray-700">Savings Accounts</span>
+                <span className="text-sm sm:text-base text-gray-700"><span className="font-semibold text-green-800">Coconut Sugar Production:</span> Known for producing organic coconut sugar.</span>
               </div>
-              <div className="flex items-center space-x-2">
-                <svg className="w-5 h-5 text-green-600 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+              <div className="flex items-start space-x-2">
+                <svg className="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
                   <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
                 </svg>
-                <span className="text-sm sm:text-base text-gray-700">Time Deposits</span>
+                <span className="text-sm sm:text-base text-gray-700"><span className="font-semibold text-green-800">Barangay Food Terminal (BFT):</span> Operates a local food terminal selling agricultural products, pork, and chicken.</span>
               </div>
-              <div className="flex items-center space-x-2">
-                <svg className="w-5 h-5 text-green-600 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+              <div className="flex items-start space-x-2">
+                <svg className="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
                   <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
                 </svg>
-                <span className="text-sm sm:text-base text-gray-700">Loan Programs</span>
-              </div>
-              <div className="flex items-center space-x-2">
-                <svg className="w-5 h-5 text-green-600 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
-                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                </svg>
-                <span className="text-sm sm:text-base text-gray-700">Barangay Food Terminal</span>
-              </div>
-              <div className="flex items-center space-x-2">
-                <svg className="w-5 h-5 text-green-600 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
-                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                </svg>
-                <span className="text-sm sm:text-base text-gray-700">Coconut Sugar Production</span>
-              </div>
-              <div className="flex items-center space-x-2">
-                <svg className="w-5 h-5 text-green-600 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
-                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                </svg>
-                <span className="text-sm sm:text-base text-gray-700">Agricultural Marketing</span>
+                <span className="text-sm sm:text-base text-gray-700"><span className="font-semibold text-green-800">Member Savings Operation (MSO):</span> Handles member savings and time deposits.</span>
               </div>
             </div>
 
-            {/* Mission and Vision */}
-            <div className="grid sm:grid-cols-2 gap-4">
+            {/* Core Identity: Mission and Vision */}
+            <div id="core-identity" className="scroll-mt-24">
+              <h3 className="text-base sm:text-lg font-bold text-gray-900 mb-3">Core Identity</h3>
+              <div className="grid sm:grid-cols-2 gap-4">
               <div className="bg-green-50 p-4 sm:p-6 rounded-lg">
                 <h3 className="text-base sm:text-lg font-bold text-green-800 mb-2">Mission</h3>
                 <p className="text-xs sm:text-sm text-gray-700">
@@ -383,6 +402,36 @@ const About = () => {
                   and community development in Misamis Oriental.
                 </p>
               </div>
+              </div>
+            </div>
+
+            {/* Accreditations and Partnerships */}
+            <div id="accreditations" className="scroll-mt-24 mt-6 sm:mt-8">
+              <h3 className="text-base sm:text-lg font-bold text-gray-900 mb-3">Accreditations &amp; Partnerships</h3>
+              <div className="grid grid-cols-1 gap-3 sm:gap-4">
+                {[
+                  'Accredited as a Civil Society Organization (CSO) by the Department of Agriculture Region 10 (DA-10).',
+                  'Associated with the Philippine Rural Development Program (PRDP) and the Philippine Coconut Authority (PCA).',
+                  'Received financial grant assistance through the DA Kadiwa ni Ani at Kita program.',
+                ].map((text) => (
+                  <div key={text} className="flex items-start space-x-2">
+                    <svg className="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                    </svg>
+                    <span className="text-sm sm:text-base text-gray-700">{text}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* History */}
+            <div id="history" className="scroll-mt-24 mt-6 sm:mt-8">
+              <h3 className="text-base sm:text-lg font-bold text-gray-900 mb-3">History</h3>
+              <p className="text-sm sm:text-base text-gray-700 leading-relaxed">
+                Agay-Ayan Multi-Purpose Cooperative Inc. has served the community of Agay-Ayan, Gingoog City,
+                Misamis Oriental for over three decades, supporting farmers, workers, and families through
+                financial services, agricultural production, and community development.
+              </p>
             </div>
           </div>
         </div>
@@ -390,7 +439,6 @@ const About = () => {
     </section>
   );
 };
-
 
 
 
@@ -408,7 +456,7 @@ const Products = () => {
         </h2>
         
         <p className="text-center text-gray-600 mb-12 max-w-3xl mx-auto">
-          Affordable agricultural products and essential commodities for the community â€” 
+          Affordable agricultural products and essential commodities for the community —
           supporting local farmers while delivering quality to every household.
         </p>
 
@@ -482,45 +530,6 @@ const Products = () => {
             </div>
           </div>
         </div>
-
-        {/* Additional Info */}
-        <div className="hidden md:grid md:grid-cols-3 gap-8">
-          <div className="bg-white rounded-xl p-6 shadow-md">
-            <div className="bg-green-100 w-12 h-12 rounded-lg flex items-center justify-center mb-4">
-              <svg className="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-            </div>
-            <h4 className="font-bold text-gray-900 mb-2">Fair Pricing</h4>
-            <p className="text-sm text-gray-600">
-              Competitive prices that benefit both farmers and consumers
-            </p>
-          </div>
-
-          <div className="bg-white rounded-xl p-6 shadow-md">
-            <div className="bg-green-100 w-12 h-12 rounded-lg flex items-center justify-center mb-4">
-              <svg className="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-            </div>
-            <h4 className="font-bold text-gray-900 mb-2">Quality Assured</h4>
-            <p className="text-sm text-gray-600">
-              Fresh products sourced from trusted local suppliers
-            </p>
-          </div>
-
-          <div className="bg-white rounded-xl p-6 shadow-md">
-            <div className="bg-green-100 w-12 h-12 rounded-lg flex items-center justify-center mb-4">
-              <svg className="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
-              </svg>
-            </div>
-            <h4 className="font-bold text-gray-900 mb-2">Community Support</h4>
-            <p className="text-sm text-gray-600">
-              Supporting local farmers and strengthening the community
-            </p>
-          </div>
-        </div>
       </div>
     </section>
   );
@@ -588,7 +597,7 @@ const Services = () => {
         </h2>
         
         <p className="text-center text-sm sm:text-base text-gray-600 mb-12 sm:mb-16 max-w-3xl mx-auto px-4">
-          Comprehensive support for members and the community â€” from savings and loans to 
+          Comprehensive support for members and the community — from savings and loans to
           production and marketing.
         </p>
 
@@ -714,11 +723,11 @@ const Membership = () => {
             <div className="space-y-4">
               <div className="flex justify-between items-center border-b border-white border-opacity-20 pb-3">
                 <span className="text-sm sm:text-base text-green-100">Membership Fee</span>
-                <span className="text-lg sm:text-xl font-bold">â‚±100</span>
+                <span className="text-lg sm:text-xl font-bold">₱100</span>
               </div>
               <div className="flex justify-between items-center pb-3">
                 <span className="text-sm sm:text-base text-green-100">Initial Capital Share</span>
-                <span className="text-lg sm:text-xl font-bold">â‚±5,000 <span className="text-xs sm:text-sm font-normal">min</span></span>
+                <span className="text-lg sm:text-xl font-bold">₱5,000 <span className="text-xs sm:text-sm font-normal">min</span></span>
               </div>
             </div>
           </div>
@@ -835,7 +844,7 @@ const Membership = () => {
 const Reviews = () => {
   const reviews = [
     {
-      name: 'Jeff DoÃ±ahan',
+      name: 'Jeff Doñahan',
       role: 'Google Reviewer',
       rating: 5,
       text: 'Known for their organic products such as coconut sugar.',
@@ -852,9 +861,9 @@ const Reviews = () => {
     },
     {
       name: 'Marie C.',
-      role: 'Local Guide Â· Level 3',
+      role: 'Local Guide · Level 3',
       rating: 4,
-      text: 'Rating only â€” no text review provided',
+      text: 'Rating only — no text review provided',
       avatar: 'M',
       color: 'bg-green-600'
     },
@@ -862,15 +871,15 @@ const Reviews = () => {
       name: 'Rodel S.',
       role: 'Google Reviewer',
       rating: 5,
-      text: 'Rating only â€” no text review provided',
+      text: 'Rating only — no text review provided',
       avatar: 'R',
       color: 'bg-teal-500'
     },
     {
       name: 'Ana Fernandez',
-      role: 'Local Guide Â· Level 2',
+      role: 'Local Guide · Level 2',
       rating: 4,
-      text: 'Rating only â€” no text review provided',
+      text: 'Rating only — no text review provided',
       avatar: 'A',
       color: 'bg-blue-600'
     },
@@ -878,7 +887,7 @@ const Reviews = () => {
       name: 'Mark Dela Cruz',
       role: 'Google Reviewer',
       rating: 4,
-      text: 'Rating only â€” no text review provided',
+      text: 'Rating only — no text review provided',
       avatar: 'M',
       color: 'bg-purple-600'
     }
@@ -1025,8 +1034,8 @@ const Contact = () => {
                 <div>
                   <h4 className="font-bold text-gray-900 mb-1">Contact Number</h4>
                   <p className="text-gray-600">
-                    +63 XXX XXX XXXX<br />
-                    +63 XXX XXX XXXX
+                    +63 951 047 8623 <br />
+                    +63 916 686 3117
                   </p>
                 </div>
               </div>
@@ -1158,7 +1167,8 @@ const Footer = () => {
             </p>
             <div className="text-sm text-gray-400">
               <p>Agay-Ayan, Gingoog City, Misamis Oriental</p>
-              <p>+63 XXX XXX XXXX</p>
+              <p>+63 951 047 8623 <br />
+                    +63 916 686 3117 </p>
               <p>info@agayayanmpc.coop</p>
             </div>
           </div>
@@ -1206,7 +1216,7 @@ const Footer = () => {
         <div className="border-t border-gray-800 pt-8">
           <div className="flex flex-col md:flex-row justify-between items-center space-y-4 md:space-y-0">
             <div className="text-sm text-gray-400">
-              Â© 2026 Agay-Ayan Multi-Purpose Cooperative. All Rights Reserved.
+              © 2026 Agay-Ayan Multi-Purpose Cooperative. All Rights Reserved.
             </div>
             <div className="flex space-x-6 text-sm text-gray-400">
               <a href="#" className="hover:text-green-400 transition-colors">Privacy Policy</a>
@@ -1229,14 +1239,16 @@ function LandingPage() {
   return (
     <div className="amcoms-landing min-h-screen">
       <Navbar />
-      <Hero />
-      <Announcements />
-      <About />
-      <Products />
-      <Services />
-      <Membership />
-      <Reviews />
-      <Contact />
+      <main>
+        <Hero />
+        <About />
+        <Products />
+        <Services />
+        <Announcements />
+        <Membership />
+        <Reviews />
+        <Contact />
+      </main>
       <Footer />
     </div>
   );

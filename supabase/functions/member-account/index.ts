@@ -1,4 +1,70 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { SMTPClient } from 'https://deno.land/x/denomailer@1.6.0/mod.ts';
+
+const generateTempPassword = () => {
+  const upper = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
+  const lower = 'abcdefghijkmnpqrstuvwxyz';
+  const digits = '23456789';
+  const all = upper + lower + digits;
+  const pick = (set: string) => set[crypto.getRandomValues(new Uint32Array(1))[0] % set.length];
+  const chars = [pick(upper), pick(lower), pick(digits)];
+  while (chars.length < 12) chars.push(pick(all));
+  for (let i = chars.length - 1; i > 0; i -= 1) {
+    const j = crypto.getRandomValues(new Uint32Array(1))[0] % (i + 1);
+    [chars[i], chars[j]] = [chars[j], chars[i]];
+  }
+  return chars.join('');
+};
+
+const escapeHtml = (value: string) => value
+  .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+const sendTempPasswordEmail = async (to: string, memberNumber: string, password: string, loginUrl: string, isReset: boolean) => {
+  const smtpUser = Deno.env.get('SMTP_USER');
+  const smtpPass = Deno.env.get('SMTP_PASS');
+  const smtpHost = Deno.env.get('SMTP_HOST') || 'smtp.gmail.com';
+  const smtpPort = Number(Deno.env.get('SMTP_PORT') || 465);
+  const fromName = Deno.env.get('SMTP_FROM_NAME') || 'AMCOMS';
+  if (!smtpUser || !smtpPass) throw new Error('Email delivery is not configured.');
+
+  const subject = isReset ? 'Your AMCOMS password was reset' : 'Your AMCOMS Member Portal account';
+  const intro = isReset
+    ? 'A password reset was initiated for your Member Portal account by the cooperative.'
+    : 'A Member Portal account has been created for you by the cooperative.';
+  const text = [
+    `Hello,`, '', intro, '',
+    `Member No.: ${memberNumber}`,
+    `Temporary password: ${password}`, '',
+    `Sign in at ${loginUrl} with your registered email and the temporary password. You will be asked to register a new password immediately.`,
+    '', 'If you did not expect this message, contact the cooperative office.',
+    '', 'AMCOMS - Agay-ayan Multi-Purpose Cooperative'
+  ].join('\n');
+  const html = `
+    <div style="font-family:Arial,sans-serif;max-width:560px;margin:auto;color:#1f2937">
+      <h2 style="color:#1d4ed8">${isReset ? 'Password reset' : 'Welcome to the Member Portal'}</h2>
+      <p>${escapeHtml(intro)}</p>
+      <p>Member No.: <strong>${escapeHtml(memberNumber)}</strong></p>
+      <p>Temporary password:</p>
+      <p style="background:#f3f4f6;padding:12px;border-radius:8px;font-family:monospace;font-size:18px;letter-spacing:1px">${escapeHtml(password)}</p>
+      <p>Sign in with your registered email and this temporary password. You will be asked to register a new password immediately.</p>
+      <p><a href="${escapeHtml(loginUrl)}">Open the Member Portal</a></p>
+      <p style="color:#6b7280;font-size:12px">If you did not expect this message, contact the cooperative office.<br/>Agay-ayan Multi-Purpose Cooperative</p>
+    </div>`;
+
+  const smtp = new SMTPClient({
+    connection: { hostname: smtpHost, port: smtpPort, tls: smtpPort === 465, auth: { username: smtpUser, password: smtpPass } }
+  });
+  try {
+    await smtp.send({ from: `${fromName} <${smtpUser}>`, to, subject, content: 'auto', mimeContent: [
+      { mimeType: 'text/plain; charset="utf-8"', content: text, transferEncoding: 'base64' },
+      { mimeType: 'text/html; charset="utf-8"', content: html.replace(/>\s+</g, '><').trim(), transferEncoding: 'base64' }
+    ] });
+  } catch {
+    throw new Error('The temporary password email could not be sent.');
+  } finally {
+    await smtp.close().catch(() => undefined);
+  }
+};
 
 const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, apikey, content-type, x-client-info',
@@ -236,21 +302,21 @@ Deno.serve(async (request) => {
       return jsonResponse({ error: 'This email is already associated with another account.' }, 409, origin);
     }
 
-    const sendRecoveryLink = async (staffId: string, authUserId: string, eventName: string) => {
+    const loginUrl = `${appUrl}/login/member`;
+    const issueTempPassword = async (staffId: string, authUserId: string, eventName: string, isReset: boolean) => {
       const { data: authUserData, error: authUserError } = await admin.auth.admin.getUserById(authUserId);
       if (authUserError) throw authUserError;
       const authEmail = authUserData.user.email?.trim().toLowerCase() || '';
       if (authEmail !== email) return jsonResponse({ error: 'The member email differs from the verified login email.' }, 409, origin);
 
+      const tempPassword = generateTempPassword();
+      const { error: passwordError } = await admin.auth.admin.updateUserById(authUserId, { password: tempPassword });
+      if (passwordError) throw passwordError;
       const { error: flagError } = await admin.from('staff').update({ must_change_password: true }).eq('id', staffId);
       if (flagError) throw flagError;
-      const { error: resetError } = await publicAuth.auth.resetPasswordForEmail(authEmail, { redirectTo });
-      if (resetError) {
-        await admin.from('staff').update({ must_change_password: linkedStaff?.must_change_password || false }).eq('id', staffId);
-        throw resetError;
-      }
+      await sendTempPasswordEmail(authEmail, member.member_number, tempPassword, loginUrl, isReset);
       await recordAccountEvent(admin, actor.id, member.id, eventName);
-      return jsonResponse({ sent: true, message: 'Secure instructions were sent to the registered email if delivery is available.' }, 200, origin);
+      return jsonResponse({ sent: true, message: 'A temporary password was emailed to the member. The member must register a new password on first sign-in.' }, 200, origin);
     };
 
     if (action === 'reset' || action === 'resend-activation') {
@@ -260,10 +326,11 @@ Deno.serve(async (request) => {
       if (action === 'resend-activation' && !linkedStaff.must_change_password) {
         return jsonResponse({ error: 'This account is already activated. Use password reset instead.' }, 409, origin);
       }
-      return await sendRecoveryLink(
+      return await issueTempPassword(
         linkedStaff.id,
         linkedStaff.user_id,
-        action === 'reset' ? 'ADMIN_PASSWORD_RESET_INITIATED' : 'MEMBER_ACTIVATION_RESENT'
+        action === 'reset' ? 'ADMIN_PASSWORD_RESET_INITIATED' : 'MEMBER_ACTIVATION_RESENT',
+        action === 'reset'
       );
     }
 
@@ -273,20 +340,23 @@ Deno.serve(async (request) => {
     if (action !== 'invite') return jsonResponse({ error: 'Unsupported member account action.' }, 400, origin);
     if (linkedStaff?.user_id) {
       if (linkedStaff.role === 'member' && linkedStaff.must_change_password) {
-        return await sendRecoveryLink(linkedStaff.id, linkedStaff.user_id, 'MEMBER_ACTIVATION_RESENT');
+        return await issueTempPassword(linkedStaff.id, linkedStaff.user_id, 'MEMBER_ACTIVATION_RESENT', false);
       }
       return jsonResponse({ error: 'This member already has an activated account.' }, 409, origin);
     }
 
     let authUser = staffByEmail?.user_id ? null : await findAuthUserByEmail(admin, email);
     let createdAuthUser = false;
+    const tempPassword = generateTempPassword();
     if (!authUser && !staffByEmail?.user_id) {
-      const { data: inviteData, error: inviteError } = await admin.auth.admin.inviteUserByEmail(email, {
-        redirectTo,
-        data: { member_number: member.member_number }
+      const { data: createdData, error: createError } = await admin.auth.admin.createUser({
+        email,
+        password: tempPassword,
+        email_confirm: true,
+        user_metadata: { member_number: member.member_number }
       });
-      if (inviteError) throw inviteError;
-      authUser = inviteData.user;
+      if (createError) throw createError;
+      authUser = createdData.user;
       createdAuthUser = true;
     }
 
@@ -302,12 +372,18 @@ Deno.serve(async (request) => {
     }
 
     if (!createdAuthUser) {
-      const { error: recoveryError } = await publicAuth.auth.resetPasswordForEmail(email, { redirectTo });
-      if (recoveryError) throw recoveryError;
+      const { error: passwordError } = await admin.auth.admin.updateUserById(authUserId, { password: tempPassword });
+      if (passwordError) throw passwordError;
     }
+    await admin.from('staff').update({ must_change_password: true }).eq('member_id', member.id).eq('role', 'member');
     await recordAccountEvent(admin, actor.id, member.id, 'MEMBER_ACCOUNT_CREATED');
+    try {
+      await sendTempPasswordEmail(email, member.member_number, tempPassword, loginUrl, false);
+    } catch (emailError) {
+      return jsonResponse({ error: 'The account was created but the temporary password email failed. Use Resend Activation to try again.' }, 502, origin);
+    }
     await recordAccountEvent(admin, actor.id, member.id, 'MEMBER_ACTIVATION_SENT');
-    return jsonResponse({ sent: true, message: 'Secure activation instructions were sent to the registered email if delivery is available.' }, 200, origin);
+    return jsonResponse({ sent: true, message: 'A temporary password was emailed to the member. The member must register a new password on first sign-in.' }, 200, origin);
   } catch (error) {
     console.error('Member account action failed.');
     return jsonResponse({ error: error instanceof Error ? error.message : 'The member account action could not be completed.' }, 400, origin);

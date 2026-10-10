@@ -1,293 +1,291 @@
-import React, { useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { supabase } from '../../lib/supabase';
+import { useMultipleRealtimeSubscriptions } from '../../hooks/useRealtimeSubscription';
+
+const CASH_ACCOUNTS = ['Cash on Hand', 'Cash in Bank'];
+const peso = (value) => `₱${Number(value || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+const localDate = (date = new Date()) => {
+  const d = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
+  return d.toISOString().slice(0, 10);
+};
+const shiftDate = (iso, days) => {
+  const d = new Date(`${iso}T00:00:00`);
+  d.setDate(d.getDate() + days);
+  return localDate(d);
+};
+const sum = (rows, pick) => rows.reduce((total, row) => total + Number(pick(row) || 0), 0);
+const same = (a, b) => Math.abs(a - b) < 0.01;
+
+const emptyDay = () => ({
+  receipts: 0, receiptCount: 0, disbursements: 0, disbursementCount: 0,
+  ledgerDebits: 0, ledgerCredits: 0, journalCount: 0,
+  loanReceipts: 0, loanPayments: 0, loansDisbursed: 0, loansReleased: 0, unbalanced: 0
+});
+
+const rowsFor = (d) => [
+  { label: 'Cash received', books: d.receipts, ledger: d.ledgerDebits, tone: 'text-green-600' },
+  { label: 'Cash disbursed', books: d.disbursements, ledger: d.ledgerCredits, tone: 'text-red-600' },
+  { label: 'Loan payments received', books: d.loanReceipts, ledger: d.loanPayments, tone: 'text-gray-900' },
+  { label: 'Loans released', books: d.loansDisbursed, ledger: d.loansReleased, tone: 'text-gray-900' },
+  { label: 'Entries recorded', books: d.receiptCount + d.disbursementCount, ledger: d.journalCount, count: true, tone: 'text-gray-900' }
+];
+
+const badge = (ok) => (
+  <span className={`inline-block rounded-full px-3 py-1 text-xs font-medium ${ok ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
+    {ok ? 'Match' : 'Difference'}
+  </span>
+);
 
 const Reconciliation = () => {
-  const [selectedPeriod, setSelectedPeriod] = useState('2026-06-03');
-  const [showDetails, setShowDetails] = useState(false);
+  const [selectedDate, setSelectedDate] = useState(localDate());
+  const [days, setDays] = useState({});
+  const [draftCount, setDraftCount] = useState(0);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [lastRun, setLastRun] = useState(null);
 
-  const reconciliationData = {
-    date: '2026-06-03',
-    treasurerRecords: {
-      cashReceived: 125450,
-      cashReleased: 45300,
-      netCash: 80150,
-      transactions: 24
-    },
-    bookkeeperRecords: {
-      recordedIncome: 125450,
-      recordedExpenses: 45300,
-      netAmount: 80150,
-      entries: 24
-    },
-    status: 'matched' // 'matched' or 'discrepancy'
-  };
+  const load = useCallback(async () => {
+    const from = shiftDate(selectedDate, -6);
+    const [receiptsRes, disbursementsRes, journalRes, paymentsRes, loansRes] = await Promise.all([
+      supabase.from('cash_receipts')
+        .select('id, receipt_date, amount, status, lines:cash_receipt_lines(amount, side, account:chart_of_accounts(account_name))')
+        .gte('receipt_date', from).lte('receipt_date', selectedDate),
+      supabase.from('cash_disbursements')
+        .select('id, disbursement_date, amount, status, lines:cash_disbursement_lines(amount, account:chart_of_accounts(account_name))')
+        .gte('disbursement_date', from).lte('disbursement_date', selectedDate),
+      supabase.from('journal_entries')
+        .select('id, entry_date, status, lines:journal_entry_lines(debit_amount, credit_amount, account:chart_of_accounts(account_name))')
+        .eq('status', 'posted')
+        .is('reversed_by_entry_id', null)
+        .neq('entry_type', 'reversing')
+        .gte('entry_date', from).lte('entry_date', selectedDate),
+      supabase.from('loan_payments').select('id, payment_date, amount_paid, receipt_id')
+        .gte('payment_date', from).lte('payment_date', selectedDate),
+      supabase.from('loans').select('id, release_date, principal_amount, status')
+        .gte('release_date', from).lte('release_date', selectedDate).neq('status', 'rejected')
+    ]);
 
-  const reconciliationHistory = [
-    { date: '2026-06-03', status: 'matched', difference: 0, treasurer: 125450, bookkeeper: 125450 },
-    { date: '2026-06-02', status: 'matched', difference: 0, treasurer: 98750, bookkeeper: 98750 },
-    { date: '2026-06-01', status: 'discrepancy', difference: 500, treasurer: 125450, bookkeeper: 124950 },
-    { date: '2026-05-31', status: 'matched', difference: 0, treasurer: 87200, bookkeeper: 87200 },
-    { date: '2026-05-30', status: 'matched', difference: 0, treasurer: 95600, bookkeeper: 95600 }
-  ];
+    const failed = [receiptsRes, disbursementsRes, journalRes, paymentsRes, loansRes].find((res) => res.error);
+    if (failed) {
+      setError(failed.error.message);
+      setLoading(false);
+      return;
+    }
+    setError('');
 
-  const discrepancyExample = {
-    date: '2026-06-01',
-    treasurerRecords: {
-      cashReceived: 125450,
-      cashReleased: 42300,
-      netCash: 83150
-    },
-    bookkeeperRecords: {
-      recordedIncome: 124950,
-      recordedExpenses: 42300,
-      netAmount: 82650
-    },
-    difference: 500,
-    status: 'discrepancy'
-  };
+    const result = {};
+    const day = (key) => (result[key] = result[key] || emptyDay());
 
-  const isMatched = reconciliationData.status === 'matched';
-  const difference = Math.abs(
-    reconciliationData.treasurerRecords.netCash - reconciliationData.bookkeeperRecords.netAmount
-  );
+    let drafts = 0;
+    (receiptsRes.data || []).forEach((receipt) => {
+      if (receipt.status !== 'recorded') { drafts += 1; return; }
+      const d = day(receipt.receipt_date);
+      d.receipts += Number(receipt.amount);
+      d.receiptCount += 1;
+      d.loanReceipts += sum(
+        (receipt.lines || []).filter((line) => line.side === 'credit' && line.account?.account_name === 'Loan Receivable'),
+        (line) => line.amount
+      );
+    });
+    (disbursementsRes.data || []).forEach((disbursement) => {
+      if (disbursement.status !== 'recorded') { drafts += 1; return; }
+      const d = day(disbursement.disbursement_date);
+      d.disbursements += Number(disbursement.amount);
+      d.disbursementCount += 1;
+      d.loansDisbursed += sum(
+        (disbursement.lines || []).filter((line) => line.account?.account_name === 'Loan Payable' || line.account?.account_name === 'Loan Receivable'),
+        (line) => line.amount
+      );
+    });
+    (journalRes.data || []).forEach((entry) => {
+      const d = day(entry.entry_date);
+      const lines = entry.lines || [];
+      d.journalCount += 1;
+      lines.filter((line) => CASH_ACCOUNTS.includes(line.account?.account_name)).forEach((line) => {
+        d.ledgerDebits += Number(line.debit_amount);
+        d.ledgerCredits += Number(line.credit_amount);
+      });
+      if (!same(sum(lines, (line) => line.debit_amount), sum(lines, (line) => line.credit_amount))) d.unbalanced += 1;
+    });
+    (paymentsRes.data || []).forEach((payment) => { day(payment.payment_date).loanPayments += Number(payment.amount_paid); });
+    (loansRes.data || []).forEach((loan) => { day(loan.release_date).loansReleased += Number(loan.principal_amount); });
+
+    setDays(result);
+    setDraftCount(drafts);
+    setLastRun(new Date());
+    setLoading(false);
+  }, [selectedDate]);
+
+  useEffect(() => { setLoading(true); load(); }, [load]);
+
+  useMultipleRealtimeSubscriptions([
+    { table: 'cash_receipts', onUpdate: load },
+    { table: 'cash_receipt_lines', onUpdate: load },
+    { table: 'cash_disbursements', onUpdate: load },
+    { table: 'cash_disbursement_lines', onUpdate: load },
+    { table: 'journal_entries', onUpdate: load },
+    { table: 'journal_entry_lines', onUpdate: load },
+    { table: 'loan_payments', onUpdate: load },
+    { table: 'loans', onUpdate: load }
+  ], [load]);
+
+  const today = days[selectedDate] || emptyDay();
+  const rows = rowsFor(today);
+  const mismatches = rows.filter((row) => !same(row.books, row.ledger)).length + (today.unbalanced ? 1 : 0);
+  const isMatched = mismatches === 0;
+  const netBooks = today.receipts - today.disbursements;
+  const netLedger = today.ledgerDebits - today.ledgerCredits;
+
+  const history = useMemo(() => Array.from({ length: 7 }, (_, i) => {
+    const key = shiftDate(selectedDate, -i);
+    const d = days[key] || emptyDay();
+    const dayRows = rowsFor(d);
+    const diff = dayRows.filter((row) => !row.count).reduce((total, row) => total + Math.abs(row.books - row.ledger), 0);
+    const bad = dayRows.some((row) => !same(row.books, row.ledger)) || d.unbalanced > 0;
+    const empty = d.receiptCount + d.disbursementCount + d.journalCount === 0;
+    return { key, d, diff, bad, empty };
+  }), [days, selectedDate]);
 
   return (
     <div className="space-y-6">
-      {/* Period Selector */}
-      <div className="bg-white rounded-lg shadow p-6 border border-gray-200">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div className="rounded-lg border border-gray-200 bg-white p-6 shadow">
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Select Date</label>
+            <label className="mb-2 block text-sm font-medium text-gray-700">Select Date</label>
             <input
               type="date"
-              value={selectedPeriod}
-              onChange={(e) => setSelectedPeriod(e.target.value)}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500"
+              value={selectedDate}
+              onChange={(e) => e.target.value && setSelectedDate(e.target.value)}
+              className="w-full rounded-lg border border-gray-300 px-4 py-2 focus:ring-2 focus:ring-purple-500"
             />
           </div>
           <div className="flex items-end">
-            <button className="w-full px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors font-medium">
+            <button
+              onClick={() => { setLoading(true); load(); }}
+              className="w-full rounded-lg bg-purple-600 px-4 py-2 font-medium text-white transition-colors hover:bg-purple-700"
+            >
               Run Reconciliation
             </button>
           </div>
         </div>
+        <p className="mt-3 flex items-center gap-2 text-xs text-gray-500">
+          <span className="inline-block h-2 w-2 animate-pulse rounded-full bg-green-500" />
+          Live - rechecks automatically whenever a transaction, journal entry or loan changes
+          {lastRun && ` (last checked ${lastRun.toLocaleTimeString('en-PH', { hour: 'numeric', minute: '2-digit', second: '2-digit' })})`}
+        </p>
       </div>
 
-      {/* Reconciliation Status */}
-      <div className={`rounded-lg shadow p-6 border-2 ${
-        isMatched 
-          ? 'bg-green-50 border-green-300' 
-          : 'bg-yellow-50 border-yellow-300'
-      }`}>
-        <div className="flex items-center space-x-4">
-          <div className={`w-16 h-16 rounded-full flex items-center justify-center ${
-            isMatched ? 'bg-green-100' : 'bg-yellow-100'
-          }`}>
-            {isMatched ? (
-              <svg className="w-8 h-8 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-            ) : (
-              <svg className="w-8 h-8 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-              </svg>
+      {error && <p role="alert" className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{error}</p>}
+
+      {loading ? (
+        <p className="py-10 text-center text-sm text-gray-500">Reconciling records...</p>
+      ) : (
+        <>
+          <div className={`rounded-lg border-2 p-6 shadow ${isMatched ? 'border-green-300 bg-green-50' : 'border-red-300 bg-red-50'}`}>
+            <h3 className={`text-2xl font-bold ${isMatched ? 'text-green-800' : 'text-red-800'}`}>
+              {isMatched ? 'Records Match' : 'Discrepancy Found'}
+            </h3>
+            <p className={`mt-1 text-sm ${isMatched ? 'text-green-700' : 'text-red-700'}`}>
+              {isMatched
+                ? today.receiptCount + today.disbursementCount === 0
+                  ? 'No recorded transactions on this date. Nothing to reconcile.'
+                  : 'Cash books, general ledger and member loan records agree.'
+                : `${mismatches} item${mismatches === 1 ? '' : 's'} do not agree. Review the rows marked Difference below.`}
+            </p>
+            {draftCount > 0 && (
+              <p className="mt-2 text-xs text-gray-600">{draftCount} draft transaction{draftCount === 1 ? '' : 's'} in this period are excluded until recorded.</p>
             )}
           </div>
-          <div className="flex-1">
-            <h3 className={`text-2xl font-bold ${isMatched ? 'text-green-800' : 'text-yellow-800'}`}>
-              {isMatched ? '✓ Records Match' : '⚠ Discrepancy Found'}
-            </h3>
-            <p className={`text-sm mt-1 ${isMatched ? 'text-green-700' : 'text-yellow-700'}`}>
-              {isMatched 
-                ? 'Treasurer and Bookkeeper records are in agreement'
-                : `Difference of ₱${difference.toLocaleString()} detected`
-              }
-            </p>
-          </div>
-        </div>
-      </div>
 
-      {/* Comparison Table */}
-      <div className="bg-white rounded-lg shadow border border-gray-200 overflow-hidden">
-        <div className="p-6 border-b border-gray-200">
-          <h3 className="text-lg font-semibold text-gray-900">Record Comparison</h3>
-          <p className="text-sm text-gray-600 mt-1">Date: {reconciliationData.date}</p>
-        </div>
-        
-        <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead className="bg-gray-50">
-              <tr>
-                <th className="text-left py-3 px-4 font-semibold text-gray-700 text-sm">Description</th>
-                <th className="text-right py-3 px-4 font-semibold text-gray-700 text-sm">Treasurer's Records</th>
-                <th className="text-right py-3 px-4 font-semibold text-gray-700 text-sm">Bookkeeper's Records</th>
-                <th className="text-center py-3 px-4 font-semibold text-gray-700 text-sm">Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr className="border-b border-gray-200">
-                <td className="py-3 px-4 text-sm text-gray-900 font-medium">Cash Received / Income</td>
-                <td className="py-3 px-4 text-sm text-right font-semibold text-green-600">
-                  ₱{reconciliationData.treasurerRecords.cashReceived.toLocaleString()}
-                </td>
-                <td className="py-3 px-4 text-sm text-right font-semibold text-green-600">
-                  ₱{reconciliationData.bookkeeperRecords.recordedIncome.toLocaleString()}
-                </td>
-                <td className="py-3 px-4 text-center">
-                  <span className="inline-block px-3 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                    ✓ Match
-                  </span>
-                </td>
-              </tr>
-              <tr className="border-b border-gray-200">
-                <td className="py-3 px-4 text-sm text-gray-900 font-medium">Cash Released / Expenses</td>
-                <td className="py-3 px-4 text-sm text-right font-semibold text-red-600">
-                  ₱{reconciliationData.treasurerRecords.cashReleased.toLocaleString()}
-                </td>
-                <td className="py-3 px-4 text-sm text-right font-semibold text-red-600">
-                  ₱{reconciliationData.bookkeeperRecords.recordedExpenses.toLocaleString()}
-                </td>
-                <td className="py-3 px-4 text-center">
-                  <span className="inline-block px-3 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                    ✓ Match
-                  </span>
-                </td>
-              </tr>
-              <tr className="bg-purple-50 border-b-2 border-purple-200">
-                <td className="py-3 px-4 text-sm text-gray-900 font-bold">Net Cash / Net Amount</td>
-                <td className="py-3 px-4 text-sm text-right font-bold text-purple-600">
-                  ₱{reconciliationData.treasurerRecords.netCash.toLocaleString()}
-                </td>
-                <td className="py-3 px-4 text-sm text-right font-bold text-purple-600">
-                  ₱{reconciliationData.bookkeeperRecords.netAmount.toLocaleString()}
-                </td>
-                <td className="py-3 px-4 text-center">
-                  <span className={`inline-block px-3 py-1 rounded-full text-xs font-medium ${
-                    isMatched 
-                      ? 'bg-green-100 text-green-800' 
-                      : 'bg-yellow-100 text-yellow-800'
-                  }`}>
-                    {isMatched ? '✓ Match' : '⚠ Difference'}
-                  </span>
-                </td>
-              </tr>
-              <tr>
-                <td className="py-3 px-4 text-sm text-gray-900 font-medium">Number of Transactions/Entries</td>
-                <td className="py-3 px-4 text-sm text-right font-semibold text-gray-900">
-                  {reconciliationData.treasurerRecords.transactions}
-                </td>
-                <td className="py-3 px-4 text-sm text-right font-semibold text-gray-900">
-                  {reconciliationData.bookkeeperRecords.entries}
-                </td>
-                <td className="py-3 px-4 text-center">
-                  <span className="inline-block px-3 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                    ✓ Match
-                  </span>
-                </td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      {/* Example: Discrepancy Case */}
-      <div className="bg-white rounded-lg shadow border border-gray-200 p-6">
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg font-semibold text-gray-900">Discrepancy Example</h3>
-          <button
-            onClick={() => setShowDetails(!showDetails)}
-            className="text-sm text-purple-600 hover:text-purple-700 font-medium"
-          >
-            {showDetails ? 'Hide' : 'Show'} Details
-          </button>
-        </div>
-
-        {showDetails && (
-          <div className="space-y-4">
-            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-              <div className="flex items-start space-x-3">
-                <svg className="w-6 h-6 text-yellow-600 flex-shrink-0 mt-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                </svg>
-                <div className="flex-1">
-                  <h4 className="font-semibold text-yellow-900 mb-2">June 1, 2026 - Discrepancy Detected</h4>
-                  <div className="grid grid-cols-2 gap-4 text-sm">
-                    <div>
-                      <p className="text-yellow-800 font-medium mb-1">Treasurer: ₱125,450</p>
-                      <p className="text-yellow-700">Cash received from transactions</p>
-                    </div>
-                    <div>
-                      <p className="text-yellow-800 font-medium mb-1">Bookkeeper: ₱124,950</p>
-                      <p className="text-yellow-700">Recorded income entries</p>
-                    </div>
-                  </div>
-                  <div className="mt-3 pt-3 border-t border-yellow-300">
-                    <p className="text-yellow-900 font-bold">Difference: ₱500</p>
-                    <p className="text-xs text-yellow-700 mt-1">
-                      The Bookkeeper can investigate this discrepancy to identify which transaction was not recorded or recorded incorrectly.
-                    </p>
-                  </div>
-                </div>
-              </div>
+          <div className="overflow-hidden rounded-lg border border-gray-200 bg-white shadow">
+            <div className="border-b border-gray-200 p-6">
+              <h3 className="text-lg font-semibold text-gray-900">Record Comparison</h3>
+              <p className="mt-1 text-sm text-gray-600">Date: {selectedDate}</p>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Description</th>
+                    <th className="px-4 py-3 text-right text-sm font-semibold text-gray-700">Cash Books</th>
+                    <th className="px-4 py-3 text-right text-sm font-semibold text-gray-700">Ledger / Member Records</th>
+                    <th className="px-4 py-3 text-right text-sm font-semibold text-gray-700">Difference</th>
+                    <th className="px-4 py-3 text-center text-sm font-semibold text-gray-700">Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {rows.map((row) => (
+                    <tr key={row.label} className="border-b border-gray-200">
+                      <td className="px-4 py-3 text-sm font-medium text-gray-900">{row.label}</td>
+                      <td className={`px-4 py-3 text-right text-sm font-semibold ${row.tone}`}>{row.count ? row.books : peso(row.books)}</td>
+                      <td className={`px-4 py-3 text-right text-sm font-semibold ${row.tone}`}>{row.count ? row.ledger : peso(row.ledger)}</td>
+                      <td className="px-4 py-3 text-right text-sm text-gray-700">
+                        {same(row.books, row.ledger) ? '-' : row.count ? Math.abs(row.books - row.ledger) : peso(Math.abs(row.books - row.ledger))}
+                      </td>
+                      <td className="px-4 py-3 text-center">{badge(same(row.books, row.ledger))}</td>
+                    </tr>
+                  ))}
+                  <tr className="border-b border-gray-200 bg-purple-50">
+                    <td className="px-4 py-3 text-sm font-bold text-gray-900">Net cash movement</td>
+                    <td className="px-4 py-3 text-right text-sm font-bold text-purple-600">{peso(netBooks)}</td>
+                    <td className="px-4 py-3 text-right text-sm font-bold text-purple-600">{peso(netLedger)}</td>
+                    <td className="px-4 py-3 text-right text-sm text-gray-700">{same(netBooks, netLedger) ? '-' : peso(Math.abs(netBooks - netLedger))}</td>
+                    <td className="px-4 py-3 text-center">{badge(same(netBooks, netLedger))}</td>
+                  </tr>
+                  <tr>
+                    <td className="px-4 py-3 text-sm font-medium text-gray-900">Unbalanced journal entries</td>
+                    <td className="px-4 py-3 text-right text-sm text-gray-500" colSpan={3}>
+                      {today.unbalanced ? `${today.unbalanced} with unequal debits and credits` : 'None'}
+                    </td>
+                    <td className="px-4 py-3 text-center">{badge(today.unbalanced === 0)}</td>
+                  </tr>
+                </tbody>
+              </table>
             </div>
           </div>
-        )}
-      </div>
 
-      {/* Reconciliation History */}
-      <div className="bg-white rounded-lg shadow border border-gray-200 p-6">
-        <h3 className="text-lg font-semibold text-gray-900 mb-4">Reconciliation History</h3>
-        <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead className="bg-gray-50">
-              <tr>
-                <th className="text-left py-3 px-4 font-semibold text-gray-700 text-sm">Date</th>
-                <th className="text-right py-3 px-4 font-semibold text-gray-700 text-sm">Treasurer</th>
-                <th className="text-right py-3 px-4 font-semibold text-gray-700 text-sm">Bookkeeper</th>
-                <th className="text-right py-3 px-4 font-semibold text-gray-700 text-sm">Difference</th>
-                <th className="text-center py-3 px-4 font-semibold text-gray-700 text-sm">Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              {reconciliationHistory.map((record, idx) => (
-                <tr key={idx} className="border-b border-gray-200 hover:bg-gray-50">
-                  <td className="py-3 px-4 text-sm text-gray-900 font-medium">{record.date}</td>
-                  <td className="py-3 px-4 text-sm text-right text-gray-900">₱{record.treasurer.toLocaleString()}</td>
-                  <td className="py-3 px-4 text-sm text-right text-gray-900">₱{record.bookkeeper.toLocaleString()}</td>
-                  <td className="py-3 px-4 text-sm text-right font-semibold text-gray-900">
-                    {record.difference === 0 ? '-' : `₱${record.difference.toLocaleString()}`}
-                  </td>
-                  <td className="py-3 px-4 text-center">
-                    <span className={`inline-block px-3 py-1 rounded-full text-xs font-medium ${
-                      record.status === 'matched' 
-                        ? 'bg-green-100 text-green-800' 
-                        : 'bg-yellow-100 text-yellow-800'
-                    }`}>
-                      {record.status === 'matched' ? '✓ Matched' : '⚠ Discrepancy'}
-                    </span>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
+          <div className="rounded-lg border border-gray-200 bg-white p-6 shadow">
+            <h3 className="mb-4 text-lg font-semibold text-gray-900">Reconciliation History (7 days)</h3>
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Date</th>
+                    <th className="px-4 py-3 text-right text-sm font-semibold text-gray-700">Received</th>
+                    <th className="px-4 py-3 text-right text-sm font-semibold text-gray-700">Disbursed</th>
+                    <th className="px-4 py-3 text-right text-sm font-semibold text-gray-700">Difference</th>
+                    <th className="px-4 py-3 text-center text-sm font-semibold text-gray-700">Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {history.map((item) => (
+                    <tr key={item.key} onClick={() => setSelectedDate(item.key)} className="cursor-pointer border-b border-gray-200 hover:bg-gray-50">
+                      <td className="px-4 py-3 text-sm font-medium text-gray-900">{item.key}</td>
+                      <td className="px-4 py-3 text-right text-sm text-gray-900">{peso(item.d.receipts)}</td>
+                      <td className="px-4 py-3 text-right text-sm text-gray-900">{peso(item.d.disbursements)}</td>
+                      <td className="px-4 py-3 text-right text-sm font-semibold text-gray-900">{item.diff > 0 ? peso(item.diff) : '-'}</td>
+                      <td className="px-4 py-3 text-center">
+                        {item.empty ? (
+                          <span className="inline-block rounded-full bg-gray-100 px-3 py-1 text-xs font-medium text-gray-600">No activity</span>
+                        ) : badge(!item.bad)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
 
-      {/* Help Text */}
-      <div className="bg-blue-50 border border-blue-200 rounded-lg p-6">
-        <div className="flex items-start space-x-3">
-          <svg className="w-6 h-6 text-blue-600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-          </svg>
-          <div className="flex-1">
-            <h4 className="font-semibold text-blue-900 mb-2">What is Reconciliation?</h4>
+          <div className="rounded-lg border border-blue-200 bg-blue-50 p-6">
+            <h4 className="mb-2 font-semibold text-blue-900">How this is reconciled</h4>
             <p className="text-sm text-blue-800">
-              Reconciliation compares the Treasurer's actual cash transactions with the Bookkeeper's financial records. 
-              This helps identify discrepancies, ensures accuracy, and maintains financial integrity. When records don't match, 
-              the Bookkeeper can investigate which transaction might be missing or recorded incorrectly.
+              Recorded cash receipts and disbursements are compared with the cash accounts in the posted general ledger. Loan payments and
+              released loans are compared with the member loan records. Any record that was deleted, changed or posted incorrectly shows
+              as a difference immediately.
             </p>
           </div>
-        </div>
-      </div>
+        </>
+      )}
     </div>
   );
 };

@@ -23,7 +23,7 @@ const accountStatus = (member) => {
 const getAccountAction = (member) => {
   if (member.portal_account?.is_active === false) return 'reactivate-member';
   if (!member.portal_account?.has_account) return 'invite';
-  return member.portal_account.must_change_password ? 'resend-activation' : 'reset';
+  return 'reset';
 };
 const getAccountActionError = async (error) => {
   try {
@@ -187,7 +187,7 @@ const MemberManagement = ({ canManageMembers = true }) => {
       });
       if (actionError) throw actionError;
       setPortalNotice(action === 'reset'
-        ? 'Password reset instructions have been sent to the member’s registered email.'
+        ? 'A temporary password was emailed to the member. They must register a new password on next sign-in.'
         : action === 'reactivate-member'
         ? (data?.portal_access_restored ? `${member.member_number} is active again, and Member Portal access was restored.` : `${member.member_number} is active again. No Member Portal account is linked.`)
         : data?.message || 'Secure instructions were sent if the account is eligible.');
@@ -388,6 +388,11 @@ const MemberManagement = ({ canManageMembers = true }) => {
           <h1 className="text-2xl font-bold text-gray-950">Members</h1>
           <p className="mt-1 text-sm text-gray-600">{canManageMembers ? 'View and maintain cooperative member records.' : 'View cooperative member records and account details.'}</p>
         </div>
+        {canManageMembers && (
+          <button type="button" onClick={startAdd} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg bg-blue-700 px-4 text-sm font-semibold text-white hover:bg-blue-800">
+            <Plus size={18} aria-hidden="true" />Add Member
+          </button>
+        )}
       </header>
 
       <div className="flex flex-col gap-3 border-b border-gray-200 sm:flex-row sm:items-center sm:justify-between">
@@ -498,7 +503,7 @@ const MemberManagement = ({ canManageMembers = true }) => {
               </div>
               <label className="flex items-start gap-2 rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm text-blue-950">
                 <input type="checkbox" checked={createPortalAccount} onChange={(event) => setCreatePortalAccount(event.target.checked)} className="mt-0.5 accent-blue-700" />
-                <span><span className="block font-medium">Create Member Portal account</span><span className="mt-0.5 block text-xs text-blue-800">A secure Supabase activation email lets the member create their own password. The Bookkeeper does not set or see a password.</span></span>
+                <span><span className="block font-medium">Create Member Portal account</span><span className="mt-0.5 block text-xs text-blue-800">The system generates a temporary password and emails it to the member's registered email. The member must register a new password on first sign-in. The Bookkeeper never sees it.</span></span>
               </label>
               {duplicateMatches.length > 0 && (
                 <div className="space-y-3 rounded-lg border border-amber-300 bg-amber-50 p-4">
@@ -565,10 +570,10 @@ const MemberManagement = ({ canManageMembers = true }) => {
             </div>
             <div className="space-y-4 p-5">
               {error && <p role="alert" className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">{error}</p>}
-              <p className="text-sm text-gray-700">Send password reset instructions to this member’s registered email?</p>
+              <p className="text-sm text-gray-700">Generate a new temporary password and email it to this member’s registered email? The current password will stop working, and the member must register a new one on next sign-in.</p>
               <div className="flex justify-end gap-3 border-t border-gray-200 pt-4">
                 <button type="button" onClick={() => setModal('')} className="min-h-10 rounded-lg border border-gray-300 px-4 text-sm font-medium text-gray-700">Cancel</button>
-                <button type="button" onClick={confirmPasswordReset} className="min-h-10 rounded-lg bg-blue-700 px-4 text-sm font-semibold text-white hover:bg-blue-800">Send Reset Instructions</button>
+                <button type="button" onClick={confirmPasswordReset} className="min-h-10 rounded-lg bg-blue-700 px-4 text-sm font-semibold text-white hover:bg-blue-800">Email Temporary Password</button>
               </div>
             </div>
           </section>
