@@ -1,15 +1,14 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
-import { BadgeDollarSign, ChartNoAxesCombined, Check, ChevronDown, ClipboardList, Clock3, Handshake, IdCard, Sprout, Store } from 'lucide-react';
+import { BadgeDollarSign, Check, ChevronDown, ClipboardList, IdCard, Sprout, Store } from 'lucide-react';
 import CooperativeMap from './CooperativeMap';
 import './landingpage.css';
 
 
 const aboutLinks = [
   { id: 'core-identity', label: 'Core Identity' },
-  { id: 'accreditations', label: 'Accreditations & Partnerships' },
-  { id: 'history', label: 'History' }
+  { id: 'accreditations', label: 'Accreditations & Partnerships' }
 ];
 
 const navLinks = [
@@ -102,11 +101,8 @@ const Navbar = () => {
             {/* Login Button */}
             <Link 
               to="/portal-selection"
-              className="bg-green-700 text-white px-4 xl:px-6 py-2 rounded-lg hover:bg-green-800 transition-colors flex items-center space-x-2 whitespace-nowrap text-sm xl:text-base"
+              className="amcoms-login-btn whitespace-nowrap"
             >
-              <svg className="w-4 h-4 xl:w-5 xl:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1" />
-              </svg>
               <span>Login Portal</span>
             </Link>
           </div>
@@ -155,11 +151,8 @@ const Navbar = () => {
               <Link 
                 to="/portal-selection"
                 onClick={() => setIsMenuOpen(false)}
-                className="bg-green-700 text-white px-4 py-3 rounded-lg hover:bg-green-800 transition-colors flex items-center justify-center space-x-2 font-medium"
+                className="amcoms-login-btn amcoms-login-btn--block"
               >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1" />
-                </svg>
                 <span>Login Portal</span>
               </Link>
             </div>
@@ -356,33 +349,10 @@ const About = () => {
             </h2>
             
             <p className="text-sm sm:text-base text-gray-600 mb-6 sm:mb-8 leading-relaxed">
-              Agay-Ayan Multi-Purpose Cooperative Inc. is a community-based cooperative located in 
-              Agay-Ayan, Gingoog City, Misamis Oriental. For over three decades, the cooperative has 
-              supported farmers, workers, and families through financial services, agricultural 
-              production, and community development.
+              Agay-ayan Multi-Purpose Cooperative Inc. is a community-based cooperative located in
+              Barangay Agay-Ayan, Gingoog City, Misamis Oriental, Philippines. Established in 1992,
+              it serves local coconut and agricultural farmers.
             </p>
-
-            {/* Core Business Operations */}
-            <div className="grid grid-cols-1 gap-3 sm:gap-4 mb-6 sm:mb-8">
-              <div className="flex items-start space-x-2">
-                <svg className="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
-                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                </svg>
-                <span className="text-sm sm:text-base text-gray-700"><span className="font-semibold text-green-800">Coconut Sugar Production:</span> Known for producing organic coconut sugar.</span>
-              </div>
-              <div className="flex items-start space-x-2">
-                <svg className="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
-                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                </svg>
-                <span className="text-sm sm:text-base text-gray-700"><span className="font-semibold text-green-800">Barangay Food Terminal (BFT):</span> Operates a local food terminal selling agricultural products, pork, and chicken.</span>
-              </div>
-              <div className="flex items-start space-x-2">
-                <svg className="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
-                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                </svg>
-                <span className="text-sm sm:text-base text-gray-700"><span className="font-semibold text-green-800">Member Savings Operation (MSO):</span> Handles member savings and time deposits.</span>
-              </div>
-            </div>
 
             {/* Core Identity: Mission and Vision */}
             <div id="core-identity" className="scroll-mt-24">
@@ -422,16 +392,6 @@ const About = () => {
                   </div>
                 ))}
               </div>
-            </div>
-
-            {/* History */}
-            <div id="history" className="scroll-mt-24 mt-6 sm:mt-8">
-              <h3 className="text-base sm:text-lg font-bold text-gray-900 mb-3">History</h3>
-              <p className="text-sm sm:text-base text-gray-700 leading-relaxed">
-                Agay-Ayan Multi-Purpose Cooperative Inc. has served the community of Agay-Ayan, Gingoog City,
-                Misamis Oriental for over three decades, supporting farmers, workers, and families through
-                financial services, agricultural production, and community development.
-              </p>
             </div>
           </div>
         </div>
@@ -541,46 +501,25 @@ const Products = () => {
 const Services = () => {
   const services = [
     {
-      icon: BadgeDollarSign,
-      title: 'Savings Accounts',
-      description: 'Members can safely deposit money while earning annual dividends and interest depending on cooperative policies.',
-      bgColor: 'bg-green-50',
-      iconBg: 'bg-green-100'
-    },
-    {
-      icon: Clock3,
-      title: 'Time Deposits',
-      description: 'Higher earning savings with fixed maturity periods and guaranteed returns for disciplined savers.',
-      bgColor: 'bg-blue-50',
-      iconBg: 'bg-blue-100'
-    },
-    {
-      icon: Handshake,
-      title: 'Loan Services',
-      description: 'Members may apply for various loan programs subject to cooperative approval and eligibility requirements.',
-      bgColor: 'bg-orange-50',
-      iconBg: 'bg-orange-100'
-    },
-    {
       icon: Sprout,
       title: 'Coconut Sugar Production',
-      description: 'The cooperative purchases coconut sap from local farmers and processes it into high-quality coconut sugar products.',
+      description: 'Known for producing organic coconut sugar.',
       bgColor: 'bg-green-50',
       iconBg: 'bg-green-100'
     },
     {
       icon: Store,
-      title: 'Barangay Food Terminal',
-      description: 'Affordable agricultural products and essential commodities sold to the community while supporting local farmers.',
+      title: 'Barangay Food Terminal (BFT)',
+      description: 'Operates a local food terminal selling agricultural products, pork, and chicken.',
       bgColor: 'bg-orange-50',
       iconBg: 'bg-orange-100'
     },
     {
-      icon: ChartNoAxesCombined,
-      title: 'Agricultural Marketing',
-      description: 'The cooperative connects local farmers with buyers and markets, ensuring fair prices and sustainable livelihoods.',
-      bgColor: 'bg-purple-50',
-      iconBg: 'bg-purple-100'
+      icon: BadgeDollarSign,
+      title: 'Member Savings Operation (MSO)',
+      description: 'Handles member savings and time deposits.',
+      bgColor: 'bg-blue-50',
+      iconBg: 'bg-blue-100'
     }
   ];
 
@@ -597,8 +536,8 @@ const Services = () => {
         </h2>
         
         <p className="text-center text-sm sm:text-base text-gray-600 mb-12 sm:mb-16 max-w-3xl mx-auto px-4">
-          Comprehensive support for members and the community — from savings and loans to
-          production and marketing.
+          Comprehensive support for members and the community — from production to
+          food access and member savings.
         </p>
 
         {/* Services Grid */}
@@ -1049,8 +988,7 @@ const Contact = () => {
                 <div>
                   <h4 className="font-bold text-gray-900 mb-1">Email Address</h4>
                   <p className="text-gray-600">
-                    info@agayayanmpc.coop<br />
-                    contact@agayayanmpc.coop
+                    <a href="mailto:agay.ayanmpc@gmail.com" className="hover:text-green-700">agay.ayanmpc@gmail.com</a>
                   </p>
                 </div>
               </div>
@@ -1076,14 +1014,9 @@ const Contact = () => {
             <div className="mt-8 pt-8 border-t border-gray-200">
               <h4 className="font-bold text-gray-900 mb-4">Connect With Us</h4>
               <div className="flex space-x-4">
-                <a href="#" className="bg-green-100 w-10 h-10 rounded-lg flex items-center justify-center hover:bg-green-200 transition-colors">
+                <a href="https://www.facebook.com/AMCIsince1992/" target="_blank" rel="noopener noreferrer" aria-label="Agay-Ayan Multi-Purpose Cooperative on Facebook" className="bg-green-100 w-10 h-10 rounded-lg flex items-center justify-center hover:bg-green-200 transition-colors">
                   <svg className="w-5 h-5 text-green-600" fill="currentColor" viewBox="0 0 24 24">
                     <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/>
-                  </svg>
-                </a>
-                <a href="#" className="bg-green-100 w-10 h-10 rounded-lg flex items-center justify-center hover:bg-green-200 transition-colors">
-                  <svg className="w-5 h-5 text-green-600" fill="currentColor" viewBox="0 0 24 24">
-                    <path d="M23.953 4.57a10 10 0 01-2.825.775 4.958 4.958 0 002.163-2.723c-.951.555-2.005.959-3.127 1.184a4.92 4.92 0 00-8.384 4.482C7.69 8.095 4.067 6.13 1.64 3.162a4.822 4.822 0 00-.666 2.475c0 1.71.87 3.213 2.188 4.096a4.904 4.904 0 01-2.228-.616v.06a4.923 4.923 0 003.946 4.827 4.996 4.996 0 01-2.212.085 4.936 4.936 0 004.604 3.417 9.867 9.867 0 01-6.102 2.105c-.39 0-.779-.023-1.17-.067a13.995 13.995 0 007.557 2.209c9.053 0 13.998-7.496 13.998-13.985 0-.21 0-.42-.015-.63A9.935 9.935 0 0024 4.59z"/>
                   </svg>
                 </a>
               </div>
@@ -1169,7 +1102,7 @@ const Footer = () => {
               <p>Agay-Ayan, Gingoog City, Misamis Oriental</p>
               <p>+63 951 047 8623 <br />
                     +63 916 686 3117 </p>
-              <p>info@agayayanmpc.coop</p>
+              <p>agay.ayanmpc@gmail.com</p>
             </div>
           </div>
 

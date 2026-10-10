@@ -71,6 +71,39 @@ html:has(#contact:target) .amcoms-navbar a[href="#contact"] {
   color: var(--amcoms-gold-light);
 }
 
+.amcoms-navbar a.amcoms-login-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 10px 22px;
+  border-radius: 6px;
+  border-bottom: 3px solid var(--amcoms-gold);
+  background: var(--amcoms-forest);
+  color: #fff;
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  box-shadow: 0 2px 6px rgb(23 75 55 / 25%);
+  transition: background-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
+}
+
+.amcoms-navbar a.amcoms-login-btn:hover {
+  background: var(--amcoms-green);
+  box-shadow: 0 4px 12px rgb(23 75 55 / 30%);
+  transform: translateY(-1px);
+}
+
+.amcoms-navbar a.amcoms-login-btn:focus-visible {
+  outline: 2px solid var(--amcoms-gold);
+  outline-offset: 2px;
+}
+
+.amcoms-navbar a.amcoms-login-btn--block {
+  width: 100%;
+  padding: 12px 22px;
+}
+
 .amcoms-navbar img[alt="Agay-ayan MPC Logo"] {
   width: 72px;
   height: 72px;
