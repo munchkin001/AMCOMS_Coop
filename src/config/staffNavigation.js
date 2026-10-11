@@ -255,7 +255,7 @@ const staffNavigationConfig = {
     },
     {
       id: 'sales',
-      name: 'Inventory History',
+      name: 'Inventory Tracking',
       icon: '🛒',
       path: '/staff/sales',
       component: 'SalesOrders'

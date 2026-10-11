@@ -44,6 +44,7 @@ import StockManagement from '../components/inventory/StockManagement';
 import Production from '../components/inventory/Production';
 import InventoryReports from '../components/inventory/InventoryReports';
 import InventoryHistory from '../components/inventory/InventoryHistory';
+import Purchases from '../components/inventory/Purchases';
 
 const StaffPortal = () => {
   const { staff, loading } = useAuth();
@@ -101,7 +102,7 @@ const StaffPortal = () => {
         <Route path="/announcements" element={<Announcements />} />
         <Route path="/sms" element={['manager', 'chairman'].includes(staff.role) ? <SMSCenter /> : <Navigate to="/staff/dashboard" replace />} />
         <Route path="/member-account-recovery" element={staff.role === 'chairman' ? <MemberAccountRecovery /> : <Navigate to="/staff/dashboard" replace />} />
-        <Route path="/reports" element={<ManagerReports />} />
+        <Route path="/reports" element={staff.role === 'inventory' ? <InventoryReports /> : <ManagerReports />} />
 
         {/* Treasurer Routes */}
         <Route path="/cash-receipts" element={<DailyCollection />} />
@@ -122,7 +123,7 @@ const StaffPortal = () => {
         <Route path="/stock" element={<StockManagement />} />
         <Route path="/production" element={<Production />} />
         <Route path="/sales" element={<InventoryHistory />} />
-        <Route path="/purchases" element={<InventoryHistory />} />
+        <Route path="/purchases" element={<Purchases />} />
 
         {/* Fallback - redirect to dashboard */}
         <Route path="*" element={<Navigate to="/staff/dashboard" replace />} />

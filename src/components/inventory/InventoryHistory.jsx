@@ -1,98 +1,156 @@
-import React, { useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { supabase } from '../../lib/supabase';
+import { useMultipleRealtimeSubscriptions } from '../../hooks/useRealtimeSubscription';
+
+const ACTIVITIES = {
+  purchase: { label: 'Purchase', direction: 1, badge: 'bg-green-100 text-green-800' },
+  production: { label: 'Production', direction: 1, badge: 'bg-blue-100 text-blue-800' },
+  return: { label: 'Return', direction: 1, badge: 'bg-green-100 text-green-800' },
+  sale: { label: 'Sale', direction: -1, badge: 'bg-orange-100 text-orange-800' },
+  transfer: { label: 'Transfer', direction: -1, badge: 'bg-orange-100 text-orange-800' },
+  waste: { label: 'Waste', direction: -1, badge: 'bg-red-100 text-red-800' },
+  adjustment: { label: 'Adjustment', direction: 0, badge: 'bg-gray-100 text-gray-800' }
+};
+
+const EMPTY_FILTERS = { product: '', activity: '', dateFrom: '', dateTo: '' };
+
+const signedQuantity = (movement) => {
+  const quantity = Number(movement.quantity || 0);
+  const direction = ACTIVITIES[movement.movement_type]?.direction;
+  if (direction === 0 || direction === undefined) return quantity;
+  return direction * Math.abs(quantity);
+};
+
+const formatQuantity = (value, unit) => {
+  const sign = value > 0 ? '+' : value < 0 ? '-' : '';
+  return `${sign}${Math.abs(value).toLocaleString()}${unit ? ` ${unit}` : ''}`;
+};
 
 const InventoryHistory = () => {
-  const [filters, setFilters] = useState({ product: '', activity: '', dateFrom: '', dateTo: '' });
+  const [filters, setFilters] = useState(EMPTY_FILTERS);
+  const [movements, setMovements] = useState([]);
+  const [products, setProducts] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const requestId = useRef(0);
 
-  const history = [
-    { date: '2026-06-03', product: 'Coconut Sugar', activity: 'Production', quantity: '+50 kg', type: 'production' },
-    { date: '2026-06-03', product: 'Coconut Sugar', activity: 'Sold', quantity: '-20 packs', type: 'out' },
-    { date: '2026-06-03', product: 'Turmeric', activity: 'Received', quantity: '+30 packs', type: 'in' },
-    { date: '2026-06-03', product: 'Coconut Crunch', activity: 'Sold', quantity: '-10 packs', type: 'out' },
-    { date: '2026-06-02', product: 'Coconut Sugar', activity: 'Damaged', quantity: '-3 packs', type: 'damaged' },
-    { date: '2026-06-02', product: 'Coconut Sugar', activity: 'Production', quantity: '+45 kg', type: 'production' },
-    { date: '2026-06-01', product: 'Coconut Sugar', activity: 'Sold', quantity: '-15 packs', type: 'out' },
-    { date: '2026-06-01', product: 'Turmeric', activity: 'Expired', quantity: '-5 packs', type: 'expired' }
-  ];
+  const fetchData = useCallback(async () => {
+    const currentRequest = ++requestId.current;
+    let query = supabase
+      .from('stock_movements')
+      .select('id, product_id, movement_type, quantity, reference_number, movement_date, description, created_at, products(product_name, unit_of_measure)')
+      .order('movement_date', { ascending: false })
+      .order('created_at', { ascending: false })
+      .limit(500);
 
-  const getActivityBadge = (type) => {
-    const types = {
-      production: 'bg-blue-100 text-blue-800',
-      in: 'bg-green-100 text-green-800',
-      out: 'bg-orange-100 text-orange-800',
-      damaged: 'bg-red-100 text-red-800',
-      expired: 'bg-red-100 text-red-800'
+    if (filters.product) query = query.eq('product_id', filters.product);
+    if (filters.activity) query = query.eq('movement_type', filters.activity);
+    if (filters.dateFrom) query = query.gte('movement_date', filters.dateFrom);
+    if (filters.dateTo) query = query.lte('movement_date', filters.dateTo);
+
+    const [movementResult, productResult] = await Promise.all([
+      query,
+      supabase.from('products').select('id, product_name').order('product_name')
+    ]);
+    if (currentRequest !== requestId.current) return;
+
+    const failure = movementResult.error || productResult.error;
+    if (failure) {
+      setError(`Unable to load inventory tracking: ${failure.message}`);
+    } else {
+      setMovements(movementResult.data || []);
+      setProducts(productResult.data || []);
+      setError('');
+    }
+    setLoading(false);
+  }, [filters]);
+
+  useEffect(() => {
+    fetchData();
+    return () => {
+      requestId.current += 1;
     };
-    return types[type] || 'bg-gray-100 text-gray-800';
-  };
+  }, [fetchData]);
+
+  useMultipleRealtimeSubscriptions(
+    ['stock_movements', 'products', 'production_records', 'purchases'].map((table) => ({ table, onUpdate: fetchData })),
+    [fetchData]
+  );
+
+  const totals = useMemo(() => movements.reduce((acc, movement) => {
+    const value = signedQuantity(movement);
+    if (value > 0) acc.in += value;
+    else acc.out += Math.abs(value);
+    return acc;
+  }, { in: 0, out: 0 }), [movements]);
+
+  const updateFilter = (field) => (event) => setFilters((current) => ({ ...current, [field]: event.target.value }));
+
+  const inputClass = 'w-full px-3 py-2 border border-gray-300 rounded-lg text-sm';
+  const labelClass = 'block text-sm font-medium text-gray-700 mb-2';
 
   return (
     <div className="space-y-6">
-      {/* Filters */}
+      {error && <p role="alert" className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{error}</p>}
+
       <div className="bg-white rounded-lg border border-gray-200 p-6">
         <h3 className="text-lg font-semibold text-gray-900 mb-4">Search & Filter</h3>
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Product</label>
-            <select
-              value={filters.product}
-              onChange={(e) => setFilters({ ...filters, product: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-            >
+            <label htmlFor="tracking-product" className={labelClass}>Product</label>
+            <select id="tracking-product" value={filters.product} onChange={updateFilter('product')} className={inputClass}>
               <option value="">All Products</option>
-              <option>Coconut Sugar</option>
-              <option>Turmeric</option>
-              <option>Coconut Crunch</option>
+              {products.map((product) => (
+                <option key={product.id} value={product.id}>{product.product_name}</option>
+              ))}
             </select>
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Activity</label>
-            <select
-              value={filters.activity}
-              onChange={(e) => setFilters({ ...filters, activity: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-            >
+            <label htmlFor="tracking-activity" className={labelClass}>Activity</label>
+            <select id="tracking-activity" value={filters.activity} onChange={updateFilter('activity')} className={inputClass}>
               <option value="">All Activities</option>
-              <option>Production</option>
-              <option>Stock In</option>
-              <option>Stock Out</option>
-              <option>Damaged</option>
-              <option>Expired</option>
+              {Object.entries(ACTIVITIES).map(([value, { label }]) => (
+                <option key={value} value={value}>{label}</option>
+              ))}
             </select>
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Date From</label>
-            <input
-              type="date"
-              value={filters.dateFrom}
-              onChange={(e) => setFilters({ ...filters, dateFrom: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-            />
+            <label htmlFor="tracking-from" className={labelClass}>Date From</label>
+            <input id="tracking-from" type="date" value={filters.dateFrom} onChange={updateFilter('dateFrom')} className={inputClass} />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Date To</label>
-            <input
-              type="date"
-              value={filters.dateTo}
-              onChange={(e) => setFilters({ ...filters, dateTo: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-            />
+            <label htmlFor="tracking-to" className={labelClass}>Date To</label>
+            <input id="tracking-to" type="date" value={filters.dateTo} onChange={updateFilter('dateTo')} className={inputClass} />
           </div>
         </div>
-        <div className="flex space-x-3 mt-4">
-          <button className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 font-medium">
-            Reset Filters
-          </button>
-          <button className="px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 font-medium">
-            Apply Filters
-          </button>
+        <button
+          type="button"
+          onClick={() => setFilters(EMPTY_FILTERS)}
+          className="mt-4 px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 font-medium text-sm"
+        >
+          Reset Filters
+        </button>
+      </div>
+
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+        <div className="rounded-lg border border-gray-200 bg-white p-5">
+          <p className="text-sm text-gray-500">Movements Shown</p>
+          <p className="mt-1 text-2xl font-bold text-gray-900">{loading ? '…' : movements.length.toLocaleString()}</p>
+        </div>
+        <div className="rounded-lg border border-gray-200 bg-white p-5">
+          <p className="text-sm text-gray-500">Total Stock In</p>
+          <p className="mt-1 text-2xl font-bold text-green-600">{loading ? '…' : `+${totals.in.toLocaleString()}`}</p>
+        </div>
+        <div className="rounded-lg border border-gray-200 bg-white p-5">
+          <p className="text-sm text-gray-500">Total Stock Out</p>
+          <p className="mt-1 text-2xl font-bold text-red-600">{loading ? '…' : `-${totals.out.toLocaleString()}`}</p>
         </div>
       </div>
 
-      {/* Inventory History Table */}
       <div className="bg-white rounded-lg border border-gray-200">
         <div className="p-6 border-b border-gray-200">
           <h3 className="text-lg font-semibold text-gray-900">Inventory Movement History</h3>
-          <p className="text-sm text-gray-600 mt-1">Complete record of all stock movements and activities</p>
+          <p className="text-sm text-gray-600 mt-1">Complete record of all stock movements and activities, updated as they are recorded</p>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full">
@@ -101,35 +159,39 @@ const InventoryHistory = () => {
                 <th className="text-left py-3 px-6 font-semibold text-gray-700 text-sm">Date</th>
                 <th className="text-left py-3 px-6 font-semibold text-gray-700 text-sm">Product</th>
                 <th className="text-left py-3 px-6 font-semibold text-gray-700 text-sm">Activity</th>
+                <th className="text-left py-3 px-6 font-semibold text-gray-700 text-sm">Reference</th>
                 <th className="text-right py-3 px-6 font-semibold text-gray-700 text-sm">Quantity</th>
               </tr>
             </thead>
             <tbody>
-              {history.map((record, idx) => (
-                <tr key={idx} className="border-b border-gray-100 hover:bg-gray-50">
-                  <td className="py-3 px-6 text-sm text-gray-900">{record.date}</td>
-                  <td className="py-3 px-6 text-sm text-gray-900 font-medium">{record.product}</td>
-                  <td className="py-3 px-6">
-                    <span className={`inline-block px-3 py-1 rounded-full text-xs font-medium ${getActivityBadge(record.type)}`}>
-                      {record.activity}
-                    </span>
-                  </td>
-                  <td className={`py-3 px-6 text-sm text-right font-semibold ${
-                    record.quantity.startsWith('+') ? 'text-green-600' : 'text-red-600'
-                  }`}>
-                    {record.quantity}
-                  </td>
-                </tr>
-              ))}
+              {loading && (
+                <tr><td colSpan={5} className="py-10 text-center text-gray-500">Loading stock movements…</td></tr>
+              )}
+              {!loading && movements.length === 0 && (
+                <tr><td colSpan={5} className="py-10 text-center text-gray-500">No stock movements found.</td></tr>
+              )}
+              {movements.map((movement) => {
+                const activity = ACTIVITIES[movement.movement_type];
+                const value = signedQuantity(movement);
+                return (
+                  <tr key={movement.id} className="border-b border-gray-100 hover:bg-gray-50">
+                    <td className="py-3 px-6 text-sm text-gray-900">{movement.movement_date}</td>
+                    <td className="py-3 px-6 text-sm text-gray-900 font-medium">{movement.products?.product_name || 'Unknown product'}</td>
+                    <td className="py-3 px-6">
+                      <span className={`inline-block px-3 py-1 rounded-full text-xs font-medium ${activity?.badge || 'bg-gray-100 text-gray-800'}`}>
+                        {activity?.label || movement.movement_type}
+                      </span>
+                    </td>
+                    <td className="py-3 px-6 text-sm text-gray-600">{movement.reference_number || movement.description || '-'}</td>
+                    <td className={`py-3 px-6 text-sm text-right font-semibold ${value >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                      {formatQuantity(value, movement.products?.unit_of_measure)}
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
-      </div>
-
-      <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
-        <p className="text-sm text-blue-800">
-          <strong>Why did stock change?</strong> This history helps you track all inventory movements and understand stock level changes.
-        </p>
       </div>
     </div>
   );

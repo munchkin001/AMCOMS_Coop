@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { AlertTriangle, ArrowDownToLine, ArrowUpFromLine, Boxes, Factory, Package, PackageCheck } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useMultipleRealtimeSubscriptions } from '../../hooks/useRealtimeSubscription';
@@ -7,6 +8,7 @@ import { toDateString } from '../../lib/dashboardAccounting';
 import DashboardMetricCard from '../common/DashboardMetricCard';
 
 const InventoryDashboard = () => {
+  const navigate = useNavigate();
   const greeting = useTimeOfDayGreeting();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -28,7 +30,6 @@ const InventoryDashboard = () => {
 
   const fetchDashboardData = async () => {
     try {
-      setLoading(true);
       const today = toDateString(new Date());
 
       // Fetch total active products
@@ -288,7 +289,7 @@ const InventoryDashboard = () => {
           <div className="flex items-center justify-between">
             <h3 className="text-lg font-semibold text-gray-900">Recent Activities</h3>
             <button 
-              onClick={() => alert('Navigate to the Inventory History section using the sidebar menu to view all stock movements and activities.')}
+              onClick={() => navigate('/staff/sales')}
               className="text-sm text-orange-600 hover:text-orange-700 font-medium cursor-pointer"
             >
               View All →
@@ -344,25 +345,25 @@ const InventoryDashboard = () => {
       <div className="bg-white rounded-lg border border-gray-200 p-6">
         <h3 className="text-lg font-semibold text-gray-900 mb-4">Quick Actions</h3>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-          <button className="flex flex-col items-center justify-center p-4 border-2 border-orange-300 bg-orange-50 rounded-lg hover:bg-orange-100 transition-colors">
+          <button onClick={() => navigate('/staff/products')} className="flex flex-col items-center justify-center p-4 border-2 border-orange-300 bg-orange-50 rounded-lg hover:bg-orange-100 transition-colors">
             <svg className="w-8 h-8 text-orange-600 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
             </svg>
             <span className="text-sm font-medium text-gray-900">Add Product</span>
           </button>
-          <button className="flex flex-col items-center justify-center p-4 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors">
+          <button onClick={() => navigate('/staff/stock')} className="flex flex-col items-center justify-center p-4 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors">
             <svg className="w-8 h-8 text-green-600 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4" />
             </svg>
             <span className="text-sm font-medium text-gray-900">Stock In</span>
           </button>
-          <button className="flex flex-col items-center justify-center p-4 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors">
+          <button onClick={() => navigate('/staff/stock')} className="flex flex-col items-center justify-center p-4 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors">
             <svg className="w-8 h-8 text-red-600 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4" />
             </svg>
             <span className="text-sm font-medium text-gray-900">Stock Out</span>
           </button>
-          <button className="flex flex-col items-center justify-center p-4 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors">
+          <button onClick={() => navigate('/staff/production')} className="flex flex-col items-center justify-center p-4 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors">
             <svg className="w-8 h-8 text-blue-600 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" />
             </svg>
