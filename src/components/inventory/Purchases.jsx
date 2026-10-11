@@ -1,6 +1,8 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ChevronDown, ChevronRight } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
+import { cancelPurchase, receivePurchase } from '../../lib/inventoryService';
+import NewPurchaseModal from './NewPurchaseModal';
 import { useMultipleRealtimeSubscriptions } from '../../hooks/useRealtimeSubscription';
 
 const STATUS_STYLES = {
@@ -39,7 +41,11 @@ const Purchases = () => {
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
   const [expanded, setExpanded] = useState(() => new Set());
+  const [showForm, setShowForm] = useState(false);
+  const [notice, setNotice] = useState('');
+  const [busyId, setBusyId] = useState(null);
   const requestId = useRef(0);
+
 
   const fetchPurchases = useCallback(async () => {
     const currentRequest = ++requestId.current;
@@ -49,7 +55,7 @@ const Purchases = () => {
         id, purchase_number, purchase_date, expected_delivery_date, net_amount,
         payment_status, status, notes,
         suppliers(supplier_name),
-        purchase_items(id, quantity, unit_cost, line_total, received_quantity, products(product_name, unit_of_measure))
+        purchase_items(id, quantity, unit_cost, line_total, received_quantity, item_name, unit, products(product_name, unit_of_measure))
       `)
       .order('purchase_date', { ascending: false })
       .order('created_at', { ascending: false })
@@ -81,6 +87,21 @@ const Purchases = () => {
     ['purchases', 'purchase_items', 'suppliers', 'products'].map((table) => ({ table, onUpdate: fetchPurchases })),
     [fetchPurchases]
   );
+
+  const runAction = async (purchase, action, message) => {
+    setBusyId(purchase.id);
+    setError('');
+    setNotice('');
+    try {
+      await action(purchase.id);
+      setNotice(message);
+      fetchPurchases();
+    } catch (actionError) {
+      setError(actionError.message);
+    } finally {
+      setBusyId(null);
+    }
+  };
 
   const filtered = useMemo(() => {
     const term = search.trim().toLowerCase();
@@ -129,6 +150,23 @@ const Purchases = () => {
 
   return (
     <div className="space-y-6">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <p className="text-sm text-gray-600">Record raw materials and supplies bought from suppliers. These are separate from finished-product stock.</p>
+        <button type="button" onClick={() => setShowForm(true)} className="rounded-lg bg-orange-600 px-4 py-2 text-sm font-medium text-white hover:bg-orange-700">
+          New Purchase
+        </button>
+      </div>
+      {notice && <p role="status" className="rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-800">{notice}</p>}
+      {showForm && (
+        <NewPurchaseModal
+          onClose={() => setShowForm(false)}
+          onSaved={(received) => {
+            setShowForm(false);
+            setNotice(received ? 'Purchase recorded as received.' : 'Purchase order recorded. Mark it received when the items arrive.');
+            fetchPurchases();
+          }}
+        />
+      )}
       {error && <p role="alert" className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{error}</p>}
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -215,15 +253,16 @@ const Purchases = () => {
                 <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Status</th>
                 <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Payment</th>
                 <th className="px-4 py-3 text-right text-sm font-semibold text-gray-700">Amount</th>
+                <th className="px-4 py-3 text-right text-sm font-semibold text-gray-700">Actions</th>
               </tr>
             </thead>
             <tbody>
               {loading && (
-                <tr><td colSpan={7} className="px-4 py-10 text-center text-gray-500">Loading purchases…</td></tr>
+                <tr><td colSpan={8} className="px-4 py-10 text-center text-gray-500">Loading purchases…</td></tr>
               )}
               {!loading && filtered.length === 0 && (
                 <tr>
-                  <td colSpan={7} className="px-4 py-10 text-center text-gray-500">
+                  <td colSpan={8} className="px-4 py-10 text-center text-gray-500">
                     {purchases.length === 0 ? 'No purchase orders have been recorded yet.' : 'No purchases match the selected filters.'}
                   </td>
                 </tr>
@@ -251,11 +290,37 @@ const Purchases = () => {
                       <td className="px-4 py-3"><Badge value={purchase.status} styles={STATUS_STYLES} /></td>
                       <td className="px-4 py-3"><Badge value={purchase.payment_status} styles={PAYMENT_STYLES} /></td>
                       <td className="px-4 py-3 text-right text-sm font-semibold text-gray-900">{formatMoney(purchase.net_amount)}</td>
+                      <td className="px-4 py-3 text-right">
+                        {['draft', 'ordered'].includes(purchase.status) && (
+                          <div className="flex justify-end gap-2">
+                            <button
+                              type="button"
+                              disabled={busyId === purchase.id}
+                              onClick={() => runAction(purchase, receivePurchase, `${purchase.purchase_number} marked as received.`)}
+                              className="rounded-lg bg-orange-600 px-3 py-1 text-xs font-medium text-white hover:bg-orange-700 disabled:opacity-60"
+                            >
+                              Mark Received
+                            </button>
+                            <button
+                              type="button"
+                              disabled={busyId === purchase.id}
+                              onClick={() => {
+                                if (window.confirm(`Cancel purchase ${purchase.purchase_number}?`)) {
+                                  runAction(purchase, cancelPurchase, `${purchase.purchase_number} cancelled.`);
+                                }
+                              }}
+                              className="rounded-lg bg-gray-200 px-3 py-1 text-xs font-medium text-gray-700 hover:bg-gray-300 disabled:opacity-60"
+                            >
+                              Cancel
+                            </button>
+                          </div>
+                        )}
+                      </td>
                     </tr>
                     {isOpen && (
                       <tr className="bg-gray-50">
                         <td />
-                        <td colSpan={6} className="px-4 py-4">
+                        <td colSpan={7} className="px-4 py-4">
                           {purchase.expected_delivery_date && (
                             <p className="mb-2 text-xs text-gray-500">Expected delivery: {purchase.expected_delivery_date}</p>
                           )}
@@ -276,8 +341,8 @@ const Purchases = () => {
                               <tbody>
                                 {items.map((item) => (
                                   <tr key={item.id} className="border-t border-gray-200">
-                                    <td className="py-2 pr-4 text-gray-900">{item.products?.product_name || 'Unknown product'}</td>
-                                    <td className="py-2 pr-4 text-right">{item.quantity} {item.products?.unit_of_measure}</td>
+                                    <td className="py-2 pr-4 text-gray-900">{item.item_name || item.products?.product_name || 'Unnamed item'}</td>
+                                    <td className="py-2 pr-4 text-right">{item.quantity} {item.unit || item.products?.unit_of_measure || ''}</td>
                                     <td className="py-2 pr-4 text-right">{item.received_quantity || 0}</td>
                                     <td className="py-2 pr-4 text-right">{formatMoney(item.unit_cost)}</td>
                                     <td className="py-2 text-right font-medium">{formatMoney(item.line_total)}</td>

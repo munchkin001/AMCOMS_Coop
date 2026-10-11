@@ -53,6 +53,7 @@ const Transactions = () => {
       const { error } = await supabase.rpc('save_cash_disbursement', {
         p_disbursement: {
           disbursement_date: data.date,
+          voucher_number: data.voucherNumber.trim(),
           member_id: data.memberId,
           term_months: data.termMonths ? Number(data.termMonths) : null,
           payment_frequency: data.paymentFrequency,

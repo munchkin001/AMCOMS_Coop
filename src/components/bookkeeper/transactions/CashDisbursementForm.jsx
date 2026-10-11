@@ -5,6 +5,7 @@ import { Upload, Plus, X, AlertCircle } from 'lucide-react';
 const CashDisbursementForm = ({ onSave, onCancel, transaction = null }) => {
   const [formData, setFormData] = useState(transaction ? {
     date: transaction.date,
+    voucherNumber: transaction.voucherNumber || transaction.repCvNumber || transaction.referenceNo || '',
     particulars: transaction.particulars || '',
     memberId: transaction.memberId || '',
     termMonths: transaction.termMonths || '12',
@@ -15,6 +16,7 @@ const CashDisbursementForm = ({ onSave, onCancel, transaction = null }) => {
     supportingDocuments: transaction.supportingDocuments || []
   } : {
     date: new Date().toISOString().split('T')[0],
+    voucherNumber: '',
     particulars: '',
     memberId: '',
     termMonths: '12',
@@ -31,6 +33,36 @@ const CashDisbursementForm = ({ onSave, onCancel, transaction = null }) => {
   const [isDraft, setIsDraft] = useState(false);
   const [saving, setSaving] = useState(false);
   const [members, setMembers] = useState([]);
+  const [openPurchases, setOpenPurchases] = useState([]);
+
+  useEffect(() => {
+    let active = true;
+    supabase
+      .from('purchases')
+      .select('id, purchase_number, net_amount, payment_status, suppliers(supplier_name)')
+      .neq('status', 'cancelled')
+      .neq('payment_status', 'paid')
+      .order('purchase_date', { ascending: false })
+      .limit(200)
+      .then(({ data }) => {
+        if (active) setOpenPurchases(data || []);
+      });
+    return () => { active = false; };
+  }, []);
+
+  const handlePurchaseLink = (purchaseNumber) => {
+    const purchase = openPurchases.find((item) => item.purchase_number === purchaseNumber);
+    if (!purchase) return;
+    const supplier = purchase.suppliers?.supplier_name;
+    setFormData((prev) => ({
+      ...prev,
+      particulars: prev.particulars.includes(purchase.purchase_number)
+        ? prev.particulars
+        : `${prev.particulars.trim() ? `${prev.particulars.trim()} - ` : ''}Payment for purchase ${purchase.purchase_number}${supplier ? ` (${supplier})` : ''}`,
+      paymentAmount: prev.paymentAmount || String(purchase.net_amount)
+    }));
+    setErrors((prev) => ({ ...prev, particulars: '' }));
+  };
 
   useEffect(() => {
     let active = true;
@@ -156,6 +188,7 @@ const CashDisbursementForm = ({ onSave, onCancel, transaction = null }) => {
     const newErrors = {};
 
     if (!formData.date) newErrors.date = 'Date is required';
+    if (!formData.voucherNumber.trim()) newErrors.voucherNumber = 'Voucher number is required';
     if (!formData.particulars.trim()) newErrors.particulars = 'Particulars are required';
     if (!formData.memberId) newErrors.memberId = 'Select a member';
     if (!formData.paymentAmount || parseFloat(formData.paymentAmount) <= 0) {
@@ -228,7 +261,26 @@ const CashDisbursementForm = ({ onSave, onCancel, transaction = null }) => {
         </h2>
 
         {/* Basic Information */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+          <div>
+            <label htmlFor="voucherNumber" className="block text-sm font-medium text-gray-700 mb-2">
+              Voucher Number <span className="text-red-500">*</span>
+            </label>
+            <input
+              id="voucherNumber"
+              type="text"
+              value={formData.voucherNumber}
+              onChange={(e) => handleInputChange('voucherNumber', e.target.value)}
+              placeholder="e.g., CDV-2026-001"
+              className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+                errors.voucherNumber ? 'border-red-500' : 'border-gray-300'
+              }`}
+            />
+            {errors.voucherNumber && (
+              <p role="alert" className="mt-1 text-sm text-red-600">{errors.voucherNumber}</p>
+            )}
+          </div>
+
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
               Date <span className="text-red-500">*</span>
@@ -288,6 +340,27 @@ const CashDisbursementForm = ({ onSave, onCancel, transaction = null }) => {
                 <option value="weekly">Weekly</option>
               </select>
             </div>
+          </div>
+        )}
+        {openPurchases.length > 0 && (
+          <div className="mb-6">
+            <label htmlFor="linked-purchase" className="block text-sm font-medium text-gray-700 mb-2">
+              Paying a supplier purchase? (optional)
+            </label>
+            <select
+              id="linked-purchase"
+              defaultValue=""
+              onChange={(e) => handlePurchaseLink(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white"
+            >
+              <option value="">Not linked to a purchase</option>
+              {openPurchases.map((purchase) => (
+                <option key={purchase.id} value={purchase.purchase_number}>
+                  {purchase.purchase_number} - {purchase.suppliers?.supplier_name || 'No supplier'} - ₱{Number(purchase.net_amount).toLocaleString('en-PH', { minimumFractionDigits: 2 })} ({purchase.payment_status})
+                </option>
+              ))}
+            </select>
+            <p className="mt-1 text-xs text-gray-500">The purchase number is added to the particulars. Once recorded, the purchase shows as Paid in the inventory portal.</p>
           </div>
         )}
         {/* Particulars */}
