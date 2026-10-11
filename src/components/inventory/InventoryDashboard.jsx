@@ -3,11 +3,13 @@ import { AlertTriangle, ArrowDownToLine, ArrowUpFromLine, Boxes, Factory, Packag
 import { supabase } from '../../lib/supabase';
 import { useMultipleRealtimeSubscriptions } from '../../hooks/useRealtimeSubscription';
 import { useTimeOfDayGreeting } from '../../hooks/useTimeOfDayGreeting';
+import { toDateString } from '../../lib/dashboardAccounting';
 import DashboardMetricCard from '../common/DashboardMetricCard';
 
 const InventoryDashboard = () => {
   const greeting = useTimeOfDayGreeting();
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
   const [dashboardData, setDashboardData] = useState({
     totalProducts: 0,
     lowStockCount: 0,
@@ -27,16 +29,17 @@ const InventoryDashboard = () => {
   const fetchDashboardData = async () => {
     try {
       setLoading(true);
-      const today = new Date().toISOString().split('T')[0];
+      const today = toDateString(new Date());
 
       // Fetch total active products
-      const { count: totalProducts } = await supabase
+      const { count: totalProducts, error: productCountError } = await supabase
         .from('products')
         .select('*', { count: 'exact', head: true })
         .eq('is_active', true);
+      if (productCountError) throw productCountError;
 
       // Fetch products with their inventory
-      const { data: productsData } = await supabase
+      const { data: productsData, error: productsError } = await supabase
         .from('products')
         .select(`
           *,
@@ -44,6 +47,7 @@ const InventoryDashboard = () => {
           stock_inventory(quantity_on_hand, quantity_available)
         `)
         .eq('is_active', true);
+      if (productsError) throw productsError;
 
       // Calculate low stock and out of stock
       const lowStockProducts = productsData?.filter(p => {
@@ -57,32 +61,35 @@ const InventoryDashboard = () => {
       }) || [];
 
       // Fetch today's production
-      const { data: productionData } = await supabase
+      const { data: productionData, error: productionError } = await supabase
         .from('production_records')
         .select('quantity_produced')
         .eq('production_date', today);
+      if (productionError) throw productionError;
 
       const todayProduction = productionData?.reduce((sum, p) => sum + (p.quantity_produced || 0), 0) || 0;
 
       // Fetch today's stock movements
-      const { data: stockInData } = await supabase
+      const { data: stockInData, error: stockInError } = await supabase
         .from('stock_movements')
         .select('quantity')
         .eq('movement_date', today)
         .in('movement_type', ['purchase', 'production', 'return']);
+      if (stockInError) throw stockInError;
 
       const todayStockIn = stockInData?.reduce((sum, s) => sum + (s.quantity || 0), 0) || 0;
 
-      const { data: stockOutData } = await supabase
+      const { data: stockOutData, error: stockOutError } = await supabase
         .from('stock_movements')
         .select('quantity')
         .eq('movement_date', today)
         .in('movement_type', ['sale', 'transfer', 'waste']);
+      if (stockOutError) throw stockOutError;
 
       const todayStockOut = stockOutData?.reduce((sum, s) => sum + Math.abs(s.quantity || 0), 0) || 0;
 
       // Fetch recent stock movements for activities
-      const { data: recentMovements } = await supabase
+      const { data: recentMovements, error: movementsError } = await supabase
         .from('stock_movements')
         .select(`
           movement_date,
@@ -93,6 +100,7 @@ const InventoryDashboard = () => {
         `)
         .order('created_at', { ascending: false })
         .limit(10);
+      if (movementsError) throw movementsError;
 
       const recentActivities = recentMovements?.map(m => {
         const activityTypeMap = {
@@ -134,8 +142,10 @@ const InventoryDashboard = () => {
         lowStockProducts,
         recentActivities
       });
+      setError('');
     } catch (error) {
       console.error('Error fetching dashboard data:', error);
+      setError(`Unable to load inventory data: ${error.message}`);
     } finally {
       setLoading(false);
     }
@@ -179,6 +189,7 @@ const InventoryDashboard = () => {
 
   return (
     <div className="space-y-6">
+      {error && <p role="alert" className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{error}</p>}
       {/* Greeting */}
       <div>
         <h2 className="text-2xl font-bold text-gray-900">{greeting}, Inventory Staff</h2>

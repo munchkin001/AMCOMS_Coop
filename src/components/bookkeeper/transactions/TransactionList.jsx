@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { useRealtimeSubscription } from '../../../hooks/useRealtimeSubscription';
 import { supabase } from '../../../lib/supabase';
+import { toDateString } from '../../../lib/dashboardAccounting';
 
 const TransactionList = ({ onNewTransaction, onViewTransaction }) => {
   const [searchQuery, setSearchQuery] = useState('');
@@ -84,11 +85,11 @@ const TransactionList = ({ onNewTransaction, onViewTransaction }) => {
   useRealtimeSubscription('cash_receipts', fetchTransactions, null, [fetchTransactions]);
   useRealtimeSubscription('cash_disbursements', fetchTransactions, null, [fetchTransactions]);
 
-  const today = new Date().toISOString().slice(0, 10);
+  const today = toDateString(new Date());
   const todayTransactions = transactions.filter((transaction) => transaction.date === today).length;
   const totalReceipts = transactions.filter((transaction) => transaction.transactionType === 'Receipt' && transaction.status === 'Recorded').reduce((sum, transaction) => sum + transaction.amount, 0);
   const totalDisbursements = transactions.filter((transaction) => transaction.transactionType === 'Disbursement' && transaction.status === 'Recorded').reduce((sum, transaction) => sum + transaction.amount, 0);
-  const forReview = transactions.filter((transaction) => transaction.status === 'For Review').length;
+  const draftCount = transactions.filter((transaction) => transaction.status === 'Draft').length;
 
   const getStatusColor = (status) => {
     switch (status) {
@@ -96,10 +97,6 @@ const TransactionList = ({ onNewTransaction, onViewTransaction }) => {
         return 'bg-gray-100 text-gray-700';
       case 'Recorded':
         return 'bg-green-100 text-green-700';
-      case 'For Review':
-        return 'bg-yellow-100 text-yellow-700';
-      case 'Reviewed':
-        return 'bg-blue-100 text-blue-700';
       case 'Voided':
         return 'bg-red-100 text-red-700';
       default:
@@ -132,8 +129,8 @@ const TransactionList = ({ onNewTransaction, onViewTransaction }) => {
           <p className="text-2xl lg:text-3xl font-bold text-red-600">{loading ? '...' : `₱${totalDisbursements.toLocaleString('en-PH', { minimumFractionDigits: 2 })}`}</p>
         </div>
         <div className="bg-white rounded-lg border border-gray-200 p-4 lg:p-6">
-          <p className="text-xs lg:text-sm text-gray-600 mb-1">For Review</p>
-          <p className="text-2xl lg:text-3xl font-bold text-yellow-600">{loading ? '...' : forReview}</p>
+          <p className="text-xs lg:text-sm text-gray-600 mb-1">Draft Transactions</p>
+          <p className="text-2xl lg:text-3xl font-bold text-gray-600">{loading ? '...' : draftCount}</p>
         </div>
       </div>
 
@@ -184,8 +181,6 @@ const TransactionList = ({ onNewTransaction, onViewTransaction }) => {
               <option value="all">All Status</option>
               <option value="Draft">Draft</option>
               <option value="Recorded">Recorded</option>
-              <option value="For Review">For Review</option>
-              <option value="Reviewed">Reviewed</option>
             </select>
           </div>
         </div>

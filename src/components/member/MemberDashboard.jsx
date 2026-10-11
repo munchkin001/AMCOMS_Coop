@@ -6,8 +6,9 @@ import { useMultipleRealtimeSubscriptions } from '../../hooks/useRealtimeSubscri
 import DashboardMetricCard from '../common/DashboardMetricCard';
 
 const MemberDashboard = ({ onNavigate }) => {
-  const { staff, user } = useAuth();
+  const { staff } = useAuth();
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
   const [memberData, setMemberData] = useState({
     memberId: null,
     memberNumber: '',
@@ -31,6 +32,14 @@ const MemberDashboard = ({ onNavigate }) => {
 
   // Set up real-time subscriptions for live updates
   useMultipleRealtimeSubscriptions([
+    {
+      table: 'members',
+      onUpdate: () => {
+        if (staff?.member_id) {
+          fetchMemberData();
+        }
+      }
+    },
     {
       table: 'savings_accounts',
       onUpdate: () => {
@@ -97,7 +106,7 @@ const MemberDashboard = ({ onNavigate }) => {
       const memberId = staff.member_id;
       
       if (!memberId) {
-        console.error('No member_id found in staff profile');
+        setError('Your member profile is not linked to a member record.');
         setLoading(false);
         return;
       }
@@ -114,15 +123,17 @@ const MemberDashboard = ({ onNavigate }) => {
       // Fetch total savings from all savings accounts
       const { data: savingsAccounts, error: savingsError } = await supabase
         .from('savings_accounts')
-        .select('balance')
+        .select('balance, account_type')
         .eq('member_id', memberId)
         .eq('status', 'active');
 
-      if (savingsError) console.error('Error fetching savings:', savingsError);
-      const totalSavings = savingsAccounts?.reduce((sum, acc) => sum + parseFloat(acc.balance || 0), 0) || 0;
-
-      // Note: time_deposits table needs to be created - using 0 for now
-      const totalTimeDeposit = 0;
+      if (savingsError) throw savingsError;
+      const totalSavings = (savingsAccounts || [])
+        .filter((account) => account.account_type !== 'time_deposit')
+        .reduce((sum, account) => sum + Number(account.balance || 0), 0);
+      const totalTimeDeposit = (savingsAccounts || [])
+        .filter((account) => account.account_type === 'time_deposit')
+        .reduce((sum, account) => sum + Number(account.balance || 0), 0);
 
       // Fetch active loans and calculate balance
       const { data: activeLoans, error: loansError } = await supabase
@@ -132,7 +143,7 @@ const MemberDashboard = ({ onNavigate }) => {
         .in('status', ['active'])
         .order('created_at', { ascending: false });
 
-      if (loansError) console.error('Error fetching loans:', loansError);
+      if (loansError) throw loansError;
       const totalLoanBalance = activeLoans?.reduce((sum, loan) => sum + parseFloat(loan.balance || 0), 0) || 0;
 
       // Next payments come from the repayment schedule
@@ -144,7 +155,7 @@ const MemberDashboard = ({ onNavigate }) => {
         .neq('status', 'paid')
         .order('due_date', { ascending: true })
         .limit(4);
-      if (dueError) console.error('Error fetching due dates:', dueError);
+      if (dueError) throw dueError;
       const dueDates = dueRows || [];
       const nextPaymentAmount = dueDates[0]
         ? Number(dueDates[0].amount_due) + Number(dueDates[0].penalty_amount) - Number(dueDates[0].amount_paid)
@@ -167,7 +178,7 @@ const MemberDashboard = ({ onNavigate }) => {
         .order('transaction_date', { ascending: false })
         .limit(5);
 
-      if (savingsTxError) console.error('Error fetching savings transactions:', savingsTxError);
+      if (savingsTxError) throw savingsTxError;
 
       // Fetch recent loan payments
       const { data: loanPayments, error: loanPaymentsError } = await supabase
@@ -186,16 +197,17 @@ const MemberDashboard = ({ onNavigate }) => {
         .order('payment_date', { ascending: false })
         .limit(5);
 
-      if (loanPaymentsError) console.error('Error fetching loan payments:', loanPaymentsError);
+      if (loanPaymentsError) throw loanPaymentsError;
 
       // Combine transactions
       // Bookkeeper actions (loan released, disbursements) are mirrored here
-      const { data: activityRows } = await supabase
+      const { data: activityRows, error: activityError } = await supabase
         .from('member_activity')
         .select('id, title, amount, created_at, is_discrepancy, note')
         .eq('member_id', memberId)
         .order('created_at', { ascending: false })
         .limit(10);
+      if (activityError) throw activityError;
 
       const requestActivity = (activityRows || []).map((row) => ({
         id: row.id,
@@ -236,7 +248,7 @@ const MemberDashboard = ({ onNavigate }) => {
         .order('published_at', { ascending: false })
         .limit(3);
 
-      if (announcementsError) console.error('Error fetching announcements:', announcementsError);
+      if (announcementsError) throw announcementsError;
 
       setMemberData({
         memberId,
@@ -252,8 +264,10 @@ const MemberDashboard = ({ onNavigate }) => {
         recentTransactions,
         announcements: announcements || []
       });
+      setError('');
     } catch (error) {
       console.error('Error fetching member data:', error);
+      setError(`Unable to load your account data: ${error.message}`);
     } finally {
       setLoading(false);
     }
@@ -263,6 +277,7 @@ const MemberDashboard = ({ onNavigate }) => {
 
   return (
     <div className="space-y-6">
+      {error && <p role="alert" className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{error}</p>}
       {/* Greeting and account summary */}
       <div>
         <h2 className="text-xl font-bold text-gray-900 sm:text-2xl">Hi, {memberData.firstName || 'Member'}!</h2>
@@ -468,5 +483,3 @@ const MemberDashboard = ({ onNavigate }) => {
 };
 
 export default MemberDashboard;
-
-

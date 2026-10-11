@@ -1,43 +1,140 @@
-import React, { useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useMultipleRealtimeSubscriptions } from '../../hooks/useRealtimeSubscription';
+import { fetchAccountBalances, toDateString } from '../../lib/dashboardAccounting';
+
+const getPeriodRange = (period, referenceDate) => {
+  const selectedDate = new Date(`${referenceDate}T00:00:00`);
+  let start;
+  let end;
+  let label;
+
+  if (period === 'daily') {
+    start = selectedDate;
+    end = selectedDate;
+    label = selectedDate.toLocaleDateString();
+  } else if (period === 'weekly') {
+    const dayOfWeek = selectedDate.getDay();
+    start = new Date(selectedDate);
+    start.setDate(selectedDate.getDate() - ((dayOfWeek + 6) % 7));
+    end = new Date(start);
+    end.setDate(start.getDate() + 6);
+    label = `${start.toLocaleDateString()} - ${end.toLocaleDateString()}`;
+  } else if (period === 'quarterly') {
+    const quarterStartMonth = Math.floor(selectedDate.getMonth() / 3) * 3;
+    start = new Date(selectedDate.getFullYear(), quarterStartMonth, 1);
+    end = new Date(selectedDate.getFullYear(), quarterStartMonth + 3, 0);
+    label = `Q${Math.floor(selectedDate.getMonth() / 3) + 1} ${selectedDate.getFullYear()}`;
+  } else if (period === 'annual') {
+    start = new Date(selectedDate.getFullYear(), 0, 1);
+    end = new Date(selectedDate.getFullYear(), 11, 31);
+    label = String(selectedDate.getFullYear());
+  } else {
+    start = new Date(selectedDate.getFullYear(), selectedDate.getMonth(), 1);
+    end = new Date(selectedDate.getFullYear(), selectedDate.getMonth() + 1, 0);
+    label = selectedDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+  }
+
+  return { start: toDateString(start), end: toDateString(end), label };
+};
+
+const formatMoney = (value) => `₱${Number(value || 0).toLocaleString('en-PH', {
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2
+})}`;
 
 const IncomeExpenses = () => {
   const [viewType, setViewType] = useState('income');
   const [period, setPeriod] = useState('monthly');
-  const [selectedMonth, setSelectedMonth] = useState('2026-06');
+  const [referenceDate, setReferenceDate] = useState(toDateString(new Date()));
+  const [accountBalances, setAccountBalances] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const requestId = useRef(0);
+  const range = useMemo(() => getPeriodRange(period, referenceDate), [period, referenceDate]);
 
-  const incomeData = [
-    { category: 'Product Sales', amount: 150000, percentage: 71.4, transactions: 45 },
-    { category: 'Loan Interest', amount: 45000, percentage: 21.4, transactions: 120 },
-    { category: 'Membership Fees', amount: 10000, percentage: 4.8, transactions: 8 },
-    { category: 'Other Income', amount: 5000, percentage: 2.4, transactions: 3 }
-  ];
+  const loadData = useCallback(async () => {
+    const currentRequest = ++requestId.current;
+    try {
+      const balances = await fetchAccountBalances(range.start, range.end);
+      if (currentRequest !== requestId.current) return;
+      setAccountBalances(balances);
+      setError('');
+    } catch (loadError) {
+      if (currentRequest !== requestId.current) return;
+      console.error('Unable to load income and expense report:', loadError);
+      setError(`Unable to load financial data: ${loadError.message}`);
+    } finally {
+      if (currentRequest === requestId.current) setLoading(false);
+    }
+  }, [range]);
 
-  const expenseData = [
-    { category: 'Utilities', amount: 20000, percentage: 40.0, transactions: 5 },
-    { category: 'Transportation', amount: 12000, percentage: 24.0, transactions: 18 },
-    { category: 'Office Supplies', amount: 8000, percentage: 16.0, transactions: 12 },
-    { category: 'Maintenance', amount: 6000, percentage: 12.0, transactions: 4 },
-    { category: 'Other Expenses', amount: 4000, percentage: 8.0, transactions: 6 }
-  ];
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
 
+  useMultipleRealtimeSubscriptions([
+    'journal_entries', 'journal_entry_lines', 'chart_of_accounts'
+  ].map((table) => ({ table, onUpdate: loadData })), [loadData]);
+
+  const incomeData = accountBalances
+    .filter((account) => account.account_type === 'revenue')
+    .map((account) => ({
+      category: account.account_name,
+      amount: (Number(account.period_credit) || 0) - (Number(account.period_debit) || 0)
+    }))
+    .filter((account) => account.amount !== 0);
+  const expenseData = accountBalances
+    .filter((account) => account.account_type === 'expense')
+    .map((account) => ({
+      category: account.account_name,
+      amount: (Number(account.period_debit) || 0) - (Number(account.period_credit) || 0)
+    }))
+    .filter((account) => account.amount !== 0);
   const totalIncome = incomeData.reduce((sum, item) => sum + item.amount, 0);
   const totalExpenses = expenseData.reduce((sum, item) => sum + item.amount, 0);
   const netIncome = totalIncome - totalExpenses;
-
   const currentData = viewType === 'income' ? incomeData : expenseData;
   const currentTotal = viewType === 'income' ? totalIncome : totalExpenses;
+  const total = totalIncome + totalExpenses;
+  const currentShare = currentTotal / (total || 1) * 100;
+
+  const renderCategory = (item) => {
+    const percentage = currentTotal > 0 ? (item.amount / currentTotal) * 100 : 0;
+    return (
+      <div key={item.category} className="space-y-2">
+        <div className="flex items-center justify-between">
+          <p className="font-semibold text-gray-900">{item.category}</p>
+          <div className="text-right">
+            <p className={`text-lg font-bold ${viewType === 'income' ? 'text-green-600' : 'text-red-600'}`}>
+              {formatMoney(item.amount)}
+            </p>
+            <p className="text-xs text-gray-500">{percentage.toFixed(1)}% of total</p>
+          </div>
+        </div>
+        <div className="h-3 w-full rounded-full bg-gray-200">
+          <div
+            className={`h-3 rounded-full ${viewType === 'income' ? 'bg-green-500' : 'bg-red-500'}`}
+            style={{ width: `${percentage}%` }}
+          />
+        </div>
+      </div>
+    );
+  };
 
   return (
     <div className="space-y-6">
-      {/* Period Selector */}
-      <div className="bg-white rounded-lg shadow p-6 border border-gray-200">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Period</label>
+      <div className="rounded-lg border border-gray-200 bg-white p-6 shadow">
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+          <label className="block text-sm font-medium text-gray-700">
+            Period
             <select
               value={period}
-              onChange={(e) => setPeriod(e.target.value)}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500"
+              onChange={(event) => {
+                setLoading(true);
+                setError('');
+                setPeriod(event.target.value);
+              }}
+              className="mt-2 w-full rounded-lg border border-gray-300 px-4 py-2"
             >
               <option value="daily">Daily</option>
               <option value="weekly">Weekly</option>
@@ -45,53 +142,49 @@ const IncomeExpenses = () => {
               <option value="quarterly">Quarterly</option>
               <option value="annual">Annual</option>
             </select>
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Select Month</label>
+          </label>
+          <label className="block text-sm font-medium text-gray-700">
+            Reference Date
             <input
-              type="month"
-              value={selectedMonth}
-              onChange={(e) => setSelectedMonth(e.target.value)}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500"
+              type="date"
+              value={referenceDate}
+              onChange={(event) => {
+                if (event.target.value) {
+                  setLoading(true);
+                  setError('');
+                  setReferenceDate(event.target.value);
+                }
+              }}
+              className="mt-2 w-full rounded-lg border border-gray-300 px-4 py-2"
             />
-          </div>
+          </label>
+        </div>
+        <p className="mt-3 text-sm text-gray-500">Showing {range.label}</p>
+      </div>
+
+      {error && <p role="alert" className="rounded bg-red-50 p-3 text-red-700">{error}</p>}
+
+      <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
+        <div className="rounded-lg border border-green-200 bg-green-50 p-6">
+          <p className="mb-2 text-sm text-gray-600">Total Income</p>
+          <p className="text-3xl font-bold text-green-600">{formatMoney(totalIncome)}</p>
+        </div>
+        <div className="rounded-lg border border-red-200 bg-red-50 p-6">
+          <p className="mb-2 text-sm text-gray-600">Total Expenses</p>
+          <p className="text-3xl font-bold text-red-600">{formatMoney(totalExpenses)}</p>
+        </div>
+        <div className="rounded-lg border border-purple-200 bg-purple-50 p-6">
+          <p className="mb-2 text-sm text-gray-600">Net Income</p>
+          <p className="text-3xl font-bold text-purple-600">{formatMoney(netIncome)}</p>
         </div>
       </div>
 
-      {/* Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div className="bg-green-50 border border-green-200 rounded-lg p-6">
-          <p className="text-sm text-gray-600 mb-2">Total Income</p>
-          <p className="text-3xl font-bold text-green-600">₱{totalIncome.toLocaleString()}</p>
-          <p className="text-xs text-gray-500 mt-2">
-            {incomeData.reduce((sum, item) => sum + item.transactions, 0)} transactions
-          </p>
-        </div>
-        <div className="bg-red-50 border border-red-200 rounded-lg p-6">
-          <p className="text-sm text-gray-600 mb-2">Total Expenses</p>
-          <p className="text-3xl font-bold text-red-600">₱{totalExpenses.toLocaleString()}</p>
-          <p className="text-xs text-gray-500 mt-2">
-            {expenseData.reduce((sum, item) => sum + item.transactions, 0)} transactions
-          </p>
-        </div>
-        <div className="bg-purple-50 border border-purple-200 rounded-lg p-6">
-          <p className="text-sm text-gray-600 mb-2">Net Income</p>
-          <p className="text-3xl font-bold text-purple-600">₱{netIncome.toLocaleString()}</p>
-          <p className="text-xs text-gray-500 mt-2">
-            {((netIncome / totalIncome) * 100).toFixed(1)}% profit margin
-          </p>
-        </div>
-      </div>
-
-      {/* View Type Tabs */}
-      <div className="bg-white rounded-lg shadow border border-gray-200">
+      <div className="rounded-lg border border-gray-200 bg-white shadow">
         <div className="flex border-b border-gray-200">
           <button
             onClick={() => setViewType('income')}
             className={`flex-1 px-6 py-4 font-medium transition-colors ${
-              viewType === 'income'
-                ? 'text-green-600 border-b-2 border-green-600'
-                : 'text-gray-600 hover:text-gray-900'
+              viewType === 'income' ? 'border-b-2 border-green-600 text-green-600' : 'text-gray-600 hover:text-gray-900'
             }`}
           >
             Income Summary
@@ -99,132 +192,79 @@ const IncomeExpenses = () => {
           <button
             onClick={() => setViewType('expense')}
             className={`flex-1 px-6 py-4 font-medium transition-colors ${
-              viewType === 'expense'
-                ? 'text-red-600 border-b-2 border-red-600'
-                : 'text-gray-600 hover:text-gray-900'
+              viewType === 'expense' ? 'border-b-2 border-red-600 text-red-600' : 'text-gray-600 hover:text-gray-900'
             }`}
           >
             Expense Summary
           </button>
         </div>
-
-        {/* Category Breakdown */}
-        <div className="p-6 space-y-4">
-          {currentData.map((item, idx) => (
-            <div key={idx} className="space-y-2">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="font-semibold text-gray-900">{item.category}</p>
-                  <p className="text-xs text-gray-500">{item.transactions} transactions</p>
-                </div>
-                <div className="text-right">
-                  <p className={`text-lg font-bold ${
-                    viewType === 'income' ? 'text-green-600' : 'text-red-600'
-                  }`}>
-                    ₱{item.amount.toLocaleString()}
-                  </p>
-                  <p className="text-xs text-gray-500">{item.percentage.toFixed(1)}% of total</p>
-                </div>
-              </div>
-              <div className="w-full bg-gray-200 rounded-full h-3">
-                <div
-                  className={`h-3 rounded-full ${
-                    viewType === 'income' ? 'bg-green-500' : 'bg-red-500'
-                  }`}
-                  style={{ width: `${item.percentage}%` }}
-                ></div>
-              </div>
-            </div>
-          ))}
-
-          {/* Total Row */}
-          <div className="pt-4 mt-4 border-t-2 border-gray-300">
-            <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
-              <div>
-                <p className="text-lg font-bold text-gray-900">
-                  Total {viewType === 'income' ? 'Income' : 'Expenses'}
-                </p>
-                <p className="text-sm text-gray-600">
-                  {currentData.reduce((sum, item) => sum + item.transactions, 0)} total transactions
-                </p>
-              </div>
-              <p className={`text-3xl font-bold ${
-                viewType === 'income' ? 'text-green-600' : 'text-red-600'
-              }`}>
-                ₱{currentTotal.toLocaleString()}
+        <div className="space-y-4 p-6">
+          {loading && <p className="py-4 text-center text-gray-600">Loading financial data…</p>}
+          {!loading && !error && currentData.length === 0 && (
+            <p className="py-4 text-center text-gray-600">No posted {viewType} entries for this period.</p>
+          )}
+          {!loading && currentData.map(renderCategory)}
+          <div className="mt-4 border-t-2 border-gray-300 pt-4">
+            <div className="flex items-center justify-between rounded-lg bg-gray-50 p-4">
+              <p className="text-lg font-bold text-gray-900">
+                Total {viewType === 'income' ? 'Income' : 'Expenses'}
+              </p>
+              <p className={`text-3xl font-bold ${viewType === 'income' ? 'text-green-600' : 'text-red-600'}`}>
+                {formatMoney(currentTotal)}
               </p>
             </div>
           </div>
         </div>
       </div>
 
-      {/* Comparison Chart */}
-      <div className="bg-white rounded-lg shadow border border-gray-200 p-6">
-        <h3 className="text-lg font-semibold text-gray-900 mb-6">Income vs Expenses Comparison</h3>
-        <div className="space-y-6">
-          {/* Visual Bar */}
-          <div className="relative">
-            <div className="flex h-12 rounded-lg overflow-hidden">
+      <div className="rounded-lg border border-gray-200 bg-white p-6 shadow">
+        <h3 className="mb-6 text-lg font-semibold text-gray-900">Income vs Expenses Comparison</h3>
+        <div className="flex h-12 overflow-hidden rounded-lg">
+          {total > 0 && (
+            <>
               <div
-                className="bg-green-500 flex items-center justify-center text-white font-bold text-sm"
-                style={{ width: `${(totalIncome / (totalIncome + totalExpenses)) * 100}%` }}
+                className="flex items-center justify-center bg-green-500 text-sm font-bold text-white"
+                style={{ width: `${(totalIncome / total) * 100}%` }}
               >
-                Income: ₱{(totalIncome / 1000).toFixed(0)}K
+                Income: {formatMoney(totalIncome)}
               </div>
               <div
-                className="bg-red-500 flex items-center justify-center text-white font-bold text-sm"
-                style={{ width: `${(totalExpenses / (totalIncome + totalExpenses)) * 100}%` }}
+                className="flex items-center justify-center bg-red-500 text-sm font-bold text-white"
+                style={{ width: `${(totalExpenses / total) * 100}%` }}
               >
-                Expenses: ₱{(totalExpenses / 1000).toFixed(0)}K
+                Expenses: {formatMoney(totalExpenses)}
               </div>
-            </div>
+            </>
+          )}
+        </div>
+        <div className="mt-4 grid grid-cols-2 gap-4">
+          <div className="rounded-lg bg-green-50 p-4 text-center">
+            <p className="text-sm text-gray-600">Income Share</p>
+            <p className="text-2xl font-bold text-green-600">{(totalIncome / (total || 1) * 100).toFixed(1)}%</p>
           </div>
-
-          {/* Stats Grid */}
-          <div className="grid grid-cols-2 gap-4">
-            <div className="text-center p-4 bg-green-50 rounded-lg">
-              <p className="text-sm text-gray-600 mb-1">Income Share</p>
-              <p className="text-2xl font-bold text-green-600">
-                {((totalIncome / (totalIncome + totalExpenses)) * 100).toFixed(1)}%
-              </p>
-            </div>
-            <div className="text-center p-4 bg-red-50 rounded-lg">
-              <p className="text-sm text-gray-600 mb-1">Expense Share</p>
-              <p className="text-2xl font-bold text-red-600">
-                {((totalExpenses / (totalIncome + totalExpenses)) * 100).toFixed(1)}%
-              </p>
-            </div>
-          </div>
-
-          {/* Net Income Display */}
-          <div className="bg-purple-50 border border-purple-200 rounded-lg p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-gray-600 mb-1">Net Income (Income - Expenses)</p>
-                <p className="text-xs text-gray-500">
-                  This represents the cooperative's profit for the selected period
-                </p>
-              </div>
-              <p className="text-3xl font-bold text-purple-600">₱{netIncome.toLocaleString()}</p>
-            </div>
+          <div className="rounded-lg bg-red-50 p-4 text-center">
+            <p className="text-sm text-gray-600">Expense Share</p>
+            <p className="text-2xl font-bold text-red-600">{(totalExpenses / (total || 1) * 100).toFixed(1)}%</p>
           </div>
         </div>
+        <div className="mt-4 flex items-center justify-between rounded-lg border border-purple-200 bg-purple-50 p-4">
+          <div>
+            <p className="mb-1 text-sm text-gray-600">Net Income</p>
+            <p className="text-xs text-gray-500">Income less expenses for this period</p>
+          </div>
+          <p className="text-3xl font-bold text-purple-600">{formatMoney(netIncome)}</p>
+        </div>
+        <p className="mt-4 text-right text-xs text-gray-500">{currentShare.toFixed(1)}% of combined income and expenses</p>
       </div>
 
-      {/* Export Options */}
-      <div className="bg-white rounded-lg shadow border border-gray-200 p-6">
-        <h3 className="text-lg font-semibold text-gray-900 mb-4">Export Options</h3>
-        <div className="flex space-x-3">
-          <button className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors font-medium">
-            Export to Excel
-          </button>
-          <button className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors font-medium">
-            Print Report
-          </button>
-          <button className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium">
-            Download PDF
-          </button>
-        </div>
+      <div className="rounded-lg border border-gray-200 bg-white p-6 shadow">
+        <h3 className="mb-4 text-lg font-semibold text-gray-900">Report Options</h3>
+        <button
+          onClick={() => window.print()}
+          className="rounded-lg bg-gray-600 px-4 py-2 font-medium text-white transition-colors hover:bg-gray-700"
+        >
+          Print Report
+        </button>
       </div>
     </div>
   );

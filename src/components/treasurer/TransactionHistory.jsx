@@ -1,240 +1,354 @@
-import React, { useState } from 'react';
-import { getRecordBadgeClasses, getRoleDotClasses } from '../../utils/portalColors';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Download, RotateCcw } from 'lucide-react';
+import { supabase } from '../../lib/supabase';
+import { useMultipleRealtimeSubscriptions } from '../../hooks/useRealtimeSubscription';
+import { toDateString } from '../../lib/dashboardAccounting';
+
+const formatMoney = (value) => `₱${Number(value || 0).toLocaleString('en-PH', {
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2
+})}`;
+
+const csvCell = (value) => `"${String(value ?? '').replaceAll('"', '""')}"`;
+const initialEndDate = toDateString(new Date());
+const initialStart = new Date(`${initialEndDate}T00:00:00`);
+initialStart.setDate(initialStart.getDate() - 29);
+const initialStartDate = toDateString(initialStart);
+
+const getAccountType = (transaction) => {
+  const accounts = transaction.savings_accounts;
+  return Array.isArray(accounts) ? accounts[0]?.account_type : accounts?.account_type;
+};
 
 const TransactionHistory = () => {
   const [filters, setFilters] = useState({
     type: '',
-    member: '',
-    dateFrom: '',
-    dateTo: ''
+    search: '',
+    dateFrom: initialStartDate,
+    dateTo: initialEndDate
   });
+  const [transactions, setTransactions] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const requestId = useRef(0);
 
-  const transactions = [
-    { date: '2026-06-03', time: '10:30 AM', ref: 'LP-2026-00231', type: 'Loan Payment', member: 'Juan Dela Cruz', amount: 2500, recordedBy: 'TREASURER' },
-    { date: '2026-06-03', time: '11:15 AM', ref: 'SD-2026-00445', type: 'Savings Deposit', member: 'Maria Santos', amount: 5000, recordedBy: 'TREASURER' },
-    { date: '2026-06-03', time: '01:20 PM', ref: 'SW-2026-00156', type: 'Savings Withdrawal', member: 'Pedro Reyes', amount: 3000, recordedBy: 'TREASURER' },
-    { date: '2026-06-03', time: '02:45 PM', ref: 'TD-2026-00089', type: 'Time Deposit', member: 'Ana Garcia', amount: 10000, recordedBy: 'TREASURER' },
-    { date: '2026-06-03', time: '03:30 PM', ref: 'SD-2026-00446', type: 'Savings Deposit', member: 'Carlos Mendoza', amount: 2000, recordedBy: 'TREASURER' },
-    { date: '2026-06-02', time: '09:15 AM', ref: 'LP-2026-00228', type: 'Loan Payment', member: 'Elena Rodriguez', amount: 4500, recordedBy: 'TREASURER' },
-    { date: '2026-06-02', time: '10:30 AM', ref: 'LR-2026-00045', type: 'Loan Release', member: 'Miguel Torres', amount: 50000, recordedBy: 'MANAGER' },
-    { date: '2026-06-02', time: '02:20 PM', ref: 'SW-2026-00155', type: 'Savings Withdrawal', member: 'Rosa Martinez', amount: 8000, recordedBy: 'TREASURER' },
-    { date: '2026-06-01', time: '11:00 AM', ref: 'LP-2026-00225', type: 'Loan Payment', member: 'Jose Sanchez', amount: 3200, recordedBy: 'TREASURER' },
-    { date: '2026-06-01', time: '03:45 PM', ref: 'TD-2026-00088', type: 'Time Deposit', member: 'Linda Flores', amount: 25000, recordedBy: 'BOOKKEEPER' }
-  ];
-
-  const [filteredTransactions, setFilteredTransactions] = useState(transactions);
-
-  const handleFilterChange = (field, value) => {
-    const newFilters = { ...filters, [field]: value };
-    setFilters(newFilters);
-    applyFilters(newFilters);
-  };
-
-  const applyFilters = (currentFilters) => {
-    let filtered = [...transactions];
-
-    if (currentFilters.type) {
-      filtered = filtered.filter(t => t.type === currentFilters.type);
+  const loadTransactions = useCallback(async () => {
+    const currentRequest = ++requestId.current;
+    if (filters.dateFrom && filters.dateTo && filters.dateFrom > filters.dateTo) {
+      setTransactions([]);
+      setError('Start date must be before or equal to end date.');
+      setLoading(false);
+      return;
     }
 
-    if (currentFilters.member) {
-      filtered = filtered.filter(t => 
-        t.member.toLowerCase().includes(currentFilters.member.toLowerCase())
-      );
+    try {
+      let receiptsQuery = supabase.from('cash_receipts')
+        .select('id, receipt_number, receipt_date, received_from, description, amount, created_at')
+        .eq('status', 'recorded').order('receipt_date', { ascending: false }).limit(250);
+      let disbursementsQuery = supabase.from('cash_disbursements')
+        .select('id, voucher_number, disbursement_date, payee, description, amount, created_at')
+        .eq('status', 'recorded').order('disbursement_date', { ascending: false }).limit(250);
+
+      if (filters.dateFrom) {
+        receiptsQuery = receiptsQuery.gte('receipt_date', filters.dateFrom);
+        disbursementsQuery = disbursementsQuery.gte('disbursement_date', filters.dateFrom);
+      }
+      if (filters.dateTo) {
+        receiptsQuery = receiptsQuery.lte('receipt_date', filters.dateTo);
+        disbursementsQuery = disbursementsQuery.lte('disbursement_date', filters.dateTo);
+      }
+
+      const [receiptsResult, disbursementsResult] = await Promise.all([
+        receiptsQuery,
+        disbursementsQuery
+      ]);
+      const failed = [receiptsResult, disbursementsResult].find((result) => result.error);
+      if (failed) throw failed.error;
+
+      const receipts = receiptsResult.data || [];
+      const disbursements = disbursementsResult.data || [];
+      const receiptIds = receipts.map((receipt) => receipt.id);
+      const disbursementIds = disbursements.map((disbursement) => disbursement.id);
+      const [paymentsResult, receiptSavingsResult, disbursementSavingsResult] = await Promise.all([
+        receiptIds.length
+          ? supabase.from('loan_payments').select('receipt_id').in('receipt_id', receiptIds)
+          : Promise.resolve({ data: [], error: null }),
+        receiptIds.length
+          ? supabase.from('savings_transactions')
+            .select('receipt_id, transaction_type, savings_accounts!inner(account_type)')
+            .in('receipt_id', receiptIds)
+          : Promise.resolve({ data: [], error: null }),
+        disbursementIds.length
+          ? supabase.from('savings_transactions')
+            .select('disbursement_id, transaction_type, savings_accounts!inner(account_type)')
+            .in('disbursement_id', disbursementIds)
+          : Promise.resolve({ data: [], error: null })
+      ]);
+      const associationError = [paymentsResult, receiptSavingsResult, disbursementSavingsResult]
+        .find((result) => result.error);
+      if (associationError) throw associationError.error;
+
+      const receiptCategory = new Map();
+      const disbursementCategory = new Map();
+      (paymentsResult.data || []).forEach((payment) => {
+        if (payment.receipt_id) receiptCategory.set(payment.receipt_id, 'Loan Payment');
+      });
+      (receiptSavingsResult.data || []).forEach((transaction) => {
+        const accountType = getAccountType(transaction);
+        if (transaction.receipt_id && transaction.transaction_type === 'deposit') {
+          receiptCategory.set(transaction.receipt_id, accountType === 'time_deposit' ? 'Time Deposit' : 'Savings Deposit');
+        }
+      });
+      (disbursementSavingsResult.data || []).forEach((transaction) => {
+        const accountType = getAccountType(transaction);
+        if (transaction.disbursement_id && transaction.transaction_type === 'withdrawal') {
+          disbursementCategory.set(
+            transaction.disbursement_id,
+            accountType === 'time_deposit' ? 'Time Deposit Withdrawal' : 'Savings Withdrawal'
+          );
+        }
+      });
+
+      const rows = [
+        ...receipts.map((receipt) => ({
+          id: `receipt-${receipt.id}`,
+          date: receipt.receipt_date,
+          timestamp: receipt.created_at,
+          reference: receipt.receipt_number,
+          type: receiptCategory.get(receipt.id) || 'Other Receipt',
+          direction: 'received',
+          counterparty: receipt.received_from,
+          description: receipt.description,
+          amount: Number(receipt.amount || 0)
+        })),
+        ...disbursements.map((disbursement) => ({
+          id: `disbursement-${disbursement.id}`,
+          date: disbursement.disbursement_date,
+          timestamp: disbursement.created_at,
+          reference: disbursement.voucher_number,
+          type: disbursementCategory.get(disbursement.id) || 'Other Disbursement',
+          direction: 'released',
+          counterparty: disbursement.payee,
+          description: disbursement.description,
+          amount: Number(disbursement.amount || 0)
+        }))
+      ].sort((left, right) => {
+        const dateOrder = right.date.localeCompare(left.date);
+        return dateOrder || new Date(right.timestamp) - new Date(left.timestamp);
+      });
+
+      if (currentRequest !== requestId.current) return;
+      setTransactions(rows);
+      setError('');
+    } catch (loadError) {
+      if (currentRequest !== requestId.current) return;
+      console.error('Unable to load treasurer transaction history:', loadError);
+      setError(`Unable to load transaction history: ${loadError.message}`);
+    } finally {
+      if (currentRequest === requestId.current) setLoading(false);
     }
+  }, [filters.dateFrom, filters.dateTo]);
 
-    if (currentFilters.dateFrom) {
-      filtered = filtered.filter(t => t.date >= currentFilters.dateFrom);
-    }
-
-    if (currentFilters.dateTo) {
-      filtered = filtered.filter(t => t.date <= currentFilters.dateTo);
-    }
-
-    setFilteredTransactions(filtered);
-  };
-
-  const handleReset = () => {
-    setFilters({
-      type: '',
-      member: '',
-      dateFrom: '',
-      dateTo: ''
-    });
-    setFilteredTransactions(transactions);
-  };
-
-  const handleExport = () => {
-    alert('Export functionality would generate CSV/Excel file with filtered transactions');
-  };
-
-  const getTypeColor = (type) => {
-    const colors = {
-      'Loan Payment': 'bg-blue-100 text-blue-800',
-      'Savings Deposit': 'bg-green-100 text-green-800',
-      'Savings Withdrawal': 'bg-orange-100 text-orange-800',
-      'Time Deposit': 'bg-purple-100 text-purple-800',
-      'Loan Release': 'bg-red-100 text-red-800'
+  useEffect(() => {
+    loadTransactions();
+    return () => {
+      requestId.current += 1;
     };
-    return colors[type] || 'bg-gray-100 text-gray-800';
+  }, [loadTransactions]);
+
+  useMultipleRealtimeSubscriptions([
+    'cash_receipts', 'cash_disbursements', 'loan_payments', 'savings_transactions', 'savings_accounts'
+  ].map((table) => ({ table, onUpdate: loadTransactions })), [loadTransactions]);
+
+  const filteredTransactions = useMemo(() => transactions.filter((transaction) => {
+    if (filters.type && transaction.type !== filters.type) return false;
+    const search = filters.search.trim().toLocaleLowerCase();
+    return !search || [
+      transaction.reference,
+      transaction.counterparty,
+      transaction.description,
+      transaction.type
+    ].some((value) => value?.toLocaleLowerCase().includes(search));
+  }), [filters.search, filters.type, transactions]);
+
+  const totals = filteredTransactions.reduce((result, transaction) => {
+    if (transaction.direction === 'received') result.received += transaction.amount;
+    else result.released += transaction.amount;
+    return result;
+  }, { received: 0, released: 0 });
+  const netFlow = totals.received - totals.released;
+  const types = [...new Set(transactions.map((transaction) => transaction.type))].sort();
+
+  const exportCsv = () => {
+    const rows = [
+      ['Date', 'Reference', 'Type', 'Direction', 'Counterparty', 'Description', 'Amount'],
+      ...filteredTransactions.map((transaction) => [
+        transaction.date,
+        transaction.reference,
+        transaction.type,
+        transaction.direction,
+        transaction.counterparty,
+        transaction.description,
+        transaction.amount.toFixed(2)
+      ])
+    ];
+    const csv = rows.map((row) => row.map(csvCell).join(',')).join('\r\n');
+    const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `treasurer-transactions-${filters.dateFrom || 'all'}-to-${filters.dateTo || 'all'}.csv`;
+    link.click();
+    URL.revokeObjectURL(url);
   };
+
+  const resetFilters = () => setFilters({
+    type: '',
+    search: '',
+    dateFrom: initialStartDate,
+    dateTo: initialEndDate
+  });
 
   return (
     <div className="space-y-6">
-      {/* Filters */}
-      <div className="bg-white rounded-lg shadow p-6 border border-gray-200">
-        <h3 className="text-lg font-semibold text-gray-900 mb-4">Filter Transactions</h3>
-        
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Transaction Type</label>
+      <section className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
+        <div className="mb-5">
+          <h2 className="text-xl font-semibold text-gray-900">Transaction History</h2>
+          <p className="mt-1 text-sm text-gray-500">Recorded cash receipts and disbursements, refreshed as records change.</p>
+        </div>
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          <label className="text-sm font-medium text-gray-700">
+            Transaction type
             <select
               value={filters.type}
-              onChange={(e) => handleFilterChange('type', e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent"
+              onChange={(event) => setFilters((current) => ({ ...current, type: event.target.value }))}
+              className="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2 font-normal focus:border-teal-600 focus:outline-none focus:ring-2 focus:ring-teal-600/20"
             >
-              <option value="">All Types</option>
-              <option value="Loan Payment">Loan Payment</option>
-              <option value="Savings Deposit">Savings Deposit</option>
-              <option value="Savings Withdrawal">Savings Withdrawal</option>
-              <option value="Time Deposit">Time Deposit</option>
-              <option value="Loan Release">Loan Release</option>
+              <option value="">All types</option>
+              {types.map((type) => <option key={type} value={type}>{type}</option>)}
             </select>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Member Name</label>
+          </label>
+          <label className="text-sm font-medium text-gray-700">
+            Search records
             <input
-              type="text"
-              value={filters.member}
-              onChange={(e) => handleFilterChange('member', e.target.value)}
-              placeholder="Search by member..."
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent"
+              type="search"
+              value={filters.search}
+              onChange={(event) => setFilters((current) => ({ ...current, search: event.target.value }))}
+              placeholder="Reference, counterparty, description"
+              className="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2 font-normal focus:border-teal-600 focus:outline-none focus:ring-2 focus:ring-teal-600/20"
             />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Date From</label>
+          </label>
+          <label className="text-sm font-medium text-gray-700">
+            From
             <input
               type="date"
               value={filters.dateFrom}
-              onChange={(e) => handleFilterChange('dateFrom', e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent"
+              onChange={(event) => {
+                setLoading(true);
+                setFilters((current) => ({ ...current, dateFrom: event.target.value }));
+              }}
+              className="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2 font-normal focus:border-teal-600 focus:outline-none focus:ring-2 focus:ring-teal-600/20"
             />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Date To</label>
+          </label>
+          <label className="text-sm font-medium text-gray-700">
+            To
             <input
               type="date"
               value={filters.dateTo}
-              onChange={(e) => handleFilterChange('dateTo', e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent"
+              onChange={(event) => {
+                setLoading(true);
+                setFilters((current) => ({ ...current, dateTo: event.target.value }));
+              }}
+              className="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2 font-normal focus:border-teal-600 focus:outline-none focus:ring-2 focus:ring-teal-600/20"
             />
+          </label>
+        </div>
+        <div className="mt-4 flex flex-wrap gap-3">
+          <button
+            type="button"
+            onClick={resetFilters}
+            className="inline-flex items-center gap-2 rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+          >
+            <RotateCcw size={16} aria-hidden="true" />
+            Reset filters
+          </button>
+          <button
+            type="button"
+            onClick={exportCsv}
+            disabled={loading || filteredTransactions.length === 0}
+            className="inline-flex items-center gap-2 rounded-lg bg-teal-700 px-4 py-2 text-sm font-medium text-white hover:bg-teal-800 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            <Download size={16} aria-hidden="true" />
+            Export CSV
+          </button>
+        </div>
+      </section>
+
+      {error && <p role="alert" className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{error}</p>}
+
+      <section className="grid grid-cols-1 gap-4 md:grid-cols-3">
+        {[
+          ['Cash received', totals.received, 'text-green-700'],
+          ['Cash released', totals.released, 'text-red-700'],
+          ['Net cash flow', netFlow, netFlow >= 0 ? 'text-teal-700' : 'text-red-700']
+        ].map(([label, amount, color]) => (
+          <div key={label} className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
+            <p className="text-sm font-medium text-gray-500">{label}</p>
+            <p className={`mt-2 text-2xl font-semibold tabular-nums ${color}`}>
+              {loading ? 'Loading…' : error ? 'Unavailable' : formatMoney(amount)}
+            </p>
           </div>
+        ))}
+      </section>
+
+      <section className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
+        <div className="flex flex-col gap-1 border-b border-gray-200 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h3 className="font-semibold text-gray-900">Cash book entries</h3>
+            <p className="mt-1 text-sm text-gray-500">
+              {loading ? 'Loading records…' : `${filteredTransactions.length} ${filteredTransactions.length === 1 ? 'entry' : 'entries'}`}
+            </p>
+          </div>
+          {transactions.length >= 500 && <p className="text-xs text-amber-700">Record limit reached; narrow the date range to see complete results.</p>}
         </div>
-
-        <div className="flex space-x-3">
-          <button
-            onClick={handleReset}
-            className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors font-medium"
-          >
-            Reset Filters
-          </button>
-          <button
-            onClick={handleExport}
-            className="px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 transition-colors font-medium"
-          >
-            Export to Excel
-          </button>
-        </div>
-      </div>
-
-      {/* Results Summary */}
-      <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-        <p className="text-sm text-blue-900">
-          Showing <span className="font-semibold">{filteredTransactions.length}</span> of <span className="font-semibold">{transactions.length}</span> transactions
-        </p>
-      </div>
-
-      {/* Transaction Table */}
-      <div className="bg-white rounded-lg shadow border border-gray-200 overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead className="bg-gray-50">
+          <table className="min-w-full divide-y divide-gray-200 text-sm">
+            <thead className="bg-gray-50 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
               <tr>
-                <th className="text-left py-3 px-4 font-semibold text-gray-700 text-sm">Date & Time</th>
-                <th className="text-left py-3 px-4 font-semibold text-gray-700 text-sm">Reference</th>
-                <th className="text-left py-3 px-4 font-semibold text-gray-700 text-sm">Type</th>
-                <th className="text-left py-3 px-4 font-semibold text-gray-700 text-sm">Member</th>
-                <th className="text-left py-3 px-4 font-semibold text-gray-700 text-sm">Recorded By</th>
-                <th className="text-right py-3 px-4 font-semibold text-gray-700 text-sm">Amount</th>
+                <th scope="col" className="px-5 py-3">Date</th>
+                <th scope="col" className="px-5 py-3">Reference</th>
+                <th scope="col" className="px-5 py-3">Type</th>
+                <th scope="col" className="px-5 py-3">Counterparty</th>
+                <th scope="col" className="px-5 py-3">Direction</th>
+                <th scope="col" className="px-5 py-3 text-right">Amount</th>
               </tr>
             </thead>
-            <tbody>
-              {filteredTransactions.map((transaction, idx) => (
-                <tr key={idx} className="border-b border-gray-200 hover:bg-gray-50">
-                  <td className="py-3 px-4 text-sm text-gray-900">
-                    <div>{transaction.date}</div>
-                    <div className="text-xs text-gray-500">{transaction.time}</div>
-                  </td>
-                  <td className="py-3 px-4 text-sm text-gray-600 font-mono">{transaction.ref}</td>
-                  <td className="py-3 px-4">
-                    <span className={`inline-block px-3 py-1 rounded-full text-xs font-medium ${getTypeColor(transaction.type)}`}>
-                      {transaction.type}
+            <tbody className="divide-y divide-gray-100">
+              {loading ? (
+                <tr><td colSpan="6" className="px-5 py-10 text-center text-gray-500">Loading transactions…</td></tr>
+              ) : error ? (
+                <tr><td colSpan="6" className="px-5 py-10 text-center text-gray-500">Transaction records are unavailable.</td></tr>
+              ) : filteredTransactions.length === 0 ? (
+                <tr><td colSpan="6" className="px-5 py-10 text-center text-gray-500">No recorded transactions match these filters.</td></tr>
+              ) : filteredTransactions.map((transaction) => (
+                <tr key={transaction.id} className="hover:bg-gray-50">
+                  <td className="whitespace-nowrap px-5 py-3 text-gray-700">{transaction.date}</td>
+                  <td className="whitespace-nowrap px-5 py-3 font-mono text-xs text-gray-700">{transaction.reference}</td>
+                  <td className="whitespace-nowrap px-5 py-3 font-medium text-gray-900">{transaction.type}</td>
+                  <td className="px-5 py-3 text-gray-700">{transaction.counterparty || '—'}</td>
+                  <td className="whitespace-nowrap px-5 py-3">
+                    <span className={`rounded-full px-2.5 py-1 text-xs font-medium ${
+                      transaction.direction === 'received' ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'
+                    }`}>
+                      {transaction.direction === 'received' ? 'Received' : 'Released'}
                     </span>
                   </td>
-                  <td className="py-3 px-4 text-sm text-gray-900 font-medium">{transaction.member}</td>
-                  <td className="py-3 px-4">
-                    <span className={`inline-flex items-center space-x-2 px-3 py-1 rounded-full text-xs font-medium ${getRecordBadgeClasses(transaction.recordedBy)}`}>
-                      <span className={`w-2 h-2 rounded-full ${getRoleDotClasses(transaction.recordedBy)}`}></span>
-                      <span>{transaction.recordedBy}</span>
-                    </span>
-                  </td>
-                  <td className="py-3 px-4 text-sm text-right font-semibold text-gray-900">
-                    ₱{transaction.amount.toLocaleString()}
-                  </td>
+                  <td className="whitespace-nowrap px-5 py-3 text-right font-medium tabular-nums text-gray-900">{formatMoney(transaction.amount)}</td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
-      </div>
-
-      {/* Summary Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="bg-green-50 border border-green-200 rounded-lg p-4">
-          <p className="text-sm text-gray-600 mb-1">Money Received</p>
-          <p className="text-2xl font-bold text-green-600">
-            ₱{filteredTransactions
-              .filter(t => ['Loan Payment', 'Savings Deposit', 'Time Deposit'].includes(t.type))
-              .reduce((sum, t) => sum + t.amount, 0)
-              .toLocaleString()}
-          </p>
-        </div>
-        <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-          <p className="text-sm text-gray-600 mb-1">Money Released</p>
-          <p className="text-2xl font-bold text-red-600">
-            ₱{filteredTransactions
-              .filter(t => ['Savings Withdrawal', 'Loan Release'].includes(t.type))
-              .reduce((sum, t) => sum + t.amount, 0)
-              .toLocaleString()}
-          </p>
-        </div>
-        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-          <p className="text-sm text-gray-600 mb-1">Net Flow</p>
-          <p className="text-2xl font-bold text-blue-600">
-            ₱{(
-              filteredTransactions
-                .filter(t => ['Loan Payment', 'Savings Deposit', 'Time Deposit'].includes(t.type))
-                .reduce((sum, t) => sum + t.amount, 0) -
-              filteredTransactions
-                .filter(t => ['Savings Withdrawal', 'Loan Release'].includes(t.type))
-                .reduce((sum, t) => sum + t.amount, 0)
-            ).toLocaleString()}
-          </p>
-        </div>
-      </div>
+      </section>
     </div>
   );
 };

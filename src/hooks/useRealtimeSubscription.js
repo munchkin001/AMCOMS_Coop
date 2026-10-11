@@ -52,7 +52,7 @@ export const useRealtimeSubscription = (table, onUpdate, filter = null, dependen
 export const useMultipleRealtimeSubscriptions = (subscriptions, dependencies = []) => {
   useEffect(() => {
     const channels = subscriptions.map((sub, index) => {
-      const channelName = `${sub.table}_${Date.now()}_${index}`;
+      const channelName = `${sub.table}_${Date.now()}_${index}_${Math.random().toString(36).slice(2)}`;
       
       return supabase
         .channel(channelName)

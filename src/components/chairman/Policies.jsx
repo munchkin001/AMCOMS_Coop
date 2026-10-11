@@ -1,11 +1,20 @@
-import React, { useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
+import { supabase } from '../../lib/supabase';
+import { useAuth } from '../../contexts/AuthContext';
+import { useMultipleRealtimeSubscriptions } from '../../hooks/useRealtimeSubscription';
 
 const Policies = () => {
+  const { staff } = useAuth();
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showViewModal, setShowViewModal] = useState(false);
   const [showPublishModal, setShowPublishModal] = useState(false);
   const [selectedPolicy, setSelectedPolicy] = useState(null);
   const [policyToPublish, setPolicyToPublish] = useState(null);
+  const [editingPolicyId, setEditingPolicyId] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+  const [policies, setPolicies] = useState([]);
   const [policyForm, setPolicyForm] = useState({
     name: '',
     category: '',
@@ -13,66 +22,81 @@ const Policies = () => {
     status: 'draft'
   });
 
-  // Sample policies data
-  const [policies, setPolicies] = useState([
-    {
-      id: 1,
-      name: 'Loan Collection Policy',
-      category: 'Loans',
-      lastUpdated: 'May 20, 2026',
-      status: 'published',
-      content: 'This policy outlines the procedures for loan collection, including payment schedules, grace periods, and penalties for late payments. All members must adhere to agreed payment terms. Collections will be conducted monthly on designated dates.',
-      publishedBy: 'Chairman',
-      publishedDate: 'May 20, 2026'
-    },
-    {
-      id: 2,
-      name: 'Membership Policy',
-      category: 'Members',
-      lastUpdated: 'May 15, 2026',
-      status: 'published',
-      content: 'This policy defines the requirements and procedures for becoming a member of AMCOMS. It includes eligibility criteria, application process, share capital requirements, rights and responsibilities of members.',
-      publishedBy: 'Chairman',
-      publishedDate: 'May 15, 2026'
-    },
-    {
-      id: 3,
-      name: 'Savings Policy',
-      category: 'Savings',
-      lastUpdated: 'May 10, 2026',
-      status: 'published',
-      content: 'This policy establishes guidelines for member savings accounts, including minimum deposit requirements, interest rates, withdrawal procedures, and time deposit terms.',
-      publishedBy: 'Chairman',
-      publishedDate: 'May 10, 2026'
-    },
-    {
-      id: 4,
-      name: 'Inventory Management Policy',
-      category: 'Inventory',
-      lastUpdated: 'May 5, 2026',
-      status: 'draft',
-      content: 'This policy provides guidelines for inventory management, including stock monitoring, reorder levels, quality control, and production standards for all AMCOMS products.',
-      publishedBy: null,
-      publishedDate: null
-    }
-  ]);
+  const formatPolicy = (policy) => ({
+    ...policy,
+    lastUpdated: new Date(policy.updated_at).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }),
+    publishedDate: policy.published_at
+      ? new Date(policy.published_at).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })
+      : null,
+    publishedBy: policy.published_by
+  });
 
-  const handleCreatePolicy = () => {
-    if (!policyForm.name || !policyForm.category || !policyForm.content) {
+  const loadPolicies = useCallback(async () => {
+    try {
+      const { data, error: loadError } = await supabase
+        .from('policies')
+        .select('id, name, category, content, status, published_at, published_by, updated_at')
+        .order('updated_at', { ascending: false });
+      if (loadError) throw loadError;
+      setPolicies((data || []).map(formatPolicy));
+      setError('');
+    } catch (loadError) {
+      console.error('Error loading policies:', loadError);
+      setError(`Unable to load policies: ${loadError.message}`);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadPolicies();
+  }, [loadPolicies]);
+
+  useMultipleRealtimeSubscriptions(
+    [{ table: 'policies', onUpdate: loadPolicies }],
+    [loadPolicies]
+  );
+
+  const handleCreatePolicy = async () => {
+    if (!policyForm.name.trim() || !policyForm.category || !policyForm.content.trim()) {
+      setError('Policy name, category, and content are required.');
       return;
     }
 
-    const newPolicy = {
-      id: policies.length + 1,
-      ...policyForm,
-      lastUpdated: new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }),
-      publishedBy: policyForm.status === 'published' ? 'Chairman' : null,
-      publishedDate: policyForm.status === 'published' ? new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }) : null
-    };
+    setSaving(true);
+    try {
+      const isPublished = policyForm.status === 'published';
+      const payload = {
+        name: policyForm.name.trim(),
+        category: policyForm.category,
+        content: policyForm.content.trim(),
+        status: policyForm.status,
+        published_at: isPublished ? new Date().toISOString() : null,
+        published_by: isPublished ? staff?.full_name || null : null
+      };
+      const query = editingPolicyId
+        ? supabase.from('policies').update(payload).eq('id', editingPolicyId)
+        : supabase.from('policies').insert(payload);
+      const { data, error: saveError } = await query
+        .select('id, name, category, content, status, published_at, published_by, updated_at')
+        .single();
+      if (saveError) throw saveError;
 
-    setPolicies([newPolicy, ...policies]);
-    setPolicyForm({ name: '', category: '', content: '', status: 'draft' });
-    setShowCreateModal(false);
+      const savedPolicy = formatPolicy(data);
+      setPolicies((current) => [
+        savedPolicy,
+        ...current.filter((policy) => policy.id !== savedPolicy.id)
+      ]);
+      setPolicyForm({ name: '', category: '', content: '', status: 'draft' });
+      setEditingPolicyId(null);
+      setShowCreateModal(false);
+      setError('');
+    } catch (saveError) {
+      console.error('Error saving policy:', saveError);
+      setError(`Unable to save policy: ${saveError.message}`);
+    } finally {
+      setSaving(false);
+    }
   };
 
   const handlePublishPolicy = (policyId) => {
@@ -80,19 +104,31 @@ const Policies = () => {
     setShowPublishModal(true);
   };
 
-  const confirmPublishPolicy = () => {
-    setPolicies(policies.map(policy => 
-      policy.id === policyToPublish 
-        ? { 
-            ...policy, 
-            status: 'published',
-            publishedBy: 'Chairman',
-            publishedDate: new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })
-          }
-        : policy
+  const confirmPublishPolicy = async () => {
+    const { data, error: publishError } = await supabase
+      .from('policies')
+      .update({
+        status: 'published',
+        published_at: new Date().toISOString(),
+        published_by: staff?.full_name || null
+      })
+      .eq('id', policyToPublish)
+      .select('id, name, category, content, status, published_at, published_by, updated_at')
+      .single();
+
+    if (publishError) {
+      console.error('Error publishing policy:', publishError);
+      setError(`Unable to publish policy: ${publishError.message}`);
+      return;
+    }
+
+    const publishedPolicy = formatPolicy(data);
+    setPolicies((current) => current.map((policy) =>
+      policy.id === publishedPolicy.id ? publishedPolicy : policy
     ));
     setShowPublishModal(false);
     setPolicyToPublish(null);
+    setError('');
   };
 
   const handleEditPolicy = (policy) => {
@@ -102,6 +138,7 @@ const Policies = () => {
       content: policy.content,
       status: policy.status
     });
+    setEditingPolicyId(policy.id);
     setShowCreateModal(true);
   };
 
@@ -130,6 +167,7 @@ const Policies = () => {
 
   return (
     <div className="space-y-6">
+      {error && <p role="alert" className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{error}</p>}
       {/* Header with Create Button */}
       <div className="flex items-center justify-between">
         <div>
@@ -138,6 +176,7 @@ const Policies = () => {
         <button
           onClick={() => {
             setPolicyForm({ name: '', category: '', content: '', status: 'draft' });
+            setEditingPolicyId(null);
             setShowCreateModal(true);
           }}
           className="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors font-medium flex items-center space-x-2"
@@ -200,7 +239,11 @@ const Policies = () => {
 
       {/* Policies List */}
       <div className="grid grid-cols-1 gap-4">
-        {policies.map((policy) => (
+        {loading ? (
+          <p className="rounded-lg border border-gray-200 bg-white p-6 text-center text-gray-500">Loading policies...</p>
+        ) : policies.length === 0 ? (
+          <p className="rounded-lg border border-gray-200 bg-white p-6 text-center text-gray-500">No policies have been created.</p>
+        ) : policies.map((policy) => (
           <div key={policy.id} className="bg-white rounded-lg shadow border border-gray-200 p-6 hover:shadow-md transition-shadow">
             <div className="flex items-start justify-between">
               <div className="flex-1">
@@ -258,7 +301,7 @@ const Policies = () => {
           <div className="bg-white rounded-lg shadow-xl max-w-3xl w-full mx-4 max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
             <div className="p-6 border-b border-gray-200">
               <div className="flex items-center justify-between">
-                <h3 className="text-xl font-bold text-gray-900">Create New Policy</h3>
+                <h3 className="text-xl font-bold text-gray-900">{editingPolicyId ? 'Edit Policy' : 'Create New Policy'}</h3>
                 <button
                   onClick={() => setShowCreateModal(false)}
                   className="text-gray-500 hover:text-gray-700"
@@ -326,7 +369,7 @@ const Policies = () => {
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
                 >
                   <option value="draft">Draft (Save for later)</option>
-                  <option value="published">Published (Notify all users)</option>
+                  <option value="published">Published</option>
                 </select>
               </div>
             </div>
@@ -334,12 +377,16 @@ const Policies = () => {
             <div className="p-6 bg-gray-50 border-t border-gray-200 flex space-x-3">
               <button
                 onClick={handleCreatePolicy}
+                disabled={saving}
                 className="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors font-medium"
               >
-                {policyForm.status === 'published' ? 'Create & Publish' : 'Save as Draft'}
+              {saving ? 'Saving...' : policyForm.status === 'published' ? 'Save & Publish' : editingPolicyId ? 'Save Changes' : 'Save as Draft'}
               </button>
               <button
-                onClick={() => setShowCreateModal(false)}
+                onClick={() => {
+                  setShowCreateModal(false);
+                  setEditingPolicyId(null);
+                }}
                 className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors font-medium"
               >
                 Cancel
@@ -390,7 +437,7 @@ const Policies = () => {
                     <>
                       <div>
                         <p className="text-sm font-medium text-gray-500">Published By</p>
-                        <p className="text-base text-gray-900 mt-1">{selectedPolicy.publishedBy}</p>
+                        <p className="text-base text-gray-900 mt-1">{selectedPolicy.publishedBy || '—'}</p>
                       </div>
                       <div>
                         <p className="text-sm font-medium text-gray-500">Published Date</p>
@@ -442,7 +489,7 @@ const Policies = () => {
               </div>
               <h3 className="text-xl font-bold text-gray-900 text-center mb-2">Publish Policy</h3>
               <p className="text-gray-600 text-center mb-6">
-                Are you sure you want to publish this policy? All users will be notified.
+                Are you sure you want to publish this policy?
               </p>
               <div className="flex space-x-3">
                 <button

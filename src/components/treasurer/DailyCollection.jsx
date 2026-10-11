@@ -1,172 +1,266 @@
-import React from 'react';
-import { getRecordBadgeClasses, getRoleDotClasses } from '../../utils/portalColors';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Download, Printer } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { supabase } from '../../lib/supabase';
+import { useMultipleRealtimeSubscriptions } from '../../hooks/useRealtimeSubscription';
+import { toDateString } from '../../lib/dashboardAccounting';
+
+const formatMoney = (value) => `₱${Number(value || 0).toLocaleString('en-PH', {
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2
+})}`;
+
+const csvCell = (value) => `"${String(value ?? '').replaceAll('"', '""')}"`;
+
+const getAccountType = (transaction) => {
+  const accounts = transaction.savings_accounts;
+  return Array.isArray(accounts) ? accounts[0]?.account_type : accounts?.account_type;
+};
 
 const DailyCollection = () => {
-  const collections = [
-    { category: 'Loan Payments', amount: 82750, count: 12, icon: '💰', color: 'blue' },
-    { category: 'Savings Deposits', amount: 36450, count: 8, icon: '🏦', color: 'green' },
-    { category: 'Time Deposits', amount: 15600, count: 3, icon: '💎', color: 'purple' },
-    { category: 'Other Collections', amount: 9650, count: 2, icon: '💵', color: 'cyan' }
-  ];
+  const [selectedDate, setSelectedDate] = useState(() => toDateString(new Date()));
+  const [collections, setCollections] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const requestId = useRef(0);
 
-  const totalCollections = collections.reduce((sum, item) => sum + item.amount, 0);
-  const totalTransactions = collections.reduce((sum, item) => sum + item.count, 0);
+  const loadCollections = useCallback(async () => {
+    const currentRequest = ++requestId.current;
+    try {
+      const [receiptsResult, paymentsResult, savingsResult] = await Promise.all([
+        supabase.from('cash_receipts')
+          .select('id, receipt_number, receipt_date, received_from, description, amount, created_at, status')
+          .eq('status', 'recorded').eq('receipt_date', selectedDate)
+          .order('created_at', { ascending: false }),
+        supabase.from('loan_payments')
+          .select('receipt_id')
+          .eq('payment_date', selectedDate),
+        supabase.from('savings_transactions')
+          .select('receipt_id, transaction_type, savings_accounts!inner(account_type)')
+          .eq('transaction_date', selectedDate)
+      ]);
+      const failed = [receiptsResult, paymentsResult, savingsResult].find((result) => result.error);
+      if (failed) throw failed.error;
 
-  const recentCollections = [
-    { time: '10:30 AM', type: 'Loan Payment', member: 'Juan Dela Cruz', amount: 2500, ref: 'LP-2026-00231', recordedBy: 'TREASURER' },
-    { time: '11:15 AM', type: 'Savings Deposit', member: 'Maria Santos', amount: 5000, ref: 'SD-2026-00445', recordedBy: 'TREASURER' },
-    { time: '01:20 PM', type: 'Loan Payment', member: 'Pedro Reyes', amount: 3000, ref: 'LP-2026-00232', recordedBy: 'TREASURER' },
-    { time: '02:45 PM', type: 'Time Deposit', member: 'Ana Garcia', amount: 10000, ref: 'TD-2026-00089', recordedBy: 'TREASURER' },
-    { time: '03:30 PM', type: 'Savings Deposit', member: 'Carlos Mendoza', amount: 2000, ref: 'SD-2026-00446', recordedBy: 'TREASURER' },
-    { time: '04:15 PM', type: 'Loan Payment', member: 'Elena Rodriguez', amount: 4500, ref: 'LP-2026-00233', recordedBy: 'TREASURER' }
-  ];
+      const categoryByReceipt = new Map();
+      (paymentsResult.data || []).forEach((payment) => {
+        if (payment.receipt_id) categoryByReceipt.set(payment.receipt_id, 'Loan Payment');
+      });
+      (savingsResult.data || []).forEach((transaction) => {
+        if (transaction.receipt_id && transaction.transaction_type === 'deposit') {
+          categoryByReceipt.set(
+            transaction.receipt_id,
+            getAccountType(transaction) === 'time_deposit' ? 'Time Deposit' : 'Savings Deposit'
+          );
+        }
+      });
+      const rows = (receiptsResult.data || []).map((receipt) => ({
+        id: receipt.id,
+        time: receipt.created_at
+          ? new Date(receipt.created_at).toLocaleTimeString('en-PH', { hour: '2-digit', minute: '2-digit' })
+          : '',
+        type: categoryByReceipt.get(receipt.id) || 'Other Receipt',
+        member: receipt.received_from,
+        description: receipt.description,
+        reference: receipt.receipt_number,
+        amount: Number(receipt.amount || 0),
+        createdAt: receipt.created_at
+      }));
 
-  const handlePrint = () => {
-    window.print();
+      if (currentRequest !== requestId.current) return;
+      setCollections(rows);
+      setError('');
+    } catch (loadError) {
+      if (currentRequest !== requestId.current) return;
+      console.error('Unable to load daily collections:', loadError);
+      setError(`Unable to load collection data: ${loadError.message}`);
+    } finally {
+      if (currentRequest === requestId.current) setLoading(false);
+    }
+  }, [selectedDate]);
+
+  useEffect(() => {
+    loadCollections();
+    return () => {
+      requestId.current += 1;
+    };
+  }, [loadCollections]);
+
+  useMultipleRealtimeSubscriptions([
+    'cash_receipts', 'loan_payments', 'savings_transactions', 'savings_accounts'
+  ].map((table) => ({ table, onUpdate: loadCollections })), [loadCollections]);
+
+  const breakdown = useMemo(() => {
+    const totals = new Map();
+    collections.forEach((collection) => {
+      const current = totals.get(collection.type) || { category: collection.type, amount: 0, count: 0 };
+      current.amount += collection.amount;
+      current.count += 1;
+      totals.set(collection.type, current);
+    });
+    return Array.from(totals.values()).sort((left, right) => right.amount - left.amount);
+  }, [collections]);
+  const totalCollections = collections.reduce((total, row) => total + row.amount, 0);
+  const totalTransactions = collections.length;
+
+  const exportCsv = () => {
+    const rows = [
+      ['Date', 'Time', 'Category', 'Received From', 'Description', 'Receipt Number', 'Amount'],
+      ...collections.map((collection) => [
+        selectedDate,
+        collection.time,
+        collection.type,
+        collection.member,
+        collection.description,
+        collection.reference,
+        collection.amount.toFixed(2)
+      ])
+    ];
+    const csv = rows.map((row) => row.map(csvCell).join(',')).join('\r\n');
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
+    link.download = `daily-collections-${selectedDate}.csv`;
+    link.click();
+    URL.revokeObjectURL(link.href);
   };
 
-  const handleExport = () => {
-    alert('Export to Excel functionality would be implemented here');
+  const handleDateChange = (event) => {
+    if (event.target.value) {
+      setLoading(true);
+      setError('');
+      setSelectedDate(event.target.value);
+    }
   };
 
   return (
     <div className="space-y-6">
-      {/* Header with Actions */}
-      <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+      <section className="flex flex-col gap-4 rounded-xl border border-gray-200 bg-white p-5 shadow-sm sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <p className="text-sm lg:text-base text-gray-600">Track all money collected during the day</p>
-          <p className="text-xs lg:text-sm text-gray-500 mt-1">Date: {new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}</p>
+          <h2 className="text-xl font-semibold text-gray-900">Daily Collections</h2>
+          <p className="mt-1 text-sm text-gray-500">Recorded cash receipts for the selected date.</p>
         </div>
-        <div className="flex flex-col sm:flex-row gap-2 lg:space-x-3">
-          <button
-            onClick={handlePrint}
-            className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors font-medium text-sm lg:text-base"
+        <div className="flex flex-wrap items-end gap-3">
+          <Link
+            to="/staff/cash-disbursements"
+            className="rounded-lg bg-teal-700 px-4 py-2 text-sm font-medium text-white hover:bg-teal-800"
           >
-            Print Report
+            Record a transaction
+          </Link>
+          <label className="text-sm font-medium text-gray-700">
+            Collection date
+            <input
+              type="date"
+              value={selectedDate}
+              onChange={handleDateChange}
+              className="mt-1 block rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-teal-600 focus:outline-none focus:ring-2 focus:ring-teal-600/20"
+            />
+          </label>
+          <button
+            type="button"
+            onClick={() => window.print()}
+            className="inline-flex items-center gap-2 rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+          >
+            <Printer size={16} aria-hidden="true" />
+            Print
           </button>
           <button
-            onClick={handleExport}
-            className="px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 transition-colors font-medium text-sm lg:text-base"
+            type="button"
+            onClick={exportCsv}
+            disabled={loading || collections.length === 0}
+            className="inline-flex items-center gap-2 rounded-lg bg-teal-700 px-4 py-2 text-sm font-medium text-white hover:bg-teal-800 disabled:cursor-not-allowed disabled:opacity-50"
           >
-            Export to Excel
+            <Download size={16} aria-hidden="true" />
+            Export CSV
           </button>
         </div>
-      </div>
+      </section>
 
-      {/* Total Summary */}
-      <div className="bg-gradient-to-r from-teal-600 to-teal-700 rounded-lg shadow p-4 lg:p-8 text-white">
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 lg:gap-8">
-          <div>
-            <p className="text-teal-100 text-xs lg:text-sm mb-2">Total Money Received Today</p>
-            <p className="text-3xl lg:text-5xl font-bold">₱{totalCollections.toLocaleString()}</p>
-          </div>
-          <div>
-            <p className="text-teal-100 text-xs lg:text-sm mb-2">Total Transactions</p>
-            <p className="text-3xl lg:text-5xl font-bold">{totalTransactions}</p>
-          </div>
+      {error && <p role="alert" className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{error}</p>}
+
+      <section className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
+          <p className="text-sm font-medium text-gray-500">Total cash received</p>
+          <p className="mt-2 text-3xl font-semibold tracking-tight text-gray-900">
+            {loading ? 'Loading…' : error ? 'Unavailable' : formatMoney(totalCollections)}
+          </p>
+          <p className="mt-2 text-sm text-gray-500">{selectedDate}</p>
         </div>
-      </div>
+        <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
+          <p className="text-sm font-medium text-gray-500">Recorded receipts</p>
+          <p className="mt-2 text-3xl font-semibold tracking-tight text-gray-900">
+            {loading ? '…' : error ? '—' : totalTransactions.toLocaleString()}
+          </p>
+          <p className="mt-2 text-sm text-gray-500">For the selected date</p>
+        </div>
+      </section>
 
-      {/* Collection Breakdown */}
-      <div className="bg-white rounded-lg shadow border border-gray-200 p-6">
-        <h3 className="text-lg font-semibold text-gray-900 mb-4">Collection Breakdown</h3>
-        <div className="space-y-4">
-          {collections.map((item, idx) => (
-            <div key={idx} className="flex flex-col sm:flex-row sm:items-center sm:justify-between p-4 bg-gray-50 rounded-lg gap-3">
-              <div className="flex items-center space-x-3 lg:space-x-4">
-                <span className="text-2xl lg:text-3xl">{item.icon}</span>
+      <section className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
+        <div className="mb-4">
+          <h3 className="text-base font-semibold text-gray-900">Collection breakdown</h3>
+          <p className="mt-1 text-sm text-gray-500">Categories are matched to linked loan and savings transactions.</p>
+        </div>
+        {loading ? (
+          <p className="py-8 text-center text-sm text-gray-500">Loading collection data…</p>
+        ) : !error && breakdown.length === 0 ? (
+          <p className="py-8 text-center text-sm text-gray-500">No recorded receipts for this date.</p>
+        ) : !error ? (
+          <div className="divide-y divide-gray-100">
+            {breakdown.map((item) => (
+              <div key={item.category} className="flex items-center justify-between gap-4 py-4">
                 <div>
-                  <p className="font-semibold text-gray-900 text-sm lg:text-base">{item.category}</p>
-                  <p className="text-xs lg:text-sm text-gray-600">{item.count} transactions</p>
+                  <p className="font-medium text-gray-900">{item.category}</p>
+                  <p className="mt-1 text-sm text-gray-500">{item.count} {item.count === 1 ? 'receipt' : 'receipts'}</p>
                 </div>
+                <p className="font-semibold tabular-nums text-gray-900">{formatMoney(item.amount)}</p>
               </div>
-              <div className="text-left sm:text-right">
-                <p className="text-xl lg:text-2xl font-bold text-gray-900">₱{item.amount.toLocaleString()}</p>
-                <p className="text-xs lg:text-sm text-gray-500">
-                  {((item.amount / totalCollections) * 100).toFixed(1)}% of total
-                </p>
-              </div>
-            </div>
-          ))}
-        </div>
-
-        {/* Total Row */}
-        <div className="mt-6 pt-6 border-t-2 border-gray-300">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between p-4 bg-teal-50 rounded-lg gap-3">
-            <div>
-              <p className="text-base lg:text-lg font-bold text-gray-900">Total Cash Received</p>
-              <p className="text-xs lg:text-sm text-gray-600">{totalTransactions} total transactions</p>
-            </div>
-            <p className="text-2xl lg:text-3xl font-bold text-teal-600">₱{totalCollections.toLocaleString()}</p>
+            ))}
           </div>
-        </div>
-      </div>
+        ) : null}
+      </section>
 
-      {/* Recent Collections */}
-      <div className="bg-white rounded-lg shadow border border-gray-200 p-4 lg:p-6">
-        <h3 className="text-base lg:text-lg font-semibold text-gray-900 mb-4">Today's Collection Details</h3>
-        <div className="overflow-x-auto -mx-4 lg:mx-0">
-          <div className="inline-block min-w-full align-middle">
-            <table className="min-w-full">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th className="text-left py-3 px-4 font-semibold text-gray-700 text-xs lg:text-sm whitespace-nowrap">Time</th>
-                  <th className="text-left py-3 px-4 font-semibold text-gray-700 text-xs lg:text-sm whitespace-nowrap">Type</th>
-                  <th className="text-left py-3 px-4 font-semibold text-gray-700 text-xs lg:text-sm whitespace-nowrap">Member</th>
-                  <th className="text-left py-3 px-4 font-semibold text-gray-700 text-xs lg:text-sm whitespace-nowrap">Reference</th>
-                  <th className="text-left py-3 px-4 font-semibold text-gray-700 text-xs lg:text-sm whitespace-nowrap">Recorded By</th>
-                  <th className="text-right py-3 px-4 font-semibold text-gray-700 text-xs lg:text-sm whitespace-nowrap">Amount</th>
+      <section className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
+        <div className="border-b border-gray-200 px-5 py-4">
+          <h3 className="text-base font-semibold text-gray-900">Receipt details</h3>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="min-w-full divide-y divide-gray-200 text-sm">
+            <thead className="bg-gray-50 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
+              <tr>
+                <th scope="col" className="px-5 py-3">Time</th>
+                <th scope="col" className="px-5 py-3">Category</th>
+                <th scope="col" className="px-5 py-3">Received from</th>
+                <th scope="col" className="px-5 py-3">Reference</th>
+                <th scope="col" className="px-5 py-3 text-right">Amount</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100">
+              {loading ? (
+                <tr><td colSpan="5" className="px-5 py-10 text-center text-gray-500">Loading receipts…</td></tr>
+              ) : error ? (
+                <tr><td colSpan="5" className="px-5 py-10 text-center text-gray-500">Receipt data is unavailable.</td></tr>
+              ) : collections.length === 0 ? (
+                <tr><td colSpan="5" className="px-5 py-10 text-center text-gray-500">No receipts for this date.</td></tr>
+              ) : collections.map((collection) => (
+                <tr key={collection.id} className="hover:bg-gray-50">
+                  <td className="whitespace-nowrap px-5 py-3 text-gray-600">{collection.time || '—'}</td>
+                  <td className="whitespace-nowrap px-5 py-3 font-medium text-gray-900">{collection.type}</td>
+                  <td className="px-5 py-3 text-gray-700">{collection.member || '—'}</td>
+                  <td className="whitespace-nowrap px-5 py-3 font-mono text-xs text-gray-600">{collection.reference || '—'}</td>
+                  <td className="whitespace-nowrap px-5 py-3 text-right font-medium tabular-nums text-gray-900">{formatMoney(collection.amount)}</td>
                 </tr>
-              </thead>
-              <tbody>
-                {recentCollections.map((collection, idx) => (
-                  <tr key={idx} className="border-b border-gray-200 hover:bg-gray-50">
-                    <td className="py-3 px-4 text-xs lg:text-sm text-gray-600 whitespace-nowrap">{collection.time}</td>
-                    <td className="py-3 px-4 text-xs lg:text-sm text-gray-900 font-medium whitespace-nowrap">{collection.type}</td>
-                    <td className="py-3 px-4 text-xs lg:text-sm text-gray-900 whitespace-nowrap">{collection.member}</td>
-                    <td className="py-3 px-4 text-xs lg:text-sm text-gray-600 whitespace-nowrap">{collection.ref}</td>
-                    <td className="py-3 px-4">
-                      <span className={`inline-flex items-center space-x-1 lg:space-x-2 px-2 lg:px-3 py-1 rounded-full text-xs font-medium ${getRecordBadgeClasses(collection.recordedBy)}`}>
-                        <span className={`w-2 h-2 rounded-full ${getRoleDotClasses(collection.recordedBy)}`}></span>
-                        <span className="whitespace-nowrap">{collection.recordedBy}</span>
-                      </span>
-                    </td>
-                    <td className="py-3 px-4 text-xs lg:text-sm text-right font-semibold text-gray-900 whitespace-nowrap">
-                      ₱{collection.amount.toLocaleString()}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-              <tfoot className="bg-gray-50 border-t-2 border-gray-300">
+              ))}
+            </tbody>
+            {!loading && !error && collections.length > 0 && (
+              <tfoot className="border-t border-gray-200 bg-gray-50">
                 <tr>
-                  <td colSpan="5" className="py-3 px-4 text-xs lg:text-sm font-bold text-gray-900">Subtotal:</td>
-                  <td className="py-3 px-4 text-right font-bold text-teal-600 text-base lg:text-lg whitespace-nowrap">
-                    ₱{recentCollections.reduce((sum, c) => sum + c.amount, 0).toLocaleString()}
-                  </td>
+                  <td colSpan="4" className="px-5 py-3 font-semibold text-gray-900">Total</td>
+                  <td className="px-5 py-3 text-right font-semibold tabular-nums text-gray-900">{formatMoney(totalCollections)}</td>
                 </tr>
               </tfoot>
-            </table>
-          </div>
+            )}
+          </table>
         </div>
-      </div>
-
-      {/* Cash Verification Helper */}
-      <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 lg:p-6">
-        <div className="flex items-start space-x-3">
-          <svg className="w-5 h-5 lg:w-6 lg:h-6 text-yellow-600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-          </svg>
-          <div className="flex-1">
-            <h4 className="font-semibold text-yellow-900 mb-2 text-sm lg:text-base">Cash Verification</h4>
-            <p className="text-xs lg:text-sm text-yellow-800 mb-3">
-              Use this report to verify actual cash on hand. The total cash received today should match the physical cash count.
-            </p>
-            <p className="text-xs lg:text-sm font-semibold text-yellow-900">
-              Expected Cash on Hand: ₱{totalCollections.toLocaleString()}
-            </p>
-          </div>
-        </div>
-      </div>
+      </section>
     </div>
   );
 };

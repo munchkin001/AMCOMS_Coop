@@ -1,5 +1,8 @@
-import React, { useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../contexts/AuthContext';
+import { useRealtimeSubscription } from '../hooks/useRealtimeSubscription';
+import { supabase } from '../lib/supabase';
 import ChairmanDashboard from '../components/chairman/ChairmanDashboard';
 import PerformanceReport from '../components/chairman/PerformanceReport';
 import AuditLog from '../components/chairman/AuditLog';
@@ -8,16 +11,52 @@ import StaffProfile from '../components/common/StaffProfile';
 
 const ChairmanPortal = () => {
   const navigate = useNavigate();
+  const { staff } = useAuth();
   const [activeModule, setActiveModule] = useState('dashboard');
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  const [notifications, setNotifications] = useState([
-    { id: 1, message: 'New Loan Policy Published', time: '10 minutes ago', read: false },
-    { id: 2, message: 'Monthly Performance Report Available', time: '1 hour ago', read: false },
-    { id: 3, message: 'Multiple Failed Login Attempts', time: '2 hours ago', read: true }
-  ]);
+  const [notifications, setNotifications] = useState([]);
+  const [notificationsLoading, setNotificationsLoading] = useState(true);
+  const [notificationsError, setNotificationsError] = useState('');
   const [showNotifications, setShowNotifications] = useState(false);
   const [showLogoutModal, setShowLogoutModal] = useState(false);
   const [showUserMenu, setShowUserMenu] = useState(false);
+
+  const fetchNotifications = useCallback(async () => {
+    if (!staff?.id) {
+      setNotifications([]);
+      setNotificationsError('');
+      setNotificationsLoading(false);
+      return;
+    }
+
+    const { data, error } = await supabase
+      .from('notifications')
+      .select('id, title, message, is_read, created_at')
+      .eq('user_id', staff.id)
+      .order('created_at', { ascending: false })
+      .limit(30);
+
+    if (error) {
+      console.error('Unable to load chairman notifications:', error);
+      setNotificationsError(`Unable to load notifications: ${error.message}`);
+    } else {
+      setNotifications(data || []);
+      setNotificationsError('');
+    }
+    setNotificationsLoading(false);
+  }, [staff?.id]);
+
+  useEffect(() => {
+    fetchNotifications();
+  }, [fetchNotifications]);
+
+  useRealtimeSubscription(
+    'notifications',
+    fetchNotifications,
+    staff?.id ? { column: 'user_id', value: staff.id } : null,
+    [staff?.id],
+    Boolean(staff?.id)
+  );
 
   const handleLogout = () => {
     setShowLogoutModal(true);
@@ -37,12 +76,27 @@ const ChairmanPortal = () => {
     setIsMobileMenuOpen(false); // Close menu on mobile after selection
   };
 
-  const unreadCount = notifications.filter(n => !n.read).length;
+  const unreadCount = notifications.filter((notification) => !notification.is_read).length;
 
-  const markAsRead = (id) => {
-    setNotifications(notifications.map(n => 
-      n.id === id ? { ...n, read: true } : n
+  const markAsRead = async (notification) => {
+    if (notification.is_read || !staff?.id) return;
+    setNotifications((current) => current.map((item) =>
+      item.id === notification.id ? { ...item, is_read: true } : item
     ));
+
+    const { error } = await supabase
+      .from('notifications')
+      .update({ is_read: true, read_at: new Date().toISOString() })
+      .eq('id', notification.id)
+      .eq('user_id', staff.id);
+
+    if (error) {
+      console.error('Unable to mark chairman notification as read:', error);
+      setNotificationsError(`Unable to update notification: ${error.message}`);
+      setNotifications((current) => current.map((item) =>
+        item.id === notification.id ? { ...item, is_read: false } : item
+      ));
+    }
   };
 
   const renderModule = () => {
@@ -214,18 +268,24 @@ const ChairmanPortal = () => {
                       <h3 className="font-semibold text-gray-800">Notifications</h3>
                     </div>
                     <div className="max-h-96 overflow-y-auto">
+                      {notificationsError && <p role="alert" className="p-4 text-sm text-red-700">{notificationsError}</p>}
                       {notifications.map(notif => (
                         <div
                           key={notif.id}
                           className={`p-4 border-b border-gray-100 hover:bg-gray-50 cursor-pointer ${
-                            !notif.read ? 'bg-blue-50' : ''
+                            !notif.is_read ? 'bg-blue-50' : ''
                           }`}
-                          onClick={() => markAsRead(notif.id)}
+                          onClick={() => markAsRead(notif)}
                         >
-                          <p className="text-sm font-medium text-gray-800">{notif.message}</p>
-                          <p className="text-xs text-gray-500 mt-1">{notif.time}</p>
+                          <p className="text-sm font-medium text-gray-800">{notif.title}</p>
+                          <p className="text-sm text-gray-700 mt-1">{notif.message}</p>
+                          <p className="text-xs text-gray-500 mt-1">{new Date(notif.created_at).toLocaleString()}</p>
                         </div>
                       ))}
+                      {!notificationsLoading && notifications.length === 0 && (
+                        <p className="p-4 text-sm text-gray-500">No notifications.</p>
+                      )}
+                      {notificationsLoading && <p className="p-4 text-sm text-gray-500">Loading notifications...</p>}
                     </div>
                   </div>
                 )}

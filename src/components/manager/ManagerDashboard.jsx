@@ -1,13 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import { Line } from 'react-chartjs-2';
-import { AlertTriangle, Banknote, CircleCheck, ClipboardCheck, FileText, Gem, HandCoins, Landmark, Megaphone, Package, UserPlus, Users, Clock3 } from 'lucide-react';
+import { AlertTriangle, Banknote, ClipboardCheck, FileText, Gem, HandCoins, Landmark, Megaphone, Package, UserPlus, Users, Clock3 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useMultipleRealtimeSubscriptions } from '../../hooks/useRealtimeSubscription';
+import { fetchAccountBalances, fetchMonthlyFinancialSummary, summarizeAccountBalances, toDateString } from '../../lib/dashboardAccounting';
 import DashboardMetricCard from '../common/DashboardMetricCard';
 import DiscrepancyPanel from '../common/DiscrepancyPanel';
 
 const ManagerDashboard = () => {
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
   const [dashboardData, setDashboardData] = useState({
     pendingRequests: 0,
     activeLoans: 0,
@@ -35,163 +37,84 @@ const ManagerDashboard = () => {
   const fetchDashboardData = async () => {
     try {
       setLoading(true);
-      const today = new Date().toISOString().split('T')[0];
+      const today = toDateString(new Date());
+      const tomorrow = new Date();
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      const [
+        pendingRequestsResult,
+        activeLoansResult,
+        activeSavingsResult,
+        activeTimeDepositsResult,
+        membersResult,
+        stockResult,
+        loanApprovalsResult,
+        savingsTransactionsResult,
+        timeDepositTransactionsResult,
+        newMembersResult,
+        pendingTransactionsResult,
+        accountRows,
+        monthlyFinancials
+      ] = await Promise.all([
+        supabase.from('requests').select('id', { count: 'exact', head: true })
+          .eq('request_type', 'loan_application').in('status', ['pending', 'under_review']),
+        supabase.from('loans').select('id', { count: 'exact', head: true }).eq('status', 'active'),
+        supabase.from('savings_accounts').select('id', { count: 'exact', head: true })
+          .eq('status', 'active').eq('account_type', 'regular'),
+        supabase.from('savings_accounts').select('id', { count: 'exact', head: true })
+          .eq('status', 'active').eq('account_type', 'time_deposit'),
+        supabase.from('members').select('id', { count: 'exact', head: true }),
+        supabase.from('products').select('id, reorder_level, stock_inventory(quantity_on_hand)')
+          .eq('is_active', true),
+        supabase.from('loans').select('id', { count: 'exact', head: true }).eq('approval_date', today),
+        supabase.from('savings_transactions').select('id', { count: 'exact', head: true })
+          .eq('transaction_date', today),
+        supabase.from('savings_transactions')
+          .select('id, savings_accounts!inner(account_type)')
+          .eq('transaction_date', today).eq('savings_accounts.account_type', 'time_deposit'),
+        supabase.from('members').select('id', { count: 'exact', head: true })
+          .gte('date_joined', today).lt('date_joined', toDateString(tomorrow)),
+        supabase.from('journal_entries').select('id', { count: 'exact', head: true })
+          .eq('status', 'draft').eq('entry_date', today),
+        fetchAccountBalances(),
+        fetchMonthlyFinancialSummary()
+      ]);
 
-      // Fetch pending member loan applications
-      const { count: pendingRequests } = await supabase
-        .from('requests')
-        .select('id', { count: 'exact', head: true })
-        .eq('request_type', 'loan_application')
-        .in('status', ['pending', 'under_review']);
+      const results = [
+        pendingRequestsResult, activeLoansResult, activeSavingsResult, activeTimeDepositsResult,
+        membersResult, stockResult, loanApprovalsResult, savingsTransactionsResult,
+        timeDepositTransactionsResult, newMembersResult, pendingTransactionsResult
+      ];
+      const failedResult = results.find((result) => result.error);
+      if (failedResult) throw failedResult.error;
 
-      // Fetch active loans
-      const { count: activeLoans } = await supabase
-        .from('loans')
-        .select('*', { count: 'exact', head: true })
-        .eq('status', 'active');
-
-      // Fetch active savings accounts
-      const { count: activeSavings } = await supabase
-        .from('savings_accounts')
-        .select('*', { count: 'exact', head: true })
-        .eq('status', 'active')
-        .eq('account_type', 'regular');
-
-      // Fetch active time deposits
-      const { count: activeTimeDeposits } = await supabase
-        .from('savings_accounts')
-        .select('*', { count: 'exact', head: true })
-        .eq('status', 'active')
-        .eq('account_type', 'time_deposit');
-
-      // Fetch total members
-      const { count: totalMembers } = await supabase
-        .from('members')
-        .select('*', { count: 'exact', head: true });
-
-      // Fetch low stock products
-      const { data: lowStockData } = await supabase
-        .from('products')
-        .select('id, reorder_level, stock_inventory(quantity_on_hand)')
-        .eq('is_active', true);
-
-      const lowStockProducts = lowStockData?.filter(p => 
-        p.stock_inventory?.[0]?.quantity_on_hand <= p.reorder_level
-      ).length || 0;
-
-      // Today's activities
-      const { count: todayLoanApprovals } = await supabase
-        .from('loans')
-        .select('*', { count: 'exact', head: true })
-        .eq('approval_date', today);
-
-      const { count: todaySavingsTransactions } = await supabase
-        .from('savings_transactions')
-        .select('*', { count: 'exact', head: true })
-        .eq('transaction_date', today);
-
-      const { count: todayNewMembers } = await supabase
-        .from('members')
-        .select('*', { count: 'exact', head: true })
-        .gte('created_at', today);
-
-      // Fetch financial data
-      // Get total income from loan payments (interest portion)
-      const { data: loanPayments } = await supabase
-        .from('loan_payments')
-        .select('interest_amount');
-      
-      const totalInterestIncome = loanPayments?.reduce((sum, payment) => 
-        sum + (parseFloat(payment.interest_amount) || 0), 0) || 0;
-
-      // Get income from sales
-      const { data: sales } = await supabase
-        .from('sales')
-        .select('total_amount');
-      
-      const totalSalesIncome = sales?.reduce((sum, sale) => 
-        sum + (parseFloat(sale.total_amount) || 0), 0) || 0;
-
-      const totalIncome = totalInterestIncome + totalSalesIncome;
-
-      // Get expenses from general journal (debit entries for expense accounts)
-      const { data: expenses } = await supabase
-        .from('general_journal')
-        .select('debit_amount, accounts(account_type)')
-        .eq('accounts.account_type', 'expense');
-      
-      const totalExpenses = expenses?.reduce((sum, entry) => 
-        sum + (parseFloat(entry.debit_amount) || 0), 0) || 0;
-
-      // Get cash on hand from cash account in general ledger
-      const { data: cashAccount } = await supabase
-        .from('general_ledger')
-        .select('debit_amount, credit_amount, accounts!inner(account_name)')
-        .ilike('accounts.account_name', '%cash%');
-      
-      const cashOnHand = cashAccount?.reduce((sum, entry) => 
-        sum + (parseFloat(entry.debit_amount) || 0) - (parseFloat(entry.credit_amount) || 0), 0) || 0;
-
-      // Get monthly income/expense data for chart (last 6 months)
-      const sixMonthsAgo = new Date();
-      sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
-      
-      const { data: monthlyPayments } = await supabase
-        .from('loan_payments')
-        .select('payment_date, interest_amount')
-        .gte('payment_date', sixMonthsAgo.toISOString().split('T')[0])
-        .order('payment_date');
-
-      const { data: monthlyJournalExpenses } = await supabase
-        .from('general_journal')
-        .select('transaction_date, debit_amount, accounts!inner(account_type)')
-        .eq('accounts.account_type', 'expense')
-        .gte('transaction_date', sixMonthsAgo.toISOString().split('T')[0])
-        .order('transaction_date');
-
-      // Aggregate by month
-      const monthlyIncome = Array(6).fill(0);
-      const monthlyExpenses = Array(6).fill(0);
-      
-      monthlyPayments?.forEach(payment => {
-        const monthIndex = new Date(payment.payment_date).getMonth();
-        const currentMonth = new Date().getMonth();
-        const offset = (currentMonth - monthIndex + 12) % 12;
-        if (offset < 6) {
-          monthlyIncome[5 - offset] += parseFloat(payment.interest_amount) || 0;
-        }
-      });
-
-      monthlyJournalExpenses?.forEach(expense => {
-        const monthIndex = new Date(expense.transaction_date).getMonth();
-        const currentMonth = new Date().getMonth();
-        const offset = (currentMonth - monthIndex + 12) % 12;
-        if (offset < 6) {
-          monthlyExpenses[5 - offset] += parseFloat(expense.debit_amount) || 0;
-        }
-      });
+      const lowStockProducts = (stockResult.data || []).filter((product) =>
+        (product.stock_inventory?.[0]?.quantity_on_hand ?? 0) <= product.reorder_level
+      ).length;
+      const financialSummary = summarizeAccountBalances(accountRows);
 
       setDashboardData({
-        pendingRequests: pendingRequests || 0,
-        activeLoans: activeLoans || 0,
-        activeSavings: activeSavings || 0,
-        activeTimeDeposits: activeTimeDeposits || 0,
-        totalMembers: totalMembers || 0,
+        pendingRequests: pendingRequestsResult.count || 0,
+        activeLoans: activeLoansResult.count || 0,
+        activeSavings: activeSavingsResult.count || 0,
+        activeTimeDeposits: activeTimeDepositsResult.count || 0,
+        totalMembers: membersResult.count || 0,
         lowStockProducts,
-        todayLoanApprovals: todayLoanApprovals || 0,
-        todaySavingsTransactions: todaySavingsTransactions || 0,
-        todayTimeDepositTransactions: 0,
-        todayNewMembers: todayNewMembers || 0,
-        todayPendingTransactions: 0,
-        totalIncome,
-        totalExpenses,
-        netIncome: totalIncome - totalExpenses,
-        cashOnHand,
-        monthlyIncome,
-        monthlyExpenses
+        todayLoanApprovals: loanApprovalsResult.count || 0,
+        todaySavingsTransactions: savingsTransactionsResult.count || 0,
+        todayTimeDepositTransactions: timeDepositTransactionsResult.data?.length || 0,
+        todayNewMembers: newMembersResult.count || 0,
+        todayPendingTransactions: pendingTransactionsResult.count || 0,
+        totalIncome: financialSummary.totalIncome,
+        totalExpenses: financialSummary.totalExpenses,
+        netIncome: financialSummary.totalIncome - financialSummary.totalExpenses,
+        cashOnHand: financialSummary.cashOnHand,
+        monthlyIncome: monthlyFinancials.income,
+        monthlyExpenses: monthlyFinancials.expenses
       });
+      setError('');
     } catch (error) {
       console.error('Error fetching dashboard data:', error);
+      setError(`Unable to load management data: ${error.message}`);
     } finally {
       setLoading(false);
     }
@@ -205,10 +128,9 @@ const ManagerDashboard = () => {
     'savings_transactions',
     'members',
     'products',
-    'sales',
-    'general_journal',
-    'general_ledger',
-    'accounts'
+    'journal_entries',
+    'journal_entry_lines',
+    'chart_of_accounts'
   ].map((table) => ({ table, onUpdate: fetchDashboardData })), []);
 
   // Summary cards data
@@ -283,6 +205,7 @@ const ManagerDashboard = () => {
 
   return (
     <div className="space-y-6">
+      {error && <p role="alert" className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{error}</p>}
       <DiscrepancyPanel />
       {/* Summary Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
@@ -340,7 +263,7 @@ const ManagerDashboard = () => {
                     <p className="text-xs text-gray-500">Today</p>
                   </div>
                 </div>
-                <span className={`text-xl font-bold ${activity.color}`}>{activity.count}</span>
+                <span className={`text-xl font-bold ${activity.color}`}>{loading ? '...' : activity.count}</span>
               </div>
             ))}
           </div>
@@ -397,13 +320,6 @@ const ManagerDashboard = () => {
                 </div>
               </div>
             )}
-            <div className="flex items-start space-x-3 p-3 bg-green-50 border border-green-200 rounded-lg">
-              <CircleCheck aria-hidden="true" className="size-5 shrink-0 text-green-600" />
-              <div className="flex-1">
-                <p className="text-sm font-medium text-green-900">System Status</p>
-                <p className="text-xs text-green-700">All systems operating normally</p>
-              </div>
-            </div>
             {!loading && dashboardData.lowStockProducts === 0 && dashboardData.pendingRequests === 0 && (
               <div className="text-center py-8 text-gray-500">
                 <p className="text-sm">No alerts at this time</p>

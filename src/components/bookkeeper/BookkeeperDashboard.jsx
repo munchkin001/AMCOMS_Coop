@@ -2,15 +2,17 @@ import React, { useState, useEffect } from 'react';
 import { AlertTriangle, Banknote, Building2, Clock3, FileText, HandCoins, Landmark, Receipt, Scale, ShoppingCart, TrendingDown, TrendingUp, Wallet } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useMultipleRealtimeSubscriptions } from '../../hooks/useRealtimeSubscription';
+import { fetchAccountBalances, summarizeAccountBalances, toDateString } from '../../lib/dashboardAccounting';
 import { useTimeOfDayGreeting } from '../../hooks/useTimeOfDayGreeting';
 import DashboardMetricCard from '../common/DashboardMetricCard';
 import DiscrepancyPanel from '../common/DiscrepancyPanel';
 
 const BookkeeperDashboard = () => {
   const greeting = useTimeOfDayGreeting();
-  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
+  const [selectedDate, setSelectedDate] = useState(toDateString(new Date()));
   const [showTransactionModal, setShowTransactionModal] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
   const [recentTransactions, setRecentTransactions] = useState([]);
   const [dashboardData, setDashboardData] = useState({
     cashOnHand: 0,
@@ -31,130 +33,66 @@ const BookkeeperDashboard = () => {
   const fetchDashboardData = async () => {
     try {
       setLoading(true);
-
-      // Fetch today's cash receipts
-      const { data: receiptsData } = await supabase
+      const [receiptResult, disbursementResult, draftResult, accountRows] = await Promise.all([
+        supabase
         .from('cash_receipts')
-        .select('amount')
-        .eq('receipt_date', selectedDate);
-
-      const todayReceipts = receiptsData?.reduce((sum, r) => sum + parseFloat(r.amount || 0), 0) || 0;
-
-      // Fetch today's cash disbursements
-      const { data: disbursementsData } = await supabase
-        .from('cash_disbursements')
-        .select('amount')
-        .eq('disbursement_date', selectedDate);
-
-      const todayDisbursements = disbursementsData?.reduce((sum, d) => sum + parseFloat(d.amount || 0), 0) || 0;
-
-      // Fetch pending journal entries (draft status)
-      const { count: pendingEntries } = await supabase
-        .from('journal_entries')
-        .select('*', { count: 'exact', head: true })
-        .eq('status', 'draft');
-
-      // Fetch cash on hand from general ledger (Cash account)
-      const { data: cashOnHandData } = await supabase
-        .from('general_ledger')
-        .select('debit_amount, credit_amount, accounts!inner(account_name, account_type)')
-        .eq('accounts.account_type', 'asset')
-        .ilike('accounts.account_name', '%cash%');
-      
-      const cashOnHand = cashOnHandData?.reduce((sum, entry) => 
-        sum + (parseFloat(entry.debit_amount) || 0) - (parseFloat(entry.credit_amount) || 0), 0) || 0;
-
-      // Fetch cash in bank from general ledger (Bank account)
-      const { data: bankData } = await supabase
-        .from('general_ledger')
-        .select('debit_amount, credit_amount, accounts!inner(account_name, account_type)')
-        .eq('accounts.account_type', 'asset')
-        .ilike('accounts.account_name', '%bank%');
-      
-      const cashInBank = bankData?.reduce((sum, entry) => 
-        sum + (parseFloat(entry.debit_amount) || 0) - (parseFloat(entry.credit_amount) || 0), 0) || 0;
-
-      // Fetch total assets, liabilities, and equity from accounts
-      const { data: assetAccounts } = await supabase
-        .from('general_ledger')
-        .select('debit_amount, credit_amount, accounts!inner(account_type)')
-        .eq('accounts.account_type', 'asset');
-      
-      const totalAssets = assetAccounts?.reduce((sum, entry) => 
-        sum + (parseFloat(entry.debit_amount) || 0) - (parseFloat(entry.credit_amount) || 0), 0) || 0;
-
-      const { data: liabilityAccounts } = await supabase
-        .from('general_ledger')
-        .select('debit_amount, credit_amount, accounts!inner(account_type)')
-        .eq('accounts.account_type', 'liability');
-      
-      const totalLiabilities = liabilityAccounts?.reduce((sum, entry) => 
-        sum + (parseFloat(entry.credit_amount) || 0) - (parseFloat(entry.debit_amount) || 0), 0) || 0;
-
-      const { data: equityAccounts } = await supabase
-        .from('general_ledger')
-        .select('debit_amount, credit_amount, accounts!inner(account_type)')
-        .eq('accounts.account_type', 'equity');
-      
-      const totalEquity = equityAccounts?.reduce((sum, entry) => 
-        sum + (parseFloat(entry.credit_amount) || 0) - (parseFloat(entry.debit_amount) || 0), 0) || 0;
-
-      // Count unposted transactions (general journal entries not yet posted to ledger)
-      const { count: unpostedTransactions } = await supabase
-        .from('general_journal')
-        .select('*', { count: 'exact', head: true })
-        .is('posted', false);
-
-      // Fetch recent transactions for the selected date
-      const { data: receipts } = await supabase
-        .from('cash_receipts')
-        .select('id, receipt_date, particulars, cv_number, amount')
+        .select('id, receipt_date, received_from, description, receipt_number, amount')
         .eq('receipt_date', selectedDate)
-        .order('created_at', { ascending: false })
-        .limit(5);
-
-      const { data: disbursements } = await supabase
+        .order('created_at', { ascending: false }),
+        supabase
         .from('cash_disbursements')
-        .select('id, disbursement_date, particulars, cv_number, amount')
+        .select('id, disbursement_date, payee, description, voucher_number, amount')
         .eq('disbursement_date', selectedDate)
-        .order('created_at', { ascending: false })
-        .limit(5);
+        .order('created_at', { ascending: false }),
+        supabase
+          .from('journal_entries')
+          .select('id', { count: 'exact', head: true })
+          .eq('status', 'draft'),
+        fetchAccountBalances()
+      ]);
 
-      // Combine and format transactions
+      if (receiptResult.error) throw receiptResult.error;
+      if (disbursementResult.error) throw disbursementResult.error;
+      if (draftResult.error) throw draftResult.error;
+
+      const receipts = receiptResult.data || [];
+      const disbursements = disbursementResult.data || [];
+      const balances = summarizeAccountBalances(accountRows);
       const transactions = [
         ...(receipts || []).map(r => ({
           date: r.receipt_date,
-          particulars: r.particulars,
-          refNo: r.cv_number || 'N/A',
+          particulars: r.description || r.received_from,
+          refNo: r.receipt_number,
           type: 'Cash Receipt',
           amount: parseFloat(r.amount || 0),
           status: 'Recorded'
         })),
         ...(disbursements || []).map(d => ({
           date: d.disbursement_date,
-          particulars: d.particulars,
-          refNo: d.cv_number || 'N/A',
+          particulars: d.description || d.payee,
+          refNo: d.voucher_number,
           type: 'Cash Disbursement',
           amount: parseFloat(d.amount || 0),
           status: 'Recorded'
         }))
-      ].sort((a, b) => new Date(b.date) - new Date(a.date)).slice(0, 10);
+      ].slice(0, 10);
 
       setRecentTransactions(transactions);
-
       setDashboardData({
-        cashOnHand,
-        cashInBank,
-        todayReceipts,
-        todayDisbursements,
-        pendingEntries: pendingEntries || 0,
-        totalAssets,
-        totalLiabilities,
-        totalEquity,
-        unpostedTransactions: unpostedTransactions || 0
+        cashOnHand: balances.cashOnHand,
+        cashInBank: balances.cashInBank,
+        todayReceipts: receipts.reduce((sum, receipt) => sum + Number(receipt.amount || 0), 0),
+        todayDisbursements: disbursements.reduce((sum, disbursement) => sum + Number(disbursement.amount || 0), 0),
+        pendingEntries: draftResult.count || 0,
+        totalAssets: balances.totalAssets,
+        totalLiabilities: balances.totalLiabilities,
+        totalEquity: balances.totalEquity,
+        unpostedTransactions: draftResult.count || 0
       });
+      setError('');
     } catch (error) {
       console.error('Error fetching dashboard data:', error);
+      setError(`Unable to load bookkeeping data: ${error.message}`);
     } finally {
       setLoading(false);
     }
@@ -165,9 +103,7 @@ const BookkeeperDashboard = () => {
     'cash_disbursements',
     'journal_entries',
     'journal_entry_lines',
-    'general_journal',
-    'general_ledger',
-    'accounts'
+    'chart_of_accounts'
   ].map((table) => ({ table, onUpdate: fetchDashboardData })), [selectedDate]);
 
   const summaryCards = [
@@ -187,11 +123,12 @@ const BookkeeperDashboard = () => {
   const changeDate = (days) => {
     const current = new Date(selectedDate);
     current.setDate(current.getDate() + days);
-    setSelectedDate(current.toISOString().split('T')[0]);
+    setSelectedDate(toDateString(current));
   };
 
   return (
     <div className="space-y-6">
+      {error && <p role="alert" className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{error}</p>}
       <DiscrepancyPanel />
       {/* Welcome Section */}
       <div>
@@ -217,7 +154,7 @@ const BookkeeperDashboard = () => {
             />
           </div>
           <button
-            onClick={() => setSelectedDate(new Date().toISOString().split('T')[0])}
+            onClick={() => setSelectedDate(toDateString(new Date()))}
             className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 font-medium"
           >
             Today

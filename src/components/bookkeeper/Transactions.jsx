@@ -10,6 +10,7 @@ const Transactions = () => {
   const [view, setView] = useState('list'); // 'list', 'type-selector', 'form', 'detail'
   const [selectedType, setSelectedType] = useState(null);
   const [selectedTransaction, setSelectedTransaction] = useState(null);
+  const [actionError, setActionError] = useState('');
 
   const handleNewTransaction = () => {
     setView('type-selector');
@@ -27,6 +28,7 @@ const Transactions = () => {
   };
 
   const handleSaveTransaction = async (data) => {
+    setActionError('');
     if (selectedType === 'cash-receipt' || data.type === 'cash-receipt') {
       const { error } = await supabase.rpc('save_cash_receipt', {
         p_receipt: {
@@ -87,11 +89,12 @@ const Transactions = () => {
   };
 
   const handleDeleteTransaction = async (transaction) => {
+    setActionError('');
     const fn = transaction.type === 'cash-disbursement' ? 'delete_cash_disbursement' : 'delete_cash_receipt';
     const param = transaction.type === 'cash-disbursement' ? 'p_disbursement_id' : 'p_receipt_id';
     const { error } = await supabase.rpc(fn, { [param]: transaction.id });
     if (error) {
-      alert(error.message);
+      setActionError(`Unable to delete transaction: ${error.message}`);
       return;
     }
     setView('list');
@@ -100,6 +103,7 @@ const Transactions = () => {
 
   return (
     <div>
+      {actionError && <p role="alert" className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{actionError}</p>}
       {view === 'list' && (
         <TransactionList 
           onNewTransaction={handleNewTransaction}

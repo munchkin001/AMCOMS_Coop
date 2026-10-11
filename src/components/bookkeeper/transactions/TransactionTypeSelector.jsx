@@ -1,18 +1,19 @@
 import React from 'react';
+import { ArrowDownLeft, ArrowUpRight } from 'lucide-react';
 
 const TransactionTypeSelector = ({ onSelectType, onCancel }) => {
   const transactionTypes = [
     {
       id: 'cash-receipt',
       name: 'Cash Receipt',
-      icon: '💰',
+      icon: ArrowDownLeft,
       description: 'Record money received',
       color: 'bg-green-50 border-green-200 hover:bg-green-100'
     },
     {
       id: 'cash-disbursement',
       name: 'Cash Disbursement',
-      icon: '💸',
+      icon: ArrowUpRight,
       description: 'Record money paid out',
       color: 'bg-red-50 border-red-200 hover:bg-red-100'
     }
@@ -40,9 +41,11 @@ const TransactionTypeSelector = ({ onSelectType, onCancel }) => {
           <button
             key={type.id}
             onClick={() => onSelectType(type.id)}
-            className={`${type.color} border-2 rounded-lg p-8 text-left transition-all hover:shadow-md`}
+            className={`${type.color} border-2 rounded-xl p-6 text-left transition-all hover:shadow-md focus:outline-none focus:ring-2 focus:ring-teal-600 focus:ring-offset-2`}
           >
-            <div className="text-5xl mb-4">{type.icon}</div>
+            <div className="mb-4 inline-flex rounded-lg bg-white p-3 text-gray-700 shadow-sm">
+              <type.icon size={24} aria-hidden="true" />
+            </div>
             <h3 className="text-lg lg:text-xl font-semibold text-gray-900 mb-2">{type.name}</h3>
             <p className="text-sm lg:text-base text-gray-600">{type.description}</p>
           </button>
