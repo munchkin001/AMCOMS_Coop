@@ -11,7 +11,6 @@ import {
   Landmark,
   LayoutDashboard,
   Library,
-  KeyRound,
   Megaphone,
   MessageSquareText,
   Package,
@@ -58,13 +57,6 @@ const staffNavigationConfig = {
       icon: '📜',
       path: '/staff/policies',
       component: 'Policies'
-    },
-    {
-      id: 'member-recovery',
-      name: 'Member Account Recovery',
-      icon: KeyRound,
-      path: '/staff/member-account-recovery',
-      component: 'MemberAccountRecovery'
     }
   ],
 
@@ -274,7 +266,6 @@ export const getNavigationForRole = (role) => {
     performance: BarChart3,
     'audit-log': ClipboardList,
     policies: FileText,
-    'member-recovery': KeyRound,
     members: Users,
     requests: ClipboardList,
     loans: HandCoins,

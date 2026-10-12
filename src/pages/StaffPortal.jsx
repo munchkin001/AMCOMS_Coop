@@ -19,7 +19,6 @@ import Policies from '../components/chairman/Policies';
 
 // Manager Components - Existing
 import MemberManagement from '../components/manager/MemberManagement';
-import MemberAccountRecovery from '../components/manager/MemberAccountRecovery';
 import Announcements from '../components/manager/Announcements';
 import SMSCenter from '../components/manager/SMSCenter';
 import ManagerReports from '../components/manager/Reports';
@@ -101,7 +100,6 @@ const StaffPortal = () => {
         <Route path="/inventory" element={<OperationsMonitoring />} />
         <Route path="/announcements" element={<Announcements />} />
         <Route path="/sms" element={['manager', 'chairman'].includes(staff.role) ? <SMSCenter /> : <Navigate to="/staff/dashboard" replace />} />
-        <Route path="/member-account-recovery" element={staff.role === 'chairman' ? <MemberAccountRecovery /> : <Navigate to="/staff/dashboard" replace />} />
         <Route path="/reports" element={staff.role === 'inventory' ? <InventoryReports /> : <ManagerReports />} />
 
         {/* Treasurer Routes */}

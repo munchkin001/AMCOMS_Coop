@@ -150,33 +150,16 @@ const ProfileEditor = ({ profileType = 'staff', roleLabel }) => {
     setProfileNotice('');
 
     try {
-      const requestedEmail = profile.email.trim().toLowerCase();
-      const currentEmail = user?.email?.toLowerCase() || '';
-      let verifiedEmail = currentEmail;
-      let emailConfirmationPending = false;
-
-      if (requestedEmail !== currentEmail) {
-        const { data, error } = await supabase.auth.updateUser({ email: requestedEmail });
-        if (error) throw error;
-        verifiedEmail = data.user?.email?.toLowerCase() || currentEmail;
-        emailConfirmationPending = verifiedEmail !== requestedEmail;
-      }
-
       const { error } = await supabase.rpc('update_own_profile', {
         p_profile: {
           ...profile,
-          email: verifiedEmail,
+          email: user?.email || '',
           additional_emergency_contacts: profile.additional_emergency_contacts.filter((c) => c.name?.trim() || c.phone?.trim())
         }
       });
       if (error) throw error;
 
-      if (!emailConfirmationPending) {
-        setProfile((current) => ({ ...current, email: verifiedEmail }));
-      }
-      setProfileNotice(emailConfirmationPending
-        ? 'Profile saved. Confirm the email change using the link sent to your new address.'
-        : 'Your profile has been saved.');
+      setProfileNotice('Your profile has been saved.');
     } catch (error) {
       console.error('Unable to save profile:', error);
       setProfileError(error.message || 'Your profile could not be saved. Please try again.');
@@ -288,10 +271,6 @@ const ProfileEditor = ({ profileType = 'staff', roleLabel }) => {
             <div>
               <label htmlFor="profile-age" className={labelClass}>Age</label>
               <input id="profile-age" value={getAge(profile.date_of_birth)} readOnly placeholder="Calculated from date of birth" className={fieldClass} />
-            </div>
-            <div>
-              <label htmlFor="profile-email" className={labelClass}>Email address</label>
-              <input id="profile-email" name="email" type="email" autoComplete="email" required maxLength={254} value={profile.email} onChange={handleProfileChange} className={fieldClass} />
             </div>
             <div>
               <label htmlFor="profile-phone" className={labelClass}>Contact number</label>
