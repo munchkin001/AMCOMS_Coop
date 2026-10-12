@@ -176,7 +176,7 @@ const Hero = () => {
           {/* Badge */}
           <div className="mb-8 md:mb-10 lg:mb-12">
             <span className="inline-block bg-green-600 bg-opacity-50 text-white px-4 py-2 rounded-full text-xs sm:text-sm">
-              <Check aria-hidden="true" /> Serving Agay-Ayan Since 1990+
+              <Check aria-hidden="true" /> CDA Registration No. 9520-10000910
             </span>
           </div>
 
@@ -207,16 +207,16 @@ const Hero = () => {
             {/* Stats */}
             <div className="grid grid-cols-3 gap-3 sm:gap-6 md:gap-8">
               <div className="bg-white bg-opacity-10 backdrop-blur-sm p-4 sm:p-6 rounded-lg text-center">
-                <div className="text-2xl sm:text-3xl md:text-4xl font-bold text-white mb-1 sm:mb-2">260</div>
-                <div className="text-white text-opacity-80 text-xs sm:text-sm">Registered Members</div>
+                <div className="text-2xl sm:text-3xl md:text-4xl font-bold text-white mb-1 sm:mb-2">280</div>
+                <div className="text-white text-opacity-80 text-xs sm:text-sm">Total Members</div>
               </div>
               <div className="bg-white bg-opacity-10 backdrop-blur-sm p-4 sm:p-6 rounded-lg text-center">
-                <div className="text-2xl sm:text-3xl md:text-4xl font-bold text-white mb-1 sm:mb-2">70%</div>
+                <div className="text-2xl sm:text-3xl md:text-4xl font-bold text-white mb-1 sm:mb-2">225</div>
                 <div className="text-white text-opacity-80 text-xs sm:text-sm">Active Members</div>
               </div>
               <div className="bg-white bg-opacity-10 backdrop-blur-sm p-4 sm:p-6 rounded-lg text-center">
-                <div className="text-2xl sm:text-3xl md:text-4xl font-bold text-white mb-1 sm:mb-2">30+</div>
-                <div className="text-white text-opacity-80 text-xs sm:text-sm">Years of Service</div>
+                <div className="text-2xl sm:text-3xl md:text-4xl font-bold text-white mb-1 sm:mb-2">35+</div>
+                <div className="text-white text-opacity-80 text-xs sm:text-sm">Years Since 1987</div>
               </div>
             </div>
           </div>
@@ -345,31 +345,27 @@ const About = () => {
           {/* Right: Content */}
           <div>
             <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold text-gray-900 mb-4 sm:mb-6">
-              A Community-Driven Cooperative for Over Three Decades
+              Empowering Small Coconut Farmers Since 1987
             </h2>
             
             <p className="text-sm sm:text-base text-gray-600 mb-6 sm:mb-8 leading-relaxed">
-              Agay-ayan Multi-Purpose Cooperative Inc. is a community-based cooperative located in
-              Barangay Agay-Ayan, Gingoog City, Misamis Oriental, Philippines. Established in 1992,
-              it serves local coconut and agricultural farmers.
+              The Agay-Ayan Multi-Purpose Cooperative, Inc. (AMCI) started as Agay-Ayan Small Coconut Farmers Association in 1987 with only 25 small coconut farmers and became a full pledge cooperative in 1992. Located in Purok 4, Barangay Agay-Ayan, Gingoog City, Misamis Oriental, it is primarily engaged in copra marketing and coconut sugar production, serving small coconut farmers and cooperative members in the community.
             </p>
 
             {/* Core Identity: Mission and Vision */}
             <div id="core-identity" className="scroll-mt-24">
               <h3 className="text-base sm:text-lg font-bold text-gray-900 mb-3">Core Identity</h3>
               <div className="grid sm:grid-cols-2 gap-4">
-              <div className="bg-green-50 p-4 sm:p-6 rounded-lg">
-                <h3 className="text-base sm:text-lg font-bold text-green-800 mb-2">Mission</h3>
-                <p className="text-xs sm:text-sm text-gray-700">
-                  To empower members through financial services, quality products, and sustainable 
-                  agricultural practices that uplift the community.
-                </p>
-              </div>
               <div className="bg-yellow-50 p-4 sm:p-6 rounded-lg">
                 <h3 className="text-base sm:text-lg font-bold text-yellow-800 mb-2">Vision</h3>
                 <p className="text-xs sm:text-sm text-gray-700">
-                  A thriving cooperative that leads in agricultural innovation, member welfare, 
-                  and community development in Misamis Oriental.
+                  A Cooperative managed by God-fearing and honest officers that empowers farmers and members for a sustainable supply and demand of different commodities creating a circular and responsible economy.
+                </p>
+              </div>
+              <div className="bg-green-50 p-4 sm:p-6 rounded-lg">
+                <h3 className="text-base sm:text-lg font-bold text-green-800 mb-2">Mission</h3>
+                <p className="text-xs sm:text-sm text-gray-700">
+                  To support farmers in their social, technical and financial necessities and motivate consumer of the community through year-round availability of supply and continuous skills trainings in partnership by all assisting agencies of the Government and NGOs.
                 </p>
               </div>
               </div>
@@ -377,12 +373,20 @@ const About = () => {
 
             {/* Accreditations and Partnerships */}
             <div id="accreditations" className="scroll-mt-24 mt-6 sm:mt-8">
-              <h3 className="text-base sm:text-lg font-bold text-gray-900 mb-3">Accreditations &amp; Partnerships</h3>
+              <h3 className="text-base sm:text-lg font-bold text-gray-900 mb-3">Partners &amp; Linkages</h3>
               <div className="grid grid-cols-1 gap-3 sm:gap-4">
                 {[
-                  'Accredited as a Civil Society Organization (CSO) by the Department of Agriculture Region 10 (DA-10).',
-                  'Associated with the Philippine Rural Development Program (PRDP) and the Philippine Coconut Authority (PCA).',
-                  'Received financial grant assistance through the DA Kadiwa ni Ani at Kita program.',
+                  'Land Bank of the Philippines (LBP)',
+                  'Philippine Coconut Authority (PCA)',
+                  'Department of Agriculture (DA) - PRDP-IREAP',
+                  'Department of Trade and Industry (DTI)',
+                  'Cooperative Development Authority (CDA)',
+                  'Department of Labor and Employment (DOLE)',
+                  'Local Government Unit of Gingoog City',
+                  'Agriculture Credit Policy Council (ACPC)',
+                  'Foods and Drugs Administration (FDA)',
+                  'WINROCK International',
+                  'HALAL Certification'
                 ].map((text) => (
                   <div key={text} className="flex items-start space-x-2">
                     <svg className="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
@@ -416,8 +420,8 @@ const Products = () => {
         </h2>
         
         <p className="text-center text-gray-600 mb-12 max-w-3xl mx-auto">
-          Affordable agricultural products and essential commodities for the community —
-          supporting local farmers while delivering quality to every household.
+          Quality agricultural products from our cooperative — supporting local coconut farmers
+          and providing sustainable livelihoods for our community in Gingoog City.
         </p>
 
         {/* Featured Products Showcase */}
@@ -438,11 +442,11 @@ const Products = () => {
               <div className="p-6">
                 <h4 className="text-xl font-bold text-gray-900 mb-2">Coconut Sugar</h4>
                 <p className="text-sm text-gray-600 mb-3">
-                  Natural sweetener made from coconut palm sap. Rich in nutrients and low glycemic index.
+                  Natural sweetener made from coconut sap. FDA-LTO certified. Produced since 2010 with PCA and government assistance.
                 </p>
                 <div className="flex items-center justify-between">
-                  <span className="text-green-600 font-semibold">Premium Quality</span>
-                  <span className="text-sm text-gray-500">Locally Produced</span>
+                  <span className="text-green-600 font-semibold">FDA Certified</span>
+                  <span className="text-sm text-gray-500">1,000 kg/month</span>
                 </div>
               </div>
             </div>
@@ -502,24 +506,31 @@ const Services = () => {
   const services = [
     {
       icon: Sprout,
-      title: 'Coconut Sugar Production',
-      description: 'Known for producing organic coconut sugar.',
+      title: 'Coconut Sugar Manufacturing',
+      description: 'Production and processing of coconut sugar from coconut sap since 2010, producing one thousand kilos per month.',
       bgColor: 'bg-green-50',
       iconBg: 'bg-green-100'
     },
     {
       icon: Store,
-      title: 'Barangay Food Terminal (BFT)',
-      description: 'Operates a local food terminal selling agricultural products, pork, and chicken.',
+      title: 'Barangay Food Terminal/KADIWA',
+      description: 'Operates a barangay food terminal providing agricultural products and essential commodities to the community.',
       bgColor: 'bg-orange-50',
       iconBg: 'bg-orange-100'
     },
     {
       icon: BadgeDollarSign,
-      title: 'Member Savings Operation (MSO)',
-      description: 'Handles member savings and time deposits.',
+      title: 'Member Savings & Lending',
+      description: 'Member savings operation with lending and rediscounting services for financial support.',
       bgColor: 'bg-blue-50',
       iconBg: 'bg-blue-100'
+    },
+    {
+      icon: ClipboardList,
+      title: 'Copra Marketing',
+      description: 'Primary engagement in copra marketing services for small coconut farmers.',
+      bgColor: 'bg-yellow-50',
+      iconBg: 'bg-yellow-100'
     }
   ];
 
@@ -536,12 +547,12 @@ const Services = () => {
         </h2>
         
         <p className="text-center text-sm sm:text-base text-gray-600 mb-12 sm:mb-16 max-w-3xl mx-auto px-4">
-          Comprehensive support for members and the community — from production to
-          food access and member savings.
+          Comprehensive services for small coconut farmers and members — from copra marketing
+          and coconut sugar production to financial assistance and community food access.
         </p>
 
         {/* Services Grid */}
-        <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6 sm:gap-8">
+        <div className="grid sm:grid-cols-2 gap-6 sm:gap-8">
           {services.map((service, idx) => (
             <div 
               key={idx} 
@@ -648,7 +659,7 @@ const Membership = () => {
         </h2>
         
         <p className="text-center text-sm sm:text-base text-green-100 mb-12 sm:mb-16 max-w-3xl mx-auto px-4">
-          Join over 260 members and gain access to savings, loans, dividends, and cooperative benefits.
+          Join over 28060 members and gain access to savings, loans, dividends, and cooperative benefits.
         </p>
 
         <div className="grid md:grid-cols-3 gap-6 sm:gap-8 mb-8 sm:mb-12">
@@ -958,8 +969,9 @@ const Contact = () => {
                 <div>
                   <h4 className="font-bold text-gray-900 mb-1">Office Address</h4>
                   <p className="text-gray-600">
-                    Agay-Ayan, Gingoog City<br />
-                    Misamis Oriental, Philippines
+                    Purok 4, Barangay Agay-Ayan<br />
+                    Gingoog City, Misamis Oriental<br />
+                    Philippines
                   </p>
                 </div>
               </div>
@@ -973,8 +985,7 @@ const Contact = () => {
                 <div>
                   <h4 className="font-bold text-gray-900 mb-1">Contact Number</h4>
                   <p className="text-gray-600">
-                    +63 951 047 8623 <br />
-                    +63 916 686 3117
+                    +63 951 047 8623
                   </p>
                 </div>
               </div>
