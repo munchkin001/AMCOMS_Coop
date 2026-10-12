@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Archive, Eye, KeyRound, Mail, Pencil, Plus, RotateCcw, Search, UserRound, Users, X } from 'lucide-react';
+import { Archive, Eye, KeyRound, Mail, Pencil, Plus, RotateCcw, Search, Trash2, UserRound, Users, X } from 'lucide-react';
 import { useRealtimeSubscription } from '../../hooks/useRealtimeSubscription';
 import { supabase } from '../../lib/supabase';
 import { getAppUrl } from '../../lib/appUrl';
@@ -56,6 +56,8 @@ const MemberManagement = ({ canManageMembers = true }) => {
   const [archiveReason, setArchiveReason] = useState('');
   const [archiveReview, setArchiveReview] = useState(null);
   const [archiveReviewLoading, setArchiveReviewLoading] = useState(false);
+  const [deleteConfirmMember, setDeleteConfirmMember] = useState(null);
+  const [deleteAccountLoading, setDeleteAccountLoading] = useState(false);
 
   const loadMembers = useCallback(async () => {
     setError('');
@@ -373,6 +375,26 @@ const MemberManagement = ({ canManageMembers = true }) => {
     }
   };
 
+  const handleDeleteAccount = async () => {
+    if (!canManageMembers || !deleteConfirmMember) return;
+    setDeleteAccountLoading(true);
+    setError('');
+    setPortalNotice('');
+    try {
+      const { data, error: deleteError } = await supabase.functions.invoke('member-account', {
+        body: { action: 'delete-account', member_id: deleteConfirmMember.id }
+      });
+      if (deleteError) throw deleteError;
+      setPortalNotice(`Portal account for ${deleteConfirmMember.member_number} has been permanently deleted.`);
+      setDeleteConfirmMember(null);
+      await loadMembers();
+    } catch (deleteError) {
+      setError(await getAccountActionError(deleteError));
+    } finally {
+      setDeleteAccountLoading(false);
+    }
+  };
+
   const updateField = (event) => {
     const { name, value } = event.target;
     setForm((current) => ({ ...current, [name]: value }));
@@ -460,7 +482,14 @@ const MemberManagement = ({ canManageMembers = true }) => {
                           {member.membership_status === 'active' && member.email && <button type="button" onClick={() => handleMemberAccountAction(member)} disabled={accountActionMemberId === member.id} aria-label={`${getAccountAction(member) === 'reactivate-member' ? 'Restore portal access for' : getAccountAction(member) === 'resend-activation' ? 'Resend activation for' : getAccountAction(member) === 'reset' ? 'Initiate password reset for' : 'Create portal account for'} ${fullName(member)}`} title={getAccountAction(member) === 'reactivate-member' ? 'Restore portal access' : getAccountAction(member) === 'resend-activation' ? 'Resend activation' : getAccountAction(member) === 'reset' ? 'Initiate password reset' : 'Create portal account'} className="rounded-md p-2 text-gray-600 hover:bg-blue-50 hover:text-blue-700 disabled:opacity-50">{accountActionMemberId === member.id ? <Mail size={17} className="animate-pulse" /> : getAccountAction(member) === 'reactivate-member' ? <RotateCcw size={17} /> : <KeyRound size={17} />}</button>}
                           {member.membership_status === 'active' && <button type="button" onClick={() => startArchive(member)} aria-label={`Archive ${fullName(member)}`} title="Archive member" className="rounded-md p-2 text-gray-600 hover:bg-amber-50 hover:text-amber-800"><Archive size={17} /></button>}
                         </>}
-                        {view === 'archived' && canManageMembers && <button type="button" onClick={() => { setSelectedMember(member); setError(''); setModal('reactivate'); }} aria-label={`Reactivate ${fullName(member)}`} title="Reactivate member" className="rounded-md p-2 text-gray-600 hover:bg-emerald-50 hover:text-emerald-700"><RotateCcw size={17} /></button>}
+                        {view === 'archived' && canManageMembers && (
+                          <>
+                            <button type="button" onClick={() => { setSelectedMember(member); setError(''); setModal('reactivate'); }} aria-label={`Reactivate ${fullName(member)}`} title="Reactivate member" className="rounded-md p-2 text-gray-600 hover:bg-emerald-50 hover:text-emerald-700"><RotateCcw size={17} /></button>
+                            {member.portal_account?.has_account && (
+                              <button type="button" onClick={() => { setDeleteConfirmMember(member); setError(''); }} aria-label={`Delete portal account for ${fullName(member)}`} title="Delete portal account" className="rounded-md p-2 text-gray-600 hover:bg-red-50 hover:text-red-700"><Trash2 size={17} /></button>
+                            )}
+                          </>
+                        )}
                       </div>
                     </td>
                   </tr>
@@ -619,6 +648,30 @@ const MemberManagement = ({ canManageMembers = true }) => {
               <div className="flex justify-end gap-3 border-t border-gray-200 pt-4">
                 <button type="button" onClick={() => setModal('')} disabled={saving} className="min-h-10 rounded-lg border border-gray-300 px-4 text-sm font-medium text-gray-700 disabled:opacity-60">Cancel</button>
                 <button type="button" onClick={handleReactivate} disabled={saving} className="inline-flex min-h-10 items-center gap-2 rounded-lg bg-emerald-700 px-4 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60"><RotateCcw size={16} aria-hidden="true" />{saving ? 'Reactivating…' : 'Confirm Reactivation'}</button>
+              </div>
+            </div>
+          </section>
+        </div>
+      )}
+
+      {modal === '' && deleteConfirmMember && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/55 p-4">
+          <section role="dialog" aria-modal="true" aria-labelledby="delete-account-title" className="w-full max-w-md rounded-xl bg-white shadow-2xl">
+            <div className="flex items-center justify-between border-b border-gray-200 px-5 py-4">
+              <h2 id="delete-account-title" className="text-lg font-semibold text-gray-900">Delete Portal Account</h2>
+              <button type="button" onClick={() => setDeleteConfirmMember(null)} aria-label="Close" className="rounded-lg p-2 text-gray-500 hover:bg-gray-100"><X size={20} /></button>
+            </div>
+            <div className="space-y-4 p-5">
+              <p className="text-sm text-gray-700">You are about to permanently delete the Member Portal account for <strong>{deleteConfirmMember.member_number} — {fullName(deleteConfirmMember)}</strong>.</p>
+              <ul className="space-y-2 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
+                <li>This will permanently delete the member's portal account from Supabase.</li>
+                <li>The member's AMCOMS record will remain for audit purposes.</li>
+                <li>This action cannot be undone.</li>
+              </ul>
+              {error && <p role="alert" className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">{error}</p>}
+              <div className="flex justify-end gap-3 pt-2">
+                <button type="button" onClick={() => setDeleteConfirmMember(null)} className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">Cancel</button>
+                <button type="button" onClick={handleDeleteAccount} disabled={deleteAccountLoading} className="rounded-lg bg-red-700 px-4 py-2 text-sm font-semibold text-white hover:bg-red-800 disabled:opacity-50">{deleteAccountLoading ? 'Deleting…' : 'Delete Portal Account'}</button>
               </div>
             </div>
           </section>

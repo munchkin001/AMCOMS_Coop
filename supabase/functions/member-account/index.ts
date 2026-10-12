@@ -278,6 +278,44 @@ Deno.serve(async (request) => {
       return jsonResponse({ disabled: true }, 200, origin);
     }
 
+    if (action === 'delete-account') {
+      if (!['bookkeeper', 'chairman'].includes(actor.role)) {
+        return jsonResponse({ error: 'Only Bookkeepers and the Chairman can delete member accounts.' }, 403, origin);
+      }
+      if (member.membership_status !== 'inactive' && !member.archived_at) {
+        return jsonResponse({ error: 'Only archived members can have their portal accounts deleted.' }, 409, origin);
+      }
+      const { data: activeLoans, error: loansError } = await admin
+        .from('loans')
+        .select('id', { count: 'exact', head: true })
+        .eq('member_id', member.id)
+        .in('status', ['approved', 'active'])
+        .gt('balance', 0);
+      if (loansError) throw loansError;
+      if ((activeLoans as unknown as { count: number }).count > 0) {
+        return jsonResponse({ error: 'Cannot delete account: member has outstanding loan balance.' }, 409, origin);
+      }
+      const { data: staffRecord, error: staffError } = await admin
+        .from('staff')
+        .select('id, user_id')
+        .eq('member_id', member.id)
+        .eq('role', 'member')
+        .maybeSingle();
+      if (staffError) throw staffError;
+      if (!staffRecord || !staffRecord.user_id) {
+        return jsonResponse({ error: 'No linked Member Portal account was found.' }, 404, origin);
+      }
+      const { error: deleteAuthError } = await admin.auth.admin.deleteUser(staffRecord.user_id);
+      if (deleteAuthError) throw deleteAuthError;
+      const { error: unlinkError } = await admin
+        .from('staff')
+        .update({ user_id: null })
+        .eq('id', staffRecord.id);
+      if (unlinkError) throw unlinkError;
+      await recordAccountEvent(admin, actor.id, member.id, 'MEMBER_ACCOUNT_DELETED');
+      return jsonResponse({ deleted: true, member_number: member.member_number }, 200, origin);
+    }
+
     if (member.membership_status !== 'active' || member.archived_at) {
       return jsonResponse({ error: 'Portal access is unavailable for archived members.' }, 409, origin);
     }
