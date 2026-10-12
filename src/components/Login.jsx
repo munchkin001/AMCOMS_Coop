@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Link, useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 
@@ -6,13 +6,13 @@ const Login = () => {
   const { portalType } = useParams(); // Get portal type from URL
   const navigate = useNavigate();
   const { login, staff, user } = useAuth();
-  const [username, setUsername] = useState('');
+  const [fullName, setFullName] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const [fieldErrors, setFieldErrors] = useState({ username: '', password: '' });
+  const [fieldErrors, setFieldErrors] = useState({ fullName: '', password: '' });
   const [portalConfig, setPortalConfig] = useState({
     name: 'AMCOMS',
     subtitle: 'Login Portal',
@@ -23,6 +23,19 @@ const Login = () => {
     linkColor: 'text-blue-800 hover:text-amber-700',
     backLinkHover: 'hover:text-amber-700'
   });
+
+  const redirectToPortal = useCallback((role) => {
+    const staffRoles = ['chairman', 'manager', 'treasurer', 'bookkeeper', 'inventory'];
+
+    if (staffRoles.includes(role)) {
+      navigate('/staff', { replace: true });
+    } else if (role === 'member') {
+      navigate('/member', { replace: true });
+    } else {
+      console.warn('Unknown role, redirecting to home');
+      navigate('/', { replace: true });
+    }
+  }, [navigate]);
 
   useEffect(() => {
     // Configure the login page based on selected portal
@@ -102,17 +115,17 @@ const Login = () => {
     console.log('Valid access confirmed for role:', userRole, '- redirecting...');
     redirectToPortal(userRole);
     // Note: Keep loading=true until navigation completes
-  }, [user, staff, loading, portalType]);
+  }, [user, staff, loading, portalType, navigate, redirectToPortal]);
 
   const handleLogin = async (e) => {
     e.preventDefault();
     setError('');
-    setFieldErrors({ username: '', password: '' });
+    setFieldErrors({ fullName: '', password: '' });
 
     // Validate fields
     const errors = {};
-    if (!username.trim()) {
-      errors.username = 'Username is required';
+    if (!fullName.trim()) {
+      errors.fullName = 'Enter your username or full name';
     }
     if (!password.trim()) {
       errors.password = 'Password is required';
@@ -128,10 +141,8 @@ const Login = () => {
     setLoading(true);
 
     try {
-      console.log('Attempting login for:', username);
-      
-      // Authenticate with username
-      const result = await login(username, password);
+      // Authenticate with username or full name
+      const result = await login(fullName, password);
 
       if (!result.success) {
         setError(result.error || 'Login failed. Please try again.');
@@ -139,40 +150,41 @@ const Login = () => {
         return;
       }
 
-      // Login successful - the useEffect will handle the redirect when staff loads
-      console.log('Login successful, staff profile should load automatically');
-      
-      // Store remember me preference
-      if (rememberMe) {
-        localStorage.setItem('amcoms_remember', 'true');
-      } else {
-        localStorage.removeItem('amcoms_remember');
+      const userRole = result.staff?.role || result.role;
+      const staffRoles = ['chairman', 'manager', 'treasurer', 'bookkeeper', 'inventory'];
+      const isStaffUser = staffRoles.includes(userRole);
+      const isMemberUser = userRole === 'member';
+
+      if ((portalType === 'staff' && !isStaffUser) || (portalType === 'member' && !isMemberUser)) {
+        setError(portalType === 'staff'
+          ? 'You do not have access to the Staff Portal. Please use the Member Portal.'
+          : 'You do not have access to the Member Portal. Please use the Staff Portal.');
+        setLoading(false);
+        return;
       }
 
-      // Don't set loading to false here - let the useEffect handle it after redirect
+      // Remember-me is optional and must not turn a successful login into an error.
+      try {
+        if (rememberMe) {
+          localStorage.setItem('amcoms_remember', 'true');
+        } else {
+          localStorage.removeItem('amcoms_remember');
+        }
+      } catch (storageError) {
+        console.warn('Unable to save remember-me preference:', storageError);
+      }
+
+      if (isMemberUser && result.staff?.must_change_password) {
+        navigate('/reset-password', { replace: true });
+        return;
+      }
+
+      redirectToPortal(userRole);
       
     } catch (err) {
       console.error('Unexpected login error:', err);
       setError('An unexpected error occurred. Please try again.');
       setLoading(false);
-    }
-  };
-
-  // Redirect to appropriate portal based on role
-  const redirectToPortal = (role) => {
-    const staffRoles = ['chairman', 'manager', 'treasurer', 'bookkeeper', 'inventory'];
-    
-    console.log('Redirecting user with role:', role);
-    
-    if (staffRoles.includes(role)) {
-      console.log('Navigating to Staff Portal at /staff');
-      navigate('/staff', { replace: true });
-    } else if (role === 'member') {
-      console.log('Navigating to Member Portal at /member');
-      navigate('/member', { replace: true });
-    } else {
-      console.warn('Unknown role, redirecting to home');
-      navigate('/', { replace: true });
     }
   };
 
@@ -210,33 +222,33 @@ const Login = () => {
                 </div>
               )}
 
-              {/* Username Field */}
+              {/* Full Name Field */}
               <div className="mb-5">
-                <label htmlFor="username" className="block text-gray-700 text-sm font-semibold mb-2">
-                  Username
+                <label htmlFor="fullName" className="block text-gray-700 text-sm font-semibold mb-2">
+                  Username or full name
                 </label>
                 <input
                   type="text"
-                  id="username"
-                  autoComplete="username"
-                  value={username}
+                  id="fullName"
+                  autoComplete="name"
+                  value={fullName}
                   onChange={(e) => {
-                    setUsername(e.target.value);
-                    if (fieldErrors.username) {
-                      setFieldErrors(prev => ({ ...prev, username: '' }));
+                    setFullName(e.target.value);
+                    if (fieldErrors.fullName) {
+                      setFieldErrors(prev => ({ ...prev, fullName: '' }));
                     }
                   }}
-                  placeholder="Enter your username"
-                  className={`w-full rounded-lg border ${fieldErrors.username ? 'border-red-300' : 'border-gray-200'} px-4 py-3 transition-all focus:outline-none focus:ring-2 ${portalConfig.inputFocus}`}
+                  placeholder="Enter your username or full name"
+                  className={`w-full rounded-lg border ${fieldErrors.fullName ? 'border-red-300' : 'border-gray-200'} px-4 py-3 transition-all focus:outline-none focus:ring-2 ${portalConfig.inputFocus}`}
                   required
                   disabled={loading}
                 />
-                {fieldErrors.username && (
+                {fieldErrors.fullName && (
                   <p className="mt-1 text-sm text-red-600 flex items-center space-x-1">
                     <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
                       <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
                     </svg>
-                    <span>{fieldErrors.username}</span>
+                    <span>{fieldErrors.fullName}</span>
                   </p>
                 )}
               </div>

@@ -5,7 +5,7 @@ import { useAuth } from '../contexts/AuthContext';
 const MemberLogin = () => {
   const navigate = useNavigate();
   const { login } = useAuth();
-  const [username, setUsername] = useState('');
+  const [fullName, setFullName] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -17,7 +17,7 @@ const MemberLogin = () => {
     setLoading(true);
 
     try {
-      const result = await login(username, password);
+      const result = await login(fullName, password);
       
       if (result.success) {
         const role = result.role;
@@ -32,7 +32,7 @@ const MemberLogin = () => {
         // Redirect to member portal
         navigate('/member-portal');
       } else {
-        setError(result.error || 'Invalid username or password');
+        setError(result.error || 'Invalid username/full name or password');
       }
     } catch (err) {
       setError('An error occurred during login. Please try again.');
@@ -96,16 +96,16 @@ const MemberLogin = () => {
           <form onSubmit={handleSubmit} className="space-y-6">
             <div>
               <label className="block text-gray-700 font-medium mb-2 text-base">
-                Username
+                Username or full name
               </label>
               <input
                 type="text"
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
+                value={fullName}
+                onChange={(e) => setFullName(e.target.value)}
                 className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all text-base"
-                placeholder="Enter your username"
+                placeholder="Enter your username or full name"
                 required
-                autoComplete="username"
+                autoComplete="name"
               />
             </div>
 

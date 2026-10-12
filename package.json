@@ -7,7 +7,9 @@
     "dev": "vite",
     "build": "vite build",
     "lint": "oxlint",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "cleanup:staff-auth": "node scripts/cleanup-staff-auth.js",
+    "reset:all-staff-passwords": "node scripts/reset-all-staff-passwords.js"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.116.0",

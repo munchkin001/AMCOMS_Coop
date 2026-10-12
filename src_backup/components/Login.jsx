@@ -2,49 +2,45 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 
-const Login = () => {
-  const { portalType } = useParams();
-  const navigate = useNavigate();
-  const { signIn, staff, loading: authLoading } = useAuth();
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [showPassword, setShowPassword] = useState(false);
-  const [error, setError] = useState('');
-  const [loading, setLoading] = useState(false);
+const { login, loading: authLoading } = useAuth();
+const [username, setUsername] = useState('');
+const [password, setPassword] = useState('');
+const [loading, setLoading] = useState(false);
+const [error, setError] = useState('');
 
-  const portalConfig = {
-    chairman: { title: 'Chairman Portal', color: 'purple', roles: ['chairman'] },
-    manager: { title: 'Manager Portal', color: 'blue', roles: ['manager'] },
-    treasurer: { title: 'Treasurer Portal', color: 'green', roles: ['treasurer'] },
-    bookkeeper: { title: 'Bookkeeper Portal', color: 'orange', roles: ['bookkeeper'] },
-    inventory: { title: 'Inventory Portal', color: 'teal', roles: ['inventory'] },
-    member: { title: 'Member Portal', color: 'green', roles: ['member'] },
-  };
+const handleLogin = async (e) => {
+  e.preventDefault();
+  setError('');
+  setLoading(true);
 
-  const config = portalConfig[portalType] || portalConfig.member;
+  try {
+    const result = await login(username.trim(), password);
 
-  useEffect(() => {
-    if (!authLoading && staff) {
-      const portalMap = {
-        chairman: '/chairman-portal',
-        manager: '/manager-portal',
-        treasurer: '/treasurer-portal',
-        bookkeeper: '/bookkeeper-portal',
-        inventory: '/inventory-portal',
-        member: '/member-portal',
-      };
-      navigate(portalMap[staff.role] || '/portal-selection', { replace: true });
-    }
-  }, [authLoading, staff, navigate]);
-
-  const handleLogin = async (e) => {
-    e.preventDefault();
-    setError('');
-
-    if (!email || !password) {
-      setError('Please enter both email and password');
+    if (!result.success) {
+      setError(result.error || 'Unable to sign in.');
       return;
     }
+
+    const portalMap = {
+      chairman: '/chairman-portal',
+      manager: '/manager-portal',
+      treasurer: '/treasurer-portal',
+      bookkeeper: '/bookkeeper-portal',
+      inventory: '/inventory-portal',
+      member: '/member-portal',
+    };
+
+    const destination = portalMap[result.role];
+
+    if (!destination) {
+      setError('Your account has no valid portal assignment.');
+      return;
+    }
+
+    navigate(destination, { replace: true });
+  } finally {
+    setLoading(false);
+  
 
     setLoading(true);
 
@@ -114,19 +110,20 @@ const Login = () => {
               )}
 
               <div>
-                <label htmlFor="email" className="block text-gray-700 text-sm font-semibold mb-2">
-                  Email Address
-                </label>
-                <input
-                  type="email"
-                  id="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="Enter your email"
-                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
-                  required
-                  disabled={loading}
-                />
+                <label htmlFor="username">
+  Username
+</label>
+
+<input
+  id="username"
+  type="text"
+  autoComplete="username"
+  value={username}
+  onChange={(e) => setUsername(e.target.value)}
+  placeholder="Enter your username"
+  required
+  disabled={loading || authLoading}
+/>
               </div>
 
               <div>

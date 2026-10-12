@@ -1,27 +1,42 @@
 /**
  * Authentication Helper Functions
- * Provides username-based authentication for AMCOMS
+ * Provides full-name-based authentication for AMCOMS
  */
 
 import { supabase } from './supabase';
 
+export async function findStaffByLoginIdentifier(identifier) {
+  const loginIdentifier = identifier.trim();
+  if (!loginIdentifier) {
+    return { data: null, error: null };
+  }
+
+  const { data, error } = await supabase.rpc('lookup_staff_login', {
+    p_identifier: loginIdentifier,
+  });
+
+  if (error) {
+    return { data: null, error };
+  }
+
+  return {
+    data: data?.length === 1 ? data[0] : null,
+    error: null,
+  };
+}
+
 /**
- * Login with username and password
- * @param {string} username - The user's username
+ * Login with a username or full name and password
+ * @param {string} identifier - The user's username or full name
  * @param {string} password - The user's password
  * @returns {Promise<{success: boolean, data?: any, error?: string, role?: string}>}
  */
-export async function loginWithUsername(username, password) {
+export async function loginWithIdentifier(identifier, password) {
   try {
-    // Step 1: Look up the user's email by username
-    const { data: staffData, error: lookupError } = await supabase
-      .from('staff')
-      .select('email, username, role, is_active, user_id')
-      .eq('username', username.toLowerCase().trim())
-      .maybeSingle();
+    const { data: staffData, error: lookupError } = await findStaffByLoginIdentifier(identifier);
 
     if (lookupError) {
-      console.error('Username lookup error:', lookupError);
+      console.error('Full-name lookup error:', lookupError);
       return {
         success: false,
         error: 'An error occurred during login. Please try again.'
@@ -31,18 +46,18 @@ export async function loginWithUsername(username, password) {
     if (!staffData) {
       return {
         success: false,
-        error: 'Invalid username or password'
+        error: 'Invalid username/full name or password'
       };
     }
 
-    if (!staffData.is_active) {
+    if (staffData && !staffData.is_active) {
       return {
         success: false,
         error: 'Your account has been deactivated. Please contact the administrator.'
       };
     }
 
-    // Step 2: Authenticate with Supabase using the email
+    // Authenticate with Supabase using the resolved account email.
     const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
       email: staffData.email,
       password: password,
@@ -52,16 +67,9 @@ export async function loginWithUsername(username, password) {
       console.error('Authentication error:', authError);
       
       // Provide user-friendly error messages
-      if (authError.message.includes('Invalid login credentials')) {
-        return {
-          success: false,
-          error: 'Invalid username or password'
-        };
-      }
-      
       return {
         success: false,
-        error: 'Invalid username or password'
+        error: 'Invalid username/full name or password'
       };
     }
 

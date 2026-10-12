@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
 import { getAppUrl } from '../lib/appUrl';
+import { findStaffByLoginIdentifier } from '../lib/authHelpers';
 import { useRealtimeSubscription } from '../hooks/useRealtimeSubscription';
 
 const AuthContext = createContext({});
@@ -42,7 +43,7 @@ export const AuthProvider = ({ children }) => {
       setAuthError(null);
       const { data, error } = await supabase
         .from('staff')
-        .select('id, email, full_name, role, user_id, is_active, member_id, must_change_password, created_at')
+        .select('id, username, email, full_name, first_name, middle_name, last_name, phone, address, date_of_birth, emergency_contact_name, emergency_contact_phone, emergency_contact_relationship, role, user_id, is_active, member_id, must_change_password, created_at')
         .eq('user_id', userId)
         .maybeSingle();
       if (error) throw error;
@@ -82,7 +83,7 @@ export const AuthProvider = ({ children }) => {
         }
         const { data: member, error: memberError } = await supabase
           .from('members')
-          .select('member_number, membership_status, archived_at')
+          .select('member_number, first_name, middle_name, last_name, phone, address, date_of_birth, emergency_contact_name, emergency_contact_phone, emergency_contact_relationship, additional_emergency_contacts, membership_status, archived_at')
           .eq('id', data.member_id)
           .maybeSingle();
         if (memberError) throw memberError;
@@ -151,21 +152,31 @@ export const AuthProvider = ({ children }) => {
     Boolean(user?.id)
   );
 
-  const signIn = async (email, password) => {
+  const signIn = async (identifier, password) => {
     try {
       setAuthError(null);
-      
+
+      const { data: staffProfile, error: lookupError } = await findStaffByLoginIdentifier(identifier);
+      if (lookupError) throw lookupError;
+      if (!staffProfile) {
+        throw new Error('Invalid username/full name or password');
+      }
+      if (!staffProfile.is_active) {
+        throw new Error('Your account has been deactivated. Please contact the administrator.');
+      }
+
       const { data, error } = await supabase.auth.signInWithPassword({
-        email,
+        email: staffProfile.email,
         password,
       });
 
       if (error) throw error;
 
       // Fetch and validate staff profile
+      let profile = null;
       if (data.user) {
-        const staffData = await fetchStaffProfile(data.user.id);
-        if (!staffData) {
+        profile = await fetchStaffProfile(data.user.id);
+        if (!profile) {
           // Profile fetch failed or user not authorized
           await supabase.auth.signOut();
           return { 
@@ -176,76 +187,79 @@ export const AuthProvider = ({ children }) => {
 
       }
 
-      return { data, error: null };
+      return { data, error: null, staff: profile, role: profile?.role };
     } catch (error) {
       console.error('Sign in error:', error);
       return { data: null, error };
     }
   };
 
-  // New method: Login with username
-  const login = async (usernameOrEmail, password) => {
+  // Resolve the username or unique full name before Supabase authentication.
+  const login = async (identifier, password) => {
     try {
       setAuthError(null);
       
-      // Check if input looks like an email or username
-      const isEmail = usernameOrEmail.includes('@');
-      
-      let email = usernameOrEmail;
-      
-      // If it's a username, look up the email
-      if (!isEmail) {
-        const { data: staffData, error: lookupError } = await supabase
-          .from('staff')
-          .select('email, username, role, is_active')
-          .eq('username', usernameOrEmail.toLowerCase().trim())
-          .maybeSingle();
+      const { data: staffData, error: lookupError } = await findStaffByLoginIdentifier(identifier);
 
-        if (lookupError || !staffData) {
-          return {
-            success: false,
-            error: 'Invalid username or password'
-          };
-        }
+      if (lookupError) {
+        console.error('Full-name account lookup failed:', lookupError);
+        return {
+          success: false,
+          error: 'The sign-in service is unavailable. Please contact the administrator.'
+        };
+      }
 
-        if (!staffData.is_active) {
-          return {
-            success: false,
-            error: 'Your account has been deactivated. Please contact the administrator.'
-          };
-        }
+      if (!staffData) {
+        return {
+          success: false,
+          error: 'No account matched that username or full name. Try your username or contact the administrator to verify your account.'
+        };
+      }
 
-        email = staffData.email;
+      if (!staffData.is_active) {
+        return {
+          success: false,
+          error: 'Your account has been deactivated. Please contact the administrator.'
+        };
       }
 
       // Authenticate with Supabase
       const { data, error } = await supabase.auth.signInWithPassword({
-        email,
+        email: staffData.email,
         password,
       });
 
       if (error) {
+        console.error('Supabase password sign-in failed:', {
+          projectHost: new URL(import.meta.env.VITE_SUPABASE_URL).host,
+          code: error.code,
+          status: error.status,
+          message: error.message,
+        });
         return {
           success: false,
-          error: 'Invalid username or password'
+          error: error.code === 'invalid_credentials'
+            ? 'The password is incorrect for this account.'
+            : 'Sign-in could not be completed. Please contact the administrator.'
         };
       }
 
       // Fetch and validate staff profile
       if (data.user) {
-        const staffData = await fetchStaffProfile(data.user.id);
-        if (!staffData) {
+        const profile = await fetchStaffProfile(data.user.id);
+        if (!profile) {
           await supabase.auth.signOut();
           return {
             success: false,
-            error: 'Unable to load user profile'
+            error: 'Your credentials were accepted, but your profile could not be loaded. Contact the administrator.'
           };
         }
 
         return {
           success: true,
           data,
-          role: staffData.role
+          role: profile.role,
+          staff: profile
         };
       }
 
@@ -350,7 +364,7 @@ export const AuthProvider = ({ children }) => {
     loading,
     authError,
     signIn,
-    login, // Username-based login
+    login, // Full-name-based login
     signUp,
     signOut,
     resetPassword,

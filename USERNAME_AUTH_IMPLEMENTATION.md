@@ -1,7 +1,7 @@
-# Username-Based Authentication Implementation
+# Username and Full-Name Authentication
 
 ## Overview
-This document outlines the changes made to replace email/password authentication with username/password authentication in AMCOMS.
+Users sign in with a username or a unique full name and password. Supabase Auth continues to use the account email internally after the identifier is resolved; email addresses are not accepted as login identifiers.
 
 ## Changes Completed
 
@@ -16,19 +16,28 @@ This document outlines the changes made to replace email/password authentication
 
 **Action Required**: Run this migration in Supabase Dashboard
 
+Also run `supabase/migrations/20261013000001_secure_staff_login_lookup.sql`,
+`supabase/migrations/20261013000002_full_name_login_only.sql`, and
+`supabase/migrations/20261013000003_staff_names_and_username_login.sql`, and
+`supabase/migrations/20261013000004_self_service_username_auth.sql`, and
+`supabase/migrations/20261013000005_match_auth_display_name.sql`, in order.
+The latest migrations prioritize username lookup, allow unique full-name
+lookup against the staff profile and Supabase Auth `full_name`/`display_name`,
+and support self-service username changes for staff and members.
+
 ### 2. Authentication Helpers ✅
 **File**: `src/lib/authHelpers.js`
 
 Created utility functions for:
-- `loginWithUsername()` - Lookup email by username, then authenticate
+- `findStaffByLoginIdentifier()` - Resolve a username or full name without exposing staff profiles
+- `loginWithIdentifier()` - Resolve the identifier, then authenticate
 - `updateUsername()` - Update user's username with validation
 - `checkUsernameAvailability()` - Check if username is available
 
 ### 3. AuthContext Updates ✅
 **File**: `src/contexts/AuthContext.jsx`
 
-- Added new `login()` method that accepts username or email
-- Kept `signIn()` for backward compatibility
+- `login()` and `signIn()` resolve the username or full name before authenticating
 - Disabled `resetPassword()` - now shows warning message
 - Password reset must be done through Chairman's Member Account Recovery
 
@@ -38,21 +47,20 @@ Created utility functions for:
 - `src/components/StaffLogin.jsx`
 
 Changes:
-- Changed "Email" field to "Username"
+- Changed the login identifier field to accept a username or full name
 - Removed "Forgot Password" link
 - Added info message about contacting staff for password reset
 - Using `login()` method from AuthContext
 
 ## Changes Still Needed
 
-### 5. Profile Editor Component
+### 5. Profile Editor Component ✅
 **File**: `src/components/common/ProfileEditor.jsx`
 
-Needs to add:
-- Username display field (read-only for viewing)
-- Username change section (separate from password change)
-- Username validation and availability checking
-- Success/error messages for username updates
+- Staff and member profiles include an editable username field.
+- Username format and case-insensitive uniqueness are enforced by the profile
+  update function and database index.
+- Full-name changes update the value used for full-name authentication.
 
 ### 6. Member Signup Component
 **File**: `src/components/MemberSignup.jsx`
@@ -78,22 +86,27 @@ Should already exist, but verify it has:
 
 ## Implementation Steps
 
-### Step 1: Run Database Migration
+### Step 1: Run Database Migrations
 ```sql
--- Execute in Supabase Dashboard SQL Editor
--- File: supabase/migrations/20260928000001_add_username_auth.sql
+-- Execute these files in Supabase Dashboard SQL Editor, in order:
+-- supabase/migrations/20260928000001_add_username_auth.sql
+-- supabase/migrations/20261013000001_secure_staff_login_lookup.sql
+-- supabase/migrations/20261013000002_full_name_login_only.sql
+-- supabase/migrations/20261013000003_staff_names_and_username_login.sql
+-- supabase/migrations/20261013000004_self_service_username_auth.sql
+-- supabase/migrations/20261013000005_match_auth_display_name.sql
 ```
 
-### Step 2: Update All Staff Usernames
-After migration, staff should update their usernames from the default:
-1. Login with current credentials
-2. Go to Settings/Profile
-3. Update username to desired value
-4. Save changes
+### Step 2: Confirm Staff Profiles
+The latest migration creates or updates staff profiles for the five existing
+staff Auth users, sets their names and unique role usernames, and syncs Auth
+`full_name` metadata. It does not update Supabase Auth passwords.
 
 ### Step 3: Test Login Flow
-- Test staff login with username
-- Test member login with username
+- Test staff and member login with username
+- Test login with a full name that matches one account
+- Verify duplicate full names use the distinct username
+- Verify email addresses are not accepted as login identifiers
 - Verify error messages are clear
 - Confirm password reset is disabled
 
@@ -107,23 +120,12 @@ After migration, staff should update their usernames from the default:
 - Remove routes to forgot-password page
 - Update any links pointing to it
 
-## Username Requirements
+## Username and Full-Name Login
 
-**Format Rules**:
-- 3-30 characters
-- Alphanumeric characters only
-- Can include dots (.) and underscores (_)
-- Case-insensitive (stored as lowercase)
-- Must be unique
-
-**Examples**:
-- ✅ `juan.cruz`
-- ✅ `maria_santos`
-- ✅ `jdoe123`
-- ✅ `treasurer.amci`
-- ❌ `ab` (too short)
-- ❌ `user@domain` (contains @)
-- ❌ `user name` (contains space)
+Username matching is case-insensitive and takes priority. If no username
+matches, the full name must uniquely match `staff.full_name` or the Supabase
+Auth user's `full_name`/`display_name` (case-insensitive; spaces are
+normalized). Duplicate full names require signing in with username.
 
 ## Password Reset Process
 
@@ -142,19 +144,21 @@ After migration, staff should update their usernames from the default:
 
 ## Security Considerations
 
-1. **Username Lookup**: Anyone can lookup if a username exists (needed for login)
-2. **RLS Policies**: Updated to allow username lookups during authentication
+1. **Login Lookup**: The login function returns only the matching account's email and active status; it does not expose staff profiles.
+2. **RLS Policies**: Staff profile reads remain limited by RLS; the security-definer login function handles the pre-authentication lookup.
 3. **Password Security**: Unchanged - still using Supabase Auth's secure password hashing
 4. **Session Management**: Unchanged - still using JWT tokens
 
 ## Testing Checklist
 
 - [ ] Database migration runs successfully
-- [ ] Staff can login with username
-- [ ] Members can login with username
+- [ ] Staff can log in with username or unique full name
+- [ ] Members can log in with username or unique full name
+- [ ] Email inputs are rejected as login identifiers
 - [ ] Username validation works (format checking)
 - [ ] Duplicate username prevention works
 - [ ] Users can change their username in profile
+- [ ] Usernames remain unique regardless of letter case
 - [ ] Users can change their password in profile
 - [ ] Login error messages are clear and helpful
 - [ ] "Forgot password" links are removed
@@ -172,17 +176,18 @@ If issues occur:
 ## Files Modified
 
 1. ✅ `supabase/migrations/20260928000001_add_username_auth.sql`
-2. ✅ `src/lib/authHelpers.js` (new file)
-3. ✅ `src/contexts/AuthContext.jsx`
-4. ✅ `src/components/MemberLogin.jsx`
-5. ✅ `src/components/StaffLogin.jsx`
-6. ⏳ `src/components/common/ProfileEditor.jsx` (needs username change UI)
-7. ⏳ `src/components/MemberSignup.jsx` (needs update)
-8. ⏳ `src/components/ForgotPassword.jsx` (should be removed)
+2. ✅ `supabase/migrations/20261013000001_secure_staff_login_lookup.sql`
+3. ✅ `supabase/migrations/20261013000002_full_name_login_only.sql`
+4. ✅ `supabase/migrations/20261013000003_staff_names_and_username_login.sql`
+5. ✅ `src/lib/authHelpers.js`
+6. ✅ `src/contexts/AuthContext.jsx`
+7. ✅ `src/components/Login.jsx`
+8. ✅ `src/components/MemberLogin.jsx`
+9. ✅ `src/components/StaffLogin.jsx`
 
 ## Notes
 
 - Email field is still stored in database (required by Supabase Auth)
-- Email is no longer used for login or password reset
+- Email is used internally by Supabase Auth after identifier resolution
 - Email can still be used for notifications if needed
-- Username is the primary identifier for authentication
+- Username or unique full name is used as the login identifier
