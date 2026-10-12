@@ -136,22 +136,8 @@ const staffNavigationConfig = {
       component: 'TreasurerDashboard'
     },
     {
-      id: 'cash-receipts',
-      name: 'Cash Receipts',
-      icon: '💰',
-      path: '/staff/cash-receipts',
-      component: 'CashReceipts'
-    },
-    {
-      id: 'cash-disbursements',
-      name: 'Cash Disbursements',
-      icon: '💸',
-      path: '/staff/cash-disbursements',
-      component: 'CashDisbursements'
-    },
-    {
       id: 'savings',
-      name: 'Savings Management',
+      name: 'Member Accounts',
       icon: '🏦',
       path: '/staff/savings',
       component: 'SavingsManagement'

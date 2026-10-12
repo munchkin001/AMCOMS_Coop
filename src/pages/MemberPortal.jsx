@@ -1,14 +1,15 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, ChevronDown, FileText, Home, Menu, UserRound } from 'lucide-react';
+import { ArrowLeft, Bell, ChevronDown, FileText, HandCoins, Home, Landmark, Menu, PiggyBank, UserRound, Wallet } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useRealtimeSubscription } from '../hooks/useRealtimeSubscription';
 import { supabase } from '../lib/supabase';
 import MemberDashboard from '../components/member/MemberDashboard';
 import MemberProfileHub from '../components/member/MemberProfileHub';
 import MyProfile from '../components/member/MyProfile';
-import MemberAccountList from '../components/member/MemberAccountList';
-import MyLoans from '../components/member/MyLoans';
+import MSOSavings from '../components/member/MSOSavings';
+import MSOTimeDeposit from '../components/member/MSOTimeDeposit';
+import MSOLoans from '../components/member/MSOLoans';
 import MemberTransactionHistory from '../components/member/MemberTransactionHistory';
 import MemberAnnouncements from '../components/member/MemberAnnouncements';
 
@@ -54,11 +55,12 @@ const MemberPortal = () => {
     fetchNotifications();
   }, [fetchNotifications]);
 
+  // Real-time subscription for notifications
   useRealtimeSubscription(
     'notifications',
     fetchNotifications,
     staff?.id ? { column: 'user_id', value: staff.id } : null,
-    [staff?.id],
+    [fetchNotifications],
     Boolean(staff?.id)
   );
 
@@ -149,11 +151,11 @@ const MemberPortal = () => {
       case 'dashboard':
         return <MemberDashboard onNavigate={handleDashboardNavigate} />;
       case 'savings':
-        return renderAccountPage(<MemberAccountList kind="savings" />);
+        return renderAccountPage(<MSOSavings />);
       case 'time-deposit':
-        return renderAccountPage(<MemberAccountList kind="time-deposit" />);
+        return renderAccountPage(<MSOTimeDeposit />);
       case 'loans':
-        return renderAccountPage(<MyLoans />);
+        return renderAccountPage(<MSOLoans />);
       case 'profile':
         return <MemberProfileHub onOpen={handleModuleChange} />;
       case 'settings':
@@ -217,61 +219,10 @@ const MemberPortal = () => {
             }`}
           >
             <div className="flex items-center space-x-3">
-              <span className="text-lg">🏠</span>
+              <Home size={18} />
               <span>Dashboard</span>
             </div>
           </button>
-
-          {/* My Accounts (collapsible) */}
-          {(() => {
-            const accountItems = [
-              { id: 'savings', label: 'Savings', icon: '🐖' },
-              { id: 'time-deposit', label: 'Time Deposit', icon: '🏦' },
-              { id: 'loans', label: 'Loans', icon: '💰' }
-            ];
-            const groupActive = accountItems.some((item) => item.id === activeModule);
-            const expanded = accountsOpen || groupActive;
-            return (
-              <div>
-                <button
-                  type="button"
-                  aria-expanded={expanded}
-                  onClick={() => setAccountsOpen(!expanded)}
-                  className={`w-full rounded-lg px-4 py-3 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#e9c46a] ${
-                    groupActive && !expanded ? 'bg-white/10 text-[#f0d995]' : 'text-green-50/95 hover:bg-white/10 hover:text-[#f0d995]'
-                  }`}
-                >
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center space-x-3">
-                      <span className="text-lg">💰</span>
-                      <span>My Accounts</span>
-                    </div>
-                    <ChevronDown aria-hidden="true" size={18} className={`transition-transform ${expanded ? 'rotate-180' : ''}`} />
-                  </div>
-                </button>
-                {expanded && (
-                  <div className="mt-1 ml-4 space-y-1 border-l border-white/20 pl-3">
-                    {accountItems.map((item) => (
-                      <button
-                        key={item.id}
-                        onClick={() => handleModuleChange(item.id)}
-                        className={`w-full rounded-lg px-3 py-2.5 text-left text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#e9c46a] ${
-                          activeModule === item.id
-                            ? 'bg-gradient-to-r from-[#e9c46a] to-[#d6ab4a] font-semibold text-[#0d3b2d] shadow-md'
-                            : 'text-green-50/95 hover:bg-white/10 hover:text-[#f0d995]'
-                        }`}
-                      >
-                        <div className="flex items-center space-x-3">
-                          <span>{item.icon}</span>
-                          <span>{item.label}</span>
-                        </div>
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
-            );
-          })()}
 
           {/* Transactions */}
           <button
@@ -283,7 +234,7 @@ const MemberPortal = () => {
             }`}
           >
             <div className="flex items-center space-x-3">
-              <span className="text-lg">📄</span>
+              <FileText size={18} />
               <span>Transactions</span>
             </div>
           </button>
@@ -297,7 +248,7 @@ const MemberPortal = () => {
             }`}
           >
             <div className="flex items-center space-x-3">
-              <span className="text-lg">📢</span>
+              <Bell size={18} />
               <span>Announcements</span>
             </div>
           </button>

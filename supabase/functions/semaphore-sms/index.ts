@@ -1,3 +1,6 @@
+// deno-lint-ignore-file
+/// <reference lib="deno.ns" />
+
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
 const corsHeaders = {
@@ -14,7 +17,9 @@ const jsonResponse = (body: Record<string, unknown>, status: number, origin: str
 const isLocalDevOrigin = (value: string) => {
   try {
     const url = new URL(value);
-    if (url.protocol !== 'http:' || url.port !== '5173') return false;
+    if (url.protocol !== 'http:') return false;
+    // Allow both 5173 and 5174 for Vite dev server
+    if (url.port !== '5173' && url.port !== '5174') return false;
     const host = url.hostname;
     return host === 'localhost'
       || host === '127.0.0.1'
@@ -96,10 +101,16 @@ const getRecipients = async (admin: ReturnType<typeof createClient>, groups: str
   return [...uniqueRecipients.values()];
 };
 
-Deno.serve(async (request) => {
+Deno.serve(async (request: Request) => {
   const origin = request.headers.get('origin') || '';
   const configuredAppUrl = Deno.env.get('APP_URL')?.replace(/\/$/, '');
-  const allowedOrigins = new Set([configuredAppUrl, 'http://localhost:5173', 'http://127.0.0.1:5173'].filter(Boolean));
+  const allowedOrigins = new Set([
+    configuredAppUrl, 
+    'http://localhost:5173', 
+    'http://127.0.0.1:5173',
+    'http://localhost:5174',
+    'http://127.0.0.1:5174'
+  ].filter(Boolean));
   if (!allowedOrigins.has(origin) && !isLocalDevOrigin(origin)) {
     return new Response('Origin is not allowed.', { status: 403 });
   }

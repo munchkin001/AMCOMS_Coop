@@ -42,6 +42,9 @@ const SMSCenter = () => {
       const { data, error: balanceLoadError } = await supabase.functions.invoke('semaphore-sms', {
         body: { action: 'balance' }
       });
+      
+      console.log('Balance API Response:', { data, error: balanceLoadError });
+      
       if (balanceLoadError) {
         let serverMessage;
         try {
@@ -49,12 +52,23 @@ const SMSCenter = () => {
         } catch {
           serverMessage = null;
         }
-        throw new Error(serverMessage || 'SMS credits could not be loaded.');
+        throw new Error(serverMessage || balanceLoadError.message || 'SMS credits could not be loaded.');
       }
-      setCreditBalance(Number(data.credit_balance));
-      setAccountName(data.account_name || '');
+      
+      // Ensure we set the balance even if it's 0
+      if (data && 'credit_balance' in data) {
+        const balance = Number(data.credit_balance);
+        console.log('Setting balance:', balance);
+        setCreditBalance(balance);
+        setAccountName(data.account_name || '');
+      } else {
+        console.error('Invalid response format:', data);
+        throw new Error('Invalid response from SMS service.');
+      }
     } catch (balanceLoadError) {
+      console.error('Error loading SMS balance:', balanceLoadError);
       setBalanceError(balanceLoadError.message || 'SMS credits could not be loaded.');
+      setCreditBalance(null);
     } finally {
       balanceRequestInProgressRef.current = false;
       setLoadingBalance(false);
@@ -135,7 +149,9 @@ const SMSCenter = () => {
         <div className="flex items-center justify-between gap-3 rounded-lg border border-gray-200 bg-white p-4 sm:col-span-3">
           <div>
             <dt className="text-sm text-gray-600">SMS credits remaining</dt>
-            <dd className="mt-1 text-2xl font-semibold text-gray-950">{loadingBalance && creditBalance === null ? 'Loading…' : creditBalance === null ? 'Unavailable' : creditBalance.toLocaleString()}</dd>
+            <dd className="mt-1 text-2xl font-semibold text-gray-950">
+              {loadingBalance && creditBalance === null ? 'Loading…' : creditBalance !== null ? creditBalance.toLocaleString() : 'Unavailable'}
+            </dd>
             {accountName && <p className="mt-0.5 text-xs text-gray-500">{accountName}</p>}
             {balanceError && <p role="alert" className="mt-1 text-sm text-red-700">{balanceError}</p>}
             <p className="mt-1 text-xs text-gray-500">Balance refresh is limited to once every 30 seconds.</p>

@@ -107,10 +107,6 @@ const ChairmanDashboard = () => {
     {
       table: 'chart_of_accounts',
       onUpdate: () => fetchDashboardData()
-    },
-    {
-      table: 'policies',
-      onUpdate: () => fetchDashboardData()
     }
   ], []);
 
@@ -135,7 +131,6 @@ const ChairmanDashboard = () => {
         stockResult,
         productionResult,
         newMembersResult,
-        policyResult,
         monthlySummary,
         currentYearAccounts,
         previousYearAccounts
@@ -158,8 +153,6 @@ const ChairmanDashboard = () => {
           .eq('status', 'completed').gte('production_date', monthStartDate),
         supabase.from('members').select('id', { count: 'exact', head: true })
           .gte('date_joined', monthStartDate).lte('date_joined', today),
-        supabase.from('policies').select('id, name, published_at')
-          .eq('status', 'published').order('published_at', { ascending: false }).limit(5),
         fetchMonthlyFinancialSummary(),
         fetchAccountBalances(`${new Date().getFullYear()}-01-01`, today),
         fetchAccountBalances(`${new Date().getFullYear() - 1}-01-01`, toDateString(previousYearDate))
@@ -168,10 +161,19 @@ const ChairmanDashboard = () => {
       const results = [
         membersResult, activeMembersResult, activeLoansResult, paidLoansResult, overdueLoansResult,
         savingsResult, timeDepositsResult, productsResult, stockResult, productionResult,
-        newMembersResult, policyResult
+        newMembersResult
       ];
       const failedResult = results.find((result) => result.error);
       if (failedResult) throw failedResult.error;
+
+      // Fetch policies separately - optional feature, don't fail if table doesn't exist
+      let policyResult = { data: [], error: null };
+      try {
+        policyResult = await supabase.from('policies').select('id, name, published_at')
+          .eq('status', 'published').order('published_at', { ascending: false }).limit(5);
+      } catch (policyError) {
+        console.warn('Policies table not available:', policyError);
+      }
 
       const activeLoans = activeLoansResult.data || [];
       const totalLoanBalance = activeLoans.reduce((sum, loan) => sum + Number(loan.balance || 0), 0);

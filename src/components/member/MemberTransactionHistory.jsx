@@ -49,15 +49,25 @@ const MemberTransactionHistory = () => {
         });
       });
 
-      const { data: accounts } = await supabase.from('savings_accounts').select('id').eq('member_id', memberId);
+      const { data: accounts } = await supabase.from('savings_accounts').select('id, account_type').eq('member_id', memberId);
       if (accounts?.length) {
         const { data: savings } = await supabase
           .from('savings_transactions')
-          .select('id, transaction_type, amount, transaction_date')
+          .select('id, transaction_type, amount, transaction_date, savings_account_id')
           .in('savings_account_id', accounts.map((account) => account.id));
         (savings || []).forEach((txn) => {
+          const account = accounts.find(a => a.id === txn.savings_account_id);
+          const isTimeDeposit = account?.account_type === 'time_deposit';
           const deposit = txn.transaction_type === 'deposit';
-          items.push({ id: `savings-${txn.id}`, rawDate: txn.transaction_date, type: deposit ? 'Savings deposit' : 'Savings withdrawal', category: 'Savings', amount: deposit ? Number(txn.amount) : -Number(txn.amount), signed: true, status: 'Completed' });
+          items.push({ 
+            id: `savings-${txn.id}`, 
+            rawDate: txn.transaction_date, 
+            type: isTimeDeposit ? (deposit ? 'Time deposit' : 'Time deposit withdrawal') : (deposit ? 'Savings deposit' : 'Savings withdrawal'), 
+            category: isTimeDeposit ? 'Time Deposit' : 'Savings', 
+            amount: deposit ? Number(txn.amount) : -Number(txn.amount), 
+            signed: true, 
+            status: 'Completed' 
+          });
         });
       }
 
@@ -105,6 +115,7 @@ const MemberTransactionHistory = () => {
           <select value={filter} onChange={(e) => setFilter(e.target.value)} className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2">
             <option value="all">All</option>
             <option value="savings">Savings</option>
+            <option value="time deposit">Time Deposit</option>
             <option value="loan">Loan</option>
           </select>
         </label>
