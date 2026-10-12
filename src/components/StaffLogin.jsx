@@ -5,7 +5,7 @@ import { useAuth } from '../contexts/AuthContext';
 const StaffLogin = () => {
   const navigate = useNavigate();
   const { login } = useAuth();
-  const [email, setEmail] = useState('');
+  const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -17,7 +17,7 @@ const StaffLogin = () => {
     setLoading(true);
 
     try {
-      const result = await login(email, password);
+      const result = await login(username, password);
       
       if (result.success) {
         const role = result.role;
@@ -33,7 +33,7 @@ const StaffLogin = () => {
         // Redirect to appropriate portal
         navigate(`/${role}-portal`);
       } else {
-        setError(result.error || 'Invalid email or password');
+        setError(result.error || 'Invalid username or password');
       }
     } catch (err) {
       setError('An error occurred during login. Please try again.');
@@ -97,15 +97,16 @@ const StaffLogin = () => {
           <form onSubmit={handleSubmit} className="space-y-6">
             <div>
               <label className="block text-gray-700 font-medium mb-2 text-base">
-                Email Address
+                Username
               </label>
               <input
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                type="text"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
                 className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all text-base"
-                placeholder="your.email@example.com"
+                placeholder="Enter your username"
                 required
+                autoComplete="username"
               />
             </div>
 
@@ -146,9 +147,6 @@ const StaffLogin = () => {
                 <input type="checkbox" className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500" />
                 <span className="text-gray-700">Remember me</span>
               </label>
-              <a href="/forgot-password" className="text-blue-600 hover:text-blue-700 font-medium">
-                Forgot password?
-              </a>
             </div>
 
             <button
@@ -185,7 +183,7 @@ const StaffLogin = () => {
                 <div>
                   <p className="text-sm text-gray-700 font-medium mb-1">Staff Access Only</p>
                   <p className="text-sm text-gray-600">
-                    This portal is reserved for Chairman, Manager, Treasurer, Bookkeeper, and Inventory staff.
+                    This portal is reserved for Chairman, Manager, Treasurer, Bookkeeper, and Inventory staff. Contact IT admin if you forgot your password.
                   </p>
                 </div>
               </div>

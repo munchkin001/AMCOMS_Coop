@@ -5,14 +5,14 @@ import { useAuth } from '../contexts/AuthContext';
 const Login = () => {
   const { portalType } = useParams(); // Get portal type from URL
   const navigate = useNavigate();
-  const { signIn, staff, user } = useAuth();
-  const [email, setEmail] = useState('');
+  const { login, staff, user } = useAuth();
+  const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const [fieldErrors, setFieldErrors] = useState({ email: '', password: '' });
+  const [fieldErrors, setFieldErrors] = useState({ username: '', password: '' });
   const [portalConfig, setPortalConfig] = useState({
     name: 'AMCOMS',
     subtitle: 'Login Portal',
@@ -107,14 +107,12 @@ const Login = () => {
   const handleLogin = async (e) => {
     e.preventDefault();
     setError('');
-    setFieldErrors({ email: '', password: '' });
+    setFieldErrors({ username: '', password: '' });
 
     // Validate fields
     const errors = {};
-    if (!email.trim()) {
-      errors.email = 'Email is required';
-    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-      errors.email = 'Please enter a valid email address';
+    if (!username.trim()) {
+      errors.username = 'Username is required';
     }
     if (!password.trim()) {
       errors.password = 'Password is required';
@@ -130,31 +128,19 @@ const Login = () => {
     setLoading(true);
 
     try {
-      console.log('Attempting login for:', email);
+      console.log('Attempting login for:', username);
       
-      // Authenticate with Supabase
-      const { data, error: signInError } = await signIn(email, password);
+      // Authenticate with username
+      const result = await login(username, password);
 
-      if (signInError) {
-        console.error('Sign in error:', signInError.message);
-        
-        if (signInError.message.includes('Invalid login credentials')) {
-          setError('Invalid email or password. Please try again.');
-        } else if (signInError.message.includes('Email not confirmed')) {
-          setError('Please verify your email address before logging in.');
-        } else if (signInError.message.includes('Unable to load user profile')) {
-          setError('Unable to load user profile. Please contact the administrator.');
-        } else if (signInError.message.includes('No staff profile found')) {
-          setError('No staff profile found. Please contact the administrator.');
-        } else {
-          setError(signInError.message || 'An error occurred. Please try again.');
-        }
+      if (!result.success) {
+        setError(result.error || 'Login failed. Please try again.');
         setLoading(false);
         return;
       }
 
-      // Signin successful - the useEffect will handle the redirect when staff loads
-      console.log('Sign in successful, staff profile should load automatically');
+      // Login successful - the useEffect will handle the redirect when staff loads
+      console.log('Login successful, staff profile should load automatically');
       
       // Store remember me preference
       if (rememberMe) {
@@ -224,33 +210,33 @@ const Login = () => {
                 </div>
               )}
 
-              {/* Email Field */}
+              {/* Username Field */}
               <div className="mb-5">
-                <label htmlFor="email" className="block text-gray-700 text-sm font-semibold mb-2">
-                  Email
+                <label htmlFor="username" className="block text-gray-700 text-sm font-semibold mb-2">
+                  Username
                 </label>
                 <input
-                  type="email"
-                  id="email"
+                  type="text"
+                  id="username"
                   autoComplete="username"
-                  value={email}
+                  value={username}
                   onChange={(e) => {
-                    setEmail(e.target.value);
-                    if (fieldErrors.email) {
-                      setFieldErrors(prev => ({ ...prev, email: '' }));
+                    setUsername(e.target.value);
+                    if (fieldErrors.username) {
+                      setFieldErrors(prev => ({ ...prev, username: '' }));
                     }
                   }}
-                  placeholder="Enter your email"
-                  className={`w-full rounded-lg border ${fieldErrors.email ? 'border-red-300' : 'border-gray-200'} px-4 py-3 transition-all focus:outline-none focus:ring-2 ${portalConfig.inputFocus}`}
+                  placeholder="Enter your username"
+                  className={`w-full rounded-lg border ${fieldErrors.username ? 'border-red-300' : 'border-gray-200'} px-4 py-3 transition-all focus:outline-none focus:ring-2 ${portalConfig.inputFocus}`}
                   required
                   disabled={loading}
                 />
-                {fieldErrors.email && (
+                {fieldErrors.username && (
                   <p className="mt-1 text-sm text-red-600 flex items-center space-x-1">
                     <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
                       <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
                     </svg>
-                    <span>{fieldErrors.email}</span>
+                    <span>{fieldErrors.username}</span>
                   </p>
                 )}
               </div>

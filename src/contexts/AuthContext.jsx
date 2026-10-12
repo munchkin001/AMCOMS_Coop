@@ -183,6 +183,86 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  // New method: Login with username
+  const login = async (usernameOrEmail, password) => {
+    try {
+      setAuthError(null);
+      
+      // Check if input looks like an email or username
+      const isEmail = usernameOrEmail.includes('@');
+      
+      let email = usernameOrEmail;
+      
+      // If it's a username, look up the email
+      if (!isEmail) {
+        const { data: staffData, error: lookupError } = await supabase
+          .from('staff')
+          .select('email, username, role, is_active')
+          .eq('username', usernameOrEmail.toLowerCase().trim())
+          .maybeSingle();
+
+        if (lookupError || !staffData) {
+          return {
+            success: false,
+            error: 'Invalid username or password'
+          };
+        }
+
+        if (!staffData.is_active) {
+          return {
+            success: false,
+            error: 'Your account has been deactivated. Please contact the administrator.'
+          };
+        }
+
+        email = staffData.email;
+      }
+
+      // Authenticate with Supabase
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
+
+      if (error) {
+        return {
+          success: false,
+          error: 'Invalid username or password'
+        };
+      }
+
+      // Fetch and validate staff profile
+      if (data.user) {
+        const staffData = await fetchStaffProfile(data.user.id);
+        if (!staffData) {
+          await supabase.auth.signOut();
+          return {
+            success: false,
+            error: 'Unable to load user profile'
+          };
+        }
+
+        return {
+          success: true,
+          data,
+          role: staffData.role
+        };
+      }
+
+      return {
+        success: false,
+        error: 'Login failed'
+      };
+
+    } catch (error) {
+      console.error('Login error:', error);
+      return {
+        success: false,
+        error: 'An error occurred during login'
+      };
+    }
+  };
+
   const signUp = async (email, password, metadata) => {
     try {
       const { data, error } = await supabase.auth.signUp({
@@ -217,17 +297,12 @@ export const AuthProvider = ({ children }) => {
   };
 
   const resetPassword = async (email) => {
-    try {
-      setAuthError(null);
-      const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: `${getAppUrl()}/reset-password`,
-      });
-      if (error) throw error;
-      return { error: null };
-    } catch (error) {
-      console.error('Reset password error:', error);
-      return { error };
-    }
+    // Password reset is now handled by staff only through Chairman's Member Account Recovery
+    // This function is kept for backward compatibility but should not be used
+    console.warn('Password reset via email is disabled. Use Chairman\'s Member Account Recovery feature.');
+    return { 
+      error: new Error('Password reset must be done through the Chairman or authorized staff member.') 
+    };
   };
 
   const updatePassword = async (newPassword) => {
@@ -275,6 +350,7 @@ export const AuthProvider = ({ children }) => {
     loading,
     authError,
     signIn,
+    login, // Username-based login
     signUp,
     signOut,
     resetPassword,

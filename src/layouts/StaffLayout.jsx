@@ -242,7 +242,7 @@ const StaffLayout = ({ children }) => {
                 >
                   <div className="text-right hidden sm:block">
                     <p className="text-sm font-medium text-gray-900">{staff?.full_name || 'Staff User'}</p>
-                    <p className="text-xs text-gray-500">{staff?.email}</p>
+                    <p className="text-xs text-gray-500">@{staff?.username}</p>
                   </div>
                   <div className={`w-10 h-10 ${roleColors.bg} bg-opacity-10 rounded-full flex items-center justify-center border-2 ${roleColors.bg} border-opacity-20`}>
                     <span className={`${roleColors.text} font-semibold text-lg`}>

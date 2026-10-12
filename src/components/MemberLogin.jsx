@@ -5,7 +5,7 @@ import { useAuth } from '../contexts/AuthContext';
 const MemberLogin = () => {
   const navigate = useNavigate();
   const { login } = useAuth();
-  const [email, setEmail] = useState('');
+  const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -17,7 +17,7 @@ const MemberLogin = () => {
     setLoading(true);
 
     try {
-      const result = await login(email, password);
+      const result = await login(username, password);
       
       if (result.success) {
         const role = result.role;
@@ -32,7 +32,7 @@ const MemberLogin = () => {
         // Redirect to member portal
         navigate('/member-portal');
       } else {
-        setError(result.error || 'Invalid email or password');
+        setError(result.error || 'Invalid username or password');
       }
     } catch (err) {
       setError('An error occurred during login. Please try again.');
@@ -96,15 +96,16 @@ const MemberLogin = () => {
           <form onSubmit={handleSubmit} className="space-y-6">
             <div>
               <label className="block text-gray-700 font-medium mb-2 text-base">
-                Email Address
+                Username
               </label>
               <input
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                type="text"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
                 className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all text-base"
-                placeholder="your.email@example.com"
+                placeholder="Enter your username"
                 required
+                autoComplete="username"
               />
             </div>
 
@@ -145,9 +146,6 @@ const MemberLogin = () => {
                 <input type="checkbox" className="w-4 h-4 text-green-600 border-gray-300 rounded focus:ring-green-500" />
                 <span className="text-gray-700">Remember me</span>
               </label>
-              <a href="/forgot-password" className="text-green-600 hover:text-green-700 font-medium">
-                Forgot password?
-              </a>
             </div>
 
             <button
@@ -198,9 +196,9 @@ const MemberLogin = () => {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
                 <div>
-                  <p className="text-sm text-gray-700 font-medium mb-1">New to the Cooperative?</p>
+                  <p className="text-sm text-gray-700 font-medium mb-1">Forgot your password?</p>
                   <p className="text-sm text-gray-600">
-                    Create an account to apply for membership. Your application will be reviewed by our manager.
+                    Contact the cooperative office or ask staff to reset your password using the Chairman's Member Account Recovery feature.
                   </p>
                 </div>
               </div>
