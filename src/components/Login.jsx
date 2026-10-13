@@ -307,7 +307,7 @@ const Login = () => {
         {/* Back to the public website */}
         <div className="text-center mt-6">
           <Link 
-            to="/" 
+            to="/"
             className={`text-gray-600 ${portalConfig.backLinkHover} text-sm flex items-center justify-center space-x-2 transition-colors`}
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
