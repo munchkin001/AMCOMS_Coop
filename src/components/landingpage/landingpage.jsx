@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
 import { BadgeDollarSign, Check, ChevronDown, ClipboardList, IdCard, Sprout, Store } from 'lucide-react';
 import CooperativeMap from './CooperativeMap';
+import StaffAccessModal from './StaffAccessModal';
 import './landingpage.css';
 
 
@@ -55,6 +56,8 @@ const useActiveSection = () => {
 
 const Navbar = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [isLoginMenuOpen, setIsLoginMenuOpen] = useState(false);
+  const [isStaffModalOpen, setIsStaffModalOpen] = useState(false);
   const activeSection = useActiveSection();
 
   return (
@@ -98,13 +101,48 @@ const Navbar = () => {
               );
             })}
             
-            {/* Login Button */}
-            <Link 
-              to="/portal-selection"
-              className="amcoms-login-btn whitespace-nowrap"
+            <div
+              className="relative"
+              onMouseEnter={() => setIsLoginMenuOpen(true)}
+              onMouseLeave={() => setIsLoginMenuOpen(false)}
             >
-              <span>Login Portal</span>
-            </Link>
+              <button
+                type="button"
+                className="amcoms-login-btn whitespace-nowrap"
+                aria-haspopup="menu"
+                aria-expanded={isLoginMenuOpen}
+                onClick={() => setIsLoginMenuOpen(true)}
+                onKeyDown={(event) => {
+                  if (event.key === 'Escape') setIsLoginMenuOpen(false);
+                }}
+              >
+                <span>Login Portal</span>
+                <ChevronDown aria-hidden="true" className="h-4 w-4" />
+              </button>
+              {isLoginMenuOpen && (
+                <div role="menu" className="absolute right-0 top-full z-50 w-56 overflow-hidden rounded-lg border border-gray-100 bg-white py-1 shadow-xl">
+                  <Link
+                    role="menuitem"
+                    to="/login/member"
+                    onClick={() => setIsLoginMenuOpen(false)}
+                    className="block px-4 py-3 text-sm font-medium text-gray-700 hover:bg-emerald-50 hover:text-emerald-900"
+                  >
+                    Member Portal
+                  </Link>
+                  <button
+                    role="menuitem"
+                    type="button"
+                    onClick={() => {
+                      setIsLoginMenuOpen(false);
+                      setIsStaffModalOpen(true);
+                    }}
+                    className="block w-full px-4 py-3 text-left text-sm font-medium text-gray-700 hover:bg-emerald-50 hover:text-emerald-900"
+                  >
+                    Staff &amp; Admin Desk
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
 
           {/* Mobile menu button */}
@@ -147,18 +185,47 @@ const Navbar = () => {
                 </div>
               ))}
               
-              {/* Mobile Login Button */}
-              <Link 
-                to="/portal-selection"
-                onClick={() => setIsMenuOpen(false)}
-                className="amcoms-login-btn amcoms-login-btn--block"
-              >
-                <span>Login Portal</span>
-              </Link>
+              <div className="space-y-2">
+                <button
+                  type="button"
+                  className="amcoms-login-btn amcoms-login-btn--block"
+                  aria-expanded={isLoginMenuOpen}
+                  onClick={() => setIsLoginMenuOpen((open) => !open)}
+                >
+                  <span>Login Portal</span>
+                  <ChevronDown aria-hidden="true" className={`h-4 w-4 transition-transform ${isLoginMenuOpen ? 'rotate-180' : ''}`} />
+                </button>
+                {isLoginMenuOpen && (
+                  <div className="overflow-hidden rounded-lg border border-gray-200 bg-white">
+                    <Link
+                      to="/login/member"
+                      onClick={() => {
+                        setIsMenuOpen(false);
+                        setIsLoginMenuOpen(false);
+                      }}
+                      className="block px-4 py-3 text-sm font-medium text-gray-700 hover:bg-emerald-50"
+                    >
+                      Member Portal
+                    </Link>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsMenuOpen(false);
+                        setIsLoginMenuOpen(false);
+                        setIsStaffModalOpen(true);
+                      }}
+                      className="block w-full px-4 py-3 text-left text-sm font-medium text-gray-700 hover:bg-emerald-50"
+                    >
+                      Staff &amp; Admin Desk
+                    </button>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         )}
       </div>
+      {isStaffModalOpen && <StaffAccessModal onClose={() => setIsStaffModalOpen(false)} />}
     </nav>
   );
 };
