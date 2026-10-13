@@ -5,7 +5,6 @@ import { useAuth } from '../contexts/AuthContext';
 import { useRealtimeSubscription } from '../hooks/useRealtimeSubscription';
 import { supabase } from '../lib/supabase';
 import MemberDashboard from '../components/member/MemberDashboard';
-import MemberProfileHub from '../components/member/MemberProfileHub';
 import MyProfile from '../components/member/MyProfile';
 import MSOSavings from '../components/member/MSOSavings';
 import MSOTimeDeposit from '../components/member/MSOTimeDeposit';
@@ -87,12 +86,6 @@ const MemberPortal = () => {
     setShowLogoutModal(true);
   };
 
-  const handleProfileClick = () => {
-    setActiveModule('settings');
-    setIsMobileMenuOpen(false);
-    setShowUserMenu(false);
-  };
-
   const confirmLogout = async () => {
     await signOut();
     setShowLogoutModal(false);
@@ -157,8 +150,6 @@ const MemberPortal = () => {
       case 'loans':
         return renderAccountPage(<MSOLoans />);
       case 'profile':
-        return <MemberProfileHub onOpen={handleModuleChange} />;
-      case 'settings':
         return <MyProfile />;
       case 'transactions':
         return <MemberTransactionHistory />;
@@ -181,8 +172,6 @@ const MemberPortal = () => {
         return 'Loans';
       case 'profile':
         return 'Profile';
-      case 'settings':
-        return 'Settings';
       case 'transactions':
         return 'Transactions';
       case 'announcements':
@@ -351,13 +340,6 @@ const MemberPortal = () => {
 
                 {showUserMenu && (
                   <div id="member-user-menu" className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-50">
-                    <button 
-                      onClick={handleProfileClick}
-                      className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
-                    >
-                      Settings
-                    </button>
-                    <hr className="my-1" />
                     <button
                       onClick={handleLogout}
                       className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-gray-50"

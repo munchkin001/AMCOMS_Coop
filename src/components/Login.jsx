@@ -5,7 +5,7 @@ import { useAuth } from '../contexts/AuthContext';
 const Login = () => {
   const { portalType } = useParams(); // Get portal type from URL
   const navigate = useNavigate();
-  const { login, staff, user } = useAuth();
+  const { login } = useAuth();
   const [fullName, setFullName] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -77,45 +77,6 @@ const Login = () => {
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
   }, [portalType, navigate]);
-
-  // Auto-redirect when staff profile loads after login
-  useEffect(() => {
-    // Only act if we're in loading state and have both user and staff
-    if (!user || !staff || !loading) {
-      return;
-    }
-
-    console.log('Staff profile loaded during login, validating and redirecting...');
-    const userRole = staff.role;
-    
-    // Validate portal access
-    const staffRoles = ['chairman', 'manager', 'treasurer', 'bookkeeper', 'inventory'];
-    const isStaffUser = staffRoles.includes(userRole);
-    const isMemberUser = userRole === 'member';
-    
-    // Check if user is accessing the correct portal type
-    if (portalType === 'staff' && !isStaffUser) {
-      setError('You do not have access to the Staff Portal. Please use the Member Portal.');
-      setLoading(false);
-      return;
-    }
-    
-    if (portalType === 'member' && !isMemberUser) {
-      setError('You do not have access to the Member Portal. Please use the Staff Portal.');
-      setLoading(false);
-      return;
-    }
-
-    if (staff.must_change_password) {
-      navigate('/reset-password', { replace: true });
-      return;
-    }
-
-    // Valid access - redirect to portal
-    console.log('Valid access confirmed for role:', userRole, '- redirecting...');
-    redirectToPortal(userRole);
-    // Note: Keep loading=true until navigation completes
-  }, [user, staff, loading, portalType, navigate, redirectToPortal]);
 
   const handleLogin = async (e) => {
     e.preventDefault();

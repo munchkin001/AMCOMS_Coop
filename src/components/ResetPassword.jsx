@@ -82,8 +82,8 @@ const ResetPassword = () => {
 
       // Let the auth profile refresh complete before navigating.
       setTimeout(() => {
-        navigate(staff?.role === 'member' ? '/login/member' : '/portal-selection', { replace: true });
-      }, 2000);
+        navigate(staff?.role === 'member' ? '/member' : '/staff/dashboard', { replace: true });
+      }, 1200);
 
     } catch (err) {
       console.error('Password reset error:', err);
@@ -110,7 +110,7 @@ const ResetPassword = () => {
             </h2>
 
             <p className="text-gray-600 text-center mb-8">
-              Your password has been successfully updated. You will be redirected to sign in...
+              Your password has been successfully updated. Opening your portal...
             </p>
 
             <div className="flex justify-center">

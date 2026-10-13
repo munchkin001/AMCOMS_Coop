@@ -261,6 +261,9 @@ export const AuthProvider = ({ children }) => {
         };
       }
 
+      setSession(data.session);
+      setUser(data.user);
+
       // Fetch and validate staff profile
       if (data.user) {
         const profile = await fetchStaffProfile(data.user.id);

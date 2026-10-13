@@ -109,23 +109,23 @@ const MemberTransactionHistory = () => {
 
   return (
     <div className="space-y-4">
-      <div className="grid grid-cols-1 gap-3 rounded-xl border border-gray-200 bg-white p-4 sm:grid-cols-3">
-        <label className="text-sm font-medium text-gray-700">
+      <div className="grid min-w-0 grid-cols-1 gap-3 overflow-hidden rounded-xl border border-gray-200 bg-white p-4 sm:grid-cols-3">
+        <label className="min-w-0 text-sm font-medium text-gray-700">
           Category
-          <select value={filter} onChange={(e) => setFilter(e.target.value)} className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2">
+          <select value={filter} onChange={(e) => setFilter(e.target.value)} className="mt-1 box-border block min-w-0 w-full max-w-full rounded-lg border border-gray-300 bg-white px-3 py-2">
             <option value="all">All</option>
             <option value="savings">Savings</option>
             <option value="time deposit">Time Deposit</option>
             <option value="loan">Loan</option>
           </select>
         </label>
-        <label className="text-sm font-medium text-gray-700">
+        <label className="min-w-0 text-sm font-medium text-gray-700">
           From
-          <input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2" />
+          <input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} className="mt-1 box-border block min-w-0 w-full max-w-full appearance-none rounded-lg border border-gray-300 bg-white px-3 py-2" />
         </label>
-        <label className="text-sm font-medium text-gray-700">
+        <label className="min-w-0 text-sm font-medium text-gray-700">
           To
-          <input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2" />
+          <input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} className="mt-1 box-border block min-w-0 w-full max-w-full appearance-none rounded-lg border border-gray-300 bg-white px-3 py-2" />
         </label>
       </div>
 
