@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { AlertTriangle, Banknote, Building2, Clock3, FileText, HandCoins, Landmark, Receipt, Scale, ShoppingCart, TrendingDown, TrendingUp, Wallet } from 'lucide-react';
+import { AlertTriangle, Building2, Clock3, Landmark, Scale, TrendingDown, TrendingUp, Wallet } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useMultipleRealtimeSubscriptions } from '../../hooks/useRealtimeSubscription';
 import { fetchAccountBalances, summarizeAccountBalances, toDateString } from '../../lib/dashboardAccounting';
@@ -7,10 +7,9 @@ import { useTimeOfDayGreeting } from '../../hooks/useTimeOfDayGreeting';
 import DashboardMetricCard from '../common/DashboardMetricCard';
 import DiscrepancyPanel from '../common/DiscrepancyPanel';
 
-const BookkeeperDashboard = () => {
+const BookkeeperDashboard = ({ onSelectTransaction }) => {
   const greeting = useTimeOfDayGreeting();
   const [selectedDate, setSelectedDate] = useState(toDateString(new Date()));
-  const [showTransactionModal, setShowTransactionModal] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [recentTransactions, setRecentTransactions] = useState([]);
@@ -189,7 +188,7 @@ const BookkeeperDashboard = () => {
         <h3 className="text-lg font-semibold text-gray-900 mb-4">Quick Actions</h3>
         <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
           <button
-            onClick={() => setShowTransactionModal(true)}
+            onClick={() => onSelectTransaction?.()}
             className="flex flex-col items-center justify-center p-4 border-2 border-purple-300 bg-purple-50 rounded-lg hover:bg-purple-100 transition-colors"
           >
             <svg className="w-8 h-8 text-purple-600 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -261,7 +260,7 @@ const BookkeeperDashboard = () => {
       </div>
 
       {/* Recent Transactions */}
-      <div className="bg-white rounded-lg border border-gray-200">
+      {(loading || recentTransactions.length > 0) && <div className="bg-white rounded-lg border border-gray-200">
         <div className="p-6 border-b border-gray-200">
           <div className="flex items-center justify-between">
             <h3 className="text-lg font-semibold text-gray-900">Recent Transactions</h3>
@@ -274,13 +273,12 @@ const BookkeeperDashboard = () => {
           </div>
         </div>
         <div className="overflow-x-auto">
-          {loading || recentTransactions.length === 0 ? (
+          {loading ? (
             <div className="p-12 text-center text-gray-500">
               <svg className="w-16 h-16 mx-auto mb-3 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
               </svg>
-              <p className="text-sm">No transactions recorded for {selectedDate}</p>
-              <p className="text-xs mt-1">Create a new transaction to get started</p>
+              <p className="text-sm">Loading transactions...</p>
             </div>
           ) : (
             <table className="w-full">
@@ -327,52 +325,8 @@ const BookkeeperDashboard = () => {
           </table>
           )}
         </div>
-      </div>
+      </div>}
 
-      {/* Transaction Selection Modal */}
-      {showTransactionModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg shadow-xl max-w-3xl w-full mx-4">
-            <div className="p-6 border-b border-gray-200">
-              <div className="flex items-center justify-between">
-                <h3 className="text-xl font-bold text-gray-900">New Transaction</h3>
-                <button
-                  onClick={() => setShowTransactionModal(false)}
-                  className="text-gray-500 hover:text-gray-700"
-                >
-                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                </button>
-              </div>
-              <p className="text-gray-600 mt-2">What type of transaction would you like to record?</p>
-            </div>
-            <div className="p-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {[
-                  { title: 'Cash Receipt', desc: 'Money received by the cooperative', icon: Receipt },
-                  { title: 'Cash Disbursement', desc: 'Money paid out by the cooperative', icon: Banknote },
-                  { title: 'Sales', desc: 'Record a sale or income-generating transaction', icon: ShoppingCart },
-                  { title: 'Loan Payment', desc: 'Record payment received from a borrower', icon: HandCoins },
-                  { title: 'Savings / Deposit', desc: 'Record savings or time-deposit transactions', icon: Landmark },
-                  { title: 'Other Transaction', desc: 'For transactions that don\'t fall under common categories', icon: FileText }
-                ].map((type, idx) => (
-                  <button
-                    key={idx}
-                    className="flex items-start space-x-4 p-4 border-2 border-gray-200 rounded-lg hover:border-purple-300 hover:bg-purple-50 transition-all text-left"
-                  >
-                    <type.icon aria-hidden="true" className="size-7 shrink-0 text-purple-700" />
-                    <div className="flex-1">
-                      <p className="font-semibold text-gray-900">{type.title}</p>
-                      <p className="text-sm text-gray-600 mt-1">{type.desc}</p>
-                    </div>
-                  </button>
-                ))}
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 };

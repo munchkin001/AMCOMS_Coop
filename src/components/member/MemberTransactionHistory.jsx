@@ -33,10 +33,14 @@ const MemberTransactionHistory = () => {
 
       const { data: activity } = await supabase
         .from('member_activity')
-        .select('id, activity_type, title, amount, created_at, is_discrepancy, note')
+        .select('id, activity_type, title, amount, created_at, is_discrepancy, note, reference')
         .eq('member_id', memberId);
+      const dividendReferences = new Set(
+        (activity || []).filter((row) => row.activity_type === 'dividend').map((row) => row.reference)
+      );
 
       (activity || []).forEach((row) => {
+        if (row.activity_type === 'dividend') return;
         items.push({
           id: `activity-${row.id}`,
           rawDate: row.created_at,
@@ -49,13 +53,32 @@ const MemberTransactionHistory = () => {
         });
       });
 
+      const { data: dividends, error: dividendError } = await supabase
+        .from('member_dividend_distributions')
+        .select('id, reference_number, distribution_date, dividend_amount, patronage_amount, mortuary_deduction, retention_amount, savings_amount, loan_payment_amount')
+        .eq('member_id', memberId);
+      if (dividendError) throw dividendError;
+      (dividends || []).forEach((distribution) => {
+        const gross = Number(distribution.dividend_amount) + Number(distribution.patronage_amount);
+        items.push({
+          id: `dividend-${distribution.id}`,
+          rawDate: distribution.distribution_date,
+          type: 'Dividend and patronage distribution',
+          category: 'Other',
+          amount: gross - Number(distribution.mortuary_deduction),
+          signed: false,
+          status: 'Completed',
+          details: `Dividend ₱${Number(distribution.dividend_amount).toFixed(2)} · Patronage ₱${Number(distribution.patronage_amount).toFixed(2)} · Mortuary ₱${Number(distribution.mortuary_deduction).toFixed(2)} · Capital share ₱${Number(distribution.retention_amount).toFixed(2)} · Savings ₱${Number(distribution.savings_amount).toFixed(2)} · Loan ₱${Number(distribution.loan_payment_amount).toFixed(2)}`
+        });
+      });
+
       const { data: accounts } = await supabase.from('savings_accounts').select('id, account_type').eq('member_id', memberId);
       if (accounts?.length) {
         const { data: savings } = await supabase
           .from('savings_transactions')
-          .select('id, transaction_type, amount, transaction_date, savings_account_id')
+          .select('id, transaction_type, amount, transaction_date, savings_account_id, reference_number')
           .in('savings_account_id', accounts.map((account) => account.id));
-        (savings || []).forEach((txn) => {
+        (savings || []).filter((txn) => !dividendReferences.has(txn.reference_number)).forEach((txn) => {
           const account = accounts.find(a => a.id === txn.savings_account_id);
           const isTimeDeposit = account?.account_type === 'time_deposit';
           const deposit = txn.transaction_type === 'deposit';
@@ -75,9 +98,9 @@ const MemberTransactionHistory = () => {
       if (loans?.length) {
         const { data: payments } = await supabase
           .from('loan_payments')
-          .select('id, payment_date, amount_paid, receipt_id')
+          .select('id, payment_date, amount_paid, receipt_id, reference_number')
           .in('loan_id', loans.map((loan) => loan.id));
-        (payments || []).filter((payment) => !payment.receipt_id).forEach((payment) => {
+        (payments || []).filter((payment) => !payment.receipt_id && !dividendReferences.has(payment.reference_number)).forEach((payment) => {
           items.push({ id: `loan-${payment.id}`, rawDate: payment.payment_date, type: 'Loan payment', category: 'Loan', amount: -Number(payment.amount_paid), signed: true, status: 'Completed' });
         });
       }
@@ -97,7 +120,8 @@ const MemberTransactionHistory = () => {
   useMultipleRealtimeSubscriptions([
     { table: 'member_activity', onUpdate: fetchTransactions },
     { table: 'savings_transactions', onUpdate: fetchTransactions },
-    { table: 'loan_payments', onUpdate: fetchTransactions }
+    { table: 'loan_payments', onUpdate: fetchTransactions },
+    { table: 'member_dividend_distributions', onUpdate: fetchTransactions }
   ], [fetchTransactions]);
 
   const filtered = transactions.filter((t) => {
@@ -145,6 +169,7 @@ const MemberTransactionHistory = () => {
                 <div className="min-w-0">
                   <p className="text-sm font-medium text-gray-900">{t.type}</p>
                   <p className="text-xs text-gray-500">{fmtDate(t.rawDate)} · {t.category}</p>
+                  {t.details && <p className="mt-1 text-xs text-gray-600">{t.details}</p>}
                   {t.note && <p className="mt-1 text-xs text-red-700">Reason: {t.note}</p>}
                 </div>
                 <div className="text-right">

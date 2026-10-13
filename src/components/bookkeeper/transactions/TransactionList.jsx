@@ -14,7 +14,7 @@ const TransactionList = ({ onNewTransaction, onViewTransaction }) => {
   const fetchTransactions = useCallback(async () => {
     setError('');
     try {
-      const [receiptsResult, disbursementsResult] = await Promise.all([
+      const results = await Promise.all([
         supabase
           .from('cash_receipts')
           .select('id, receipt_date, receipt_number, received_from, amount, payment_method, description, status, journal_entry_id, accountAllocations:cash_receipt_lines(amount, side, description, account:chart_of_accounts(account_name))')
@@ -22,13 +22,53 @@ const TransactionList = ({ onNewTransaction, onViewTransaction }) => {
         supabase
           .from('cash_disbursements')
           .select('id, disbursement_date, voucher_number, payee, amount, payment_method, description, journal_entry_id, status, accountAllocations:cash_disbursement_lines(amount, description, account:chart_of_accounts(account_name))')
-          .order('disbursement_date', { ascending: false })
+          .order('disbursement_date', { ascending: false }),
+        supabase
+          .from('member_dividend_distributions')
+          .select('id, member_id, reference_number, distribution_date, dividend_amount, patronage_amount, mortuary_deduction, retention_amount, savings_amount, loan_payment_amount, member:members(first_name, middle_name, last_name)')
+          .order('distribution_date', { ascending: false }),
+        supabase
+          .from('sales_orders')
+          .select('id, order_date, order_number, customer_name, total_amount, net_amount, amount_paid, payment_status, cash_receipt_id, notes, sales_order_items(item_description, quantity, product:products(product_name))')
+          .order('order_date', { ascending: false })
       ]);
+      const [receiptsResult, disbursementsResult, dividendsResult, salesResult] = results;
 
-      if (receiptsResult.error) throw receiptsResult.error;
-      if (disbursementsResult.error) throw disbursementsResult.error;
+      const queryErrors = [
+        ['cash receipts', receiptsResult.error],
+        ['cash disbursements', disbursementsResult.error],
+        ['dividend distributions', dividendsResult.error],
+        ['sales', salesResult.error]
+      ].filter(([, queryError]) => queryError);
+      if (queryErrors.length > 0) {
+        throw new Error(queryErrors.map(([source, queryError]) => {
+          const code = queryError.code ? ` (${queryError.code})` : '';
+          return `${source}${code}: ${queryError.message}`;
+        }).join('; '));
+      }
 
-      const receipts = (receiptsResult.data || []).map((receipt) => ({
+      const sales = (salesResult.data || []).map((sale) => {
+        const item = sale.sales_order_items?.[0];
+        const product = Array.isArray(item?.product) ? item.product[0] : item?.product;
+        return {
+          id: sale.id,
+          date: sale.order_date,
+          referenceNo: sale.order_number,
+          repCvNumber: sale.order_number,
+          particulars: `${item?.item_description || product?.product_name || 'Sale'} × ${item?.quantity || 1} — ${sale.customer_name || 'Customer'}${sale.cash_receipt_id ? '' : ` · paid ₱${Number(sale.amount_paid || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })} of ₱${Number(sale.net_amount).toLocaleString('en-PH', { minimumFractionDigits: 2 })}`}`,
+          member: sale.customer_name,
+          type: 'sale',
+          transactionType: 'Sales',
+          amount: Number(sale.total_amount) || 0,
+          status: ['pending', 'partial'].includes(sale.payment_status) ? 'Credit' : 'Recorded',
+          paymentStatus: sale.payment_status,
+          cashReceiptId: sale.cash_receipt_id,
+          readOnly: true
+        };
+      });
+      const saleReceiptIds = new Set((salesResult.data || []).map((sale) => sale.cash_receipt_id).filter(Boolean));
+
+      const receipts = (receiptsResult.data || []).filter((receipt) => !saleReceiptIds.has(receipt.id)).map((receipt) => ({
         id: receipt.id,
         date: receipt.receipt_date,
         referenceNo: receipt.receipt_number,
@@ -41,6 +81,7 @@ const TransactionList = ({ onNewTransaction, onViewTransaction }) => {
         amount: Number(receipt.amount) || 0,
         status: receipt.status === 'draft' ? 'Draft' : receipt.status === 'void' ? 'Voided' : 'Recorded',
         journalEntryId: receipt.journal_entry_id,
+        readOnly: receipt.description?.startsWith('Collection for sale ') || false,
         accountAllocations: (receipt.accountAllocations || []).map((line) => ({
           account: Array.isArray(line.account) ? line.account[0]?.account_name : line.account?.account_name,
           amount: Number(line.amount) || 0,
@@ -69,10 +110,28 @@ const TransactionList = ({ onNewTransaction, onViewTransaction }) => {
         }))
       }));
 
-      setTransactions([...receipts, ...disbursements].sort((first, second) => new Date(second.date) - new Date(first.date)));
+      const dividends = (dividendsResult.data || []).map((distribution) => {
+        const member = Array.isArray(distribution.member) ? distribution.member[0] : distribution.member;
+        const name = [member?.first_name, member?.middle_name, member?.last_name].filter(Boolean).join(' ');
+        return {
+          id: distribution.id,
+          date: distribution.distribution_date,
+          referenceNo: distribution.reference_number,
+          repCvNumber: distribution.reference_number,
+          particulars: `${name || 'Member'} — approved dividend and patronage distribution`,
+          member: name,
+          type: 'dividend-distribution',
+          transactionType: 'Dividend',
+          amount: Number(distribution.dividend_amount) + Number(distribution.patronage_amount),
+          status: 'Recorded',
+          readOnly: true
+        };
+      });
+
+      setTransactions([...receipts, ...disbursements, ...dividends, ...sales].sort((first, second) => new Date(second.date) - new Date(first.date)));
     } catch (fetchError) {
       console.error('Unable to load transactions:', fetchError);
-      setError('Transactions could not be loaded. Please try again.');
+      setError(`Transactions could not be loaded: ${fetchError.message || 'Unknown database error.'}`);
     } finally {
       setLoading(false);
     }
@@ -84,10 +143,15 @@ const TransactionList = ({ onNewTransaction, onViewTransaction }) => {
 
   useRealtimeSubscription('cash_receipts', fetchTransactions, null, [fetchTransactions]);
   useRealtimeSubscription('cash_disbursements', fetchTransactions, null, [fetchTransactions]);
+  useRealtimeSubscription('member_dividend_distributions', fetchTransactions, null, [fetchTransactions]);
+  useRealtimeSubscription('sales_orders', fetchTransactions, null, [fetchTransactions]);
 
   const today = toDateString(new Date());
   const todayTransactions = transactions.filter((transaction) => transaction.date === today).length;
-  const totalReceipts = transactions.filter((transaction) => transaction.transactionType === 'Receipt' && transaction.status === 'Recorded').reduce((sum, transaction) => sum + transaction.amount, 0);
+  const totalReceipts = transactions.filter((transaction) =>
+    (transaction.transactionType === 'Receipt' || (transaction.transactionType === 'Sales' && transaction.cashReceiptId))
+      && transaction.status === 'Recorded'
+  ).reduce((sum, transaction) => sum + transaction.amount, 0);
   const totalDisbursements = transactions.filter((transaction) => transaction.transactionType === 'Disbursement' && transaction.status === 'Recorded').reduce((sum, transaction) => sum + transaction.amount, 0);
   const draftCount = transactions.filter((transaction) => transaction.status === 'Draft').length;
 
@@ -99,6 +163,8 @@ const TransactionList = ({ onNewTransaction, onViewTransaction }) => {
         return 'bg-green-100 text-green-700';
       case 'Voided':
         return 'bg-red-100 text-red-700';
+      case 'Credit':
+        return 'bg-amber-100 text-amber-800';
       default:
         return 'bg-gray-100 text-gray-700';
     }
@@ -172,6 +238,8 @@ const TransactionList = ({ onNewTransaction, onViewTransaction }) => {
               <option value="all">All Types</option>
               <option value="Receipt">Receipt</option>
               <option value="Disbursement">Disbursement</option>
+              <option value="Sales">Sales</option>
+              <option value="Dividend">Dividend</option>
             </select>
             <select
               value={filterStatus}
@@ -181,6 +249,7 @@ const TransactionList = ({ onNewTransaction, onViewTransaction }) => {
               <option value="all">All Status</option>
               <option value="Draft">Draft</option>
               <option value="Recorded">Recorded</option>
+              <option value="Credit">Credit</option>
             </select>
           </div>
         </div>
@@ -204,8 +273,8 @@ const TransactionList = ({ onNewTransaction, onViewTransaction }) => {
                 {filteredTransactions.map((txn) => (
                   <tr 
                     key={txn.id} 
-                    onClick={() => onViewTransaction(txn)}
-                    className="hover:bg-gray-50 cursor-pointer"
+                    onClick={txn.readOnly ? undefined : () => onViewTransaction(txn)}
+                    className={txn.readOnly ? 'bg-indigo-50/40' : 'hover:bg-gray-50 cursor-pointer'}
                   >
                     <td className="px-4 py-3 text-sm text-gray-900 whitespace-nowrap">{new Date(`${txn.date}T00:00:00`).toLocaleDateString('en-PH')}</td>
                     <td className="px-4 py-3 text-sm font-medium text-purple-600 whitespace-nowrap">{txn.referenceNo}</td>
@@ -226,7 +295,7 @@ const TransactionList = ({ onNewTransaction, onViewTransaction }) => {
           </div>
         </div>
 
-        {!loading && filteredTransactions.length === 0 && (
+        {!loading && !error && filteredTransactions.length === 0 && (
           <div className="text-center py-12">
             <svg className="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />

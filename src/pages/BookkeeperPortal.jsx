@@ -9,6 +9,8 @@ const BookkeeperPortal = () => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [showLogoutModal, setShowLogoutModal] = useState(false);
   const [showUserMenu, setShowUserMenu] = useState(false);
+  const [initialTransactionType, setInitialTransactionType] = useState(null);
+  const [startNewTransaction, setStartNewTransaction] = useState(false);
 
   const handleLogout = () => {
     setShowLogoutModal(true);
@@ -19,16 +21,26 @@ const BookkeeperPortal = () => {
   };
 
   const handleModuleChange = (module) => {
+    if (module !== 'transactions') {
+      setInitialTransactionType(null);
+      setStartNewTransaction(false);
+    }
     setActiveModule(module);
     setIsMobileMenuOpen(false);
+  };
+
+  const handleQuickTransaction = (type) => {
+    setInitialTransactionType(type);
+    setStartNewTransaction(!type);
+    setActiveModule('transactions');
   };
 
   const renderModule = () => {
     switch (activeModule) {
       case 'dashboard':
-        return <BookkeeperDashboard />;
+        return <BookkeeperDashboard onSelectTransaction={handleQuickTransaction} />;
       case 'transactions':
-        return <Transactions />;
+        return <Transactions initialType={initialTransactionType} startNewTransaction={startNewTransaction} />;
       case 'books':
         return <Books />;
       case 'reports':

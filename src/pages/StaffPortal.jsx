@@ -1,5 +1,5 @@
 import React from 'react';
-import { Routes, Route, Navigate } from 'react-router-dom';
+import { Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import StaffLayout from '../layouts/StaffLayout';
 import LoadingSpinner from '../components/common/LoadingSpinner';
@@ -47,6 +47,7 @@ import Purchases from '../components/inventory/Purchases';
 
 const StaffPortal = () => {
   const { staff, loading } = useAuth();
+  const navigate = useNavigate();
 
   if (loading) {
     return (
@@ -70,7 +71,15 @@ const StaffPortal = () => {
       case 'treasurer':
         return <TreasurerDashboard />;
       case 'bookkeeper':
-        return <BookkeeperDashboard />;
+        return (
+          <BookkeeperDashboard
+            onSelectTransaction={(type) => navigate('/staff/transactions', {
+              state: type
+                ? { initialTransactionType: type }
+                : { startNewTransaction: true }
+            })}
+          />
+        );
       case 'inventory':
         return <InventoryDashboard />;
       default:

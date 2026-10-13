@@ -1,9 +1,17 @@
 import React, { useState, useEffect } from 'react';
-import { CalendarClock, HandCoins, Landmark, PiggyBank } from 'lucide-react';
+import { Building2, CalendarClock, HandCoins, Landmark, PiggyBank } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import { useMultipleRealtimeSubscriptions } from '../../hooks/useRealtimeSubscription';
 import DashboardMetricCard from '../common/DashboardMetricCard';
+
+const savingsTransactionTitle = (transaction) => {
+  const account = transaction.savings_accounts?.account_type === 'time_deposit' ? 'Time deposit' : 'Savings';
+  const action = transaction.transaction_type === 'deposit' && account === 'Time deposit'
+    ? 'placement'
+    : transaction.transaction_type;
+  return `${account} ${action}`;
+};
 
 const MemberDashboard = ({ onNavigate }) => {
   const { staff } = useAuth();
@@ -17,6 +25,7 @@ const MemberDashboard = ({ onNavigate }) => {
     dueDates: [],
     totalSavings: 0,
     totalTimeDeposit: 0,
+    totalCapital: 0,
     totalLoanBalance: 0,
     nextPaymentAmount: 0,
     nextPaymentDate: null,
@@ -114,7 +123,7 @@ const MemberDashboard = ({ onNavigate }) => {
       // Fetch member details
       const { data: memberInfo, error: memberError } = await supabase
         .from('members')
-        .select('id, member_number, first_name, middle_name, last_name, email')
+        .select('id, member_number, first_name, middle_name, last_name, email, total_capital')
         .eq('id', memberId)
         .single();
 
@@ -172,7 +181,8 @@ const MemberDashboard = ({ onNavigate }) => {
           balance_after,
           transaction_date,
           description,
-          savings_accounts!inner(account_number, member_id)
+          reference_number,
+          savings_accounts!inner(account_number, member_id, account_type)
         `)
         .eq('savings_accounts.member_id', memberId)
         .order('transaction_date', { ascending: false })
@@ -191,6 +201,7 @@ const MemberDashboard = ({ onNavigate }) => {
           interest_paid,
           balance_after,
           receipt_id,
+          reference_number,
           loans!inner(loan_number, member_id)
         `)
         .eq('loans.member_id', memberId)
@@ -203,7 +214,7 @@ const MemberDashboard = ({ onNavigate }) => {
       // Bookkeeper actions (loan released, disbursements) are mirrored here
       const { data: activityRows, error: activityError } = await supabase
         .from('member_activity')
-        .select('id, title, amount, created_at, is_discrepancy, note')
+        .select('id, activity_type, title, amount, created_at, is_discrepancy, note, reference')
         .eq('member_id', memberId)
         .order('created_at', { ascending: false })
         .limit(10);
@@ -218,16 +229,19 @@ const MemberDashboard = ({ onNavigate }) => {
         status: row.is_discrepancy ? 'Discrepancy' : 'Recorded',
         note: row.note
       }));
+      const dividendReferences = new Set(
+        (activityRows || []).filter((row) => row.activity_type === 'dividend').map((row) => row.reference)
+      );
       const recentTransactions = [
         ...requestActivity,
-        ...(savingsTransactions || []).map(t => ({
+        ...(savingsTransactions || []).filter((t) => !dividendReferences.has(t.reference_number)).map(t => ({
           id: t.id,
           rawDate: t.transaction_date,
-          type: `Savings ${t.transaction_type}`,
+          type: savingsTransactionTitle(t),
           amount: t.amount,
           status: 'Completed'
         })),
-        ...(loanPayments || []).filter((t) => !t.receipt_id).map(t => ({
+        ...(loanPayments || []).filter((t) => !t.receipt_id && !dividendReferences.has(t.reference_number)).map(t => ({
           id: t.id,
           rawDate: t.payment_date,
           type: 'Loan Payment',
@@ -258,6 +272,7 @@ const MemberDashboard = ({ onNavigate }) => {
         dueDates,
         totalSavings,
         totalTimeDeposit,
+        totalCapital: Number(memberInfo.total_capital || 0),
         totalLoanBalance,
         nextPaymentAmount,
         nextPaymentDate,
@@ -282,7 +297,7 @@ const MemberDashboard = ({ onNavigate }) => {
       <div>
         <h2 className="text-xl font-bold text-gray-900 sm:text-2xl">Hi, {memberData.firstName || 'Member'}!</h2>
         <p className="text-sm text-gray-600 mb-4">Here is a summary of your account.</p>
-        <div className="grid grid-cols-2 xl:grid-cols-4 gap-3 sm:gap-4">
+        <div className="grid grid-cols-2 xl:grid-cols-5 gap-3 sm:gap-4">
           <DashboardMetricCard
             label="Savings"
             value={loading ? '...' : `₱${memberData.totalSavings.toLocaleString('en-US', { minimumFractionDigits: 2 })}`}
@@ -302,6 +317,14 @@ const MemberDashboard = ({ onNavigate }) => {
             solid
             actionLabel="View account"
             onAction={() => onNavigate?.('time-deposit')}
+          />
+          <DashboardMetricCard
+            label="Capital Share"
+            value={loading ? '...' : `₱${memberData.totalCapital.toLocaleString('en-US', { minimumFractionDigits: 2 })}`}
+            detail="Member share capital"
+            icon={Building2}
+            tone="blue"
+            solid
           />
           <DashboardMetricCard
             label="Loan Balance"

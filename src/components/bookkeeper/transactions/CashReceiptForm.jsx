@@ -59,6 +59,10 @@ const CashReceiptForm = ({ onSave, onCancel, transaction = null }) => {
       setFormError('Enter the date, receipt number, customer, particulars, and a positive amount before saving.');
       return;
     }
+    if (/\bloan\b/i.test(formData.particulars)) {
+      setFormError('Use the Loan Payment transaction type so the loan schedule and member balance are updated correctly.');
+      return;
+    }
     const allocations = accountDistribution
       .filter((item) => item.account && Number(item.amount) > 0)
       .map((item) => ({ ...item, amount: Number(item.amount) }));
@@ -109,14 +113,6 @@ const CashReceiptForm = ({ onSave, onCancel, transaction = null }) => {
   const accountOptions = [
     'Cash on Hand',
     'Cash in Bank',
-    'Account Receivable',
-    'Loan Receivable',
-    'Savings / Time Deposit',
-    'Capital Share',
-    'Sales',
-    'Charge Sales',
-    'Marketing',
-    'Barangay Food Terminal (BFT)',
     'Membership Fee',
     'Interest Income',
     'Service Fee Income',

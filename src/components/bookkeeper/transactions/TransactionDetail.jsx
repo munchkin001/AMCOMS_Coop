@@ -32,6 +32,13 @@ const TransactionDetail = ({ transaction, onBack, onEdit, onDelete }) => {
         bgColor: 'bg-red-50',
         textColor: 'text-red-700',
         borderColor: 'border-red-200'
+      },
+      sale: {
+        label: 'Sales',
+        icon: Receipt,
+        bgColor: 'bg-orange-50',
+        textColor: 'text-orange-700',
+        borderColor: 'border-orange-200'
       }
     };
     return configs[type] || configs['cash-receipt'];
@@ -99,7 +106,7 @@ const TransactionDetail = ({ transaction, onBack, onEdit, onDelete }) => {
             <span className="font-medium">Back to Transactions</span>
           </button>
 
-          <div className="flex gap-2">
+          {!transaction.readOnly && <div className="flex gap-2">
             {transaction.status === 'draft' && (
               <button
                 onClick={() => onEdit(transaction)}
@@ -116,7 +123,7 @@ const TransactionDetail = ({ transaction, onBack, onEdit, onDelete }) => {
               <Trash2 className="w-4 h-4" />
               <span>Delete</span>
             </button>
-          </div>
+          </div>}
         </div>
 
         <div className="flex items-center gap-4 mb-4">

@@ -1,14 +1,20 @@
 import React, { useState } from 'react';
+import { useLocation } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
 import TransactionList from './transactions/TransactionList';
 import TransactionTypeSelector from './transactions/TransactionTypeSelector';
 import CashReceiptForm from './transactions/CashReceiptForm';
 import CashDisbursementForm from './transactions/CashDisbursementForm';
+import MemberFinancialEntryForm from './transactions/MemberFinancialEntryForm';
+import SalesForm from './transactions/SalesForm';
 import TransactionDetail from './transactions/TransactionDetail';
 
-const Transactions = () => {
-  const [view, setView] = useState('list'); // 'list', 'type-selector', 'form', 'detail'
-  const [selectedType, setSelectedType] = useState(null);
+const Transactions = ({ initialType = null, startNewTransaction = false }) => {
+  const location = useLocation();
+  const requestedType = initialType || location.state?.initialTransactionType || null;
+  const shouldStartNew = startNewTransaction || location.state?.startNewTransaction;
+  const [view, setView] = useState(requestedType ? 'form' : shouldStartNew ? 'type-selector' : 'list'); // 'list', 'type-selector', 'form', 'detail'
+  const [selectedType, setSelectedType] = useState(requestedType);
   const [selectedTransaction, setSelectedTransaction] = useState(null);
   const [actionError, setActionError] = useState('');
 
@@ -29,7 +35,15 @@ const Transactions = () => {
 
   const handleSaveTransaction = async (data) => {
     setActionError('');
-    if (selectedType === 'cash-receipt' || data.type === 'cash-receipt') {
+    if (selectedType === 'sales') {
+      const { error } = await supabase.rpc('record_cooperative_sale', data);
+      if (error) throw error;
+    } else if (['loan-payment', 'savings-deposit', 'other-transaction'].includes(selectedType)) {
+      const { error } = data.dividend
+        ? await supabase.rpc('record_member_dividend', { p_distribution: data.p_distribution })
+        : await supabase.rpc('record_member_financial_entry', data);
+      if (error) throw error;
+    } else if (selectedType === 'cash-receipt' || data.type === 'cash-receipt') {
       const { error } = await supabase.rpc('save_cash_receipt', {
         p_receipt: {
           receipt_date: data.date,
@@ -130,6 +144,43 @@ const Transactions = () => {
       {view === 'form' && selectedType === 'cash-disbursement' && (
         <CashDisbursementForm 
           transaction={selectedTransaction}
+          onSave={handleSaveTransaction}
+          onCancel={handleCancel}
+        />
+      )}
+
+      {view === 'form' && selectedType === 'sales' && (
+        <SalesForm
+          onSave={handleSaveTransaction}
+          onCancel={handleCancel}
+        />
+      )}
+
+      {view === 'form' && selectedType === 'loan-payment' && (
+        <MemberFinancialEntryForm
+          initialEntryType="loan_payment"
+          allowedEntryTypes={['loan_payment']}
+          title="Loan Payment"
+          onSave={handleSaveTransaction}
+          onCancel={handleCancel}
+        />
+      )}
+
+      {view === 'form' && selectedType === 'savings-deposit' && (
+        <MemberFinancialEntryForm
+          initialEntryType="savings_deposit"
+          allowedEntryTypes={['savings_deposit', 'savings_withdrawal', 'time_deposit', 'time_deposit_withdrawal']}
+          title="Savings / Deposit"
+          onSave={handleSaveTransaction}
+          onCancel={handleCancel}
+        />
+      )}
+
+      {view === 'form' && selectedType === 'other-transaction' && (
+        <MemberFinancialEntryForm
+          initialEntryType="capital_contribution"
+          allowedEntryTypes={['capital_contribution', 'dividend_distribution']}
+          title="Other Transaction"
           onSave={handleSaveTransaction}
           onCancel={handleCancel}
         />
