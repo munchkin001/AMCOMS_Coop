@@ -46,14 +46,8 @@ const StaffLayout = ({ children }) => {
 
   const confirmLogout = async () => {
     await signOut();
-    try {
-      const response = await fetch('/api/staff-access', { method: 'DELETE', credentials: 'same-origin' });
-      if (!response.ok) throw new Error(`Gateway session could not be cleared (${response.status})`);
-    } catch (gatewayError) {
-      console.error('Unable to clear staff gateway session:', gatewayError);
-    }
     setShowLogoutModal(false);
-    navigate('/portal-selection');
+    navigate('/');
   };
 
   const cancelLogout = () => {

@@ -68,9 +68,9 @@ const Login = () => {
 
     // Add keyboard shortcuts
     const handleKeyDown = (e) => {
-      // Escape key - go back to portal selection
+      // Escape key returns to the public website.
       if (e.key === 'Escape') {
-        navigate('/portal-selection');
+        navigate('/');
       }
     };
 
@@ -304,16 +304,16 @@ const Login = () => {
           </div>
         </div>
 
-        {/* Back to Portal Selection */}
+        {/* Back to the public website */}
         <div className="text-center mt-6">
           <Link 
-            to="/portal-selection" 
+            to="/" 
             className={`text-gray-600 ${portalConfig.backLinkHover} text-sm flex items-center justify-center space-x-2 transition-colors`}
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
             </svg>
-            <span>Back to Portal Selection</span>
+            <span>Back to Website</span>
           </Link>
         </div>
 

@@ -3,7 +3,6 @@ import { Link } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
 import { BadgeDollarSign, Check, ChevronDown, ClipboardList, IdCard, Sprout, Store } from 'lucide-react';
 import CooperativeMap from './CooperativeMap';
-import StaffAccessModal from './StaffAccessModal';
 import './landingpage.css';
 
 
@@ -57,7 +56,6 @@ const useActiveSection = () => {
 const Navbar = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isLoginMenuOpen, setIsLoginMenuOpen] = useState(false);
-  const [isStaffModalOpen, setIsStaffModalOpen] = useState(false);
   const activeSection = useActiveSection();
 
   return (
@@ -129,17 +127,14 @@ const Navbar = () => {
                   >
                     Member Portal
                   </Link>
-                  <button
+                  <Link
                     role="menuitem"
-                    type="button"
-                    onClick={() => {
-                      setIsLoginMenuOpen(false);
-                      setIsStaffModalOpen(true);
-                    }}
+                    to="/login/staff"
+                    onClick={() => setIsLoginMenuOpen(false)}
                     className="block w-full px-4 py-3 text-left text-sm font-medium text-gray-700 hover:bg-emerald-50 hover:text-emerald-900"
                   >
                     Staff &amp; Admin Desk
-                  </button>
+                  </Link>
                 </div>
               )}
             </div>
@@ -207,17 +202,16 @@ const Navbar = () => {
                     >
                       Member Portal
                     </Link>
-                    <button
-                      type="button"
+                    <Link
+                      to="/login/staff"
                       onClick={() => {
                         setIsMenuOpen(false);
                         setIsLoginMenuOpen(false);
-                        setIsStaffModalOpen(true);
                       }}
                       className="block w-full px-4 py-3 text-left text-sm font-medium text-gray-700 hover:bg-emerald-50"
                     >
                       Staff &amp; Admin Desk
-                    </button>
+                    </Link>
                   </div>
                 )}
               </div>
@@ -225,7 +219,6 @@ const Navbar = () => {
           </div>
         )}
       </div>
-      {isStaffModalOpen && <StaffAccessModal onClose={() => setIsStaffModalOpen(false)} />}
     </nav>
   );
 };

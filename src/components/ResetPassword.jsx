@@ -276,13 +276,13 @@ const ResetPassword = () => {
         {/* Back to Login */}
         <div className="text-center mt-6">
           <a 
-            href="/portal-selection" 
+            href="/" 
             className="text-gray-600 hover:text-blue-600 text-sm flex items-center justify-center space-x-2 transition-colors"
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
             </svg>
-            <span>Back to Login</span>
+            <span>Back to Website</span>
           </a>
         </div>
       </div>

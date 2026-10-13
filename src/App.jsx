@@ -2,10 +2,8 @@ import React from 'react'
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom'
 import { AuthProvider } from './contexts/AuthContext'
 import ProtectedRoute from './components/ProtectedRoute'
-import StaffAccessGuard from './components/StaffAccessGuard'
 import LandingPage from './pages/LandingPage'
 import Login from './components/Login'
-import PortalSelection from './components/PortalSelection'
 import ForgotPassword from './components/ForgotPassword'
 import ResetPassword from './components/ResetPassword'
 import DemoPages from './pages/DemoPages'
@@ -21,8 +19,8 @@ function App() {
           {/* Public Routes */}
           <Route path="/" element={<LandingPage />} />
           <Route path="/demo" element={<DemoPages />} />
-          <Route path="/portal-selection" element={<PortalSelection />} />
-          <Route path="/login/staff" element={<StaffAccessGuard><Login /></StaffAccessGuard>} />
+          <Route path="/portal-selection" element={<Navigate to="/" replace />} />
+          <Route path="/login/staff" element={<Login />} />
           <Route path="/login/:portalType" element={<Login />} />
           <Route path="/member-signup" element={<Navigate to="/login/member" replace />} />
           <Route path="/forgot-password" element={<ForgotPassword />} />
@@ -32,11 +30,9 @@ function App() {
           <Route 
             path="/staff/*" 
             element={
-              <StaffAccessGuard>
-                <ProtectedRoute allowedRoles={['chairman', 'manager', 'treasurer', 'bookkeeper', 'inventory']}>
-                  <StaffPortal />
-                </ProtectedRoute>
-              </StaffAccessGuard>
+              <ProtectedRoute allowedRoles={['chairman', 'manager', 'treasurer', 'bookkeeper', 'inventory']}>
+                <StaffPortal />
+              </ProtectedRoute>
             } 
           />
           

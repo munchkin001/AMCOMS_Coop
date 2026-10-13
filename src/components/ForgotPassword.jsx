@@ -8,7 +8,7 @@ const ForgotPassword = () => (
         Password resets are handled in person by an authorized cooperative officer. Members should visit the Bookkeeper with identification.
       </p>
       <a
-        href="/portal-selection"
+        href="/login/member"
         className="block rounded-lg bg-blue-800 py-3 text-center font-semibold text-white transition-colors hover:bg-blue-900"
       >
         Back to Login
