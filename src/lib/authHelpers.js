@@ -1,6 +1,6 @@
 /**
  * Authentication Helper Functions
- * Provides full-name-based authentication for AMCOMS
+ * Resolves username authentication for AMCOMS
  */
 
 import { supabase } from './supabase';
@@ -27,8 +27,8 @@ export async function findStaffByLoginIdentifier(identifier) {
 }
 
 /**
- * Login with a username or full name and password
- * @param {string} identifier - The user's username or full name
+ * Login with a username and password
+ * @param {string} identifier - The user's username
  * @param {string} password - The user's password
  * @returns {Promise<{success: boolean, data?: any, error?: string, role?: string}>}
  */
@@ -47,7 +47,7 @@ export async function loginWithIdentifier(identifier, password) {
     if (!staffData) {
       return {
         success: false,
-        error: 'Invalid username/full name or password'
+        error: 'Invalid username or password'
       };
     }
 
@@ -70,7 +70,7 @@ export async function loginWithIdentifier(identifier, password) {
       // Provide user-friendly error messages
       return {
         success: false,
-        error: 'Invalid username/full name or password'
+        error: 'Invalid username or password'
       };
     }
 

@@ -21,7 +21,7 @@ const ResetPassword = () => {
       if (session) {
         setValidSession(true);
       } else {
-        setError('Invalid or expired password reset link. Please request a new one.');
+        setError('Sign in with the temporary password provided by the cooperative to change your password.');
       }
     };
 
@@ -135,7 +135,7 @@ const ResetPassword = () => {
             </div>
 
             <h2 className="text-2xl font-bold text-gray-900 text-center mb-4">
-              Invalid Reset Link
+              Sign-in required
             </h2>
 
             <p className="text-gray-600 text-center mb-8">
@@ -146,7 +146,7 @@ const ResetPassword = () => {
               href="/forgot-password"
               className="block w-full bg-blue-800 text-white py-3 rounded-lg font-semibold hover:bg-blue-900 transition-colors text-center"
             >
-              Request New Reset Link
+              Go to Login
             </a>
           </div>
         </div>
@@ -168,8 +168,8 @@ const ResetPassword = () => {
               </div>
             </div>
 
-            <h1 className="text-3xl font-bold mb-2">{staff?.must_change_password ? 'Activate your AMCOMS account' : 'Reset Password'}</h1>
-            <p className="text-blue-200 text-sm">{staff?.must_change_password ? 'Your member account is ready. Create your password to continue.' : 'Create a new secure password'}</p>
+            <h1 className="text-3xl font-bold mb-2">{staff?.must_change_password ? 'Set your AMCOMS password' : 'Change Password'}</h1>
+            <p className="text-blue-200 text-sm">{staff?.must_change_password ? 'Create your private password to continue to your account.' : 'Create a new secure password'}</p>
           </div>
 
           {/* Form */}

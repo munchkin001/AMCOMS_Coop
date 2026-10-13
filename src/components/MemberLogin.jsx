@@ -32,7 +32,7 @@ const MemberLogin = () => {
         // Redirect to member portal
         navigate('/member-portal');
       } else {
-        setError(result.error || 'Invalid username/full name or password');
+        setError(result.error || 'Invalid username or password');
       }
     } catch (err) {
       setError('An error occurred during login. Please try again.');
@@ -96,16 +96,16 @@ const MemberLogin = () => {
           <form onSubmit={handleSubmit} className="space-y-6">
             <div>
               <label className="block text-gray-700 font-medium mb-2 text-base">
-                Username or full name
+                Username
               </label>
               <input
                 type="text"
                 value={fullName}
                 onChange={(e) => setFullName(e.target.value)}
                 className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all text-base"
-                placeholder="Enter your username or full name"
+                placeholder="Enter your username"
                 required
-                autoComplete="name"
+                autoComplete="username"
               />
             </div>
 

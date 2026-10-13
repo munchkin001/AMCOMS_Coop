@@ -62,7 +62,7 @@ const ProtectedRoute = ({
     );
   }
 
-  if (staff.role === 'member' && staff.must_change_password) {
+  if (staff.must_change_password) {
     return <Navigate to="/reset-password" state={{ from: location }} replace />;
   }
 

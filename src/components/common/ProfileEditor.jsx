@@ -91,7 +91,7 @@ const ProfileEditor = ({ profileType = 'staff', roleLabel }) => {
           middle_name: source.middle_name || staffRecord.middle_name || fallbackName.middle_name,
           last_name: source.last_name || staffRecord.last_name || fallbackName.last_name,
           username: staffRecord.username || '',
-          email: user.email || staffRecord.email || '',
+          email: source.email || staffRecord.email || '',
           phone: source.phone || staffRecord.phone || '',
           address: source.address || staffRecord.address || '',
           date_of_birth: source.date_of_birth || staffRecord.date_of_birth || '',
@@ -162,7 +162,7 @@ const ProfileEditor = ({ profileType = 'staff', roleLabel }) => {
         p_profile: {
           ...profile,
           username,
-          email: user?.email || '',
+          email: profile.email,
           additional_emergency_contacts: profile.additional_emergency_contacts.filter((c) => c.name?.trim() || c.phone?.trim())
         }
       });
@@ -277,7 +277,7 @@ const ProfileEditor = ({ profileType = 'staff', roleLabel }) => {
                 onChange={handleProfileChange}
                 className={fieldClass}
               />
-              <p className="mt-1 text-xs text-gray-500">You can sign in with this username or your full name.</p>
+              <p className="mt-1 text-xs text-gray-500">Use this username to sign in.</p>
             </div>
             <div>
               <label htmlFor="profile-first-name" className={labelClass}>First name</label>

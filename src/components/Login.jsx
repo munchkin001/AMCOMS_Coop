@@ -106,7 +106,7 @@ const Login = () => {
       return;
     }
 
-    if (isMemberUser && staff.must_change_password) {
+    if (staff.must_change_password) {
       navigate('/reset-password', { replace: true });
       return;
     }
@@ -125,7 +125,7 @@ const Login = () => {
     // Validate fields
     const errors = {};
     if (!fullName.trim()) {
-      errors.fullName = 'Enter your username or full name';
+      errors.fullName = 'Enter your username';
     }
     if (!password.trim()) {
       errors.password = 'Password is required';
@@ -141,7 +141,7 @@ const Login = () => {
     setLoading(true);
 
     try {
-      // Authenticate with username or full name
+      // Authenticate with the username.
       const result = await login(fullName, password);
 
       if (!result.success) {
@@ -174,7 +174,7 @@ const Login = () => {
         console.warn('Unable to save remember-me preference:', storageError);
       }
 
-      if (isMemberUser && result.staff?.must_change_password) {
+      if (result.staff?.must_change_password) {
         navigate('/reset-password', { replace: true });
         return;
       }
@@ -225,12 +225,12 @@ const Login = () => {
               {/* Full Name Field */}
               <div className="mb-5">
                 <label htmlFor="fullName" className="block text-gray-700 text-sm font-semibold mb-2">
-                  Username or full name
+                  Username
                 </label>
                 <input
                   type="text"
                   id="fullName"
-                  autoComplete="name"
+                  autoComplete="username"
                   value={fullName}
                   onChange={(e) => {
                     setFullName(e.target.value);
@@ -238,7 +238,7 @@ const Login = () => {
                       setFieldErrors(prev => ({ ...prev, fullName: '' }));
                     }
                   }}
-                  placeholder="Enter your username or full name"
+                  placeholder="Enter your username"
                   className={`w-full rounded-lg border ${fieldErrors.fullName ? 'border-red-300' : 'border-gray-200'} px-4 py-3 transition-all focus:outline-none focus:ring-2 ${portalConfig.inputFocus}`}
                   required
                   disabled={loading}

@@ -1,6 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
-import { getAppUrl } from '../lib/appUrl';
 import { findStaffByLoginIdentifier } from '../lib/authHelpers';
 import { useRealtimeSubscription } from '../hooks/useRealtimeSubscription';
 
@@ -55,7 +54,7 @@ export const AuthProvider = ({ children }) => {
         return null;
       }
 
-      console.log('Staff data loaded:', { email: data.email, role: data.role, is_active: data.is_active });
+      console.log('Staff profile loaded:', { role: data.role, is_active: data.is_active });
 
       if (!data.is_active) {
         setAuthError('Your account has been deactivated. Please contact the administrator.');
@@ -194,7 +193,7 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  // Resolve the username or unique full name before Supabase authentication.
+  // Resolve the username to its private Auth alias before password authentication.
   const login = async (identifier, password) => {
     try {
       setAuthError(null);
@@ -230,7 +229,7 @@ export const AuthProvider = ({ children }) => {
       if (!resolvedStaff) {
         return {
           success: false,
-          error: 'No account matched that username or full name. Try your username or contact the administrator to verify your account.'
+          error: 'No account matched that username. Check it and try again, or contact the cooperative office.'
         };
       }
 
@@ -328,7 +327,7 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  const resetPassword = async (email) => {
+  const resetPassword = async () => {
     // Password reset is now handled by staff only through Chairman's Member Account Recovery
     // This function is kept for backward compatibility but should not be used
     console.warn('Password reset via email is disabled. Use Chairman\'s Member Account Recovery feature.');
@@ -340,7 +339,7 @@ export const AuthProvider = ({ children }) => {
   const updatePassword = async (newPassword) => {
     try {
       setAuthError(null);
-      if (staff?.role === 'member' && staff.must_change_password) {
+      if (staff?.must_change_password) {
         const { error } = await supabase.functions.invoke('member-account', {
           body: { action: 'complete-password-setup', password: newPassword }
         });

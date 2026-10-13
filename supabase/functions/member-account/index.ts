@@ -122,24 +122,25 @@ Deno.serve(async (request) => {
     const action = payload?.action;
 
     if (action === 'complete-password-setup') {
-      if (actor.role !== 'member' || !actor.member_id || !actor.must_change_password) {
-        return jsonResponse({ error: 'No member password setup is pending.' }, 403, origin);
-      }
-      const { data: member, error: memberError } = await caller
-        .from('members')
-        .select('email, membership_status, archived_at')
-        .eq('id', actor.member_id)
-        .maybeSingle();
-      if (memberError) throw memberError;
-      if (!member || member.membership_status !== 'active' || member.archived_at) {
-        return jsonResponse({ error: 'An active membership is required.' }, 403, origin);
+      if (!actor.must_change_password) {
+        return jsonResponse({ error: 'No temporary password change is required.' }, 403, origin);
       }
 
       const password = String(payload?.password || '');
       const validationMessage = passwordProblem(password);
       if (validationMessage) return jsonResponse({ error: validationMessage }, 400, origin);
-      if (member.email && password.toLowerCase() === member.email.toLowerCase()) {
-        return jsonResponse({ error: 'Choose a password different from your email.' }, 400, origin);
+
+      if (actor.role === 'member') {
+        if (!actor.member_id) return jsonResponse({ error: 'The member account is not linked.' }, 403, origin);
+        const { data: member, error: memberError } = await caller
+          .from('members')
+          .select('membership_status, archived_at')
+          .eq('id', actor.member_id)
+          .maybeSingle();
+        if (memberError) throw memberError;
+        if (!member || member.membership_status !== 'active' || member.archived_at) {
+          return jsonResponse({ error: 'An active membership is required.' }, 403, origin);
+        }
       }
 
       const { error: passwordError } = await admin.auth.admin.updateUserById(authData.user.id, { password });
@@ -149,7 +150,12 @@ Deno.serve(async (request) => {
         .eq('id', actor.id)
         .eq('user_id', authData.user.id);
       if (flagError) throw flagError;
-      await recordAccountEvent(admin, actor.id, actor.member_id, 'MEMBER_ACCOUNT_ACTIVATED');
+      await recordAccountEvent(
+        admin,
+        actor.id,
+        actor.member_id || actor.id,
+        actor.role === 'member' ? 'MEMBER_ACCOUNT_ACTIVATED' : 'STAFF_TEMPORARY_PASSWORD_CHANGED'
+      );
       return jsonResponse({ completed: true }, 200, origin);
     }
 
@@ -261,7 +267,7 @@ Deno.serve(async (request) => {
     }
 
     const email = member.email?.trim().toLowerCase() || null;
-    const authEmail = email || `${member.id}@members.amcoms.invalid`;
+    const authEmail = `${member.id}@members.amcoms.invalid`;
     const { data: linkedStaff, error: linkedError } = await admin.from('staff')
       .select('id, user_id, role, must_change_password, username')
       .eq('member_id', member.id)
@@ -302,6 +308,9 @@ Deno.serve(async (request) => {
     };
 
     if (action === 'reset' || action === 'resend-activation') {
+      if (actor.role !== 'bookkeeper') {
+        return jsonResponse({ error: 'Only Bookkeepers can reset member passwords.' }, 403, origin);
+      }
       if (!linkedStaff?.user_id || linkedStaff.role !== 'member') {
         return jsonResponse({ error: 'No linked Member Portal account was found.' }, 404, origin);
       }
