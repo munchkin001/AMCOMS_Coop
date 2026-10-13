@@ -198,25 +198,43 @@ export const AuthProvider = ({ children }) => {
   const login = async (identifier, password) => {
     try {
       setAuthError(null);
-      
-      const { data: staffData, error: lookupError } = await findStaffByLoginIdentifier(identifier);
 
-      if (lookupError) {
-        console.error('Full-name account lookup failed:', lookupError);
+      if (user) {
+        const { error: signOutError } = await signOut();
+        if (signOutError) {
+          return {
+            success: false,
+            error: 'Could not safely switch accounts. Please sign out and try again.'
+          };
+        }
+      }
+
+      const { data: resolvedStaff, error: identifierLookupError, ambiguous } =
+        await findStaffByLoginIdentifier(identifier);
+
+      if (identifierLookupError) {
+        console.error('Full-name account lookup failed:', identifierLookupError);
         return {
           success: false,
           error: 'The sign-in service is unavailable. Please contact the administrator.'
         };
       }
 
-      if (!staffData) {
+      if (ambiguous) {
+        return {
+          success: false,
+          error: 'That full name matches more than one account. Use your unique username to sign in.'
+        };
+      }
+
+      if (!resolvedStaff) {
         return {
           success: false,
           error: 'No account matched that username or full name. Try your username or contact the administrator to verify your account.'
         };
       }
 
-      if (!staffData.is_active) {
+      if (!resolvedStaff.is_active) {
         return {
           success: false,
           error: 'Your account has been deactivated. Please contact the administrator.'
@@ -225,7 +243,7 @@ export const AuthProvider = ({ children }) => {
 
       // Authenticate with Supabase
       const { data, error } = await supabase.auth.signInWithPassword({
-        email: staffData.email,
+        email: resolvedStaff.email,
         password,
       });
 

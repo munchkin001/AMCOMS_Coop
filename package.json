@@ -9,7 +9,8 @@
     "lint": "oxlint",
     "preview": "vite preview",
     "cleanup:staff-auth": "node scripts/cleanup-staff-auth.js",
-    "reset:all-staff-passwords": "node scripts/reset-all-staff-passwords.js"
+    "reset:all-staff-passwords": "node scripts/reset-all-staff-passwords.js",
+    "import:roster-members": "node scripts/import-roster-members.js"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.116.0",

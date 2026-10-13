@@ -15,7 +15,7 @@ import MemberAnnouncements from '../components/member/MemberAnnouncements';
 
 const MemberPortal = () => {
   const navigate = useNavigate();
-  const { signOut, staff, user } = useAuth();
+  const { signOut, staff } = useAuth();
   const [activeModule, setActiveModule] = useState('dashboard');
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [accountsOpen, setAccountsOpen] = useState(false);
@@ -340,7 +340,6 @@ const MemberPortal = () => {
                 >
                   <div className="hidden text-right md:block">
                     <p className="text-sm font-medium text-gray-900">{staff?.full_name || 'Member'}</p>
-                    <p className="text-xs text-gray-500">{user?.email || 'Member account'}</p>
                   </div>
                   <div className="h-9 w-9 shrink-0 md:h-10 md:w-10 bg-indigo-100 rounded-full flex items-center justify-center">
                     <span className="text-indigo-600 font-semibold">{staff?.full_name?.charAt(0) || 'M'}</span>

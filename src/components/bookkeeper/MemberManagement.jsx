@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Archive, Eye, KeyRound, Mail, Pencil, Plus, RotateCcw, Search, Trash2, UserRound, Users, X } from 'lucide-react';
+import { Archive, Eye, KeyRound, Pencil, Plus, RotateCcw, Search, Trash2, X } from 'lucide-react';
 import { useRealtimeSubscription } from '../../hooks/useRealtimeSubscription';
 import { supabase } from '../../lib/supabase';
 import { getAppUrl } from '../../lib/appUrl';
@@ -8,12 +8,19 @@ const emptyForm = {
   first_name: '', middle_name: '', last_name: '', email: '', phone: '', address: '',
   date_of_birth: '', gender: '', membership_type: 'regular', date_joined: new Date().toISOString().slice(0, 10),
   shares_owned: '0', total_capital: '0', emergency_contact_name: '', emergency_contact_phone: '',
-  family_members: '[]', rsbsa: '', tin: '', ncfrs: '', pca_id: '', occupation: '',
+  family_members: '[]', rsbsa: '', tin: '', ncfrs: '', occupation: '',
   barangay: '', municipality: '', province: ''
 };
 
 const money = (value) => `₱${(Number(value) || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })}`;
 const fullName = (member) => [member.first_name, member.middle_name, member.last_name].filter(Boolean).join(' ');
+const parseFamilyMembers = (value) => {
+  if (Array.isArray(value)) return value;
+  if (typeof value !== 'string' || !value.trim()) return [];
+  const parsed = JSON.parse(value);
+  if (!Array.isArray(parsed)) throw new Error('Family member details must be a list.');
+  return parsed;
+};
 const isArchived = (member) => Boolean(member.archived_at) || member.membership_status === 'inactive';
 const accountStatus = (member) => {
   if (isArchived(member) || member.portal_account?.is_active === false) return 'Disabled';
@@ -33,7 +40,7 @@ const getAccountActionError = async (error) => {
   } catch {
     // Fall back to the Supabase Functions error when the response is not JSON.
   }
-  return error?.message || 'The account instructions could not be sent.';
+  return error?.message || 'The member account action could not be completed.';
 };
 
 const MemberManagement = ({ canManageMembers = true }) => {
@@ -65,7 +72,7 @@ const MemberManagement = ({ canManageMembers = true }) => {
       const [activeResult, archiveResult] = await Promise.all([
         supabase
           .from('members')
-          .select('id, member_number, first_name, middle_name, last_name, email, phone, address, date_of_birth, gender, membership_type, membership_status, date_joined, shares_owned, total_capital, emergency_contact_name, emergency_contact_phone, family_members, rsbsa, tin, ncfrs, pca_id, occupation, barangay, municipality, province')
+          .select('id, member_number, first_name, middle_name, last_name, email, phone, address, date_of_birth, gender, membership_type, membership_status, date_joined, shares_owned, total_capital, emergency_contact_name, emergency_contact_phone, family_members, rsbsa, tin, ncfrs, occupation, barangay, municipality, province')
           .in('membership_status', ['active', 'suspended'])
           .order('last_name', { ascending: true }),
         supabase
@@ -165,7 +172,13 @@ const MemberManagement = ({ canManageMembers = true }) => {
   const startEdit = (member) => {
     if (!canManageMembers) return;
     setSelectedMember(member);
-    setForm({ ...emptyForm, ...member, date_of_birth: member.date_of_birth || '', date_joined: member.date_joined || '' });
+    setForm({
+      ...emptyForm,
+      ...member,
+      username: member.portal_account?.username || '',
+      date_of_birth: member.date_of_birth || '',
+      date_joined: member.date_joined || ''
+    });
     setDuplicateMatches([]);
     setConfirmPossibleDuplicate(false);
     setError('');
@@ -175,10 +188,6 @@ const MemberManagement = ({ canManageMembers = true }) => {
 
   const sendMemberAccountLink = async (member, requestedAction) => {
     if (!canManageMembers) return;
-    if (!member.email) {
-      setError('Add a registered email before sending activation instructions.');
-      return;
-    }
     const action = requestedAction || getAccountAction(member);
     setError('');
     setPortalNotice('');
@@ -188,11 +197,13 @@ const MemberManagement = ({ canManageMembers = true }) => {
         body: { action, member_id: member.id, app_url: getAppUrl() }
       });
       if (actionError) throw actionError;
-      setPortalNotice(action === 'reset'
-        ? 'A temporary password was emailed to the member. They must register a new password on next sign-in.'
+      setPortalNotice(data?.temporary_password
+        ? `Username: ${data.username}\nTemporary password: ${data.temporary_password}\nGive these credentials to the member securely. They must change the password after signing in.`
+        : action === 'reset'
+        ? 'The temporary password was generated. Share it securely with the member; they must change it after signing in.'
         : action === 'reactivate-member'
         ? (data?.portal_access_restored ? `${member.member_number} is active again, and Member Portal access was restored.` : `${member.member_number} is active again. No Member Portal account is linked.`)
-        : data?.message || 'Secure instructions were sent if the account is eligible.');
+        : data?.message || 'The member account action was completed.');
       await loadMembers();
     } catch (actionError) {
       await loadMembers();
@@ -245,16 +256,11 @@ const MemberManagement = ({ canManageMembers = true }) => {
     setPortalNotice('');
     try {
       if (modal === 'add') {
-        if (createPortalAccount && !form.email.trim()) {
-          setError('Enter an email to create portal access, or turn off portal account creation.');
-          setSaving(false);
-          return;
-        }
         const memberPayload = {
           ...form,
           shares_owned: form.shares_owned || '0',
           total_capital: form.total_capital || '0',
-          family_members: form.family_members ? JSON.parse(form.family_members) : []
+          family_members: parseFamilyMembers(form.family_members)
         };
         const { data, error: createError } = await supabase.rpc('bookkeeper_create_member', {
           p_member: memberPayload,
@@ -281,7 +287,9 @@ const MemberManagement = ({ canManageMembers = true }) => {
             }
           });
           setPortalNotice(accountError
-            ? `Member ${data.member_number} was created, but activation instructions could not be sent. Use the account action to retry.`
+            ? `Member ${data.member_number} was created, but the portal account could not be created. Use the account action to retry.`
+            : accountData?.temporary_password
+            ? `Username: ${accountData.username}\nTemporary password: ${accountData.temporary_password}\nGive these credentials to the member securely. They must change the password after signing in.`
             : accountData?.message || 'Member created and activation instructions sent.');
           await loadMembers();
         }
@@ -297,11 +305,10 @@ const MemberManagement = ({ canManageMembers = true }) => {
           gender: form.gender,
           emergency_contact_name: form.emergency_contact_name,
           emergency_contact_phone: form.emergency_contact_phone,
-          family_members: form.family_members ? JSON.parse(form.family_members) : [],
+          family_members: parseFamilyMembers(form.family_members),
           rsbsa: form.rsbsa,
           tin: form.tin,
           ncfrs: form.ncfrs,
-          pca_id: form.pca_id,
           occupation: form.occupation,
           barangay: form.barangay,
           municipality: form.municipality,
@@ -312,6 +319,14 @@ const MemberManagement = ({ canManageMembers = true }) => {
           p_member: editableFields
         });
         if (updateError) throw updateError;
+        const username = form.username.trim().toLowerCase();
+        if (selectedMember.portal_account?.has_account && username !== (selectedMember.portal_account.username || '')) {
+          const { error: usernameError } = await supabase.rpc('bookkeeper_update_member_username', {
+            p_member_id: selectedMember.id,
+            p_username: username
+          });
+          if (usernameError) throw new Error(`Member details were saved, but the username was not updated: ${usernameError.message}`);
+        }
       }
       if (modal === 'edit') {
         setModal('');
@@ -444,7 +459,7 @@ const MemberManagement = ({ canManageMembers = true }) => {
       </div>
 
       {error && <p role="alert" className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{error}</p>}
-      {portalNotice && <p role="status" className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">{portalNotice}</p>}
+      {portalNotice && <p role="status" className="whitespace-pre-line rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">{portalNotice}</p>}
       {loading ? <div className="rounded-lg border border-gray-200 bg-white p-8 text-center text-sm text-gray-500">Loading members...</div> : (
         <div className="overflow-hidden rounded-lg border border-gray-200 bg-white">
           <div className="overflow-x-auto">
@@ -479,7 +494,7 @@ const MemberManagement = ({ canManageMembers = true }) => {
                         <button type="button" onClick={() => { setSelectedMember(member); setModal('view'); }} aria-label={`View ${fullName(member)}`} title="View" className="rounded-md p-2 text-gray-600 hover:bg-gray-100 hover:text-blue-700"><Eye size={17} /></button>
                         {view === 'active' && canManageMembers && <>
                           <button type="button" onClick={() => startEdit(member)} aria-label={`Edit ${fullName(member)}`} title="Edit" className="rounded-md p-2 text-gray-600 hover:bg-gray-100 hover:text-blue-700"><Pencil size={17} /></button>
-                          {member.membership_status === 'active' && member.email && <button type="button" onClick={() => handleMemberAccountAction(member)} disabled={accountActionMemberId === member.id} aria-label={`${getAccountAction(member) === 'reactivate-member' ? 'Restore portal access for' : getAccountAction(member) === 'resend-activation' ? 'Resend activation for' : getAccountAction(member) === 'reset' ? 'Initiate password reset for' : 'Create portal account for'} ${fullName(member)}`} title={getAccountAction(member) === 'reactivate-member' ? 'Restore portal access' : getAccountAction(member) === 'resend-activation' ? 'Resend activation' : getAccountAction(member) === 'reset' ? 'Initiate password reset' : 'Create portal account'} className="rounded-md p-2 text-gray-600 hover:bg-blue-50 hover:text-blue-700 disabled:opacity-50">{accountActionMemberId === member.id ? <Mail size={17} className="animate-pulse" /> : getAccountAction(member) === 'reactivate-member' ? <RotateCcw size={17} /> : <KeyRound size={17} />}</button>}
+                          {member.membership_status === 'active' && <button type="button" onClick={() => handleMemberAccountAction(member)} disabled={accountActionMemberId === member.id} aria-label={`${getAccountAction(member) === 'reactivate-member' ? 'Restore portal access for' : getAccountAction(member) === 'resend-activation' ? 'Resend activation for' : getAccountAction(member) === 'reset' ? 'Generate a temporary password for' : 'Create portal account for'} ${fullName(member)}`} title={getAccountAction(member) === 'reactivate-member' ? 'Restore portal access' : getAccountAction(member) === 'resend-activation' ? 'Resend activation' : getAccountAction(member) === 'reset' ? 'Generate temporary password' : 'Create portal account'} className="rounded-md p-2 text-gray-600 hover:bg-blue-50 hover:text-blue-700 disabled:opacity-50">{accountActionMemberId === member.id ? <KeyRound size={17} className="animate-pulse" /> : getAccountAction(member) === 'reactivate-member' ? <RotateCcw size={17} /> : <KeyRound size={17} />}</button>}
                           {member.membership_status === 'active' && <button type="button" onClick={() => startArchive(member)} aria-label={`Archive ${fullName(member)}`} title="Archive member" className="rounded-md p-2 text-gray-600 hover:bg-amber-50 hover:text-amber-800"><Archive size={17} /></button>}
                         </>}
                         {view === 'archived' && canManageMembers && (
@@ -532,7 +547,7 @@ const MemberManagement = ({ canManageMembers = true }) => {
               </div>
               <label className="flex items-start gap-2 rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm text-blue-950">
                 <input type="checkbox" checked={createPortalAccount} onChange={(event) => setCreatePortalAccount(event.target.checked)} className="mt-0.5 accent-blue-700" />
-                <span><span className="block font-medium">Create Member Portal account</span><span className="mt-0.5 block text-xs text-blue-800">The system generates a temporary password and emails it to the member's registered email. The member must register a new password on first sign-in. The Bookkeeper never sees it.</span></span>
+                <span><span className="block font-medium">Create Member Portal account</span><span className="mt-0.5 block text-xs text-blue-800">The username defaults to the member number. A unique temporary password is generated and shown here; it is never emailed. The member must change the password on first sign-in. If no email is recorded, staff must handle password recovery.</span></span>
               </label>
               {duplicateMatches.length > 0 && (
                 <div className="space-y-3 rounded-lg border border-amber-300 bg-amber-50 p-4">
@@ -560,7 +575,21 @@ const MemberManagement = ({ canManageMembers = true }) => {
             <form onSubmit={handleSave} className="space-y-5 p-5">
               {error && <p role="alert" className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">{error}</p>}
               <div className="grid gap-4 sm:grid-cols-3">
-                {['first_name', 'middle_name', 'last_name', 'date_of_birth', 'email', 'phone', 'occupation', 'barangay', 'municipality', 'province', 'emergency_contact_name', 'emergency_contact_phone', 'rsbsa', 'tin', 'ncfrs', 'pca_id'].map((name) => (
+                <label className={labelClass}>Username
+                  <input
+                    name="username"
+                    type="text"
+                    autoComplete="username"
+                    pattern="[a-zA-Z0-9._]{3,30}"
+                    title="Use 3-30 letters, numbers, dots, or underscores."
+                    value={form.username || ''}
+                    onChange={updateField}
+                    disabled={!selectedMember.portal_account?.has_account}
+                    className={`${inputClass} mt-1 disabled:bg-gray-100`}
+                  />
+                  {!selectedMember.portal_account?.has_account && <span className="mt-1 block text-xs text-gray-500">Create a Member Portal account before setting its username.</span>}
+                </label>
+                {['first_name', 'middle_name', 'last_name', 'date_of_birth', 'email', 'phone', 'occupation', 'barangay', 'municipality', 'province', 'emergency_contact_name', 'emergency_contact_phone', 'rsbsa', 'tin', 'ncfrs'].map((name) => (
                   <label key={name} className={labelClass}>{name.replaceAll('_', ' ')}
                     <input name={name} type={name === 'date_of_birth' ? 'date' : name === 'email' ? 'email' : name === 'emergency_contact_phone' || name === 'phone' ? 'tel' : 'text'} value={form[name] || ''} onChange={updateField} className={`${inputClass} mt-1`} />
                   </label>
@@ -599,10 +628,10 @@ const MemberManagement = ({ canManageMembers = true }) => {
             </div>
             <div className="space-y-4 p-5">
               {error && <p role="alert" className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">{error}</p>}
-              <p className="text-sm text-gray-700">Generate a new temporary password and email it to this member’s registered email? The current password will stop working, and the member must register a new one on next sign-in.</p>
+              <p className="text-sm text-gray-700">Generate a new temporary password? It will be shown here for the bookkeeper to deliver securely and will not be emailed. The current password will stop working, and the member must change the password after signing in.{!selectedMember.email && ' Staff must handle password recovery until an email address is added.'}</p>
               <div className="flex justify-end gap-3 border-t border-gray-200 pt-4">
                 <button type="button" onClick={() => setModal('')} className="min-h-10 rounded-lg border border-gray-300 px-4 text-sm font-medium text-gray-700">Cancel</button>
-                <button type="button" onClick={confirmPasswordReset} className="min-h-10 rounded-lg bg-blue-700 px-4 text-sm font-semibold text-white hover:bg-blue-800">Email Temporary Password</button>
+                <button type="button" onClick={confirmPasswordReset} className="min-h-10 rounded-lg bg-blue-700 px-4 text-sm font-semibold text-white hover:bg-blue-800">Generate Temporary Password</button>
               </div>
             </div>
           </section>

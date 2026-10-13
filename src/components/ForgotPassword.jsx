@@ -83,6 +83,9 @@ const ForgotPassword = () => {
             <p className="text-gray-600 text-sm mb-6 text-center">
               Enter the email address registered with the cooperative. We will send a secure reset link if an account matches.
             </p>
+            <p className="mb-6 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+              If your Member Portal account was created with username-only access, contact the Bookkeeper to reset your password.
+            </p>
 
             {/* Alternative: Email Recovery (Optional) */}
             <div className="border-t border-gray-200 pt-6">

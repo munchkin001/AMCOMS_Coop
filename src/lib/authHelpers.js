@@ -16,12 +16,13 @@ export async function findStaffByLoginIdentifier(identifier) {
   });
 
   if (error) {
-    return { data: null, error };
+    return { data: null, error, ambiguous: false };
   }
 
   return {
     data: data?.length === 1 ? data[0] : null,
     error: null,
+    ambiguous: (data?.length ?? 0) > 1,
   };
 }
 
