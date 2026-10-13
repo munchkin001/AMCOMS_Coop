@@ -6,6 +6,7 @@ import { fetchActiveCategories } from '../../lib/categoryService';
 import { getProductImage, getQuantityOnHand, getStockStatus } from '../../lib/inventoryService';
 import AddProductModal, { EMPTY_PRODUCT_FORM, productToForm } from './AddProductModal';
 import RestockModal from './RestockModal';
+import OpeningInventoryCostModal from './OpeningInventoryCostModal';
 
 const STATUS_STYLES = {
   Good: 'bg-green-100 text-green-800',
@@ -60,7 +61,7 @@ const Products = () => {
     const [productResult, categoryResult] = await Promise.all([
       supabase
         .from('products')
-        .select('*, category:product_categories(category_name), stock_inventory(quantity_on_hand, last_restock_date)')
+        .select('*, category:product_categories(category_name), stock_inventory(quantity_on_hand, last_restock_date), inventory_cost_layers(quantity_remaining, unit_cost)')
         .eq('is_active', true)
         .order('product_code'),
       fetchActiveCategories()
@@ -86,7 +87,7 @@ const Products = () => {
   }, [fetchProducts]);
 
   useMultipleRealtimeSubscriptions(
-    ['products', 'product_categories', 'stock_inventory'].map((table) => ({ table, onUpdate: fetchProducts })),
+    ['products', 'product_categories', 'stock_inventory', 'inventory_cost_layers'].map((table) => ({ table, onUpdate: fetchProducts })),
     [fetchProducts]
   );
 
@@ -159,6 +160,10 @@ const Products = () => {
         )}
         {visibleProducts.map((product) => {
           const onHand = getQuantityOnHand(product);
+          const costLayers = product.inventory_cost_layers || [];
+          const valuedQuantity = costLayers.reduce((sum, layer) => sum + Number(layer.quantity_remaining || 0), 0);
+          const unvaluedQuantity = Math.max(onHand - valuedQuantity, 0);
+          const fifoValue = costLayers.reduce((sum, layer) => sum + Number(layer.quantity_remaining || 0) * Number(layer.unit_cost || 0), 0);
           const status = getStockStatus(onHand, product.reorder_level);
           const isExpanded = expandedId === product.id;
           return (
@@ -181,8 +186,13 @@ const Products = () => {
                 <Stat label="Current Stock" value={onHand.toLocaleString()} />
                 <Stat label="Min Stock Level" value={Number(product.reorder_level || 0).toLocaleString()} />
                 <Stat label="Last Restocked" value={formatDate(latestRestock(product))} />
-                <Stat label="Stock Value" value={formatMoney(onHand * Number(product.cost_price || 0))} />
+                <Stat label="FIFO Stock Value" value={formatMoney(fifoValue)} />
               </div>
+              {unvaluedQuantity > 0 && (
+                <p className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+                  {unvaluedQuantity.toLocaleString()} {product.unit_of_measure} need verified opening FIFO costs before they can be sold.
+                </p>
+              )}
 
               <div className="mt-4 flex flex-wrap items-center gap-2">
                 <button
@@ -192,6 +202,15 @@ const Products = () => {
                 >
                   Restock
                 </button>
+                {unvaluedQuantity > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setModal({ type: 'opening-cost', product, unvaluedQuantity })}
+                    className="rounded-lg bg-amber-100 px-4 py-2 text-sm font-medium text-amber-900 hover:bg-amber-200"
+                  >
+                    Value existing stock
+                  </button>
+                )}
                 <button
                   type="button"
                   onClick={() => setModal({ type: 'edit', product })}
@@ -247,6 +266,14 @@ const Products = () => {
           currentStock={getQuantityOnHand(modal.product)}
           onClose={closeModal}
           onSaved={() => handleSaved(`Restock recorded for ${modal.product.product_name}.`)}
+        />
+      )}
+      {modal?.type === 'opening-cost' && (
+        <OpeningInventoryCostModal
+          product={modal.product}
+          unvaluedQuantity={modal.unvaluedQuantity}
+          onClose={closeModal}
+          onSaved={(message) => handleSaved(message)}
         />
       )}
     </div>

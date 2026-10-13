@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Line } from 'react-chartjs-2';
 import { AlertTriangle, Banknote, ClipboardCheck, FileText, Gem, HandCoins, Landmark, Megaphone, Package, UserPlus, Users, Clock3 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
@@ -8,6 +9,7 @@ import DashboardMetricCard from '../common/DashboardMetricCard';
 import DiscrepancyPanel from '../common/DiscrepancyPanel';
 
 const ManagerDashboard = () => {
+  const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [dashboardData, setDashboardData] = useState({
@@ -300,7 +302,7 @@ const ManagerDashboard = () => {
             </div>
           )}
           <button 
-            onClick={() => alert('Navigate to the Requests or Loans section using the sidebar menu to view all pending requests.')}
+            onClick={() => navigate('/staff/loan-requests')}
             className="w-full mt-4 px-4 py-2 border border-blue-600 text-blue-600 rounded-lg hover:bg-blue-50 transition-colors text-sm font-medium cursor-pointer"
           >
             View All Requests
@@ -335,7 +337,7 @@ const ManagerDashboard = () => {
         <h3 className="text-lg font-semibold mb-4">Quick Actions</h3>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <button 
-            onClick={() => alert('Navigate to the Loans section using the sidebar menu to review pending loan applications.')}
+            onClick={() => navigate('/staff/loan-requests')}
             className="bg-white bg-opacity-20 hover:bg-opacity-30 backdrop-blur-sm rounded-lg p-4 transition-all text-center cursor-pointer"
           >
             <ClipboardCheck aria-hidden="true" className="mx-auto mb-2 size-7" />

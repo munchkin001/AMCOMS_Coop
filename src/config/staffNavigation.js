@@ -76,6 +76,13 @@ const staffNavigationConfig = {
       component: 'Members'
     },
     {
+      id: 'loan-requests',
+      name: 'Loan Requests',
+      icon: HandCoins,
+      path: '/staff/loan-requests',
+      component: 'LoanRequests'
+    },
+    {
       id: 'inventory',
       name: 'Operations Monitoring',
       icon: '📦',
@@ -178,6 +185,13 @@ const staffNavigationConfig = {
       icon: '💳',
       path: '/staff/transactions',
       component: 'Transactions'
+    },
+    {
+      id: 'loan-requests',
+      name: 'Loan Requests',
+      icon: HandCoins,
+      path: '/staff/loan-requests',
+      component: 'LoanRequests'
     },
     {
       id: 'general-ledger',

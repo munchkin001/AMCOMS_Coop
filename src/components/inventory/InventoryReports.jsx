@@ -81,7 +81,7 @@ const InventoryReports = () => {
     const [productResult, productionResult, movementResult] = await Promise.all([
       supabase
         .from('products')
-        .select('id, product_code, product_name, unit_of_measure, reorder_level, cost_price, stock_inventory(quantity_on_hand)')
+        .select('id, product_code, product_name, unit_of_measure, reorder_level, stock_inventory(quantity_on_hand), inventory_cost_layers(quantity_remaining, unit_cost)')
         .eq('is_active', true)
         .order('product_name'),
       supabase
@@ -116,7 +116,7 @@ const InventoryReports = () => {
   }, [fetchReport]);
 
   useMultipleRealtimeSubscriptions(
-    ['products', 'stock_inventory', 'stock_movements', 'production_records'].map((table) => ({ table, onUpdate: fetchReport })),
+    ['products', 'stock_inventory', 'stock_movements', 'production_records', 'inventory_cost_layers'].map((table) => ({ table, onUpdate: fetchReport })),
     [fetchReport]
   );
 
@@ -124,12 +124,17 @@ const InventoryReports = () => {
 
   const tables = {
     'stock-report': {
-      headers: ['Product', 'Current Stock', 'Min Stock', 'Status'],
+      headers: ['Product', 'Current Stock', 'FIFO Inventory Value', 'Unvalued Stock', 'Min Stock', 'Status'],
       rows: products.map((product) => {
         const onHand = getQuantityOnHand(product);
+        const layers = product.inventory_cost_layers || [];
+        const valuedQuantity = layers.reduce((sum, layer) => sum + Number(layer.quantity_remaining || 0), 0);
+        const value = layers.reduce((sum, layer) => sum + Number(layer.quantity_remaining || 0) * Number(layer.unit_cost || 0), 0);
         return [
           product.product_name,
           `${onHand.toLocaleString()} ${product.unit_of_measure}`,
+          `₱${value.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+          `${Math.max(onHand - valuedQuantity, 0).toLocaleString()} ${product.unit_of_measure}`,
           `${Number(product.reorder_level || 0).toLocaleString()} ${product.unit_of_measure}`,
           getStockStatus(onHand, product.reorder_level)
         ];
@@ -260,7 +265,7 @@ const InventoryReports = () => {
                 <tr key={index} className="border-b">
                   {row.map((cell, cellIndex) => (
                     <td key={cellIndex} className="py-3 px-4 text-sm text-gray-900">
-                      {isCurrentStock && cellIndex === 3
+                      {isCurrentStock && cellIndex === 5
                         ? <span className={`px-3 py-1 rounded-full text-xs font-medium ${STATUS_STYLES[cell]}`}>{cell}</span>
                         : cell}
                     </td>

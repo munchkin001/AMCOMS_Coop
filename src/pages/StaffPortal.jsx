@@ -36,6 +36,7 @@ import Reconciliation from '../components/bookkeeper/Reconciliation';
 import GeneralLedger from '../components/accounting/GeneralLedger';
 import FinancialReports from '../components/bookkeeper/FinancialReports';
 import BookkeeperMemberManagement from '../components/bookkeeper/MemberManagement';
+import LoanRequests from '../components/manager/LoanRequests';
 
 // Inventory Components - Existing
 import Products from '../components/inventory/Products';
@@ -105,6 +106,10 @@ const StaffPortal = () => {
         <Route path="/requests" element={<Navigate to="/staff/dashboard" replace />} />
         <Route path="/member-requests" element={<Navigate to="/staff/dashboard" replace />} />
         <Route path="/loans" element={<Navigate to="/staff/dashboard" replace />} />
+        <Route
+          path="/loan-requests"
+          element={['manager', 'bookkeeper'].includes(staff.role) ? <LoanRequests /> : <Navigate to="/staff/dashboard" replace />}
+        />
         <Route path="/savings" element={<MemberAccounts />} />
         <Route path="/inventory" element={<OperationsMonitoring />} />
         <Route path="/announcements" element={<Announcements />} />

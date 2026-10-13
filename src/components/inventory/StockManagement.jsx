@@ -9,7 +9,7 @@ import {
   recordStockMovement
 } from '../../lib/inventoryService';
 
-const newForm = () => ({ productId: '', quantity: '', date: toDateString(new Date()), reason: '', remarks: '' });
+const newForm = () => ({ productId: '', quantity: '', unitCost: '', date: toDateString(new Date()), reason: '', reference: '', remarks: '' });
 
 const StockManagement = () => {
   const [activeTab, setActiveTab] = useState('stock-in');
@@ -24,6 +24,8 @@ const StockManagement = () => {
   const isStockIn = activeTab === 'stock-in';
   const options = isStockIn ? STOCK_IN_SOURCES : STOCK_OUT_REASONS;
   const selectedProduct = products.find((product) => product.id === form.productId);
+  const selectedSource = options.find((option) => option.label === form.reason);
+  const requiresReference = isStockIn && ['purchase', 'return'].includes(selectedSource?.type);
   const onHand = selectedProduct ? getQuantityOnHand(selectedProduct) : null;
 
   const fetchProducts = useCallback(async () => {
@@ -74,6 +76,14 @@ const StockManagement = () => {
       setError(isStockIn ? 'Select a source.' : 'Select a reason.');
       return;
     }
+    if (isStockIn && (!(Number(form.unitCost) > 0) || !Number.isFinite(Number(form.unitCost)))) {
+      setError('Enter the verified unit cost for this stock receipt.');
+      return;
+    }
+    if (requiresReference && !form.reference.trim()) {
+      setError(selectedSource.type === 'purchase' ? 'Enter the supplier invoice number.' : 'Enter the original sale reference for this return.');
+      return;
+    }
 
     setSaving(true);
     try {
@@ -83,8 +93,9 @@ const StockManagement = () => {
         quantity: form.quantity,
         direction: isStockIn ? 1 : -1,
         date: form.date,
-        reference: choice.label,
-        description: form.remarks.trim() ? `${choice.label}: ${form.remarks.trim()}` : choice.label
+        reference: requiresReference ? form.reference.trim() : choice.label,
+        description: form.remarks.trim() ? `${choice.label}: ${form.remarks.trim()}` : choice.label,
+        unitCost: isStockIn ? Number(form.unitCost) : null
       });
       setNotice(`${isStockIn ? 'Stock in' : 'Stock out'} recorded for ${selectedProduct?.product_name}.`);
       setForm(newForm());
@@ -164,6 +175,28 @@ const StockManagement = () => {
               {options.map((option) => <option key={option.label} value={option.label}>{option.label}</option>)}
             </select>
           </div>
+          {isStockIn && (
+            <div>
+              <label htmlFor="stock-unit-cost" className={labelClass}>Verified unit cost (₱)</label>
+              <input
+                id="stock-unit-cost"
+                type="number"
+                required
+                min="0.01"
+                step="0.01"
+                value={form.unitCost}
+                onChange={updateField('unitCost')}
+                className={inputClass}
+              />
+              <p className="mt-1 text-xs text-gray-500">Use the invoice cost for purchases or the recorded production cost per finished unit.</p>
+            </div>
+          )}
+          {requiresReference && (
+            <div>
+              <label htmlFor="stock-reference" className={labelClass}>{selectedSource.type === 'purchase' ? 'Supplier invoice number' : 'Original sale reference'}</label>
+              <input id="stock-reference" type="text" required value={form.reference} onChange={updateField('reference')} className={inputClass} />
+            </div>
+          )}
           <div>
             <label htmlFor="stock-remarks" className={labelClass}>Remarks</label>
             <textarea id="stock-remarks" rows={3} value={form.remarks} onChange={updateField('remarks')} className={inputClass} />

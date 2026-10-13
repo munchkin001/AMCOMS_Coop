@@ -10,7 +10,6 @@ import ResetPassword from './components/ResetPassword'
 import DemoPages from './pages/DemoPages'
 import StaffPortal from './pages/StaffPortal'
 import MemberPortal from './pages/MemberPortal'
-import DebugAuth from './pages/DebugAuth'
 import FormSubmissionConfirmation from './components/FormSubmissionConfirmation'
 
 function App() {
@@ -21,7 +20,6 @@ function App() {
           {/* Public Routes */}
           <Route path="/" element={<LandingPage />} />
           <Route path="/demo" element={<DemoPages />} />
-          <Route path="/debug-auth" element={<DebugAuth />} />
           <Route path="/portal-selection" element={<PortalSelection />} />
           <Route path="/login/:portalType" element={<Login />} />
           <Route path="/member-signup" element={<Navigate to="/login/member" replace />} />

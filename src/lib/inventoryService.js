@@ -51,35 +51,9 @@ const getStaffId = async () => {
   return data?.id || null;
 };
 
-const adjustInventory = async (productId, delta, date, isRestock) => {
-  const { data: rows, error } = await supabase
-    .from('stock_inventory')
-    .select('id, quantity_on_hand')
-    .eq('product_id', productId)
-    .order('created_at', { ascending: true })
-    .limit(1);
-  if (error) throw error;
-
-  const current = rows?.[0];
-  const next = Number(current?.quantity_on_hand || 0) + delta;
-  if (next < 0) {
-    throw new Error(`Not enough stock. Only ${Number(current?.quantity_on_hand || 0).toLocaleString()} on hand.`);
-  }
-
-  const fields = {
-    quantity_on_hand: next,
-    ...(isRestock ? { last_restock_date: date } : {})
-  };
-  const result = current
-    ? await supabase.from('stock_inventory').update(fields).eq('id', current.id)
-    : await supabase.from('stock_inventory').insert({ product_id: productId, ...fields });
-  if (result.error) throw result.error;
-  return { inventoryId: current?.id };
-};
-
 /**
- * Records a stock movement and keeps stock_inventory in step with it.
- * `quantity` is always a positive magnitude; `direction` is 1 (in) or -1 (out).
+ * Records a stock movement and its FIFO layer in one database transaction.
+ * `quantity` is a positive magnitude; `direction` is 1 (in) or -1 (out).
  */
 export const recordStockMovement = async ({
   productId,
@@ -88,29 +62,24 @@ export const recordStockMovement = async ({
   direction,
   date,
   reference = null,
-  description = null
+  description = null,
+  unitCost = null
 }) => {
-  const amount = Math.abs(Math.round(Number(quantity)));
+  const amount = Math.abs(Number(quantity));
   if (!productId) throw new Error('Select a product.');
-  if (!amount) throw new Error('Enter a quantity greater than zero.');
+  if (!Number.isInteger(amount) || amount <= 0) throw new Error('Enter a whole-number quantity greater than zero.');
 
-  const delta = direction * amount;
-  await adjustInventory(productId, delta, date, delta > 0);
-
-  const { error } = await supabase.from('stock_movements').insert({
-    product_id: productId,
-    movement_type: movementType,
-    quantity: movementType === 'adjustment' ? delta : amount,
-    reference_number: reference,
-    movement_date: date,
-    description,
-    created_by: await getStaffId()
+  const { error } = await supabase.rpc('record_inventory_movement', {
+    p_product_id: productId,
+    p_movement_type: movementType,
+    p_quantity: amount,
+    p_direction: direction,
+    p_movement_date: date,
+    p_reference: reference,
+    p_description: description,
+    p_unit_cost: unitCost === null || unitCost === '' ? null : Number(unitCost)
   });
-
-  if (error) {
-    await adjustInventory(productId, -delta, date, false).catch(() => {});
-    throw error;
-  }
+  if (error) throw error;
 };
 
 /**
@@ -118,11 +87,9 @@ export const recordStockMovement = async ({
  * increases through a restock or another recorded movement.
  */
 export const createProduct = async (payload) => {
-  const { data, error } = await supabase.from('products').insert(payload).select('id').single();
+  const { data, error } = await supabase.rpc('create_inventory_product', { p_product: payload });
   if (error) return { error };
-  // Best effort: a missing row is already treated as zero stock everywhere.
-  await supabase.from('stock_inventory').insert({ product_id: data.id, quantity_on_hand: 0 });
-  return { data, error: null };
+  return { data: { id: data }, error: null };
 };
 
 /**
@@ -130,17 +97,20 @@ export const createProduct = async (payload) => {
  * stamps last_restock_date and writes the audit row in stock_movements
  * (who, when, quantity, supplier, invoice).
  */
-export const restockProduct = async ({ productId, quantity, supplier, reference, date }) => {
+export const restockProduct = async ({ productId, quantity, unitCost, supplier, reference, date }) => {
   const amount = Number(quantity);
   if (!Number.isInteger(amount) || amount <= 0) throw new Error('Restock quantity must be a whole number greater than zero.');
+  if (!(Number(unitCost) > 0)) throw new Error('Enter the verified per-unit cost from the supplier invoice.');
+  if (!reference?.trim()) throw new Error('Enter the supplier invoice number to post the payable.');
   await recordStockMovement({
     productId,
     movementType: 'purchase',
     quantity: amount,
     direction: 1,
     date: date || toDateString(new Date()),
-    reference: reference?.trim() || null,
-    description: supplier?.trim() ? `Restock from ${supplier.trim()}` : 'Restock'
+    reference: reference.trim(),
+    description: supplier?.trim() ? `Restock from ${supplier.trim()}` : 'Restock',
+    unitCost: Number(unitCost)
   });
 };
 

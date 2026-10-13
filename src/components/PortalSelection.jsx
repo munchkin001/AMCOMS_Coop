@@ -1,4 +1,4 @@
-import { ArrowLeft, ArrowRight, MapPin, UserRound, UsersRound } from 'lucide-react';
+import { ArrowLeft, ArrowRight, MapPin, UserRound } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
 const PortalSelection = () => {
@@ -13,21 +13,19 @@ const PortalSelection = () => {
 
       <header className="mx-auto flex w-full max-w-6xl items-center justify-between gap-4">
         <div className="flex min-w-0 items-center gap-4">
-          <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-xl border border-[#E9C46A]/35 bg-emerald-100/10 shadow-[0_0_34px_rgba(233,196,106,0.18)] backdrop-blur-sm sm:h-[4.5rem] sm:w-[4.5rem]">
-            <img src="/LOGO.png" alt="Agay-ayan Multi-Purpose Cooperative" className="h-12 w-12 object-contain sm:h-14 sm:w-14" />
-          </div>
+          <Link
+            to="/login/staff"
+            aria-label="Staff login"
+            title="Staff login"
+            className="flex h-16 w-16 shrink-0 items-center justify-center rounded-xl border border-[#E9C46A]/35 bg-emerald-100/10 shadow-[0_0_34px_rgba(233,196,106,0.18)] backdrop-blur-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#E9C46A] focus-visible:ring-offset-2 focus-visible:ring-offset-[#071c17] sm:h-[4.5rem] sm:w-[4.5rem]"
+          >
+            <img src="/LOGO.png" alt="" className="h-12 w-12 object-contain sm:h-14 sm:w-14" />
+          </Link>
           <div className="min-w-0">
             <h1 className="text-xl font-bold leading-tight text-white sm:text-2xl">AMCOMS</h1>
             <p className="mt-1 text-xs font-medium text-slate-200 sm:text-sm">Agay-ayan Multi-Purpose Cooperative Management System</p>
           </div>
         </div>
-        <Link
-          to="/login/staff"
-          className="inline-flex min-h-11 shrink-0 items-center gap-2 rounded-lg border border-white/20 px-3 text-xs font-semibold text-slate-200 transition-colors hover:border-[#E9C46A]/60 hover:text-[#E9C46A] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#E9C46A] sm:px-4 sm:text-sm"
-        >
-          <UsersRound aria-hidden="true" size={16} />
-          Staff login
-        </Link>
       </header>
 
       <section aria-labelledby="portal-heading" className="mx-auto flex w-full max-w-5xl flex-1 flex-col justify-center py-12 sm:py-14">

@@ -2,13 +2,13 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { supabase } from '../../lib/supabase';
 import { useMultipleRealtimeSubscriptions } from '../../hooks/useRealtimeSubscription';
 import { toDateString } from '../../lib/dashboardAccounting';
-import { recordStockMovement } from '../../lib/inventoryService';
 
 const newForm = () => ({
   date: toDateString(new Date()),
   productId: '',
   rawMaterial: '',
   quantity: '',
+  unitCost: '',
   batch: '',
   remarks: ''
 });
@@ -71,8 +71,9 @@ const Production = () => {
     setNotice('');
 
     const quantity = Math.round(Number(form.quantity));
-    if (!form.productId || !(quantity > 0)) {
-      setError('Select a product and enter a quantity greater than zero.');
+    const unitCost = Number(form.unitCost);
+    if (!form.productId || !(quantity > 0) || !Number.isFinite(unitCost) || unitCost <= 0) {
+      setError('Select a product, enter a positive whole quantity, and enter the verified cost per finished unit.');
       return;
     }
 
@@ -82,42 +83,22 @@ const Production = () => {
       .filter(Boolean)
       .join('. ');
 
-    const { data: record, error: insertError } = await supabase
-      .from('production_records')
-      .insert({
-        production_number: productionNumber,
-        product_id: form.productId,
-        quantity_produced: quantity,
-        production_date: form.date,
-        batch_number: form.batch.trim() || null,
-        status: 'completed',
-        notes: notes || null
-      })
-      .select('id')
-      .single();
-
-    if (insertError) {
-      setSaving(false);
-      setError(`Unable to record production: ${insertError.message}`);
-      return;
-    }
-
     try {
-      await recordStockMovement({
-        productId: form.productId,
-        movementType: 'production',
-        quantity,
-        direction: 1,
-        date: form.date,
-        reference: form.batch.trim() || productionNumber,
-        description: `Production ${productionNumber}`
+      const { error: productionError } = await supabase.rpc('record_production_with_inventory', {
+        p_production_number: productionNumber,
+        p_product_id: form.productId,
+        p_quantity: quantity,
+        p_production_date: form.date,
+        p_unit_cost: unitCost,
+        p_batch_number: form.batch.trim() || null,
+        p_notes: notes || null
       });
+      if (productionError) throw productionError;
       setNotice(`Production recorded: ${quantity.toLocaleString()} ${selectedProduct?.unit_of_measure || ''} of ${selectedProduct?.product_name}. Stock updated.`);
       setForm(newForm());
       fetchData();
-    } catch (stockError) {
-      await supabase.from('production_records').delete().eq('id', record.id);
-      setError(`Production was not saved because stock could not be updated: ${stockError.message}`);
+    } catch (productionError) {
+      setError(`Production and stock were not saved: ${productionError.message}`);
     } finally {
       setSaving(false);
     }
@@ -147,6 +128,11 @@ const Production = () => {
                 {products.map((product) => <option key={product.id} value={product.id}>{product.product_name}</option>)}
               </select>
             </div>
+          </div>
+          <div>
+            <label htmlFor="production-unit-cost" className={labelClass}>Verified cost per finished unit (₱)</label>
+            <input id="production-unit-cost" type="number" required min="0.01" step="0.01" value={form.unitCost} onChange={updateField('unitCost')} className={inputClass} />
+            <p className="mt-1 text-xs text-gray-500">Include the cooperative’s recorded materials, labor, and production costs for this batch.</p>
           </div>
           <div>
             <label htmlFor="production-material" className={labelClass}>Raw Material / Input</label>

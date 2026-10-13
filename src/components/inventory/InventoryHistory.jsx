@@ -12,6 +12,8 @@ const ACTIVITIES = {
   adjustment: { label: 'Adjustment', direction: 0, badge: 'bg-gray-100 text-gray-800' }
 };
 
+const formatMoney = (value) => `₱${Number(value || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
 const EMPTY_FILTERS = { product: '', activity: '', dateFrom: '', dateTo: '' };
 
 const signedQuantity = (movement) => {
@@ -38,7 +40,7 @@ const InventoryHistory = () => {
     const currentRequest = ++requestId.current;
     let query = supabase
       .from('stock_movements')
-      .select('id, product_id, movement_type, quantity, reference_number, movement_date, description, created_at, products(product_name, unit_of_measure)')
+      .select('id, product_id, movement_type, quantity, unit_cost, total_cost, reference_number, movement_date, description, created_at, products(product_name, unit_of_measure)')
       .order('movement_date', { ascending: false })
       .order('created_at', { ascending: false })
       .limit(500);
@@ -161,14 +163,15 @@ const InventoryHistory = () => {
                 <th className="text-left py-3 px-6 font-semibold text-gray-700 text-sm">Activity</th>
                 <th className="text-left py-3 px-6 font-semibold text-gray-700 text-sm">Reference</th>
                 <th className="text-right py-3 px-6 font-semibold text-gray-700 text-sm">Quantity</th>
+                <th className="text-right py-3 px-6 font-semibold text-gray-700 text-sm">FIFO Cost</th>
               </tr>
             </thead>
             <tbody>
               {loading && (
-                <tr><td colSpan={5} className="py-10 text-center text-gray-500">Loading stock movements…</td></tr>
+                <tr><td colSpan={6} className="py-10 text-center text-gray-500">Loading stock movements…</td></tr>
               )}
               {!loading && movements.length === 0 && (
-                <tr><td colSpan={5} className="py-10 text-center text-gray-500">No stock movements found.</td></tr>
+                <tr><td colSpan={6} className="py-10 text-center text-gray-500">No stock movements found.</td></tr>
               )}
               {movements.map((movement) => {
                 const activity = ACTIVITIES[movement.movement_type];
@@ -185,6 +188,10 @@ const InventoryHistory = () => {
                     <td className="py-3 px-6 text-sm text-gray-600">{movement.reference_number || movement.description || '-'}</td>
                     <td className={`py-3 px-6 text-sm text-right font-semibold ${value >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                       {formatQuantity(value, movement.products?.unit_of_measure)}
+                    </td>
+                    <td className="py-3 px-6 text-right text-sm text-gray-700">
+                      {movement.total_cost == null ? (movement.quantity === 0 ? 'Opening valuation' : '—') : formatMoney(movement.total_cost)}
+                      {movement.unit_cost != null && <span className="block text-xs text-gray-500">{formatMoney(movement.unit_cost)} / unit</span>}
                     </td>
                   </tr>
                 );
