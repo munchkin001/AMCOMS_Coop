@@ -136,7 +136,10 @@ const LoanRequests = () => {
       await load();
     } catch (reviewError) {
       console.error('Unable to review loan request:', reviewError);
-      setError(`The decision could not be saved: ${reviewError.message}`);
+      const message = reviewError.code === 'PGRST202'
+        ? 'The loan-approval database function is not installed yet. Apply migration 20261013000015_repair_loan_application_approval_rpc.sql, then refresh this page. No decision was saved.'
+        : reviewError.message;
+      setError(`The decision could not be saved: ${message}`);
     } finally {
       setBusyId(null);
     }
