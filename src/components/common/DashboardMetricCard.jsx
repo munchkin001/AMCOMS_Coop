@@ -22,51 +22,75 @@ const solidTones = {
   teal: 'from-teal-500 to-teal-700'
 };
 
-const DashboardMetricCard = ({ label, value, detail, icon: Icon, tone = 'teal', actionLabel, onAction, solid = false }) => {
+const DashboardMetricCard = ({ label, value, detail, icon: Icon, tone = 'teal', actionLabel, onAction, onClick, solid = false }) => {
   const toneClasses = tones[tone] || tones.teal;
+  const Container = onClick ? 'button' : 'article';
+  const interactionClasses = onClick
+    ? 'w-full cursor-pointer text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:ring-offset-2'
+    : '';
 
   if (solid) {
     return (
-      <article className={`min-w-0 rounded-xl bg-gradient-to-br p-3 text-white sm:p-4 shadow-md ${solidTones[tone] || solidTones.teal}`}>
+      <Container
+        type={onClick ? 'button' : undefined}
+        onClick={onClick}
+        aria-label={onClick ? `View ${label.toLowerCase()} details` : undefined}
+        className={`${interactionClasses} min-w-0 rounded-xl bg-gradient-to-br p-3 text-white shadow-md sm:p-4 ${solidTones[tone] || solidTones.teal}`}
+      >
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
             <p className="text-xs font-semibold uppercase text-white/80">{label}</p>
             <p className="mt-2 break-words text-lg font-semibold tabular-nums sm:mt-3 sm:text-2xl">{value}</p>
             {detail && <p className="mt-1 text-xs text-white/80">{detail}</p>}
-            {actionLabel && onAction && (
+            {onClick ? (
+              <span className="mt-3 inline-flex items-center gap-1 text-xs font-semibold text-white">
+                {actionLabel || 'View details'}
+                <ArrowRight aria-hidden="true" className="size-3.5" />
+              </span>
+            ) : actionLabel && onAction ? (
               <button onClick={onAction} className="mt-3 inline-flex items-center gap-1 text-xs font-semibold text-white hover:underline">
                 {actionLabel}
                 <ArrowRight aria-hidden="true" className="size-3.5" />
               </button>
-            )}
+            ) : null}
           </div>
           <span className="hidden size-10 shrink-0 place-items-center rounded-md bg-white/20 sm:grid">
             {Icon && <Icon aria-hidden="true" className="size-5" />}
           </span>
         </div>
-      </article>
+      </Container>
     );
   }
 
   return (
-    <article className={`min-w-0 rounded-lg border border-slate-200 border-t-2 bg-white p-4 shadow-sm transition-shadow hover:shadow-md ${toneClasses.accent}`}>
+    <Container
+      type={onClick ? 'button' : undefined}
+      onClick={onClick}
+      aria-label={onClick ? `View ${label.toLowerCase()} details` : undefined}
+      className={`${interactionClasses} min-w-0 rounded-lg border border-slate-200 border-t-2 bg-white p-4 shadow-sm transition-shadow hover:shadow-md ${toneClasses.accent}`}
+    >
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <p className="text-xs font-semibold uppercase text-slate-500">{label}</p>
           <p className="mt-3 break-words text-2xl font-semibold tabular-nums text-slate-950">{value}</p>
           {detail && <p className="mt-1 text-xs text-slate-500">{detail}</p>}
-          {actionLabel && onAction && (
+          {onClick ? (
+            <span className="mt-3 inline-flex items-center gap-1 text-xs font-semibold text-slate-700">
+              {actionLabel || 'View details'}
+              <ArrowRight aria-hidden="true" className="size-3.5" />
+            </span>
+          ) : actionLabel && onAction ? (
             <button onClick={onAction} className="mt-3 inline-flex items-center gap-1 text-xs font-semibold text-slate-700 hover:text-slate-950">
               {actionLabel}
               <ArrowRight aria-hidden="true" className="size-3.5" />
             </button>
-          )}
+          ) : null}
         </div>
         <span className={`grid size-10 shrink-0 place-items-center rounded-md ${toneClasses.iconBg} ${toneClasses.iconText}`}>
           {Icon && <Icon aria-hidden="true" className="size-5" />}
         </span>
       </div>
-    </article>
+    </Container>
   );
 };
 

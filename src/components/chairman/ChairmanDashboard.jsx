@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Line } from 'react-chartjs-2';
 import { Banknote, HandCoins, Landmark, PiggyBank, TrendingDown, TrendingUp, UserCheck, Users } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
@@ -28,6 +29,7 @@ ChartJS.register(
 );
 
 const ChairmanDashboard = () => {
+  const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [financialSummary, setFinancialSummary] = useState({
@@ -202,7 +204,7 @@ const ChairmanDashboard = () => {
       setDashboardData({
         totalMembers: membersResult.count || 0,
         activeMembers: activeMembersResult.count || 0,
-        activeLoans,
+        activeLoans: activeLoans.length,
         totalLoanBalance,
         totalSavings,
         totalTimeDeposits,
@@ -236,14 +238,14 @@ const ChairmanDashboard = () => {
   };
 
   const summaryCards = [
-    { label: 'Total Members', value: loading ? '...' : dashboardData.totalMembers.toString(), icon: Users, tone: 'blue' },
-    { label: 'Active Members', value: loading ? '...' : dashboardData.activeMembers.toString(), icon: UserCheck, tone: 'green' },
-    { label: 'Active Loans', value: loading ? '...' : dashboardData.activeLoans.toString(), icon: HandCoins, tone: 'yellow' },
-    { label: 'Total Loan Balance', value: loading ? '...' : `₱${dashboardData.totalLoanBalance.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, icon: Banknote, tone: 'purple' },
-    { label: 'Total Savings', value: loading ? '...' : `₱${dashboardData.totalSavings.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, icon: PiggyBank, tone: 'cyan' },
-    { label: 'Total Time Deposits', value: loading ? '...' : `₱${dashboardData.totalTimeDeposits.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, icon: Landmark, tone: 'indigo' },
-    { label: 'Current Income', value: loading ? '...' : `₱${financialSummary.currentIncome.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, icon: TrendingUp, tone: 'green' },
-    { label: 'Current Expenses', value: loading ? '...' : `₱${financialSummary.currentExpenses.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, icon: TrendingDown, tone: 'red' }
+    { label: 'Total Members', value: loading ? '...' : dashboardData.totalMembers.toString(), icon: Users, tone: 'blue', path: '/staff/members' },
+    { label: 'Active Members', value: loading ? '...' : dashboardData.activeMembers.toString(), icon: UserCheck, tone: 'green', path: '/staff/members' },
+    { label: 'Active Loans', value: loading ? '...' : dashboardData.activeLoans.toString(), icon: HandCoins, tone: 'yellow', path: '/staff/savings' },
+    { label: 'Total Loan Balance', value: loading ? '...' : `₱${dashboardData.totalLoanBalance.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, icon: Banknote, tone: 'purple', path: '/staff/savings' },
+    { label: 'Total Savings', value: loading ? '...' : `₱${dashboardData.totalSavings.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, icon: PiggyBank, tone: 'cyan', path: '/staff/savings' },
+    { label: 'Total Time Deposits', value: loading ? '...' : `₱${dashboardData.totalTimeDeposits.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, icon: Landmark, tone: 'indigo', path: '/staff/savings' },
+    { label: 'Current Income', value: loading ? '...' : `₱${financialSummary.currentIncome.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, icon: TrendingUp, tone: 'green', path: '/staff/general-ledger' },
+    { label: 'Current Expenses', value: loading ? '...' : `₱${financialSummary.currentExpenses.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, icon: TrendingDown, tone: 'red', path: '/staff/general-ledger' }
   ];
 
   const financialData = {
@@ -296,7 +298,14 @@ const ChairmanDashboard = () => {
       {/* Summary Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         {summaryCards.map((card) => (
-          <DashboardMetricCard key={card.label} label={card.label} value={card.value} icon={card.icon} tone={card.tone} />
+          <DashboardMetricCard
+            key={card.label}
+            label={card.label}
+            value={card.value}
+            icon={card.icon}
+            tone={card.tone}
+            onClick={() => navigate(card.path)}
+          />
         ))}
       </div>
 

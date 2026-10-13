@@ -18,12 +18,9 @@ Users sign in with a username or a unique full name and password. Supabase Auth 
 
 Also run `supabase/migrations/20261013000001_secure_staff_login_lookup.sql`,
 `supabase/migrations/20261013000002_full_name_login_only.sql`, and
-`supabase/migrations/20261013000003_staff_names_and_username_login.sql`, and
-`supabase/migrations/20261013000004_self_service_username_auth.sql`, and
-`supabase/migrations/20261013000005_match_auth_display_name.sql`, in order.
-The latest migrations prioritize username lookup, allow unique full-name
-lookup against the staff profile and Supabase Auth `full_name`/`display_name`,
-and support self-service username changes for staff and members.
+`supabase/migrations/20261013000003_staff_names_and_username_login.sql`, in
+order. The latest migration updates the requested staff profiles and prioritizes
+unique usernames before falling back to a unique full-name match.
 
 ### 2. Authentication Helpers ✅
 **File**: `src/lib/authHelpers.js`
@@ -47,20 +44,21 @@ Created utility functions for:
 - `src/components/StaffLogin.jsx`
 
 Changes:
-- Changed the login identifier field to accept a username or full name
+- Changed the login identifier field to "Full name"
 - Removed "Forgot Password" link
 - Added info message about contacting staff for password reset
 - Using `login()` method from AuthContext
 
 ## Changes Still Needed
 
-### 5. Profile Editor Component ✅
+### 5. Profile Editor Component
 **File**: `src/components/common/ProfileEditor.jsx`
 
-- Staff and member profiles include an editable username field.
-- Username format and case-insensitive uniqueness are enforced by the profile
-  update function and database index.
-- Full-name changes update the value used for full-name authentication.
+Needs to add:
+- Username display field (read-only for viewing)
+- Username change section (separate from password change)
+- Username validation and availability checking
+- Success/error messages for username updates
 
 ### 6. Member Signup Component
 **File**: `src/components/MemberSignup.jsx`
@@ -93,14 +91,12 @@ Should already exist, but verify it has:
 -- supabase/migrations/20261013000001_secure_staff_login_lookup.sql
 -- supabase/migrations/20261013000002_full_name_login_only.sql
 -- supabase/migrations/20261013000003_staff_names_and_username_login.sql
--- supabase/migrations/20261013000004_self_service_username_auth.sql
--- supabase/migrations/20261013000005_match_auth_display_name.sql
 ```
 
 ### Step 2: Confirm Staff Profiles
 The latest migration creates or updates staff profiles for the five existing
 staff Auth users, sets their names and unique role usernames, and syncs Auth
-`full_name` metadata. It does not update Supabase Auth passwords.
+display-name metadata. It does not update Supabase Auth passwords.
 
 ### Step 3: Test Login Flow
 - Test staff and member login with username
@@ -123,9 +119,8 @@ staff Auth users, sets their names and unique role usernames, and syncs Auth
 ## Username and Full-Name Login
 
 Username matching is case-insensitive and takes priority. If no username
-matches, the full name must uniquely match `staff.full_name` or the Supabase
-Auth user's `full_name`/`display_name` (case-insensitive; spaces are
-normalized). Duplicate full names require signing in with username.
+matches, the full name must uniquely match `staff.full_name` (case-insensitive;
+spaces are normalized). Duplicate full names require signing in with username.
 
 ## Password Reset Process
 
@@ -158,7 +153,6 @@ normalized). Duplicate full names require signing in with username.
 - [ ] Username validation works (format checking)
 - [ ] Duplicate username prevention works
 - [ ] Users can change their username in profile
-- [ ] Usernames remain unique regardless of letter case
 - [ ] Users can change their password in profile
 - [ ] Login error messages are clear and helpful
 - [ ] "Forgot password" links are removed

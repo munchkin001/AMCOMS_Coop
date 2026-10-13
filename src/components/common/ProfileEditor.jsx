@@ -7,7 +7,6 @@ const emptyProfile = {
   first_name: '',
   middle_name: '',
   last_name: '',
-  username: '',
   email: '',
   phone: '',
   address: '',
@@ -66,7 +65,7 @@ const ProfileEditor = ({ profileType = 'staff', roleLabel }) => {
       try {
         const { data: staffRecord, error: staffError } = await supabase
           .from('staff')
-          .select('id, user_id, role, member_id, full_name, first_name, middle_name, last_name, username, email, phone, address, date_of_birth, emergency_contact_name, emergency_contact_phone, emergency_contact_relationship')
+          .select('id, user_id, role, member_id, full_name, first_name, middle_name, last_name, email, phone, address, date_of_birth, emergency_contact_name, emergency_contact_phone, emergency_contact_relationship')
           .eq('id', staff.id)
           .single();
         if (staffError) throw staffError;
@@ -90,8 +89,7 @@ const ProfileEditor = ({ profileType = 'staff', roleLabel }) => {
           first_name: source.first_name || staffRecord.first_name || fallbackName.first_name,
           middle_name: source.middle_name || staffRecord.middle_name || fallbackName.middle_name,
           last_name: source.last_name || staffRecord.last_name || fallbackName.last_name,
-          username: staffRecord.username || '',
-          email: source.email || staffRecord.email || '',
+          email: user.email || staffRecord.email || '',
           phone: source.phone || staffRecord.phone || '',
           address: source.address || staffRecord.address || '',
           date_of_birth: source.date_of_birth || staffRecord.date_of_birth || '',
@@ -152,23 +150,15 @@ const ProfileEditor = ({ profileType = 'staff', roleLabel }) => {
     setProfileNotice('');
 
     try {
-      const username = profile.username.trim().toLowerCase();
-      if (!/^[a-z0-9._]{3,30}$/.test(username)) {
-        setProfileError('Username must be 3-30 characters and contain only letters, numbers, dots, and underscores.');
-        return;
-      }
-
       const { error } = await supabase.rpc('update_own_profile', {
         p_profile: {
           ...profile,
-          username,
-          email: profile.email,
+          email: user?.email || '',
           additional_emergency_contacts: profile.additional_emergency_contacts.filter((c) => c.name?.trim() || c.phone?.trim())
         }
       });
       if (error) throw error;
 
-      setProfile((current) => ({ ...current, username }));
       setProfileNotice('Your profile has been saved.');
     } catch (error) {
       console.error('Unable to save profile:', error);
@@ -262,23 +252,6 @@ const ProfileEditor = ({ profileType = 'staff', roleLabel }) => {
           {profileNotice && <p role="status" className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">{profileNotice}</p>}
 
           <div className="grid gap-4 sm:grid-cols-2">
-            <div className="sm:col-span-2">
-              <label htmlFor="profile-username" className={labelClass}>Username</label>
-              <input
-                id="profile-username"
-                name="username"
-                autoComplete="username"
-                required
-                minLength={3}
-                maxLength={30}
-                pattern="[A-Za-z0-9._]{3,30}"
-                title="Use 3-30 letters, numbers, dots, or underscores."
-                value={profile.username}
-                onChange={handleProfileChange}
-                className={fieldClass}
-              />
-              <p className="mt-1 text-xs text-gray-500">Use this username to sign in.</p>
-            </div>
             <div>
               <label htmlFor="profile-first-name" className={labelClass}>First name</label>
               <input id="profile-first-name" name="first_name" autoComplete="given-name" required maxLength={80} value={profile.first_name} onChange={handleProfileChange} className={fieldClass} />

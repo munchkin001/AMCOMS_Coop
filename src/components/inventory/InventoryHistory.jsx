@@ -15,6 +15,8 @@ const ACTIVITIES = {
 const formatMoney = (value) => `₱${Number(value || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
 const EMPTY_FILTERS = { product: '', activity: '', dateFrom: '', dateTo: '' };
+const MOVEMENT_FIELDS = 'id, product_id, movement_type, quantity, unit_cost, reference_number, movement_date, description, created_at, products(product_name, unit_of_measure)';
+const VALUED_MOVEMENT_FIELDS = 'id, product_id, movement_type, quantity, unit_cost, total_cost, reference_number, movement_date, description, created_at, products(product_name, unit_of_measure)';
 
 const signedQuantity = (movement) => {
   const quantity = Number(movement.quantity || 0);
@@ -28,32 +30,48 @@ const formatQuantity = (value, unit) => {
   return `${sign}${Math.abs(value).toLocaleString()}${unit ? ` ${unit}` : ''}`;
 };
 
+const isMissingTotalCostColumn = (error) => {
+  const message = error?.message?.toLowerCase() || '';
+  return message.includes('total_cost')
+    && message.includes('stock_movements')
+    && (message.includes('does not exist') || message.includes('schema cache'));
+};
+
 const InventoryHistory = () => {
   const [filters, setFilters] = useState(EMPTY_FILTERS);
   const [movements, setMovements] = useState([]);
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [hasTotalCostColumn, setHasTotalCostColumn] = useState(true);
   const requestId = useRef(0);
 
   const fetchData = useCallback(async () => {
     const currentRequest = ++requestId.current;
-    let query = supabase
-      .from('stock_movements')
-      .select('id, product_id, movement_type, quantity, unit_cost, total_cost, reference_number, movement_date, description, created_at, products(product_name, unit_of_measure)')
-      .order('movement_date', { ascending: false })
-      .order('created_at', { ascending: false })
-      .limit(500);
+    const loadMovements = async (fields) => {
+      let query = supabase
+        .from('stock_movements')
+        .select(fields)
+        .order('movement_date', { ascending: false })
+        .order('created_at', { ascending: false })
+        .limit(500);
 
-    if (filters.product) query = query.eq('product_id', filters.product);
-    if (filters.activity) query = query.eq('movement_type', filters.activity);
-    if (filters.dateFrom) query = query.gte('movement_date', filters.dateFrom);
-    if (filters.dateTo) query = query.lte('movement_date', filters.dateTo);
+      if (filters.product) query = query.eq('product_id', filters.product);
+      if (filters.activity) query = query.eq('movement_type', filters.activity);
+      if (filters.dateFrom) query = query.gte('movement_date', filters.dateFrom);
+      if (filters.dateTo) query = query.lte('movement_date', filters.dateTo);
 
-    const [movementResult, productResult] = await Promise.all([
-      query,
+      return query;
+    };
+
+    let [movementResult, productResult] = await Promise.all([
+      loadMovements(VALUED_MOVEMENT_FIELDS),
       supabase.from('products').select('id, product_name').order('product_name')
     ]);
+    const hasCostColumn = !isMissingTotalCostColumn(movementResult.error);
+    if (!hasCostColumn) {
+      movementResult = await loadMovements(MOVEMENT_FIELDS);
+    }
     if (currentRequest !== requestId.current) return;
 
     const failure = movementResult.error || productResult.error;
@@ -62,6 +80,7 @@ const InventoryHistory = () => {
     } else {
       setMovements(movementResult.data || []);
       setProducts(productResult.data || []);
+      setHasTotalCostColumn(hasCostColumn);
       setError('');
     }
     setLoading(false);
@@ -94,6 +113,11 @@ const InventoryHistory = () => {
   return (
     <div className="space-y-6">
       {error && <p role="alert" className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{error}</p>}
+      {!hasTotalCostColumn && (
+        <p role="status" className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+          Stock movement history is available, but movement costs are hidden until the inventory costing database migration is applied.
+        </p>
+      )}
 
       <div className="bg-white rounded-lg border border-gray-200 p-6">
         <h3 className="text-lg font-semibold text-gray-900 mb-4">Search & Filter</h3>

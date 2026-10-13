@@ -37,7 +37,8 @@ const passwordProblem = (password: string) => {
 const isLocalDevOrigin = (value: string) => {
   try {
     const url = new URL(value);
-    if (url.protocol !== 'http:' || url.port !== '5173') return false;
+    const port = Number(url.port);
+    if (url.protocol !== 'http:' || port < 5173 || port > 5180) return false;
     const host = url.hostname;
     return host === 'localhost'
       || host === '127.0.0.1'
@@ -378,7 +379,12 @@ Deno.serve(async (request) => {
         : 'Member Portal account created. Share the temporary credentials securely; password recovery must be handled by staff until an email is added.'
     }, 200, origin);
   } catch (error) {
-    console.error('Member account action failed.');
-    return jsonResponse({ error: error instanceof Error ? error.message : 'The member account action could not be completed.' }, 400, origin);
+    const errorMessage = error instanceof Error
+      ? error.message
+      : error && typeof error === 'object' && 'message' in error && typeof error.message === 'string'
+      ? error.message
+      : 'The member account action could not be completed.';
+    console.error('Member account action failed:', errorMessage);
+    return jsonResponse({ error: errorMessage }, 400, origin);
   }
 });

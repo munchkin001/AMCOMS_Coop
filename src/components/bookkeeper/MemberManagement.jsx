@@ -14,6 +14,12 @@ const emptyForm = {
 
 const money = (value) => `₱${(Number(value) || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })}`;
 const fullName = (member) => [member.first_name, member.middle_name, member.last_name].filter(Boolean).join(' ');
+const memberNameCollator = new Intl.Collator(undefined, { sensitivity: 'base', numeric: true });
+const compareMembersByName = (left, right) =>
+  memberNameCollator.compare(left.last_name || '', right.last_name || '') ||
+  memberNameCollator.compare(left.first_name || '', right.first_name || '') ||
+  memberNameCollator.compare(left.middle_name || '', right.middle_name || '') ||
+  memberNameCollator.compare(left.member_number || '', right.member_number || '');
 const parseFamilyMembers = (value) => {
   if (Array.isArray(value)) return value;
   if (typeof value !== 'string' || !value.trim()) return [];
@@ -37,8 +43,12 @@ const getAccountActionError = async (error) => {
     const response = error?.context?.clone?.();
     const payload = response ? await response.json() : null;
     if (typeof payload?.error === 'string') return payload.error;
+    if (typeof payload?.message === 'string') return payload.message;
   } catch {
     // Fall back to the Supabase Functions error when the response is not JSON.
+  }
+  if (typeof error?.message === 'string' && error.message !== 'Edge Function returned a non-2xx status code') {
+    return error.message;
   }
   return error?.message || 'The member account action could not be completed.';
 };
@@ -50,7 +60,7 @@ const MemberManagement = ({ canManageMembers = true }) => {
   const [error, setError] = useState('');
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
-  const [view, setView] = useState('active');
+  const [view, setView] = useState('all');
   const [modal, setModal] = useState('');
   const [selectedMember, setSelectedMember] = useState(null);
   const [form, setForm] = useState(emptyForm);
@@ -74,7 +84,9 @@ const MemberManagement = ({ canManageMembers = true }) => {
           .from('members')
           .select('id, member_number, first_name, middle_name, last_name, email, phone, address, date_of_birth, gender, membership_type, membership_status, date_joined, shares_owned, total_capital, emergency_contact_name, emergency_contact_phone, family_members, rsbsa, tin, ncfrs, occupation, barangay, municipality, province')
           .in('membership_status', ['active', 'suspended'])
-          .order('last_name', { ascending: true }),
+          .order('last_name', { ascending: true })
+          .order('first_name', { ascending: true })
+          .order('middle_name', { ascending: true }),
         supabase
           .from('archived_members')
           .select('id, member_id, member_snapshot, member_number, first_name, middle_name, last_name, email, phone, address, date_joined, previous_status, archived_at, archived_by, archive_reason')
@@ -88,12 +100,27 @@ const MemberManagement = ({ canManageMembers = true }) => {
         ...(archiveResult.data || []).map((archive) => archive.member_id)
       ])];
       let portalAccounts = new Map();
+      let savingsAccounts = new Map();
       if (memberIds.length) {
-        const { data: accountRows, error: accountError } = await supabase.rpc('bookkeeper_member_account_status', {
-          p_member_ids: memberIds
-        });
+        const [portalResult, savingsResult] = await Promise.all([
+          supabase.rpc('bookkeeper_member_account_status', { p_member_ids: memberIds }),
+          supabase
+            .from('savings_accounts')
+            .select('member_id, account_number')
+            .in('member_id', memberIds)
+            .eq('status', 'active')
+            .order('account_number', { ascending: true })
+        ]);
+        const { data: accountRows, error: accountError } = portalResult;
         if (accountError) throw accountError;
+        if (savingsResult.error) throw savingsResult.error;
         portalAccounts = new Map((accountRows || []).map((account) => [account.member_id, account]));
+        savingsAccounts = (savingsResult.data || []).reduce((accounts, account) => {
+          const memberAccounts = accounts.get(account.member_id) || [];
+          memberAccounts.push(account.account_number);
+          accounts.set(account.member_id, memberAccounts);
+          return accounts;
+        }, new Map());
       }
 
       const archivedByIds = [...new Set((archiveResult.data || []).map((archive) => archive.archived_by).filter(Boolean))];
@@ -108,7 +135,8 @@ const MemberManagement = ({ canManageMembers = true }) => {
       }
       setMembers((activeResult.data || []).map((member) => ({
         ...member,
-        portal_account: portalAccounts.get(member.id) || null
+        portal_account: portalAccounts.get(member.id) || null,
+        savings_account_numbers: savingsAccounts.get(member.id) || []
       })));
       setArchivedMembers((archiveResult.data || []).map((archive) => ({
         ...archive.member_snapshot,
@@ -127,7 +155,8 @@ const MemberManagement = ({ canManageMembers = true }) => {
         archived_by: archive.archived_by,
         archived_by_name: staffNames.get(archive.archived_by) || '',
         archive_reason: archive.archive_reason,
-        portal_account: portalAccounts.get(archive.member_id) || null
+        portal_account: portalAccounts.get(archive.member_id) || null,
+        savings_account_numbers: savingsAccounts.get(archive.member_id) || []
       })));
     } catch (loadError) {
       console.error('Unable to load member records:', loadError);
@@ -153,8 +182,9 @@ const MemberManagement = ({ canManageMembers = true }) => {
         member.member_number, fullName(member), member.phone, member.address, member.email
       ].some((value) => String(value || '').toLowerCase().includes(normalizedSearch));
       const matchesStatus = statusFilter === 'all' || member.membership_status === statusFilter;
-      return matchesSearch && matchesStatus;
-    });
+      const matchesType = view === 'all' || view === 'archived' || member.membership_type === view;
+      return matchesSearch && matchesStatus && matchesType;
+    }).sort(compareMembersByName);
   }, [activeMembers, archivedMembers, search, statusFilter, view]);
 
   const startAdd = () => {
@@ -303,6 +333,7 @@ const MemberManagement = ({ canManageMembers = true }) => {
           address: form.address,
           date_of_birth: form.date_of_birth,
           gender: form.gender,
+          membership_type: form.membership_type,
           emergency_contact_name: form.emergency_contact_name,
           emergency_contact_phone: form.emergency_contact_phone,
           family_members: parseFamilyMembers(form.family_members),
@@ -417,6 +448,12 @@ const MemberManagement = ({ canManageMembers = true }) => {
 
   const inputClass = 'w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-600/20';
   const labelClass = 'mb-1.5 block text-sm font-medium text-gray-700';
+  const memberViews = [
+    { id: 'all', label: 'All Members', count: activeMembers.length },
+    { id: 'regular', label: 'Regular Members', count: activeMembers.filter((member) => member.membership_type === 'regular').length },
+    { id: 'associate', label: 'Associate Members', count: activeMembers.filter((member) => member.membership_type === 'associate').length },
+    { id: 'archived', label: 'Archived Members', count: archivedMembers.length }
+  ];
 
   return (
     <div className="space-y-5">
@@ -433,15 +470,20 @@ const MemberManagement = ({ canManageMembers = true }) => {
       </header>
 
       <div className="flex flex-col gap-3 border-b border-gray-200 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex gap-5">
-          <button type="button" onClick={() => { setView('active'); setStatusFilter('all'); }} className={`border-b-2 px-1 py-3 text-sm font-medium ${view === 'active' ? 'border-blue-700 text-blue-700' : 'border-transparent text-gray-500 hover:text-gray-800'}`}>
-            Active Members <span className="ml-1 text-xs">{activeMembers.length}</span>
-          </button>
-          <button type="button" onClick={() => { setView('archived'); setStatusFilter('all'); }} className={`border-b-2 px-1 py-3 text-sm font-medium ${view === 'archived' ? 'border-blue-700 text-blue-700' : 'border-transparent text-gray-500 hover:text-gray-800'}`}>
-            Archived Members <span className="ml-1 text-xs">{archivedMembers.length}</span>
-          </button>
+        <div className="flex gap-5 overflow-x-auto" aria-label="Member type">
+          {memberViews.map(({ id, label, count }) => (
+            <button
+              key={id}
+              type="button"
+              aria-pressed={view === id}
+              onClick={() => { setView(id); setStatusFilter('all'); }}
+              className={`whitespace-nowrap border-b-2 px-1 py-3 text-sm font-medium ${view === id ? 'border-blue-700 text-blue-700' : 'border-transparent text-gray-500 hover:text-gray-800'}`}
+            >
+              {label} <span className="ml-1 text-xs">{count}</span>
+            </button>
+          ))}
         </div>
-        {view === 'active' && (
+        {view !== 'archived' && (
           <label className="flex items-center gap-2 pb-2 text-sm text-gray-600 sm:pb-0">
             Status
             <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm">
@@ -467,6 +509,9 @@ const MemberManagement = ({ canManageMembers = true }) => {
               <thead className="bg-gray-50">
                 <tr>
                   <th className="px-4 py-3 text-left text-xs font-semibold uppercase text-gray-500">Member</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase text-gray-500">Username</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase text-gray-500">Membership Type</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase text-gray-500">Savings account no.</th>
                   <th className="px-4 py-3 text-left text-xs font-semibold uppercase text-gray-500">Contact</th>
                   <th className="px-4 py-3 text-left text-xs font-semibold uppercase text-gray-500">Address</th>
                   <th className="px-4 py-3 text-left text-xs font-semibold uppercase text-gray-500">Membership Date</th>
@@ -483,6 +528,9 @@ const MemberManagement = ({ canManageMembers = true }) => {
                       <p className="text-sm font-semibold text-gray-900">{fullName(member)}</p>
                       <p className="mt-0.5 text-xs text-gray-500">{member.member_number}</p>
                     </td>
+                    <td className="px-4 py-3 text-sm text-gray-700">{member.portal_account?.username || '—'}</td>
+                    <td className="px-4 py-3 text-sm capitalize text-gray-700">{member.membership_type || '—'}</td>
+                    <td className="px-4 py-3 text-sm text-gray-700">{member.savings_account_numbers?.length ? member.savings_account_numbers.join(', ') : '—'}</td>
                     <td className="px-4 py-3 text-sm text-gray-700">{member.phone || '—'}<br /><span className="text-xs text-gray-500">{member.email || 'No email'}</span></td>
                     <td className="max-w-xs px-4 py-3 text-sm text-gray-700">{member.address || '—'}</td>
                     <td className="whitespace-nowrap px-4 py-3 text-sm text-gray-700">{member.date_joined || '—'}</td>
@@ -492,7 +540,7 @@ const MemberManagement = ({ canManageMembers = true }) => {
                     <td className="px-4 py-3">
                       <div className="flex justify-end gap-1">
                         <button type="button" onClick={() => { setSelectedMember(member); setModal('view'); }} aria-label={`View ${fullName(member)}`} title="View" className="rounded-md p-2 text-gray-600 hover:bg-gray-100 hover:text-blue-700"><Eye size={17} /></button>
-                        {view === 'active' && canManageMembers && <>
+                        {view !== 'archived' && canManageMembers && <>
                           <button type="button" onClick={() => startEdit(member)} aria-label={`Edit ${fullName(member)}`} title="Edit" className="rounded-md p-2 text-gray-600 hover:bg-gray-100 hover:text-blue-700"><Pencil size={17} /></button>
                           {member.membership_status === 'active' && <button type="button" onClick={() => handleMemberAccountAction(member)} disabled={accountActionMemberId === member.id} aria-label={`${getAccountAction(member) === 'reactivate-member' ? 'Restore portal access for' : getAccountAction(member) === 'resend-activation' ? 'Resend activation for' : getAccountAction(member) === 'reset' ? 'Generate a temporary password for' : 'Create portal account for'} ${fullName(member)}`} title={getAccountAction(member) === 'reactivate-member' ? 'Restore portal access' : getAccountAction(member) === 'resend-activation' ? 'Resend activation' : getAccountAction(member) === 'reset' ? 'Generate temporary password' : 'Create portal account'} className="rounded-md p-2 text-gray-600 hover:bg-blue-50 hover:text-blue-700 disabled:opacity-50">{accountActionMemberId === member.id ? <KeyRound size={17} className="animate-pulse" /> : getAccountAction(member) === 'reactivate-member' ? <RotateCcw size={17} /> : <KeyRound size={17} />}</button>}
                           {member.membership_status === 'active' && <button type="button" onClick={() => startArchive(member)} aria-label={`Archive ${fullName(member)}`} title="Archive member" className="rounded-md p-2 text-gray-600 hover:bg-amber-50 hover:text-amber-800"><Archive size={17} /></button>}
@@ -509,7 +557,7 @@ const MemberManagement = ({ canManageMembers = true }) => {
                     </td>
                   </tr>
                 ))}
-                {filteredMembers.length === 0 && <tr><td colSpan={view === 'archived' ? 8 : 7} className="px-4 py-12 text-center text-sm text-gray-500">No {view} members match this search.</td></tr>}
+                {filteredMembers.length === 0 && <tr><td colSpan={view === 'archived' ? 11 : 10} className="px-4 py-12 text-center text-sm text-gray-500">No {memberViews.find(({ id }) => id === view)?.label.toLowerCase()} match this search.</td></tr>}
               </tbody>
             </table>
           </div>
@@ -541,6 +589,12 @@ const MemberManagement = ({ canManageMembers = true }) => {
                     </select> : <input name={name} type={type} pattern={name === 'email' ? '[^@ ]+@[^@ ]+[.][^@ ]+' : undefined} title={name === 'email' ? 'Enter a valid email containing @, or leave this field blank.' : undefined} min={type === 'number' ? '0' : undefined} step={name === 'total_capital' ? '0.01' : undefined} value={form[name]} onChange={updateField} required={required} className={`${inputClass} mt-1`} />}
                   </label>
                 ))}
+                <label className={labelClass}>Member type *
+                  <select name="membership_type" value={form.membership_type} onChange={updateField} required className={`${inputClass} mt-1`}>
+                    <option value="regular">Regular</option>
+                    <option value="associate">Associate</option>
+                  </select>
+                </label>
                 <label className={`${labelClass} sm:col-span-3`}>Address *
                   <textarea name="address" value={form.address} onChange={updateField} required rows={2} className={`${inputClass} mt-1`} />
                 </label>
@@ -580,14 +634,20 @@ const MemberManagement = ({ canManageMembers = true }) => {
                     name="username"
                     type="text"
                     autoComplete="username"
-                    pattern="[a-zA-Z0-9._]{3,30}"
-                    title="Use 3-30 letters, numbers, dots, or underscores."
+                    pattern="[a-zA-Z0-9._-]{3,30}"
+                    title="Use 3-30 letters, numbers, dots, underscores, or hyphens."
                     value={form.username || ''}
                     onChange={updateField}
                     disabled={!selectedMember.portal_account?.has_account}
                     className={`${inputClass} mt-1 disabled:bg-gray-100`}
                   />
                   {!selectedMember.portal_account?.has_account && <span className="mt-1 block text-xs text-gray-500">Create a Member Portal account before setting its username.</span>}
+                </label>
+                <label className={labelClass}>Member type *
+                  <select name="membership_type" value={form.membership_type || 'regular'} onChange={updateField} required className={`${inputClass} mt-1`}>
+                    <option value="regular">Regular</option>
+                    <option value="associate">Associate</option>
+                  </select>
                 </label>
                 {['first_name', 'middle_name', 'last_name', 'date_of_birth', 'email', 'phone', 'occupation', 'barangay', 'municipality', 'province', 'emergency_contact_name', 'emergency_contact_phone', 'rsbsa', 'tin', 'ncfrs'].map((name) => (
                   <label key={name} className={labelClass}>{name.replaceAll('_', ' ')}
@@ -612,7 +672,7 @@ const MemberManagement = ({ canManageMembers = true }) => {
           <section role="dialog" aria-modal="true" aria-labelledby="member-view-title" className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-xl bg-white shadow-2xl">
             <div className="flex items-center justify-between border-b border-gray-200 px-5 py-4"><div><h2 id="member-view-title" className="text-lg font-semibold text-gray-900">{fullName(selectedMember)}</h2><p className="text-xs text-gray-500">{selectedMember.member_number}</p></div><button type="button" onClick={() => setModal('')} aria-label="Close" className="rounded-lg p-2 text-gray-500 hover:bg-gray-100"><X size={20} /></button></div>
             <div className="grid gap-4 p-5 sm:grid-cols-2">
-              {Object.entries({ Email: selectedMember.email, Contact: selectedMember.phone, Address: selectedMember.address, 'Date of birth': selectedMember.date_of_birth, 'Membership date': selectedMember.date_joined, Status: isArchived(selectedMember) ? 'Archived' : selectedMember.membership_status, 'Share capital': money(selectedMember.total_capital), 'Shares owned': selectedMember.shares_owned, 'Emergency contact': selectedMember.emergency_contact_name, 'Emergency phone': selectedMember.emergency_contact_phone }).map(([label, value]) => <div key={label}><p className="text-xs font-medium uppercase text-gray-500">{label}</p><p className="mt-1 text-sm text-gray-900">{value || '—'}</p></div>)}
+              {Object.entries({ 'Membership type': selectedMember.membership_type, Email: selectedMember.email, Contact: selectedMember.phone, Address: selectedMember.address, 'Date of birth': selectedMember.date_of_birth, 'Membership date': selectedMember.date_joined, Status: isArchived(selectedMember) ? 'Archived' : selectedMember.membership_status, 'Share capital': money(selectedMember.total_capital), 'Shares owned': selectedMember.shares_owned, 'Emergency contact': selectedMember.emergency_contact_name, 'Emergency phone': selectedMember.emergency_contact_phone }).map(([label, value]) => <div key={label}><p className="text-xs font-medium uppercase text-gray-500">{label}</p><p className="mt-1 text-sm capitalize text-gray-900">{value || '—'}</p></div>)}
               {isArchived(selectedMember) && <div className="sm:col-span-2"><p className="text-xs font-medium uppercase text-gray-500">Archive details</p><p className="mt-1 text-sm text-gray-900">{selectedMember.archive_reason || 'No reason recorded'} · {selectedMember.archived_at ? new Date(selectedMember.archived_at).toLocaleString() : 'Archived as inactive'}</p></div>}
             </div>
           </section>

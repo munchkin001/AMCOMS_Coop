@@ -61,7 +61,12 @@ const AuditLog = () => {
 
   const fetchAuditLogs = useCallback(async () => {
     const monthKey = view === 'current' ? currentMonthKey : selectedArchiveMonth;
-    if (!monthKey) return;
+    if (!monthKey) {
+      setAuditLogs([]);
+      setLoadError('');
+      setLoading(false);
+      return;
+    }
 
     const requestId = ++latestRequestRef.current;
     try {
@@ -136,12 +141,12 @@ const AuditLog = () => {
         fetchArchiveMonths();
       }
     };
-    const timer = window.setInterval(refreshVisibleLog, 1000);
     window.addEventListener('focus', refreshVisibleLog);
+    document.addEventListener('visibilitychange', refreshVisibleLog);
 
     return () => {
-      window.clearInterval(timer);
       window.removeEventListener('focus', refreshVisibleLog);
+      document.removeEventListener('visibilitychange', refreshVisibleLog);
     };
   }, [fetchArchiveMonths, fetchAuditLogs]);
 

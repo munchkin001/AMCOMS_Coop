@@ -108,10 +108,10 @@ export async function updateUsername(newUsername, userId) {
     const trimmedUsername = newUsername.toLowerCase().trim();
 
     // Validate username format
-    if (!/^[a-zA-Z0-9._]{3,30}$/.test(trimmedUsername)) {
+    if (!/^[a-zA-Z0-9._-]{3,30}$/.test(trimmedUsername)) {
       return {
         success: false,
-        error: 'Username must be 3-30 characters and contain only letters, numbers, dots, and underscores.'
+        error: 'Username must be 3-30 characters and contain only letters, numbers, dots, underscores, or hyphens.'
       };
     }
 
@@ -175,7 +175,7 @@ export async function checkUsernameAvailability(username, currentUserId = null) 
   try {
     const trimmedUsername = username.toLowerCase().trim();
 
-    if (!/^[a-zA-Z0-9._]{3,30}$/.test(trimmedUsername)) {
+    if (!/^[a-zA-Z0-9._-]{3,30}$/.test(trimmedUsername)) {
       return {
         available: false,
         error: 'Invalid username format'

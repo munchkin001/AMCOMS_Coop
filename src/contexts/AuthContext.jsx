@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
+import { getAppUrl } from '../lib/appUrl';
 import { findStaffByLoginIdentifier } from '../lib/authHelpers';
 import { useRealtimeSubscription } from '../hooks/useRealtimeSubscription';
 
@@ -42,7 +43,7 @@ export const AuthProvider = ({ children }) => {
       setAuthError(null);
       const { data, error } = await supabase
         .from('staff')
-        .select('id, username, email, full_name, first_name, middle_name, last_name, phone, address, date_of_birth, emergency_contact_name, emergency_contact_phone, emergency_contact_relationship, role, user_id, is_active, member_id, must_change_password, created_at')
+        .select('id, email, full_name, role, user_id, is_active, member_id, must_change_password, created_at')
         .eq('user_id', userId)
         .maybeSingle();
       if (error) throw error;
@@ -54,7 +55,7 @@ export const AuthProvider = ({ children }) => {
         return null;
       }
 
-      console.log('Staff profile loaded:', { role: data.role, is_active: data.is_active });
+      console.log('Staff data loaded:', { email: data.email, role: data.role, is_active: data.is_active });
 
       if (!data.is_active) {
         setAuthError('Your account has been deactivated. Please contact the administrator.');
@@ -82,7 +83,7 @@ export const AuthProvider = ({ children }) => {
         }
         const { data: member, error: memberError } = await supabase
           .from('members')
-          .select('member_number, first_name, middle_name, last_name, phone, address, date_of_birth, emergency_contact_name, emergency_contact_phone, emergency_contact_relationship, additional_emergency_contacts, membership_status, archived_at')
+          .select('member_number, membership_status, archived_at')
           .eq('id', data.member_id)
           .maybeSingle();
         if (memberError) throw memberError;
@@ -172,10 +173,9 @@ export const AuthProvider = ({ children }) => {
       if (error) throw error;
 
       // Fetch and validate staff profile
-      let profile = null;
       if (data.user) {
-        profile = await fetchStaffProfile(data.user.id);
-        if (!profile) {
+        const staffData = await fetchStaffProfile(data.user.id);
+        if (!staffData) {
           // Profile fetch failed or user not authorized
           await supabase.auth.signOut();
           return { 
@@ -186,54 +186,36 @@ export const AuthProvider = ({ children }) => {
 
       }
 
-      return { data, error: null, staff: profile, role: profile?.role };
+      return { data, error: null };
     } catch (error) {
       console.error('Sign in error:', error);
       return { data: null, error };
     }
   };
 
-  // Resolve the username to its private Auth alias before password authentication.
+  // Resolve the username or unique full name before Supabase authentication.
   const login = async (identifier, password) => {
     try {
       setAuthError(null);
+      
+      const { data: staffData, error: lookupError } = await findStaffByLoginIdentifier(identifier);
 
-      if (user) {
-        const { error: signOutError } = await signOut();
-        if (signOutError) {
-          return {
-            success: false,
-            error: 'Could not safely switch accounts. Please sign out and try again.'
-          };
-        }
-      }
-
-      const { data: resolvedStaff, error: identifierLookupError, ambiguous } =
-        await findStaffByLoginIdentifier(identifier);
-
-      if (identifierLookupError) {
-        console.error('Full-name account lookup failed:', identifierLookupError);
+      if (lookupError) {
+        console.error('Full-name account lookup failed:', lookupError);
         return {
           success: false,
-          error: 'The sign-in service is unavailable. Please contact the administrator.'
+          error: 'An error occurred during login. Please try again.'
         };
       }
 
-      if (ambiguous) {
+      if (!staffData) {
         return {
           success: false,
-          error: 'That full name matches more than one account. Use your unique username to sign in.'
+          error: 'Invalid username/full name or password'
         };
       }
 
-      if (!resolvedStaff) {
-        return {
-          success: false,
-          error: 'No account matched that username. Check it and try again, or contact the cooperative office.'
-        };
-      }
-
-      if (!resolvedStaff.is_active) {
+      if (!staffData.is_active) {
         return {
           success: false,
           error: 'Your account has been deactivated. Please contact the administrator.'
@@ -242,44 +224,32 @@ export const AuthProvider = ({ children }) => {
 
       // Authenticate with Supabase
       const { data, error } = await supabase.auth.signInWithPassword({
-        email: resolvedStaff.email,
+        email: staffData.email,
         password,
       });
 
       if (error) {
-        console.error('Supabase password sign-in failed:', {
-          projectHost: new URL(import.meta.env.VITE_SUPABASE_URL).host,
-          code: error.code,
-          status: error.status,
-          message: error.message,
-        });
         return {
           success: false,
-          error: error.code === 'invalid_credentials'
-            ? 'The password is incorrect for this account.'
-            : 'Sign-in could not be completed. Please contact the administrator.'
+          error: 'Invalid username/full name or password'
         };
       }
 
-      setSession(data.session);
-      setUser(data.user);
-
       // Fetch and validate staff profile
       if (data.user) {
-        const profile = await fetchStaffProfile(data.user.id);
-        if (!profile) {
+        const staffData = await fetchStaffProfile(data.user.id);
+        if (!staffData) {
           await supabase.auth.signOut();
           return {
             success: false,
-            error: 'Your credentials were accepted, but your profile could not be loaded. Contact the administrator.'
+            error: 'Unable to load user profile'
           };
         }
 
         return {
           success: true,
           data,
-          role: profile.role,
-          staff: profile
+          role: staffData.role
         };
       }
 
@@ -330,7 +300,7 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  const resetPassword = async () => {
+  const resetPassword = async (email) => {
     // Password reset is now handled by staff only through Chairman's Member Account Recovery
     // This function is kept for backward compatibility but should not be used
     console.warn('Password reset via email is disabled. Use Chairman\'s Member Account Recovery feature.');
@@ -342,7 +312,7 @@ export const AuthProvider = ({ children }) => {
   const updatePassword = async (newPassword) => {
     try {
       setAuthError(null);
-      if (staff?.must_change_password) {
+      if (staff?.role === 'member' && staff.must_change_password) {
         const { error } = await supabase.functions.invoke('member-account', {
           body: { action: 'complete-password-setup', password: newPassword }
         });
@@ -355,6 +325,14 @@ export const AuthProvider = ({ children }) => {
         password: newPassword,
       });
       if (error) throw error;
+
+      if (staff?.must_change_password) {
+        const { error: setupError } = await supabase.rpc('complete_own_staff_password_setup');
+        if (setupError) throw setupError;
+        setStaff((current) => current ? { ...current, must_change_password: false } : current);
+        return { error: null, activated: true };
+      }
+
       return { error: null };
     } catch (error) {
       console.error('Update password error:', error);

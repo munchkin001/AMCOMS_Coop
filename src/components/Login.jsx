@@ -1,11 +1,11 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 
 const Login = () => {
   const { portalType } = useParams(); // Get portal type from URL
   const navigate = useNavigate();
-  const { login } = useAuth();
+  const { login, staff, user } = useAuth();
   const [fullName, setFullName] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -23,19 +23,6 @@ const Login = () => {
     linkColor: 'text-blue-800 hover:text-amber-700',
     backLinkHover: 'hover:text-amber-700'
   });
-
-  const redirectToPortal = useCallback((role) => {
-    const staffRoles = ['chairman', 'manager', 'treasurer', 'bookkeeper', 'inventory'];
-
-    if (staffRoles.includes(role)) {
-      navigate('/staff', { replace: true });
-    } else if (role === 'member') {
-      navigate('/member', { replace: true });
-    } else {
-      console.warn('Unknown role, redirecting to home');
-      navigate('/', { replace: true });
-    }
-  }, [navigate]);
 
   useEffect(() => {
     // Configure the login page based on selected portal
@@ -68,15 +55,54 @@ const Login = () => {
 
     // Add keyboard shortcuts
     const handleKeyDown = (e) => {
-      // Escape key returns to the public website.
+      // Escape key - go back to portal selection
       if (e.key === 'Escape') {
-        navigate('/');
+        navigate('/portal-selection');
       }
     };
 
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
   }, [portalType, navigate]);
+
+  // Auto-redirect when staff profile loads after login
+  useEffect(() => {
+    // Only act if we're in loading state and have both user and staff
+    if (!user || !staff || !loading) {
+      return;
+    }
+
+    console.log('Staff profile loaded during login, validating and redirecting...');
+    const userRole = staff.role;
+    
+    // Validate portal access
+    const staffRoles = ['chairman', 'manager', 'treasurer', 'bookkeeper', 'inventory'];
+    const isStaffUser = staffRoles.includes(userRole);
+    const isMemberUser = userRole === 'member';
+    
+    // Check if user is accessing the correct portal type
+    if (portalType === 'staff' && !isStaffUser) {
+      setError('You do not have access to the Staff Portal. Please use the Member Portal.');
+      setLoading(false);
+      return;
+    }
+    
+    if (portalType === 'member' && !isMemberUser) {
+      setError('You do not have access to the Member Portal. Please use the Staff Portal.');
+      setLoading(false);
+      return;
+    }
+
+    if (isMemberUser && staff.must_change_password) {
+      navigate('/reset-password', { replace: true });
+      return;
+    }
+
+    // Valid access - redirect to portal
+    console.log('Valid access confirmed for role:', userRole, '- redirecting...');
+    redirectToPortal(userRole);
+    // Note: Keep loading=true until navigation completes
+  }, [user, staff, loading, portalType]);
 
   const handleLogin = async (e) => {
     e.preventDefault();
@@ -86,7 +112,7 @@ const Login = () => {
     // Validate fields
     const errors = {};
     if (!fullName.trim()) {
-      errors.fullName = 'Enter your username';
+      errors.fullName = 'Enter your username or full name';
     }
     if (!password.trim()) {
       errors.password = 'Password is required';
@@ -102,7 +128,7 @@ const Login = () => {
     setLoading(true);
 
     try {
-      // Authenticate with the username.
+      // Authenticate with full name
       const result = await login(fullName, password);
 
       if (!result.success) {
@@ -111,19 +137,9 @@ const Login = () => {
         return;
       }
 
-      const userRole = result.staff?.role || result.role;
-      const staffRoles = ['chairman', 'manager', 'treasurer', 'bookkeeper', 'inventory'];
-      const isStaffUser = staffRoles.includes(userRole);
-      const isMemberUser = userRole === 'member';
-
-      if ((portalType === 'staff' && !isStaffUser) || (portalType === 'member' && !isMemberUser)) {
-        setError(portalType === 'staff'
-          ? 'You do not have access to the Staff Portal. Please use the Member Portal.'
-          : 'You do not have access to the Member Portal. Please use the Staff Portal.');
-        setLoading(false);
-        return;
-      }
-
+      // Login successful - the useEffect will handle the redirect when staff loads
+      console.log('Login successful, staff profile should load automatically');
+      
       // Remember-me is optional and must not turn a successful login into an error.
       try {
         if (rememberMe) {
@@ -135,17 +151,30 @@ const Login = () => {
         console.warn('Unable to save remember-me preference:', storageError);
       }
 
-      if (result.staff?.must_change_password) {
-        navigate('/reset-password', { replace: true });
-        return;
-      }
-
-      redirectToPortal(userRole);
+      // Don't set loading to false here - let the useEffect handle it after redirect
       
     } catch (err) {
       console.error('Unexpected login error:', err);
       setError('An unexpected error occurred. Please try again.');
       setLoading(false);
+    }
+  };
+
+  // Redirect to appropriate portal based on role
+  const redirectToPortal = (role) => {
+    const staffRoles = ['chairman', 'manager', 'treasurer', 'bookkeeper', 'inventory'];
+    
+    console.log('Redirecting user with role:', role);
+    
+    if (staffRoles.includes(role)) {
+      console.log('Navigating to Staff Portal at /staff');
+      navigate('/staff', { replace: true });
+    } else if (role === 'member') {
+      console.log('Navigating to Member Portal at /member');
+      navigate('/member', { replace: true });
+    } else {
+      console.warn('Unknown role, redirecting to home');
+      navigate('/', { replace: true });
     }
   };
 
@@ -186,12 +215,12 @@ const Login = () => {
               {/* Full Name Field */}
               <div className="mb-5">
                 <label htmlFor="fullName" className="block text-gray-700 text-sm font-semibold mb-2">
-                  Username
+                  Username or full name
                 </label>
                 <input
                   type="text"
                   id="fullName"
-                  autoComplete="username"
+                  autoComplete="name"
                   value={fullName}
                   onChange={(e) => {
                     setFullName(e.target.value);
@@ -199,7 +228,7 @@ const Login = () => {
                       setFieldErrors(prev => ({ ...prev, fullName: '' }));
                     }
                   }}
-                  placeholder="Enter your username"
+                  placeholder="Enter your username or full name"
                   className={`w-full rounded-lg border ${fieldErrors.fullName ? 'border-red-300' : 'border-gray-200'} px-4 py-3 transition-all focus:outline-none focus:ring-2 ${portalConfig.inputFocus}`}
                   required
                   disabled={loading}
@@ -304,16 +333,16 @@ const Login = () => {
           </div>
         </div>
 
-        {/* Back to the public website */}
+        {/* Back to Portal Selection */}
         <div className="text-center mt-6">
           <Link 
-            to="/"
+            to="/portal-selection" 
             className={`text-gray-600 ${portalConfig.backLinkHover} text-sm flex items-center justify-center space-x-2 transition-colors`}
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
             </svg>
-            <span>Back to Website</span>
+            <span>Back to Portal Selection</span>
           </Link>
         </div>
 

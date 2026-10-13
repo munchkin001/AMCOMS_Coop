@@ -55,7 +55,7 @@ const Purchases = () => {
         id, purchase_number, purchase_date, expected_delivery_date, net_amount,
         payment_status, status, notes,
         suppliers(supplier_name),
-        purchase_items(id, quantity, unit_cost, line_total, received_quantity, products(product_name, unit_of_measure))
+        purchase_items(id, item_name, unit, quantity, unit_cost, line_total, received_quantity, products(product_name, unit_of_measure))
       `)
       .order('purchase_date', { ascending: false })
       .order('created_at', { ascending: false })
@@ -331,7 +331,7 @@ const Purchases = () => {
                             <table className="w-full text-sm">
                               <thead>
                                 <tr className="text-left text-xs uppercase text-gray-500">
-                                  <th className="py-1 pr-4">Product</th>
+                                  <th className="py-1 pr-4">Item / Material</th>
                                   <th className="py-1 pr-4 text-right">Ordered</th>
                                   <th className="py-1 pr-4 text-right">Received</th>
                                   <th className="py-1 pr-4 text-right">Unit Cost</th>
@@ -341,9 +341,9 @@ const Purchases = () => {
                               <tbody>
                                 {items.map((item) => (
                                   <tr key={item.id} className="border-t border-gray-200">
-                                    <td className="py-2 pr-4 text-gray-900">{item.products?.product_name || 'Unnamed item'}</td>
-                                    <td className="py-2 pr-4 text-right">{item.quantity} {item.products?.unit_of_measure || ''}</td>
-                                    <td className="py-2 pr-4 text-right">{item.received_quantity || 0}</td>
+                                    <td className="py-2 pr-4 text-gray-900">{item.item_name || item.products?.product_name || 'Unnamed item'}</td>
+                                    <td className="py-2 pr-4 text-right">{item.quantity} {item.unit || item.products?.unit_of_measure || ''}</td>
+                                    <td className="py-2 pr-4 text-right">{item.received_quantity ?? 0} {item.unit || item.products?.unit_of_measure || ''}</td>
                                     <td className="py-2 pr-4 text-right">{formatMoney(item.unit_cost)}</td>
                                     <td className="py-2 text-right font-medium">{formatMoney(item.line_total)}</td>
                                   </tr>
