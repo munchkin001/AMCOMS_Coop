@@ -1,7 +1,17 @@
 import React, { useCallback, useEffect, useState } from 'react';
+import { CheckCircle2, ClipboardList, Clock3, FileText, HandCoins, Package, PiggyBank, Plus, Users, WalletCards, X } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import { useMultipleRealtimeSubscriptions } from '../../hooks/useRealtimeSubscription';
+
+const categoryIcons = {
+  Loans: HandCoins,
+  Members: Users,
+  Savings: PiggyBank,
+  Inventory: Package,
+  Financial: WalletCards,
+  General: ClipboardList
+};
 
 const Policies = () => {
   const { staff } = useAuth();
@@ -38,7 +48,11 @@ const Policies = () => {
         .select('id, name, category, content, status, published_at, published_by, updated_at')
         .order('updated_at', { ascending: false });
       if (loadError) throw loadError;
-      setPolicies((data || []).map(formatPolicy));
+      const refreshedPolicies = (data || []).map(formatPolicy);
+      setPolicies(refreshedPolicies);
+      setSelectedPolicy((current) => current
+        ? refreshedPolicies.find((policy) => policy.id === current.id) || null
+        : current);
       setError('');
     } catch (loadError) {
       console.error('Error loading policies:', loadError);
@@ -153,25 +167,21 @@ const Policies = () => {
       : 'bg-yellow-100 text-yellow-800 border-yellow-200';
   };
 
-  const getCategoryIcon = (category) => {
-    const icons = {
-      'Loans': '💰',
-      'Members': '👥',
-      'Savings': '🏦',
-      'Inventory': '📦',
-      'Financial': '💵',
-      'General': '📋'
-    };
-    return icons[category] || '📋';
+  const getCategoryIcon = (category, className = 'h-5 w-5') => {
+    const CategoryIcon = categoryIcons[category] || ClipboardList;
+    return <CategoryIcon aria-hidden="true" className={className} />;
   };
 
   return (
-    <div className="space-y-6">
-      {error && <p role="alert" className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{error}</p>}
-      {/* Header with Create Button */}
-      <div className="flex items-center justify-between">
+    <div className="space-y-6 pb-8">
+      {error && <p role="alert" className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{error}</p>}
+      <section className="flex flex-col gap-5 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:flex-row sm:items-center sm:justify-between sm:p-6">
         <div>
-          <p className="text-gray-600">Manage cooperative policies and governance documents</p>
+          <p className="text-sm font-medium text-slate-600">Manage cooperative policies and governance documents</p>
+          <p className="mt-2 inline-flex items-center gap-2 text-xs font-medium text-emerald-700">
+            <span className="h-2 w-2 rounded-full bg-emerald-500" />
+            Live updates enabled
+          </p>
         </div>
         <button
           onClick={() => {
@@ -179,143 +189,141 @@ const Policies = () => {
             setEditingPolicyId(null);
             setShowCreateModal(true);
           }}
-          className="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors font-medium flex items-center space-x-2"
+          className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-emerald-700 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-emerald-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-700 focus-visible:ring-offset-2"
         >
-          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-          </svg>
+          <Plus aria-hidden="true" className="h-5 w-5" />
           <span>Create Policy</span>
         </button>
-      </div>
+      </section>
 
-      {/* Policy Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="bg-white rounded-lg shadow p-6 border border-gray-200">
-          <div className="flex items-center justify-between">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+        <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+          <div className="flex items-center justify-between gap-4">
             <div>
-              <p className="text-sm font-medium text-gray-600">Total Policies</p>
-              <p className="text-3xl font-bold text-gray-900">{policies.length}</p>
+              <p className="text-sm font-medium text-slate-600">Total policies</p>
+              <p className="mt-2 text-3xl font-semibold tracking-tight text-slate-900">{policies.length}</p>
             </div>
-            <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
-              <svg className="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-              </svg>
+            <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-blue-50 text-blue-700">
+              <FileText aria-hidden="true" className="h-5 w-5" />
             </div>
           </div>
         </div>
 
-        <div className="bg-white rounded-lg shadow p-6 border border-gray-200">
-          <div className="flex items-center justify-between">
+        <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+          <div className="flex items-center justify-between gap-4">
             <div>
-              <p className="text-sm font-medium text-gray-600">Published</p>
-              <p className="text-3xl font-bold text-green-600">
+              <p className="text-sm font-medium text-slate-600">Published</p>
+              <p className="mt-2 text-3xl font-semibold tracking-tight text-emerald-700">
                 {policies.filter(p => p.status === 'published').length}
               </p>
             </div>
-            <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
-              <svg className="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
+            <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-emerald-50 text-emerald-700">
+              <CheckCircle2 aria-hidden="true" className="h-5 w-5" />
             </div>
           </div>
         </div>
 
-        <div className="bg-white rounded-lg shadow p-6 border border-gray-200">
-          <div className="flex items-center justify-between">
+        <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+          <div className="flex items-center justify-between gap-4">
             <div>
-              <p className="text-sm font-medium text-gray-600">Draft</p>
-              <p className="text-3xl font-bold text-yellow-600">
+              <p className="text-sm font-medium text-slate-600">Drafts</p>
+              <p className="mt-2 text-3xl font-semibold tracking-tight text-amber-700">
                 {policies.filter(p => p.status === 'draft').length}
               </p>
             </div>
-            <div className="w-12 h-12 bg-yellow-100 rounded-lg flex items-center justify-center">
-              <svg className="w-6 h-6 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
+            <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-amber-50 text-amber-700">
+              <Clock3 aria-hidden="true" className="h-5 w-5" />
             </div>
           </div>
         </div>
       </div>
 
-      {/* Policies List */}
-      <div className="grid grid-cols-1 gap-4">
+      <section className="space-y-4">
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-base font-semibold text-slate-900">Policy library</h2>
+            <p className="mt-1 text-sm text-slate-500">Policies are kept current across connected views.</p>
+          </div>
+        </div>
         {loading ? (
-          <p className="rounded-lg border border-gray-200 bg-white p-6 text-center text-gray-500">Loading policies...</p>
+          <p className="rounded-2xl border border-slate-200 bg-white p-10 text-center text-sm text-slate-500">Loading policies...</p>
         ) : policies.length === 0 ? (
-          <p className="rounded-lg border border-gray-200 bg-white p-6 text-center text-gray-500">No policies have been created.</p>
+          <div className="rounded-2xl border border-dashed border-slate-300 bg-white px-6 py-12 text-center">
+            <FileText aria-hidden="true" className="mx-auto h-8 w-8 text-slate-400" />
+            <p className="mt-3 text-sm font-semibold text-slate-900">No policies yet</p>
+            <p className="mt-1 text-sm text-slate-500">Create a policy to begin building your governance library.</p>
+          </div>
         ) : policies.map((policy) => (
-          <div key={policy.id} className="bg-white rounded-lg shadow border border-gray-200 p-6 hover:shadow-md transition-shadow">
-            <div className="flex items-start justify-between">
-              <div className="flex-1">
-                <div className="flex items-center space-x-3 mb-2">
-                  <span className="text-2xl">{getCategoryIcon(policy.category)}</span>
-                  <h3 className="text-lg font-semibold text-gray-900">{policy.name}</h3>
-                  <span className={`px-3 py-1 rounded-full text-xs font-medium border ${getStatusColor(policy.status)}`}>
+          <article key={policy.id} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition-shadow hover:shadow-md sm:p-6">
+            <div className="flex flex-col gap-5 sm:flex-row sm:items-start sm:justify-between">
+              <div className="min-w-0 flex-1">
+                <div className="flex flex-wrap items-center gap-3">
+                  <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-slate-700">{getCategoryIcon(policy.category)}</span>
+                  <h3 className="text-base font-semibold text-slate-900">{policy.name}</h3>
+                  <span className={`rounded-full px-2.5 py-1 text-xs font-semibold border ${getStatusColor(policy.status)}`}>
                     {policy.status === 'published' ? 'Published' : 'Draft'}
                   </span>
                 </div>
-                <p className="text-sm text-gray-600 mb-3 line-clamp-2">{policy.content}</p>
-                <div className="flex items-center space-x-4 text-sm text-gray-500">
-                  <span>Category: <span className="font-medium text-gray-700">{policy.category}</span></span>
-                  <span>•</span>
-                  <span>Last Updated: <span className="font-medium text-gray-700">{policy.lastUpdated}</span></span>
+                <p className="mt-4 line-clamp-2 text-sm leading-6 text-slate-600">{policy.content}</p>
+                <div className="mt-4 flex flex-wrap items-center gap-x-5 gap-y-2 text-xs text-slate-500">
+                  <span>Category <span className="font-semibold text-slate-700">{policy.category}</span></span>
+                  <span>Updated <span className="font-semibold text-slate-700">{policy.lastUpdated}</span></span>
                   {policy.status === 'published' && (
-                    <>
-                      <span>•</span>
-                      <span>Published: <span className="font-medium text-gray-700">{policy.publishedDate}</span></span>
-                    </>
+                    <span>Published <span className="font-semibold text-slate-700">{policy.publishedDate}</span></span>
                   )}
                 </div>
               </div>
 
-              <div className="flex space-x-2 ml-4">
+              <div className="flex flex-wrap gap-2 sm:shrink-0">
                 <button
                   onClick={() => handleViewPolicy(policy)}
-                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium"
+                  className="min-h-10 rounded-lg border border-slate-300 px-3.5 py-2 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-700"
                 >
                   View
                 </button>
                 <button
                   onClick={() => handleEditPolicy(policy)}
-                  className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors text-sm font-medium"
+                  className="min-h-10 rounded-lg border border-slate-300 px-3.5 py-2 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-700"
                 >
                   Edit
                 </button>
                 {policy.status === 'draft' && (
                   <button
                     onClick={() => handlePublishPolicy(policy.id)}
-                    className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-sm font-medium"
+                    className="min-h-10 rounded-lg bg-emerald-700 px-3.5 py-2 text-sm font-semibold text-white transition-colors hover:bg-emerald-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-700 focus-visible:ring-offset-2"
                   >
                     Publish
                   </button>
                 )}
               </div>
             </div>
-          </div>
+          </article>
         ))}
-      </div>
+      </section>
 
       {/* Create/Edit Policy Modal */}
       {showCreateModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" onClick={() => setShowCreateModal(false)}>
-          <div className="bg-white rounded-lg shadow-xl max-w-3xl w-full mx-4 max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
-            <div className="p-6 border-b border-gray-200">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4 backdrop-blur-sm" onClick={() => setShowCreateModal(false)}>
+          <div className="max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-2xl bg-white shadow-2xl" onClick={(e) => e.stopPropagation()}>
+            <div className="border-b border-slate-200 px-6 py-5">
               <div className="flex items-center justify-between">
-                <h3 className="text-xl font-bold text-gray-900">{editingPolicyId ? 'Edit Policy' : 'Create New Policy'}</h3>
+                <div>
+                  <h3 className="text-lg font-semibold text-slate-900">{editingPolicyId ? 'Edit policy' : 'Create new policy'}</h3>
+                  <p className="mt-1 text-sm text-slate-500">Provide clear details for this governance document.</p>
+                </div>
                 <button
                   onClick={() => setShowCreateModal(false)}
-                  className="text-gray-500 hover:text-gray-700"
+                  aria-label="Close policy form"
+                  className="rounded-lg p-2 text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-800"
                 >
-                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                  </svg>
+                  <X aria-hidden="true" className="h-5 w-5" />
                 </button>
               </div>
             </div>
 
-            <div className="p-6 space-y-4">
+            <div className="space-y-5 px-6 py-5">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="mb-2 block text-sm font-medium text-slate-700">
                   Policy Name *
                 </label>
                 <input
@@ -323,18 +331,18 @@ const Policies = () => {
                   value={policyForm.name}
                   onChange={(e) => setPolicyForm({ ...policyForm, name: e.target.value })}
                   placeholder="e.g., Loan Collection Policy"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                  className="w-full rounded-lg border border-slate-300 px-3.5 py-2.5 text-sm text-slate-900 placeholder:text-slate-400 focus:border-emerald-600 focus:outline-none focus:ring-2 focus:ring-emerald-600/20"
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="mb-2 block text-sm font-medium text-slate-700">
                   Category *
                 </label>
                 <select
                   value={policyForm.category}
                   onChange={(e) => setPolicyForm({ ...policyForm, category: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                  className="w-full rounded-lg border border-slate-300 bg-white px-3.5 py-2.5 text-sm text-slate-900 focus:border-emerald-600 focus:outline-none focus:ring-2 focus:ring-emerald-600/20"
                 >
                   <option value="">Select Category</option>
                   <option value="Loans">Loans</option>
@@ -347,7 +355,7 @@ const Policies = () => {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="mb-2 block text-sm font-medium text-slate-700">
                   Policy Content *
                 </label>
                 <textarea
@@ -355,18 +363,18 @@ const Policies = () => {
                   onChange={(e) => setPolicyForm({ ...policyForm, content: e.target.value })}
                   placeholder="Enter the full policy content..."
                   rows={10}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                  className="w-full resize-y rounded-lg border border-slate-300 px-3.5 py-2.5 text-sm leading-6 text-slate-900 placeholder:text-slate-400 focus:border-emerald-600 focus:outline-none focus:ring-2 focus:ring-emerald-600/20"
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="mb-2 block text-sm font-medium text-slate-700">
                   Status
                 </label>
                 <select
                   value={policyForm.status}
                   onChange={(e) => setPolicyForm({ ...policyForm, status: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                  className="w-full rounded-lg border border-slate-300 bg-white px-3.5 py-2.5 text-sm text-slate-900 focus:border-emerald-600 focus:outline-none focus:ring-2 focus:ring-emerald-600/20"
                 >
                   <option value="draft">Draft (Save for later)</option>
                   <option value="published">Published</option>
@@ -374,11 +382,11 @@ const Policies = () => {
               </div>
             </div>
 
-            <div className="p-6 bg-gray-50 border-t border-gray-200 flex space-x-3">
+            <div className="flex flex-col-reverse gap-3 border-t border-slate-200 bg-slate-50 px-6 py-4 sm:flex-row sm:justify-end">
               <button
                 onClick={handleCreatePolicy}
                 disabled={saving}
-                className="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors font-medium"
+                className="min-h-10 rounded-lg bg-emerald-700 px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-emerald-800 disabled:cursor-not-allowed disabled:opacity-60"
               >
               {saving ? 'Saving...' : policyForm.status === 'published' ? 'Save & Publish' : editingPolicyId ? 'Save Changes' : 'Save as Draft'}
               </button>
@@ -387,7 +395,7 @@ const Policies = () => {
                   setShowCreateModal(false);
                   setEditingPolicyId(null);
                 }}
-                className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors font-medium"
+                className="min-h-10 rounded-lg border border-slate-300 bg-white px-5 py-2.5 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-100"
               >
                 Cancel
               </button>
@@ -398,77 +406,76 @@ const Policies = () => {
 
       {/* View Policy Modal */}
       {showViewModal && selectedPolicy && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" onClick={() => setShowViewModal(false)}>
-          <div className="bg-white rounded-lg shadow-xl max-w-3xl w-full mx-4 max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
-            <div className="p-6 border-b border-gray-200">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center space-x-3">
-                  <span className="text-2xl">{getCategoryIcon(selectedPolicy.category)}</span>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4 backdrop-blur-sm" onClick={() => setShowViewModal(false)}>
+          <div className="max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-2xl bg-white shadow-2xl" onClick={(e) => e.stopPropagation()}>
+            <div className="border-b border-slate-200 px-6 py-5">
+              <div className="flex items-center justify-between gap-4">
+                <div className="flex min-w-0 items-center gap-3">
+                  <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-slate-700">{getCategoryIcon(selectedPolicy.category, 'h-5 w-5')}</span>
                   <div>
-                    <h3 className="text-xl font-bold text-gray-900">{selectedPolicy.name}</h3>
-                    <p className="text-sm text-gray-500">{selectedPolicy.category}</p>
+                    <h3 className="text-lg font-semibold text-slate-900">{selectedPolicy.name}</h3>
+                    <p className="mt-1 text-sm text-slate-500">{selectedPolicy.category}</p>
                   </div>
                 </div>
                 <button
                   onClick={() => setShowViewModal(false)}
-                  className="text-gray-500 hover:text-gray-700"
+                  aria-label="Close policy details"
+                  className="rounded-lg p-2 text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-800"
                 >
-                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                  </svg>
+                  <X aria-hidden="true" className="h-5 w-5" />
                 </button>
               </div>
             </div>
 
-            <div className="p-6">
+            <div className="px-6 py-5">
               <div className="mb-6">
-                <div className="grid grid-cols-2 gap-4 mb-4">
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                   <div>
-                    <p className="text-sm font-medium text-gray-500">Status</p>
-                    <span className={`inline-block mt-1 px-3 py-1 rounded-full text-sm font-medium border ${getStatusColor(selectedPolicy.status)}`}>
+                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Status</p>
+                    <span className={`mt-2 inline-flex rounded-full px-2.5 py-1 text-xs font-semibold border ${getStatusColor(selectedPolicy.status)}`}>
                       {selectedPolicy.status === 'published' ? 'Published' : 'Draft'}
                     </span>
                   </div>
                   <div>
-                    <p className="text-sm font-medium text-gray-500">Last Updated</p>
-                    <p className="text-base text-gray-900 mt-1">{selectedPolicy.lastUpdated}</p>
+                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Last updated</p>
+                    <p className="mt-2 text-sm font-medium text-slate-900">{selectedPolicy.lastUpdated}</p>
                   </div>
                   {selectedPolicy.status === 'published' && (
                     <>
                       <div>
-                        <p className="text-sm font-medium text-gray-500">Published By</p>
-                        <p className="text-base text-gray-900 mt-1">{selectedPolicy.publishedBy || '—'}</p>
+                        <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Published by</p>
+                        <p className="mt-2 text-sm font-medium text-slate-900">{selectedPolicy.publishedBy || 'Not specified'}</p>
                       </div>
                       <div>
-                        <p className="text-sm font-medium text-gray-500">Published Date</p>
-                        <p className="text-base text-gray-900 mt-1">{selectedPolicy.publishedDate}</p>
+                        <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Published date</p>
+                        <p className="mt-2 text-sm font-medium text-slate-900">{selectedPolicy.publishedDate}</p>
                       </div>
                     </>
                   )}
                 </div>
               </div>
 
-              <div className="border-t border-gray-200 pt-6">
-                <h4 className="text-lg font-semibold text-gray-900 mb-3">Policy Content</h4>
-                <div className="prose max-w-none">
-                  <p className="text-gray-700 whitespace-pre-wrap">{selectedPolicy.content}</p>
+              <div className="border-t border-slate-200 pt-5">
+                <h4 className="text-sm font-semibold uppercase tracking-wide text-slate-500">Policy content</h4>
+                <div className="mt-3 rounded-xl bg-slate-50 p-4 sm:p-5">
+                  <p className="whitespace-pre-wrap text-sm leading-7 text-slate-700">{selectedPolicy.content}</p>
                 </div>
               </div>
             </div>
 
-            <div className="p-6 bg-gray-50 border-t border-gray-200 flex space-x-3">
+            <div className="flex flex-col-reverse gap-3 border-t border-slate-200 bg-slate-50 px-6 py-4 sm:flex-row sm:justify-end">
               <button
                 onClick={() => {
                   setShowViewModal(false);
                   handleEditPolicy(selectedPolicy);
                 }}
-                className="px-6 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors font-medium"
+                className="min-h-10 rounded-lg border border-slate-300 bg-white px-5 py-2.5 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-100"
               >
                 Edit Policy
               </button>
               <button
                 onClick={() => setShowViewModal(false)}
-                className="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors font-medium"
+                className="min-h-10 rounded-lg bg-emerald-700 px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-emerald-800"
               >
                 Close
               </button>

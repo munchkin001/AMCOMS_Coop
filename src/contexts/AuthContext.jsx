@@ -21,6 +21,7 @@ export const AuthProvider = ({ children }) => {
   const [loading, setLoading] = useState(true);
   const [session, setSession] = useState(null);
   const [authError, setAuthError] = useState(null);
+  const [offlineMode, setOfflineMode] = useState(false);
 
   const logAuthEvent = useCallback(async (event) => {
     let lastError = null;
@@ -44,7 +45,7 @@ export const AuthProvider = ({ children }) => {
       setAuthError(null);
       const { data, error } = await supabase
         .from('staff')
-        .select('id, email, full_name, role, user_id, is_active, member_id, must_change_password, created_at')
+        .select('id, email, username, full_name, role, user_id, is_active, member_id, must_change_password, created_at')
         .eq('user_id', userId)
         .maybeSingle();
       if (error) throw error;
@@ -99,6 +100,7 @@ export const AuthProvider = ({ children }) => {
 
       console.log('Staff profile loaded successfully');
       setStaff(staffProfile);
+      setOfflineMode(false);
       setAuthError(null);
       try {
         await offlineDb.cachedData.put({
@@ -146,6 +148,7 @@ export const AuthProvider = ({ children }) => {
       setSession(session);
       setUser(session?.user ?? null);
       if (session?.user) {
+        setOfflineMode(false);
         fetchStaffProfile(session.user.id);
       } else {
         setLoading(false);
@@ -185,6 +188,7 @@ export const AuthProvider = ({ children }) => {
   const signIn = async (identifier, password) => {
     try {
       setAuthError(null);
+      setOfflineMode(false);
 
       const { data: staffProfile, error: lookupError } = await findStaffByLoginIdentifier(identifier);
       if (lookupError) throw lookupError;
@@ -315,6 +319,15 @@ export const AuthProvider = ({ children }) => {
   };
 
   const signOut = async () => {
+    if (offlineMode) {
+      setStaff(null);
+      setUser(null);
+      setSession(null);
+      setOfflineMode(false);
+      setAuthError(null);
+      return { error: null };
+    }
+
     try {
       setAuthError(null);
       await logAuthEvent('sign out');
@@ -323,11 +336,31 @@ export const AuthProvider = ({ children }) => {
       setStaff(null);
       setUser(null);
       setSession(null);
+      setOfflineMode(false);
       return { error: null };
     } catch (error) {
       console.error('Sign out error:', error);
       return { error };
     }
+  };
+
+  const unlockOffline = ({ user: offlineUser, staff: offlineStaff }) => {
+    const validRoles = ['chairman', 'manager', 'treasurer', 'bookkeeper', 'inventory', 'member'];
+    if (
+      !offlineUser?.id ||
+      offlineUser.offline !== true ||
+      offlineStaff?.user_id !== offlineUser.id ||
+      offlineStaff.is_active !== true ||
+      !validRoles.includes(offlineStaff.role)
+    ) {
+      throw new Error('The offline account could not be verified.');
+    }
+    setUser(offlineUser);
+    setStaff(offlineStaff);
+    setSession(null);
+    setAuthError(null);
+    setOfflineMode(true);
+    setLoading(false);
   };
 
   const resetPassword = async (email) => {
@@ -391,10 +424,12 @@ export const AuthProvider = ({ children }) => {
     session,
     loading,
     authError,
+    offlineMode,
     signIn,
     login, // Full-name-based login
     signUp,
     signOut,
+    unlockOffline,
     resetPassword,
     updatePassword,
     hasRole,

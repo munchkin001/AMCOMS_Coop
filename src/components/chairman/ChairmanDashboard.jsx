@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useCallback, useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Line } from 'react-chartjs-2';
 import { Banknote, HandCoins, Landmark, PiggyBank, TrendingDown, TrendingUp, UserCheck, Users } from 'lucide-react';
@@ -64,12 +64,35 @@ const ChairmanDashboard = () => {
     totalProduction: 0
   });
 
+  const fetchRecentPolicies = useCallback(async () => {
+    const { data, error: policyError } = await supabase
+      .from('policies')
+      .select('id, name, published_at')
+      .eq('status', 'published')
+      .order('published_at', { ascending: false })
+      .limit(5);
+
+    if (policyError) {
+      console.error('Unable to refresh recent policies:', policyError);
+      return;
+    }
+    setRecentPolicies(data || []);
+  }, []);
+
   useEffect(() => {
     fetchDashboardData();
   }, []);
 
+  useEffect(() => {
+    fetchRecentPolicies();
+  }, [fetchRecentPolicies]);
+
   // Set up real-time subscriptions for live updates
   useMultipleRealtimeSubscriptions([
+    {
+      table: 'policies',
+      onUpdate: () => fetchRecentPolicies()
+    },
     {
       table: 'members',
       onUpdate: () => fetchDashboardData()
@@ -168,15 +191,6 @@ const ChairmanDashboard = () => {
       const failedResult = results.find((result) => result.error);
       if (failedResult) throw failedResult.error;
 
-      // Fetch policies separately - optional feature, don't fail if table doesn't exist
-      let policyResult = { data: [], error: null };
-      try {
-        policyResult = await supabase.from('policies').select('id, name, published_at')
-          .eq('status', 'published').order('published_at', { ascending: false }).limit(5);
-      } catch (policyError) {
-        console.warn('Policies table not available:', policyError);
-      }
-
       const activeLoans = activeLoansResult.data || [];
       const totalLoanBalance = activeLoans.reduce((sum, loan) => sum + Number(loan.balance || 0), 0);
       const totalSavings = (savingsResult.data || [])
@@ -227,7 +241,6 @@ const ChairmanDashboard = () => {
         currentExpenses: currentYearTotals.periodExpenses,
         previousExpenses: previousYearTotals.periodExpenses
       });
-      setRecentPolicies(policyResult.data || []);
       setError('');
     } catch (error) {
       console.error('Error fetching dashboard data:', error);
@@ -465,10 +478,10 @@ const ChairmanDashboard = () => {
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-lg font-semibold text-gray-900">Recent Policies</h3>
             <button 
-              onClick={() => alert('Navigate to the Policies section using the sidebar menu to view all policies.')}
+              onClick={() => navigate('/staff/policies')}
               className="text-sm text-green-600 hover:text-green-700 font-medium cursor-pointer"
             >
-              View All →
+              View all
             </button>
           </div>
           {loading ? (
@@ -483,8 +496,8 @@ const ChairmanDashboard = () => {
             </div>
           ) : (
             <div className="space-y-3">
-              {recentPolicies.map((policy, idx) => (
-                <div key={idx} className="p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors cursor-pointer">
+              {recentPolicies.map((policy) => (
+                <div key={policy.id} className="p-3 bg-gray-50 rounded-lg">
                   <p className="text-sm font-medium text-gray-900">{policy.name}</p>
                   <p className="text-xs text-gray-500 mt-1">Published: {new Date(policy.published_at).toLocaleDateString('en-PH', { year: 'numeric', month: 'short', day: 'numeric' })}</p>
                 </div>

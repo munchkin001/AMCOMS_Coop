@@ -5,6 +5,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import offlineDb from '../../lib/Offline/OfflineDb';
 import { queueOperation, getOperation } from '../../lib/Offline/syncQueue';
 import { syncPendingOperations } from '../../lib/Offline/syncOperations';
+import { enableOfflineAccess, removeOfflineAccess } from '../../lib/Offline/offlineAccess';
 
 const emptyProfile = {
   first_name: '',
@@ -45,7 +46,7 @@ const splitName = (fullName = '') => {
 };
 
 const ProfileEditor = ({ profileType = 'staff', roleLabel }) => {
-  const { user, staff } = useAuth();
+  const { user, staff, offlineMode } = useAuth();
   const [profile, setProfile] = useState(emptyProfile);
   const [memberSummary, setMemberSummary] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -57,6 +58,7 @@ const ProfileEditor = ({ profileType = 'staff', roleLabel }) => {
   const [passwordNotice, setPasswordNotice] = useState('');
   const [passwordSaving, setPasswordSaving] = useState(false);
   const [showPasswords, setShowPasswords] = useState(false);
+  const [offlineSetup, setOfflineSetup] = useState({ busy: false, message: '', error: '' });
 
   useEffect(() => {
     let active = true;
@@ -206,6 +208,10 @@ const ProfileEditor = ({ profileType = 'staff', roleLabel }) => {
 
   const saveProfile = async (event) => {
     event.preventDefault();
+    if (offlineMode) {
+      setProfileError('Reconnect and sign in online before saving profile changes.');
+      return;
+    }
     setSaving(true);
     setProfileError('');
     setProfileNotice('');
@@ -219,6 +225,7 @@ const ProfileEditor = ({ profileType = 'staff', roleLabel }) => {
           contact.name?.trim() || contact.phone?.trim()
         )
       };
+
       const operationId = await queueOperation({
         type: 'member_contact_update',
         payload: profileUpdate
@@ -249,6 +256,45 @@ const ProfileEditor = ({ profileType = 'staff', roleLabel }) => {
       setProfileError(error.message || 'Your profile could not be saved to this device.');
     } finally {
       setSaving(false);
+    }
+  };
+
+  const setupOfflineAccess = async () => {
+    setOfflineSetup({ busy: true, message: '', error: '' });
+    try {
+      await enableOfflineAccess({ user, staff });
+      setOfflineSetup({
+        busy: false,
+        message: 'Passkey set up. This device can unlock your cached account for up to 7 days without internet.',
+        error: ''
+      });
+    } catch (error) {
+      console.error('Unable to enable offline passkey access:', error);
+      setOfflineSetup({
+        busy: false,
+        message: '',
+        error: error instanceof Error ? error.message : 'Offline passkey setup failed.'
+      });
+    }
+  };
+
+  const removeOfflineAccessFromDevice = async () => {
+    if (!user?.id || !window.confirm('Remove offline passkey access and its cached profile from this device?')) return;
+    setOfflineSetup({ busy: true, message: '', error: '' });
+    try {
+      await removeOfflineAccess(user.id);
+      setOfflineSetup({
+        busy: false,
+        message: 'Offline passkey access was removed from this device.',
+        error: ''
+      });
+    } catch (error) {
+      console.error('Unable to remove offline passkey access:', error);
+      setOfflineSetup({
+        busy: false,
+        message: '',
+        error: error instanceof Error ? error.message : 'Offline passkey access could not be removed.'
+      });
     }
   };
 
@@ -425,12 +471,47 @@ const ProfileEditor = ({ profileType = 'staff', roleLabel }) => {
           )}
 
           <div className={`sticky -mx-4 border-t border-gray-100 bg-white/95 px-4 py-3 backdrop-blur sm:static sm:mx-0 sm:flex sm:justify-end sm:bg-transparent sm:px-0 sm:pb-0 ${profileType === 'member' ? 'bottom-16 lg:bottom-0' : 'bottom-0'}`}>
-            <button type="submit" disabled={saving} className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-emerald-700 px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-emerald-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-700 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto">
+            <button type="submit" disabled={saving || offlineMode} className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-emerald-700 px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-emerald-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-700 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto">
               <Save aria-hidden="true" size={17} />
-              {saving ? 'Saving...' : 'Save profile'}
+              {offlineMode ? 'Online sign-in required to save' : saving ? 'Saving...' : 'Save profile'}
             </button>
           </div>
         </form>
+      </section>
+
+      <section className="rounded-2xl border border-amber-200 bg-amber-50 p-5">
+        <h3 className="font-semibold text-amber-950">Offline sign-in on this device</h3>
+        <p className="mt-1 text-sm text-amber-900">
+          Set up a device passkey while online. Offline unlock only opens cached information on this device; it does not verify your account with the server or allow financial transactions.
+        </p>
+        <p className="mt-2 text-sm text-amber-900">
+          Signing out keeps the passkey so you can unlock later without internet. Remove it before signing out on a shared or untrusted device.
+        </p>
+        {offlineSetup.error && <p role="alert" className="mt-3 text-sm text-red-800">{offlineSetup.error}</p>}
+        {offlineSetup.message && <p role="status" className="mt-3 text-sm text-green-800">{offlineSetup.message}</p>}
+        {offlineMode ? (
+          <p className="mt-3 text-sm font-medium text-amber-950">You are currently using local offline access. Reconnect and sign in online before making server-side changes.</p>
+        ) : (
+          <button
+            type="button"
+            onClick={setupOfflineAccess}
+            disabled={offlineSetup.busy || !navigator.onLine || !user?.id || staff?.must_change_password}
+            className="mt-4 rounded-lg bg-amber-700 px-4 py-2 text-sm font-semibold text-white hover:bg-amber-800 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {offlineSetup.busy ? 'Setting up passkey…' : 'Set up offline passkey'}
+          </button>
+        )}
+        {!navigator.onLine && !offlineMode && (
+          <p className="mt-2 text-xs text-amber-900">Connect to the internet and sign in normally to set up this device.</p>
+        )}
+        <button
+          type="button"
+          onClick={removeOfflineAccessFromDevice}
+          disabled={offlineSetup.busy || !user?.id}
+          className="mt-3 rounded-lg border border-amber-700 px-4 py-2 text-sm font-semibold text-amber-900 hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          Remove offline passkey from this device
+        </button>
       </section>
 
       <details className="group overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">

@@ -1,17 +1,19 @@
-import React, { useState, useEffect } from 'react';
+import React, { useCallback, useState, useEffect } from 'react';
 import { Link, useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import { unlockWithOfflinePasskey } from '../lib/Offline/offlineAccess';
 
 const Login = () => {
   const { portalType } = useParams(); // Get portal type from URL
   const navigate = useNavigate();
-  const { login, staff, user } = useAuth();
+  const { login, staff, user, unlockOffline } = useAuth();
   const [fullName, setFullName] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [online, setOnline] = useState(navigator.onLine);
   const [fieldErrors, setFieldErrors] = useState({ fullName: '', password: '' });
   const [portalConfig, setPortalConfig] = useState({
     name: 'AMCOMS',
@@ -23,6 +25,17 @@ const Login = () => {
     linkColor: 'text-blue-800 hover:text-amber-700',
     backLinkHover: 'hover:text-amber-700'
   });
+
+  const redirectToPortal = useCallback((role) => {
+    const staffRoles = ['chairman', 'manager', 'treasurer', 'bookkeeper', 'inventory'];
+    if (staffRoles.includes(role)) {
+      navigate('/staff', { replace: true });
+    } else if (role === 'member') {
+      navigate('/member', { replace: true });
+    } else {
+      navigate('/', { replace: true });
+    }
+  }, [navigate]);
 
   useEffect(() => {
     // Configure the login page based on selected portal
@@ -65,6 +78,17 @@ const Login = () => {
     return () => document.removeEventListener('keydown', handleKeyDown);
   }, [portalType, navigate]);
 
+  useEffect(() => {
+    const handleOnline = () => setOnline(true);
+    const handleOffline = () => setOnline(false);
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
+
   // Auto-redirect when staff profile loads after login
   useEffect(() => {
     // Only act if we're in loading state and have both user and staff
@@ -102,12 +126,16 @@ const Login = () => {
     console.log('Valid access confirmed for role:', userRole, '- redirecting...');
     redirectToPortal(userRole);
     // Note: Keep loading=true until navigation completes
-  }, [user, staff, loading, portalType]);
+  }, [user, staff, loading, portalType, navigate, redirectToPortal]);
 
   const handleLogin = async (e) => {
     e.preventDefault();
     setError('');
     setFieldErrors({ fullName: '', password: '' });
+    if (!navigator.onLine) {
+      setError('Internet is required for regular sign-in. Use this device’s offline passkey if it was set up earlier.');
+      return;
+    }
 
     // Validate fields
     const errors = {};
@@ -160,21 +188,29 @@ const Login = () => {
     }
   };
 
-  // Redirect to appropriate portal based on role
-  const redirectToPortal = (role) => {
-    const staffRoles = ['chairman', 'manager', 'treasurer', 'bookkeeper', 'inventory'];
-    
-    console.log('Redirecting user with role:', role);
-    
-    if (staffRoles.includes(role)) {
-      console.log('Navigating to Staff Portal at /staff');
-      navigate('/staff', { replace: true });
-    } else if (role === 'member') {
-      console.log('Navigating to Member Portal at /member');
-      navigate('/member', { replace: true });
-    } else {
-      console.warn('Unknown role, redirecting to home');
-      navigate('/', { replace: true });
+  const handleOfflineUnlock = async () => {
+    setError('');
+    setLoading(true);
+    try {
+      const offlineAccount = await unlockWithOfflinePasskey();
+      const role = offlineAccount.staff.role;
+      const staffRoles = ['chairman', 'manager', 'treasurer', 'bookkeeper', 'inventory'];
+      const isStaffUser = staffRoles.includes(role);
+      if (
+        (portalType === 'staff' && !isStaffUser) ||
+        (portalType === 'member' && role !== 'member')
+      ) {
+        throw new Error('This passkey belongs to a different portal. Choose the correct portal and try again.');
+      }
+      if (offlineAccount.staff.must_change_password) {
+        throw new Error('Connect to the internet and complete the required password change before using offline access.');
+      }
+      unlockOffline(offlineAccount);
+      redirectToPortal(role);
+    } catch (unlockError) {
+      console.error('Offline passkey unlock failed:', unlockError);
+      setError(unlockError instanceof Error ? unlockError.message : 'Offline unlock failed.');
+      setLoading(false);
     }
   };
 
@@ -314,7 +350,7 @@ const Login = () => {
               {/* Login Button */}
               <button
                 type="submit"
-                disabled={loading}
+                disabled={loading || !online}
                 className={`flex w-full items-center justify-center rounded-lg ${portalConfig.buttonColor} py-3 font-semibold text-[#183c30] shadow-sm transition-colors hover:shadow-md disabled:cursor-not-allowed disabled:bg-gray-400 disabled:text-white`}
               >
                 {loading ? (
@@ -330,6 +366,24 @@ const Login = () => {
                 )}
               </button>
             </form>
+            {!online && (
+              <div className="mt-5 rounded-lg border border-amber-200 bg-amber-50 p-4">
+                <p className="text-sm text-amber-950">
+                  Offline access works only on a device where you previously set up a passkey while signed in online.
+                </p>
+                <button
+                  type="button"
+                  onClick={handleOfflineUnlock}
+                  disabled={loading}
+                  className="mt-3 w-full rounded-lg border border-amber-700 px-4 py-3 font-semibold text-amber-900 transition-colors hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {loading ? 'Verifying device passkey…' : 'Unlock with device passkey'}
+                </button>
+                <p className="mt-2 text-xs text-amber-900">
+                  Offline access is local and read-only. Financial transactions still need an internet connection.
+                </p>
+              </div>
+            )}
           </div>
         </div>
 

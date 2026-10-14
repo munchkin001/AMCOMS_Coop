@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { supabase } from '../../../lib/supabase';
+import { useAuth } from '../../../contexts/AuthContext';
 
 const entryTypes = [
   { value: 'savings_deposit', label: 'Savings deposit', receipt: true, account: 'regular' },
@@ -20,6 +21,7 @@ const MemberFinancialEntryForm = ({
   allowedEntryTypes = null,
   title = 'Member Financial Entry'
 }) => {
+  const { offlineMode } = useAuth();
   const visibleEntryTypes = allowedEntryTypes
     ? entryTypes.filter((type) => allowedEntryTypes.includes(type.value))
     : entryTypes;
@@ -158,6 +160,10 @@ const MemberFinancialEntryForm = ({
   const handleSubmit = async (event) => {
     event.preventDefault();
     setError('');
+    if (!navigator.onLine || offlineMode) {
+      setError('Financial entries cannot be recorded with offline access. Sign in online before submitting; this entry was not saved or queued.');
+      return;
+    }
     const numericAmount = Number(amount);
     if (!selectedMember || !date || !reference.trim() || (!selectedEntry?.dividend && !particulars.trim())) {
       setError('Select a member and enter a date and reference number.');

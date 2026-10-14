@@ -8,7 +8,7 @@ import usePendingCount from "../../lib/Offline/usePendingCount";
 export default function OfflineSyncStatus() {
   const [online, setOnline] = useState(navigator.onLine);
   const [syncError, setSyncError] = useState("");
-  const { user } = useAuth();
+  const { user, offlineMode } = useAuth();
   const { pendingCount, failed } = usePendingCount(user?.id);
 
   const sync = useCallback(async () => {
@@ -80,6 +80,11 @@ export default function OfflineSyncStatus() {
           </button>
         )}
       </div>
+      {offlineMode && (
+        <p role="status" className="bg-amber-50 px-3 py-2 text-sm text-amber-950">
+          Unlocked with this device’s passkey. You are viewing local cached data only; transactions and account changes require online sign-in.
+        </p>
+      )}
       {syncError && (
         <p role="alert" className="bg-red-50 px-3 py-2 text-sm text-red-800">
           {syncError}
