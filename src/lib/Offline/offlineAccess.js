@@ -40,14 +40,14 @@ const readDerLength = (bytes, offset) => {
 
 const derEcdsaToRaw = (signature) => {
   const bytes = new Uint8Array(signature);
-  if (bytes[0] !== 0x30) throw new Error("The passkey returned an invalid signature.");
+  if (bytes[0] !== 0x30) throw new Error("The device returned an invalid authentication response.");
   const sequence = readDerLength(bytes, 1);
   let offset = sequence.next;
-  if (bytes[offset] !== 0x02) throw new Error("The passkey returned an invalid signature.");
+  if (bytes[offset] !== 0x02) throw new Error("The device returned an invalid authentication response.");
   const rLength = readDerLength(bytes, offset + 1);
   const r = bytes.slice(rLength.next, rLength.next + rLength.length);
   offset = rLength.next + rLength.length;
-  if (bytes[offset] !== 0x02) throw new Error("The passkey returned an invalid signature.");
+  if (bytes[offset] !== 0x02) throw new Error("The device returned an invalid authentication response.");
   const sLength = readDerLength(bytes, offset + 1);
   const s = bytes.slice(sLength.next, sLength.next + sLength.length);
   const raw = new Uint8Array(64);
@@ -65,7 +65,7 @@ const verifyAssertion = async (assertion, accessRecord, challenge) => {
     clientData.challenge !== toBase64Url(challenge) ||
     clientData.origin !== window.location.origin
   ) {
-    throw new Error("The passkey response could not be verified for this site.");
+    throw new Error("The device authentication response could not be verified for this site.");
   }
 
   const authenticatorData = new Uint8Array(response.authenticatorData);
@@ -73,7 +73,7 @@ const verifyAssertion = async (assertion, accessRecord, challenge) => {
     await crypto.subtle.digest("SHA-256", new TextEncoder().encode(window.location.hostname))
   );
   if (authenticatorData.length < 37 || !sameBytes(authenticatorData.slice(0, 32), rpIdHash)) {
-    throw new Error("The passkey is not registered for this site.");
+    throw new Error("Biometric sign-in is not registered for this site.");
   }
   if ((authenticatorData[32] & 0x05) !== 0x05) {
     throw new Error("Verify your identity with your device to unlock offline access.");
@@ -85,7 +85,7 @@ const verifyAssertion = async (assertion, accessRecord, challenge) => {
     4
   ).getUint32(0);
   if (signCount > 0 && accessRecord.signCount > 0 && signCount <= accessRecord.signCount) {
-    throw new Error("This passkey response is out of date. Connect to the internet and sign in again.");
+    throw new Error("This device authentication is out of date. Connect to the internet and sign in again.");
   }
 
   const algorithm = accessRecord.algorithm === -7
@@ -93,7 +93,7 @@ const verifyAssertion = async (assertion, accessRecord, challenge) => {
     : accessRecord.algorithm === -257
       ? { name: "RSASSA-PKCS1-v1_5", hash: "SHA-256" }
       : null;
-  if (!algorithm) throw new Error("This device passkey algorithm is not supported.");
+  if (!algorithm) throw new Error("This device's biometric authentication method is not supported.");
 
   const publicKey = await crypto.subtle.importKey(
     "spki",
@@ -118,14 +118,14 @@ const verifyAssertion = async (assertion, accessRecord, challenge) => {
     signature,
     signedData
   );
-  if (!valid) throw new Error("The passkey could not unlock this offline account.");
+  if (!valid) throw new Error("Biometric sign-in could not unlock this offline account.");
 
   return signCount;
 };
 
 export async function enableOfflineAccess({ user, staff }) {
   if (!window.isSecureContext || !navigator.credentials || !window.PublicKeyCredential) {
-    throw new Error("Passkeys require a supported browser on HTTPS or localhost.");
+    throw new Error("Biometric sign-in requires a supported browser on HTTPS or localhost.");
   }
   if (!user?.id || !staff?.is_active || staff.user_id !== user.id) {
     throw new Error("Sign in online before setting up offline access on this device.");
@@ -161,7 +161,7 @@ export async function enableOfflineAccess({ user, staff }) {
   });
 
   if (!credential || !(credential instanceof PublicKeyCredential)) {
-    throw new Error("No device passkey was created.");
+    throw new Error("No device biometric credential was created.");
   }
   const response = credential.response;
   if (
@@ -169,7 +169,7 @@ export async function enableOfflineAccess({ user, staff }) {
     typeof response.getPublicKey !== "function" ||
     typeof response.getPublicKeyAlgorithm !== "function"
   ) {
-    throw new Error("This browser cannot securely store the passkey. Update the browser or use another supported device.");
+    throw new Error("This browser cannot securely store the biometric sign-in credential. Update the browser or use another supported device.");
   }
   const clientData = JSON.parse(new TextDecoder().decode(response.clientDataJSON));
   const authenticatorData = new Uint8Array(response.getAuthenticatorData());
@@ -189,7 +189,7 @@ export async function enableOfflineAccess({ user, staff }) {
   const publicKey = response.getPublicKey();
   const algorithm = response.getPublicKeyAlgorithm();
   if (!publicKey || ![-7, -257].includes(algorithm)) {
-    throw new Error("The passkey uses an unsupported signing algorithm.");
+    throw new Error("The device biometric credential uses an unsupported signing method.");
   }
 
   const credentialId = toBase64Url(credential.rawId);
@@ -215,7 +215,7 @@ export async function unlockWithOfflinePasskey() {
     throw new Error("Use your regular online sign-in while connected.");
   }
   if (!window.isSecureContext || !navigator.credentials || !window.PublicKeyCredential) {
-    throw new Error("Offline passkey unlock requires a supported browser on HTTPS or localhost.");
+    throw new Error("Offline biometric sign-in requires a supported browser on HTTPS or localhost.");
   }
 
   const challenge = crypto.getRandomValues(new Uint8Array(32));
@@ -228,14 +228,14 @@ export async function unlockWithOfflinePasskey() {
     },
   });
   if (!assertion || !(assertion instanceof PublicKeyCredential)) {
-    throw new Error("No passkey was selected.");
+    throw new Error("No biometric or device verification method was selected.");
   }
 
   const credentialId = toBase64Url(assertion.rawId);
   const stored = await offlineDb.cachedData.get(`${ACCESS_PREFIX}${credentialId}`);
   const accessRecord = stored?.data;
   if (!accessRecord?.staff || !accessRecord.userId) {
-    throw new Error("This passkey has not been enrolled for AMCOMS on this device.");
+    throw new Error("Biometric sign-in has not been set up for AMCOMS on this device.");
   }
   if (accessRecord.expiresAt <= Date.now()) {
     throw new Error("Offline access has expired. Connect to the internet, sign in, and set it up again.");
@@ -248,7 +248,7 @@ export async function unlockWithOfflinePasskey() {
   if (assertion.response.userHandle) {
     const expectedUserHandle = uuidToBytes(accessRecord.userId);
     if (!sameBytes(new Uint8Array(assertion.response.userHandle), expectedUserHandle)) {
-      throw new Error("The passkey does not match this offline account.");
+      throw new Error("This device authentication does not match the offline account.");
     }
   }
 

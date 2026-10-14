@@ -265,35 +265,35 @@ const ProfileEditor = ({ profileType = 'staff', roleLabel }) => {
       await enableOfflineAccess({ user, staff });
       setOfflineSetup({
         busy: false,
-        message: 'Passkey set up. This device can unlock your cached account for up to 7 days without internet.',
+        message: 'Biometric sign-in is set up. This device can unlock your cached account for up to 7 days without internet.',
         error: ''
       });
     } catch (error) {
-      console.error('Unable to enable offline passkey access:', error);
+      console.error('Unable to enable biometric offline sign-in:', error);
       setOfflineSetup({
         busy: false,
         message: '',
-        error: error instanceof Error ? error.message : 'Offline passkey setup failed.'
+        error: error instanceof Error ? error.message : 'Biometric offline sign-in setup failed.'
       });
     }
   };
 
   const removeOfflineAccessFromDevice = async () => {
-    if (!user?.id || !window.confirm('Remove offline passkey access and its cached profile from this device?')) return;
+    if (!user?.id || !window.confirm('Remove biometric offline sign-in and its cached profile from this device?')) return;
     setOfflineSetup({ busy: true, message: '', error: '' });
     try {
       await removeOfflineAccess(user.id);
       setOfflineSetup({
         busy: false,
-        message: 'Offline passkey access was removed from this device.',
+        message: 'Biometric offline sign-in was removed from this device.',
         error: ''
       });
     } catch (error) {
-      console.error('Unable to remove offline passkey access:', error);
+      console.error('Unable to remove biometric offline sign-in:', error);
       setOfflineSetup({
         busy: false,
         message: '',
-        error: error instanceof Error ? error.message : 'Offline passkey access could not be removed.'
+        error: error instanceof Error ? error.message : 'Biometric offline sign-in could not be removed.'
       });
     }
   };
@@ -482,10 +482,10 @@ const ProfileEditor = ({ profileType = 'staff', roleLabel }) => {
       <section className="rounded-2xl border border-amber-200 bg-amber-50 p-5">
         <h3 className="font-semibold text-amber-950">Offline sign-in on this device</h3>
         <p className="mt-1 text-sm text-amber-900">
-          Set up a device passkey while online. Offline unlock only opens cached information on this device; it does not verify your account with the server or allow financial transactions.
+          Enable biometric sign-in while online. Offline unlock uses your device authenticator (such as Face ID, fingerprint, or Windows Hello) to open cached information; it does not verify your account with the server or allow financial transactions.
         </p>
         <p className="mt-2 text-sm text-amber-900">
-          Signing out keeps the passkey so you can unlock later without internet. Remove it before signing out on a shared or untrusted device.
+          Your device may offer its screen-lock PIN as a fallback. Signing out keeps biometric sign-in enabled so you can unlock later without internet. Remove it before signing out on a shared or untrusted device.
         </p>
         {offlineSetup.error && <p role="alert" className="mt-3 text-sm text-red-800">{offlineSetup.error}</p>}
         {offlineSetup.message && <p role="status" className="mt-3 text-sm text-green-800">{offlineSetup.message}</p>}
@@ -498,7 +498,7 @@ const ProfileEditor = ({ profileType = 'staff', roleLabel }) => {
             disabled={offlineSetup.busy || !navigator.onLine || !user?.id || staff?.must_change_password}
             className="mt-4 rounded-lg bg-amber-700 px-4 py-2 text-sm font-semibold text-white hover:bg-amber-800 disabled:cursor-not-allowed disabled:opacity-50"
           >
-            {offlineSetup.busy ? 'Setting up passkey…' : 'Set up offline passkey'}
+            {offlineSetup.busy ? 'Setting up biometric sign-in…' : 'Set up biometric sign-in'}
           </button>
         )}
         {!navigator.onLine && !offlineMode && (
@@ -510,7 +510,7 @@ const ProfileEditor = ({ profileType = 'staff', roleLabel }) => {
           disabled={offlineSetup.busy || !user?.id}
           className="mt-3 rounded-lg border border-amber-700 px-4 py-2 text-sm font-semibold text-amber-900 hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-50"
         >
-          Remove offline passkey from this device
+          Remove biometric offline sign-in
         </button>
       </section>
 

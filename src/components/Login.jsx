@@ -133,7 +133,7 @@ const Login = () => {
     setError('');
     setFieldErrors({ fullName: '', password: '' });
     if (!navigator.onLine) {
-      setError('Internet is required for regular sign-in. Use this device’s offline passkey if it was set up earlier.');
+      setError('Internet is required for regular sign-in. Use biometric sign-in if it was enabled on this device earlier.');
       return;
     }
 
@@ -200,7 +200,7 @@ const Login = () => {
         (portalType === 'staff' && !isStaffUser) ||
         (portalType === 'member' && role !== 'member')
       ) {
-        throw new Error('This passkey belongs to a different portal. Choose the correct portal and try again.');
+        throw new Error('This biometric sign-in belongs to a different portal. Choose the correct portal and try again.');
       }
       if (offlineAccount.staff.must_change_password) {
         throw new Error('Connect to the internet and complete the required password change before using offline access.');
@@ -369,7 +369,7 @@ const Login = () => {
             {!online && (
               <div className="mt-5 rounded-lg border border-amber-200 bg-amber-50 p-4">
                 <p className="text-sm text-amber-950">
-                  Offline access works only on a device where you previously set up a passkey while signed in online.
+                  Offline access works only on a device where you previously enabled biometric sign-in while online.
                 </p>
                 <button
                   type="button"
@@ -377,10 +377,10 @@ const Login = () => {
                   disabled={loading}
                   className="mt-3 w-full rounded-lg border border-amber-700 px-4 py-3 font-semibold text-amber-900 transition-colors hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-60"
                 >
-                  {loading ? 'Verifying device passkey…' : 'Unlock with device passkey'}
+                  {loading ? 'Verifying your identity…' : 'Unlock with biometrics'}
                 </button>
                 <p className="mt-2 text-xs text-amber-900">
-                  Offline access is local and read-only. Financial transactions still need an internet connection.
+                  Use Face ID, fingerprint, or Windows Hello when available. Your device may offer its screen-lock PIN as a fallback. Offline access is local only; financial transactions need internet.
                 </p>
               </div>
             )}

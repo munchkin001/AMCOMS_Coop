@@ -82,7 +82,7 @@ export default function OfflineSyncStatus() {
       </div>
       {offlineMode && (
         <p role="status" className="bg-amber-50 px-3 py-2 text-sm text-amber-950">
-          Unlocked with this device’s passkey. You are viewing local cached data only; transactions and account changes require online sign-in.
+          Unlocked with this device’s biometric sign-in. You are viewing local cached data only; transactions and account changes require online sign-in.
         </p>
       )}
       {syncError && (
