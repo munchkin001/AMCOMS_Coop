@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabase';
 import { getAppUrl } from '../lib/appUrl';
 import { findStaffByLoginIdentifier } from '../lib/authHelpers';
 import { useRealtimeSubscription } from '../hooks/useRealtimeSubscription';
+import offlineDb from '../lib/Offline/OfflineDb';
 
 const AuthContext = createContext({});
 
@@ -99,10 +100,39 @@ export const AuthProvider = ({ children }) => {
       console.log('Staff profile loaded successfully');
       setStaff(staffProfile);
       setAuthError(null);
+      try {
+        await offlineDb.cachedData.put({
+          key: `staff-profile:${userId}`,
+          data: staffProfile,
+          updatedAt: new Date().toISOString()
+        });
+      } catch (cacheError) {
+        console.error('Unable to cache staff profile for offline access:', cacheError);
+      }
       setLoading(false);
       return data;
     } catch (error) {
       console.error('Unexpected error fetching staff profile:', error);
+      if (!navigator.onLine) {
+        try {
+          const cachedProfile = await offlineDb.cachedData.get(`staff-profile:${userId}`);
+          const cachedStaff = cachedProfile?.data;
+          const validRoles = ['chairman', 'manager', 'treasurer', 'bookkeeper', 'inventory', 'member'];
+          if (
+            cachedStaff?.user_id === userId &&
+            cachedStaff.is_active === true &&
+            validRoles.includes(cachedStaff.role) &&
+            (cachedStaff.role !== 'member' || cachedStaff.member_id)
+          ) {
+            setStaff(cachedStaff);
+            setAuthError(null);
+            setLoading(false);
+            return cachedStaff;
+          }
+        } catch (cacheError) {
+          console.error('Unable to load cached staff profile:', cacheError);
+        }
+      }
       setAuthError('Failed to load user profile. Please try again.');
       setStaff(null);
       setLoading(false);

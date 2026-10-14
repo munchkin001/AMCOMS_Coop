@@ -1,0 +1,2 @@
+id,product_id,quantity_on_hand,quantity_reserved,quantity_available,last_restock_date,last_count_date,location,created_at,updated_at
+707d2f50-f503-423b-bde7-228c5ba7f7af,d2f6c9ea-5928-4945-b977-58ddef15ccfa,10,0,10,2026-10-11,,,2026-10-11 09:17:19.256597+00,2026-10-11 09:17:19.256597+00

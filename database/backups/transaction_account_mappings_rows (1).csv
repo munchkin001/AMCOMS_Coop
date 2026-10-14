@@ -1,0 +1,19 @@
+id,document,transaction_type,label,counter_account_id,counter_side,member_effect,notes,sort_order,is_active,created_at
+177f7eb6-fe94-4099-ac2b-462c5f02cee2,receipt,membership_fee,Membership fee,8454400a-edd3-4d98-967e-419730e76917,credit,,Revenue.,70,true,2026-10-10 05:27:22.505381+00
+3088d9e8-d1b1-4a65-8987-a0180ac66526,receipt,accounts_receivable,Collection of accounts receivable,8544b26a-5dbc-4b42-a913-bc64c98e6e02,credit,,Not revenue: reduces a receivable already recognised.,30,true,2026-10-10 05:27:22.505381+00
+341b0f8a-4b3b-433e-a13e-3371d728b4f1,disbursement,savings_withdrawal,Savings / time deposit withdrawal,a2c9a698-cf02-45b0-8226-3bf69025184a,debit,Reduces member savings,Reduces the liability owed to the member. Not an expense.,20,true,2026-10-10 05:27:22.505381+00
+3e1753a1-157f-40e7-b6e2-eb275de05018,receipt,service_fee,Service fee,50cf5921-a80c-4368-b43e-7f657046cc7d,credit,,Revenue.,60,true,2026-10-10 05:27:22.505381+00
+71837b04-2cff-4aee-b1ee-4bcdd09851c0,receipt,marketing,Marketing,93633caa-f64d-4c4f-bb7a-1cd4ddf9d5ae,credit,,Revenue.,120,true,2026-10-10 05:27:22.505381+00
+81fa66b1-fd04-4718-93ee-d87583f26754,receipt,loan_principal,Loan principal payment,a4ae9265-d2f9-4dc1-bdfd-8f61cdffdcf8,credit,Reduces the member loan balance,Not revenue: reduces Loan Receivable.,40,true,2026-10-10 05:27:22.505381+00
+95627c5a-f5b0-4ddd-9e7b-f1262d3f6b70,receipt,bft,Barangay Food Terminal,109c24b5-643f-4c21-91ab-dd974fcab157,credit,,Revenue.,110,true,2026-10-10 05:27:22.505381+00
+9c6d02ee-7248-41e0-9ba7-2ae27a5eba74,receipt,capital_share,Capital share contribution,ee4320f2-75aa-4334-986a-947078c5a627,credit,Increases member share capital,Not revenue: member equity.,100,true,2026-10-10 05:27:22.505381+00
+9fcffd79-2f63-4b5c-b2c5-ff433ce5e745,receipt,loan_interest,Loan interest,0102904b-782a-49dd-933b-a50c3e2c9d8d,credit,,Revenue.,50,true,2026-10-10 05:27:22.505381+00
+af127305-8268-4c35-afc4-c5a5e683b3a6,receipt,other_income,Other income,5685f1cb-adba-44e9-b8c3-ad7834f97173,credit,,Revenue.,130,true,2026-10-10 05:27:22.505381+00
+bf45f868-fc17-4d4c-a609-ff2452aa00dc,disbursement,loan_release,Loan released to member,a4ae9265-d2f9-4dc1-bdfd-8f61cdffdcf8,debit,Adds to the member loan balance,Asset: money the member owes the cooperative. Chosen as Loan Payable on the form and posted to Loan Receivable.,10,true,2026-10-10 05:27:22.505381+00
+ce8b48bf-0ef8-4427-a01b-0d255e0d3af0,disbursement,building_improvements,Building improvements,e8e7e503-1edc-4202-babc-bb8f4a95d6ba,debit,,"Asset, not an expense.",50,true,2026-10-10 05:27:22.505381+00
+d0e34c9e-ebcb-4311-af45-72844a11a5e5,receipt,sales,Sales,553504b3-11be-48d8-9944-946ba05e459f,credit,,Revenue. Cash is debited.,10,true,2026-10-10 05:27:22.505381+00
+d2f15af6-60c9-4ace-a5b9-56a719f5c762,receipt,charge_sales,Charge sales,d35510fb-17cb-423a-892a-b7b7dde51b05,credit,,Revenue. Use Account Receivable as the debit when no cash is received.,20,true,2026-10-10 05:27:22.505381+00
+e2e7512e-740a-48a4-9e73-4e99259bd16a,disbursement,equipment,Equipment purchase,eb890390-abad-4d17-b51b-d8fdbdfea521,debit,,"Asset, not an expense.",40,true,2026-10-10 05:27:22.505381+00
+e7b922b5-cd6f-4883-96e4-3d633f304618,receipt,time_deposit,Time deposit placement,a2c9a698-cf02-45b0-8226-3bf69025184a,credit,Increases member time deposit,Not revenue: a liability owed to the member. Savings and time deposits share one account in the current chart.,90,true,2026-10-10 05:27:22.505381+00
+e9db76c0-ae1c-48d9-a79e-e276c1cb03a2,receipt,savings_deposit,Savings deposit,a2c9a698-cf02-45b0-8226-3bf69025184a,credit,Increases member savings,Not revenue: a liability owed to the member.,80,true,2026-10-10 05:27:22.505381+00
+fa37dc0b-cccb-490b-980a-3134482ed513,disbursement,accounts_payable,Payment of accounts payable,364673e6-23ee-4177-92b8-1c5430ac9897,debit,,Not an expense: settles a payable already recognised.,30,true,2026-10-10 05:27:22.505381+00

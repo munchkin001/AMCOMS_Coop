@@ -10,6 +10,8 @@ import DemoPages from './pages/DemoPages'
 import StaffPortal from './pages/StaffPortal'
 import MemberPortal from './pages/MemberPortal'
 import FormSubmissionConfirmation from './components/FormSubmissionConfirmation'
+import OfflineStatus from "./components/common/OfflineStatus";
+import OfflineSyncStatus from "./components/common/OfflineSyncStatus";
 
 function App() {
   return (
@@ -25,6 +27,7 @@ function App() {
           <Route path="/member-signup" element={<Navigate to="/login/member" replace />} />
           <Route path="/forgot-password" element={<ForgotPassword />} />
           <Route path="/reset-password" element={<ResetPassword />} />
+          
           
           {/* Staff Portal - All staff roles access this */}
           <Route 
@@ -47,6 +50,8 @@ function App() {
           />
         </Routes>
         <FormSubmissionConfirmation />
+        <OfflineStatus />
+        <OfflineSyncStatus />
       </Router>
     </AuthProvider>
   )

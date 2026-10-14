@@ -1,5 +1,7 @@
 import { supabase } from './supabase';
 import { toDateString } from './dashboardAccounting';
+import { queueOperation, getOperation } from './Offline/syncQueue';
+import { syncPendingOperations } from './Offline/syncOperations';
 
 export const INBOUND_TYPES = ['purchase', 'production', 'return'];
 
@@ -12,7 +14,6 @@ export const STOCK_IN_SOURCES = [
 ];
 
 export const STOCK_OUT_REASONS = [
-  { label: 'Sold', type: 'sale' },
   { label: 'Damaged', type: 'waste' },
   { label: 'Expired', type: 'waste' },
   { label: 'Lost', type: 'waste' },
@@ -69,17 +70,27 @@ export const recordStockMovement = async ({
   if (!productId) throw new Error('Select a product.');
   if (!Number.isInteger(amount) || amount <= 0) throw new Error('Enter a whole-number quantity greater than zero.');
 
-  const { error } = await supabase.rpc('record_inventory_movement', {
-    p_product_id: productId,
-    p_movement_type: movementType,
-    p_quantity: amount,
-    p_direction: direction,
-    p_movement_date: date,
-    p_reference: reference,
-    p_description: description,
-    p_unit_cost: unitCost === null || unitCost === '' ? null : Number(unitCost)
+  const operationId = await queueOperation({
+    type: 'inventory_movement',
+    payload: {
+      productId,
+      movementType,
+      quantity: amount,
+      direction,
+      date,
+      reference,
+      description,
+      unitCost: unitCost === null || unitCost === '' ? null : Number(unitCost)
+    }
   });
-  if (error) throw error;
+
+  if (navigator.onLine) await syncPendingOperations();
+  const operation = await getOperation(operationId);
+  return {
+    status: operation?.status || 'pending',
+    lastError: operation?.lastError || null,
+    operationId
+  };
 };
 
 /**

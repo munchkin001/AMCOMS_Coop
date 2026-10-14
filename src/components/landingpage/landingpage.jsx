@@ -434,7 +434,7 @@ const About = () => {
             {/* Accreditations and Partnerships */}
             <div id="accreditations" className="scroll-mt-24 mt-6 sm:mt-8">
               <h3 className="text-base sm:text-lg font-bold text-gray-900 mb-3">Partners &amp; Linkages</h3>
-              <div className="grid grid-cols-1 gap-3 sm:gap-4">
+              <div className="grid grid-cols-1 gap-x-6 gap-y-2 sm:grid-cols-2">
                 {[
                   'Land Bank of the Philippines (LBP)',
                   'Philippine Coconut Authority (PCA)',
@@ -449,10 +449,10 @@ const About = () => {
                   'HALAL Certification'
                 ].map((text) => (
                   <div key={text} className="flex items-start space-x-2">
-                    <svg className="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
+                    <svg className="mt-0.5 h-4 w-4 flex-shrink-0 text-green-600" fill="currentColor" viewBox="0 0 20 20">
                       <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
                     </svg>
-                    <span className="text-sm sm:text-base text-gray-700">{text}</span>
+                    <span className="text-sm text-gray-700">{text}</span>
                   </div>
                 ))}
               </div>

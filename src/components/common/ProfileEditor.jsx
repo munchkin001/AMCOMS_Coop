@@ -2,12 +2,16 @@ import { useEffect, useState } from 'react';
 import { ChevronDown, Eye, EyeOff, KeyRound, Save, UserRound } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
+import offlineDb from '../../lib/Offline/OfflineDb';
+import { queueOperation, getOperation } from '../../lib/Offline/syncQueue';
+import { syncPendingOperations } from '../../lib/Offline/syncOperations';
 
 const emptyProfile = {
   first_name: '',
   middle_name: '',
   last_name: '',
   email: '',
+  username: '',
   phone: '',
   address: '',
   date_of_birth: '',
@@ -65,7 +69,7 @@ const ProfileEditor = ({ profileType = 'staff', roleLabel }) => {
       try {
         const { data: staffRecord, error: staffError } = await supabase
           .from('staff')
-          .select('id, user_id, role, member_id, full_name, first_name, middle_name, last_name, email, phone, address, date_of_birth, emergency_contact_name, emergency_contact_phone, emergency_contact_relationship')
+          .select('id, user_id, role, member_id, full_name, first_name, middle_name, last_name, email, username, phone, address, date_of_birth, emergency_contact_name, emergency_contact_phone, emergency_contact_relationship')
           .eq('id', staff.id)
           .single();
         if (staffError) throw staffError;
@@ -84,12 +88,13 @@ const ProfileEditor = ({ profileType = 'staff', roleLabel }) => {
         if (!active) return;
         const source = memberRecord || staffRecord;
         const fallbackName = splitName(staffRecord.full_name);
-        setProfile({
+        const loadedProfile = {
           ...emptyProfile,
           first_name: source.first_name || staffRecord.first_name || fallbackName.first_name,
           middle_name: source.middle_name || staffRecord.middle_name || fallbackName.middle_name,
           last_name: source.last_name || staffRecord.last_name || fallbackName.last_name,
           email: user.email || staffRecord.email || '',
+          username: staffRecord.username || '',
           phone: source.phone || staffRecord.phone || '',
           address: source.address || staffRecord.address || '',
           date_of_birth: source.date_of_birth || staffRecord.date_of_birth || '',
@@ -97,11 +102,67 @@ const ProfileEditor = ({ profileType = 'staff', roleLabel }) => {
           emergency_contact_phone: source.emergency_contact_phone || staffRecord.emergency_contact_phone || '',
           emergency_contact_relationship: source.emergency_contact_relationship || staffRecord.emergency_contact_relationship || '',
           additional_emergency_contacts: Array.isArray(source.additional_emergency_contacts) ? source.additional_emergency_contacts : []
-        });
+        };
+        let displayedProfile = loadedProfile;
+        try {
+          const queuedOperations = await offlineDb.syncQueue
+            .where('userId')
+            .equals(user.id)
+            .toArray();
+          const pendingProfile = queuedOperations
+            .filter((operation) =>
+              operation.type === 'member_contact_update' && operation.status !== 'synced'
+            )
+            .sort((left, right) => right.createdAt.localeCompare(left.createdAt))[0];
+          if (pendingProfile?.payload) displayedProfile = pendingProfile.payload;
+        } catch (queueError) {
+          console.error('Unable to check queued profile changes:', queueError);
+        }
+        if (!active) return;
+        setProfile(displayedProfile);
         setMemberSummary(memberRecord);
+        try {
+          await offlineDb.cachedData.put({
+            key: `profile:${user.id}`,
+            data: {
+              profile: displayedProfile,
+              memberSummary: memberRecord
+            },
+            updatedAt: new Date().toISOString()
+          });
+        } catch (cacheError) {
+          console.error('Unable to cache profile for offline access:', cacheError);
+        }
       } catch (error) {
         console.error('Unable to load profile:', error);
-        if (active) setProfileError('Your profile could not be loaded. Please try again.');
+        try {
+          const cachedProfile = await offlineDb.cachedData.get(`profile:${user.id}`);
+          let pendingProfile = null;
+          try {
+            const queuedOperations = await offlineDb.syncQueue
+              .where('userId')
+              .equals(user.id)
+              .toArray();
+            pendingProfile = queuedOperations
+              .filter((operation) =>
+                operation.type === 'member_contact_update' && operation.status !== 'synced'
+              )
+              .sort((left, right) => right.createdAt.localeCompare(left.createdAt))[0];
+          } catch (queueError) {
+            console.error('Unable to load queued profile changes:', queueError);
+          }
+          if (!active) return;
+          if (pendingProfile?.payload || cachedProfile?.data?.profile) {
+            setProfile(pendingProfile?.payload || cachedProfile.data.profile);
+            setMemberSummary(cachedProfile.data.memberSummary || null);
+            setProfileNotice('Showing the profile saved on this device. Changes will sync when you are online.');
+          } else {
+            setProfileError('Your profile could not be loaded, and no saved offline copy is available.');
+          }
+        } catch (cacheError) {
+          console.error('Unable to load cached profile:', cacheError);
+          if (active) setProfileError('Your profile and saved offline copy could not be loaded.');
+        }
       } finally {
         if (active) setLoading(false);
       }
@@ -150,19 +211,42 @@ const ProfileEditor = ({ profileType = 'staff', roleLabel }) => {
     setProfileNotice('');
 
     try {
-      const { error } = await supabase.rpc('update_own_profile', {
-        p_profile: {
-          ...profile,
-          email: user?.email || '',
-          additional_emergency_contacts: profile.additional_emergency_contacts.filter((c) => c.name?.trim() || c.phone?.trim())
-        }
+      const profileUpdate = {
+        ...profile,
+        email: profile.email || user?.email || '',
+        username: profile.username || staff?.username || '',
+        additional_emergency_contacts: profile.additional_emergency_contacts.filter((contact) =>
+          contact.name?.trim() || contact.phone?.trim()
+        )
+      };
+      const operationId = await queueOperation({
+        type: 'member_contact_update',
+        payload: profileUpdate
       });
-      if (error) throw error;
 
-      setProfileNotice('Your profile has been saved.');
+      try {
+        await offlineDb.cachedData.put({
+          key: `profile:${user.id}`,
+          data: { profile: profileUpdate, memberSummary },
+          updatedAt: new Date().toISOString()
+        });
+      } catch (cacheError) {
+        console.error('Unable to refresh cached profile after save:', cacheError);
+      }
+
+      if (navigator.onLine) await syncPendingOperations();
+      const operation = await getOperation(operationId);
+      if (operation?.status === 'synced') {
+        setProfileNotice('Your profile changes have been synchronized.');
+      } else if (operation?.status === 'failed') {
+        setProfileNotice('Your changes are saved on this device and remain queued.');
+        setProfileError(`The server could not apply this profile update yet: ${operation.lastError}`);
+      } else {
+        setProfileNotice('Your changes are saved on this device and will sync when online.');
+      }
     } catch (error) {
       console.error('Unable to save profile:', error);
-      setProfileError(error.message || 'Your profile could not be saved. Please try again.');
+      setProfileError(error.message || 'Your profile could not be saved to this device.');
     } finally {
       setSaving(false);
     }

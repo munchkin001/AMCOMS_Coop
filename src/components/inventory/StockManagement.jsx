@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { supabase } from '../../lib/supabase';
 import { useMultipleRealtimeSubscriptions } from '../../hooks/useRealtimeSubscription';
 import { toDateString } from '../../lib/dashboardAccounting';
+import offlineDb from '../../lib/Offline/OfflineDb';
 import {
   STOCK_IN_SOURCES,
   STOCK_OUT_REASONS,
@@ -37,18 +38,44 @@ const StockManagement = () => {
       .order('product_name');
     if (currentRequest !== requestId.current) return;
 
-    if (loadError) setError(`Unable to load products: ${loadError.message}`);
-    else {
+    if (loadError) {
+      console.error('Unable to refresh inventory products:', loadError);
+      try {
+        const cachedProducts = await offlineDb.cachedData.get('inventory-products');
+        if (currentRequest !== requestId.current) return;
+        if (Array.isArray(cachedProducts?.data)) {
+          setProducts(cachedProducts.data);
+          setError('Using the saved product list. Stock availability will be verified when changes sync.');
+        } else {
+          setError(`Unable to load products: ${loadError.message}`);
+        }
+      } catch (cacheError) {
+        console.error('Unable to load cached inventory products:', cacheError);
+        setError(`Unable to load products: ${loadError.message}`);
+      }
+    } else {
       setProducts(data || []);
       setError('');
+      try {
+        await offlineDb.cachedData.put({
+          key: 'inventory-products',
+          data: data || [],
+          updatedAt: new Date().toISOString()
+        });
+      } catch (cacheError) {
+        console.error('Unable to cache inventory products:', cacheError);
+      }
     }
     setLoading(false);
   }, []);
 
   useEffect(() => {
     fetchProducts();
+    const handleOnline = () => fetchProducts();
+    window.addEventListener('online', handleOnline);
     return () => {
       requestId.current += 1;
+      window.removeEventListener('online', handleOnline);
     };
   }, [fetchProducts]);
 
@@ -87,7 +114,7 @@ const StockManagement = () => {
 
     setSaving(true);
     try {
-      await recordStockMovement({
+      const result = await recordStockMovement({
         productId: form.productId,
         movementType: choice.type,
         quantity: form.quantity,
@@ -97,9 +124,16 @@ const StockManagement = () => {
         description: form.remarks.trim() ? `${choice.label}: ${form.remarks.trim()}` : choice.label,
         unitCost: isStockIn ? Number(form.unitCost) : null
       });
-      setNotice(`${isStockIn ? 'Stock in' : 'Stock out'} recorded for ${selectedProduct?.product_name}.`);
+      if (result.status === 'synced') {
+        setNotice(`${isStockIn ? 'Stock in' : 'Stock out'} synchronized for ${selectedProduct?.product_name}.`);
+        fetchProducts();
+      } else {
+        setNotice(`${isStockIn ? 'Stock in' : 'Stock out'} saved on this device and queued for sync.`);
+        if (result.status === 'failed') {
+          setError(`The server could not apply this movement yet: ${result.lastError}`);
+        }
+      }
       setForm(newForm());
-      fetchProducts();
     } catch (saveError) {
       setError(saveError.message);
     } finally {
@@ -127,7 +161,7 @@ const StockManagement = () => {
         <p className="text-gray-600 mb-4">
           {isStockIn
             ? 'Used when products are added to inventory (newly produced, received from suppliers, agricultural products received at BFT, returned products).'
-            : 'Used when products leave inventory (sold, transferred, damaged, expired, or other authorized releases).'}
+            : 'Use for transfers, damaged, expired, lost, or other authorized releases. Record sales through the Sales transaction so revenue and stock stay linked.'}
         </p>
 
         {error && <p role="alert" className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{error}</p>}
