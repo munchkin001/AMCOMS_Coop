@@ -852,6 +852,7 @@ const Membership = () => {
 
 
 const Reviews = () => {
+  const googleReviewsUrl = 'https://www.google.com/maps/place/Agay-Ayan+Multi-Purpose+Cooperative/@8.8595116,125.0518517,17z/data=!4m8!3m7!1s0x33002f0986577b49:0xb2ca9ac866969672!8m2!3d8.8595116!4d125.0518517!9m1!1b1!16s%2Fg%2F1pzy89zxb';
   const reviews = [
     {
       name: 'Jeff Doñahan',
@@ -969,10 +970,31 @@ const Reviews = () => {
           ))}
         </div>
 
+        <div className="mx-auto mb-8 max-w-4xl rounded-2xl border border-green-100 bg-white px-6 py-8 text-center shadow-sm sm:px-10">
+          <div className="mb-3 flex justify-center gap-1 text-yellow-400" aria-label="Five stars">
+            {renderStars(5)}
+          </div>
+          <h3 className="text-2xl font-bold text-gray-900">Write Your Own Review</h3>
+          <p className="mx-auto mt-2 max-w-2xl text-sm leading-relaxed text-gray-600">
+            Have you visited or worked with Agay-Ayan MPC? Share your experience and help others learn about our cooperative.
+          </p>
+          <a
+            href={googleReviewsUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="mt-5 inline-flex items-center justify-center gap-2 rounded-lg bg-green-700 px-6 py-3 font-semibold text-white transition-colors hover:bg-green-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-700 focus-visible:ring-offset-2"
+          >
+            Write a Review on Google
+            <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+            </svg>
+          </a>
+        </div>
+
         {/* View More Button */}
         <div className="text-center">
           <a 
-            href="https://www.google.com/maps/place/Agay-Ayan+Multi-Purpose+Cooperative/@8.8595116,125.0518517,17z/data=!4m8!3m7!1s0x33002f0986577b49:0xb2ca9ac866969672!8m2!3d8.8595116!4d125.0518517!9m1!1b1!16s%2Fg%2F1pzy89zxb" 
+            href={googleReviewsUrl}
             target="_blank" 
             rel="noopener noreferrer"
             className="inline-flex items-center gap-2 bg-yellow-400 text-gray-900 px-6 py-3 rounded-lg hover:bg-yellow-500 transition-colors font-semibold"

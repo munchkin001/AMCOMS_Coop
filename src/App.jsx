@@ -10,7 +10,6 @@ import DemoPages from './pages/DemoPages'
 import StaffPortal from './pages/StaffPortal'
 import MemberPortal from './pages/MemberPortal'
 import FormSubmissionConfirmation from './components/FormSubmissionConfirmation'
-import OfflineStatus from "./components/common/OfflineStatus";
 import OfflineSyncStatus from "./components/common/OfflineSyncStatus";
 
 function App() {
@@ -50,7 +49,6 @@ function App() {
           />
         </Routes>
         <FormSubmissionConfirmation />
-        <OfflineStatus />
         <OfflineSyncStatus />
       </Router>
     </AuthProvider>

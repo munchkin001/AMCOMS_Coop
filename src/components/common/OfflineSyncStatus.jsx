@@ -60,8 +60,15 @@ export default function OfflineSyncStatus() {
       >
         <span>{online ? "Online" : "Offline"}</span>
         <span>
-          {pendingCount} pending change{pendingCount === 1 ? "" : "s"}
+          {pendingCount > 0
+            ? `${pendingCount} change${pendingCount === 1 ? "" : "s"} waiting to sync`
+            : online
+              ? "No pending changes"
+              : "No changes waiting to sync"}
         </span>
+        {!online && pendingCount > 0 && (
+          <span>Saved on this device; sync resumes when online.</span>
+        )}
         {failed.length > 0 && (
           <span className="text-red-800">
             {failed.length} need{failed.length === 1 ? "s" : ""} attention

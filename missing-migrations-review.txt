@@ -1,0 +1,3877 @@
+﻿
+================================================================================
+FILE: 20260928000001_add_username_auth.sql
+================================================================================
+-- =====================================================
+-- Migration: Add Username-based Authentication
+-- Date: 2026-09-28
+-- Description: Add username field to staff table and 
+--              remove email verification requirements
+-- =====================================================
+
+-- Add username column to staff table (unique, required)
+ALTER TABLE public.staff
+ADD COLUMN IF NOT EXISTS username TEXT UNIQUE;
+
+-- Create index for username lookups
+CREATE INDEX IF NOT EXISTS staff_username_idx ON public.staff(username);
+
+-- Function to validate username format (create before using it)
+CREATE OR REPLACE FUNCTION public.validate_username(p_username TEXT)
+RETURNS BOOLEAN
+LANGUAGE plpgsql
+AS $$
+BEGIN
+  -- Username must be 3-30 characters, alphanumeric with dots and underscores
+  RETURN p_username ~ '^[a-zA-Z0-9._]{3,30}$';
+END;
+$$;
+
+COMMENT ON FUNCTION public.validate_username IS 'Validates username format: 3-30 chars, alphanumeric with dots/underscores';
+
+-- Function to generate valid username from full name
+CREATE OR REPLACE FUNCTION public.generate_username_from_name(p_full_name TEXT)
+RETURNS TEXT
+LANGUAGE plpgsql
+AS $$
+DECLARE
+  v_username TEXT;
+BEGIN
+  -- Convert to lowercase, replace spaces with dots, remove special chars
+  v_username := lower(regexp_replace(p_full_name, '[^a-zA-Z0-9\s]', '', 'g'));
+  v_username := regexp_replace(v_username, '\s+', '.', 'g');
+  
+  -- Remove leading/trailing dots
+  v_username := trim(both '.' from v_username);
+  
+  -- Ensure it's between 3-30 characters
+  IF length(v_username) < 3 THEN
+    v_username := v_username || '.user';
+  END IF;
+  
+  IF length(v_username) > 30 THEN
+    v_username := substring(v_username, 1, 30);
+    -- Remove trailing dot if any
+    v_username := trim(trailing '.' from v_username);
+  END IF;
+  
+  RETURN v_username;
+END;
+$$;
+
+-- Update existing staff to have usernames (temporary, should be updated by admin)
+-- Use the function to ensure valid usernames
+UPDATE public.staff
+SET username = generate_username_from_name(full_name)
+WHERE username IS NULL;
+
+-- Handle any duplicates by adding numbers
+DO $$
+DECLARE
+  v_record RECORD;
+  v_new_username TEXT;
+  v_counter INTEGER;
+BEGIN
+  FOR v_record IN 
+    SELECT username, array_agg(id ORDER BY created_at) as ids
+    FROM public.staff
+    WHERE username IS NOT NULL
+    GROUP BY username
+    HAVING count(*) > 1
+  LOOP
+    v_counter := 1;
+    -- Skip the first one (keep original username)
+    FOREACH v_record.id IN ARRAY v_record.ids[2:array_length(v_record.ids, 1)]
+    LOOP
+      v_new_username := v_record.username || v_counter::text;
+      -- Ensure it's not too long
+      IF length(v_new_username) > 30 THEN
+        v_new_username := substring(v_record.username, 1, 28) || v_counter::text;
+      END IF;
+      
+      UPDATE public.staff 
+      SET username = v_new_username 
+      WHERE id = v_record.id;
+      
+      v_counter := v_counter + 1;
+    END LOOP;
+  END LOOP;
+END $$;
+
+-- Make username NOT NULL after populating existing records
+ALTER TABLE public.staff
+ALTER COLUMN username SET NOT NULL;
+
+COMMENT ON COLUMN public.staff.username IS 'Unique username for authentication (replaces email login)';
+
+-- Add check constraint for username format (now that all usernames are valid)
+ALTER TABLE public.staff
+ADD CONSTRAINT staff_username_format_check 
+CHECK (validate_username(username));
+
+-- RLS: Update policies to allow username lookups during login
+-- This policy allows anyone to read staff records by username during authentication
+-- The existing policies will handle authorization after login
+DROP POLICY IF EXISTS "Allow username lookup for authentication" ON public.staff;
+CREATE POLICY "Allow username lookup for authentication"
+ON public.staff
+FOR SELECT
+USING (true); -- Temporary open policy for username lookup, will be restricted by application logic
+
+-- Log this migration
+DO $$
+BEGIN
+  RAISE NOTICE 'âœ“ Added username field to staff table';
+  RAISE NOTICE 'âœ“ Created username index for fast lookups';
+  RAISE NOTICE 'âœ“ Populated existing staff with default usernames';
+  RAISE NOTICE 'âœ“ Added username validation function';
+  RAISE NOTICE '';
+  RAISE NOTICE 'IMPORTANT: Staff should update their usernames and passwords';
+  RAISE NOTICE 'Email verification has been disabled in favor of username/password auth';
+END $$;
+
+
+================================================================================
+FILE: 20261011000001_policies_realtime.sql
+================================================================================
+CREATE TABLE IF NOT EXISTS public.policies (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  name TEXT NOT NULL,
+  category TEXT NOT NULL,
+  content TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'draft' CHECK (status IN ('draft', 'published')),
+  published_at TIMESTAMPTZ,
+  published_by TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+ALTER TABLE public.policies ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Chairman can manage policies" ON public.policies;
+CREATE POLICY "Chairman can manage policies" ON public.policies
+  FOR ALL
+  USING (public.has_role('chairman'))
+  WITH CHECK (public.has_role('chairman'));
+
+DROP TRIGGER IF EXISTS set_policies_updated_at ON public.policies;
+CREATE TRIGGER set_policies_updated_at
+  BEFORE UPDATE ON public.policies
+  FOR EACH ROW EXECUTE FUNCTION public.handle_updated_at();
+
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM pg_publication WHERE pubname = 'supabase_realtime')
+     AND NOT EXISTS (
+       SELECT 1 FROM pg_publication_tables
+       WHERE pubname = 'supabase_realtime'
+         AND schemaname = 'public'
+         AND tablename = 'policies'
+     ) THEN
+    ALTER PUBLICATION supabase_realtime ADD TABLE public.policies;
+  END IF;
+END $$;
+
+
+================================================================================
+FILE: 20261011000002_treasurer_cash_reconciliation.sql
+================================================================================
+
+================================================================================
+FILE: 20261011000003_link_disbursements_to_purchases.sql
+================================================================================
+-- Link supplier payments (cash disbursements) to purchases.
+-- A disbursement whose description or voucher number mentions a purchase number
+-- counts as a payment against that purchase. The purchase's payment_status is
+-- recomputed whenever a disbursement is added, changed or deleted, so the
+-- inventory portal shows Paid / Partial / Pending without needing access to
+-- the bookkeeper's financial records.
+
+CREATE OR REPLACE FUNCTION public.refresh_purchase_payment_status(p_text TEXT)
+RETURNS VOID
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  p RECORD;
+  v_paid NUMERIC;
+  v_status TEXT;
+BEGIN
+  IF p_text IS NULL OR p_text = '' THEN
+    RETURN;
+  END IF;
+
+  FOR p IN
+    SELECT id, purchase_number, net_amount, payment_status
+    FROM public.purchases
+    WHERE status <> 'cancelled'
+      AND position(lower(purchase_number) IN lower(p_text)) > 0
+  LOOP
+    SELECT COALESCE(SUM(d.amount), 0) INTO v_paid
+    FROM public.cash_disbursements d
+    WHERE d.status = 'recorded'
+      AND position(lower(p.purchase_number) IN lower(COALESCE(d.description, '') || ' ' || COALESCE(d.voucher_number, ''))) > 0;
+
+    v_status := CASE
+      WHEN v_paid > 0 AND v_paid >= p.net_amount THEN 'paid'
+      WHEN v_paid > 0 THEN 'partial'
+      ELSE 'pending'
+    END;
+
+    IF v_status IS DISTINCT FROM p.payment_status THEN
+      UPDATE public.purchases SET payment_status = v_status, updated_at = now() WHERE id = p.id;
+    END IF;
+  END LOOP;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.sync_purchase_payment_from_disbursement()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+BEGIN
+  IF TG_OP IN ('UPDATE', 'DELETE') THEN
+    PERFORM public.refresh_purchase_payment_status(COALESCE(OLD.description, '') || ' ' || COALESCE(OLD.voucher_number, ''));
+  END IF;
+  IF TG_OP IN ('INSERT', 'UPDATE') THEN
+    PERFORM public.refresh_purchase_payment_status(COALESCE(NEW.description, '') || ' ' || COALESCE(NEW.voucher_number, ''));
+  END IF;
+  RETURN COALESCE(NEW, OLD);
+END;
+$$;
+
+DROP TRIGGER IF EXISTS sync_purchase_payment ON public.cash_disbursements;
+CREATE TRIGGER sync_purchase_payment
+  AFTER INSERT OR UPDATE OR DELETE ON public.cash_disbursements
+  FOR EACH ROW EXECUTE FUNCTION public.sync_purchase_payment_from_disbursement();
+
+-- Re-check when a purchase is created or its amount changes, in case a payment
+-- referencing its number was already recorded.
+CREATE OR REPLACE FUNCTION public.sync_purchase_payment_on_purchase()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+BEGIN
+  PERFORM public.refresh_purchase_payment_status(NEW.purchase_number);
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS sync_purchase_payment_self ON public.purchases;
+CREATE TRIGGER sync_purchase_payment_self
+  AFTER INSERT OR UPDATE OF net_amount, status ON public.purchases
+  FOR EACH ROW EXECUTE FUNCTION public.sync_purchase_payment_on_purchase();
+
+
+================================================================================
+FILE: 20261011000004_purchase_items_materials.sql
+================================================================================
+-- Purchases are for raw materials and supplies, not finished products.
+-- Line items are now described by name and unit; the product link is optional.
+
+ALTER TABLE public.purchase_items
+  ALTER COLUMN product_id DROP NOT NULL,
+  ADD COLUMN IF NOT EXISTS item_name TEXT,
+  ADD COLUMN IF NOT EXISTS unit TEXT;
+
+ALTER TABLE public.purchase_items
+  DROP CONSTRAINT IF EXISTS purchase_items_item_check;
+ALTER TABLE public.purchase_items
+  ADD CONSTRAINT purchase_items_item_check
+  CHECK (product_id IS NOT NULL OR NULLIF(trim(item_name), '') IS NOT NULL);
+
+
+================================================================================
+FILE: 20261013000003_staff_names_and_username_login.sql
+================================================================================
+BEGIN;
+
+DO $$
+DECLARE
+  matching_auth_users INTEGER;
+BEGIN
+  SELECT count(DISTINCT lower(email))
+  INTO matching_auth_users
+  FROM auth.users
+  WHERE lower(email) IN (
+    'chairman@amcoms.com',
+    'manager@amcoms.com',
+    'treasurer@amcoms.com',
+    'bookkeeper@amcoms.com',
+    'inventory@amcoms.com'
+  );
+
+  IF matching_auth_users <> 5 THEN
+    RAISE EXCEPTION
+      'Expected all 5 existing staff Auth users before creating staff profiles; found %',
+      matching_auth_users;
+  END IF;
+END;
+$$;
+
+WITH staff_accounts(role, email, username, full_name) AS (
+  VALUES
+    ('chairman', 'chairman@amcoms.com', 'chairman', 'Carlito Labial'),
+    ('manager', 'manager@amcoms.com', 'manager', 'Isabelita Labial'),
+    ('treasurer', 'treasurer@amcoms.com', 'treasurer', 'Eulalia Andoy'),
+    ('bookkeeper', 'bookkeeper@amcoms.com', 'bookkeeper', 'Joan Mae Madrazo'),
+    ('inventory', 'inventory@amcoms.com', 'inventory', 'Joan Mae Madrazo')
+)
+INSERT INTO public.staff (user_id, username, email, full_name, role, is_active)
+SELECT auth_user.id, account.username, auth_user.email, account.full_name, account.role, true
+FROM auth.users AS auth_user
+JOIN staff_accounts AS account
+  ON lower(auth_user.email) = account.email
+ON CONFLICT (user_id) DO UPDATE
+SET username = EXCLUDED.username,
+    email = EXCLUDED.email,
+    full_name = EXCLUDED.full_name,
+    role = EXCLUDED.role,
+    is_active = true,
+    updated_at = timezone('utc'::text, now());
+
+WITH staff_accounts(email, full_name) AS (
+  VALUES
+    ('chairman@amcoms.com', 'Carlito Labial'),
+    ('manager@amcoms.com', 'Isabelita Labial'),
+    ('treasurer@amcoms.com', 'Eulalia Andoy'),
+    ('bookkeeper@amcoms.com', 'Joan Mae Madrazo'),
+    ('inventory@amcoms.com', 'Joan Mae Madrazo')
+)
+UPDATE auth.users AS auth_user
+SET raw_user_meta_data = COALESCE(auth_user.raw_user_meta_data, '{}'::jsonb)
+  || jsonb_build_object('full_name', account.full_name)
+FROM staff_accounts AS account
+WHERE lower(auth_user.email) = account.email;
+
+CREATE OR REPLACE FUNCTION public.lookup_staff_login(p_identifier TEXT)
+RETURNS TABLE (email TEXT, is_active BOOLEAN)
+LANGUAGE SQL
+STABLE
+SECURITY DEFINER
+SET search_path = public, pg_temp
+AS $$
+  WITH normalized AS (
+    SELECT
+      lower(regexp_replace(btrim(coalesce(p_identifier, '')), '\s+', ' ', 'g')) AS value
+  ),
+  username_matches AS (
+    SELECT s.email, s.is_active
+    FROM public.staff s
+    CROSS JOIN normalized n
+    WHERE n.value <> ''
+      AND lower(s.username) = n.value
+  ),
+  name_matches AS (
+    SELECT s.email, s.is_active
+    FROM public.staff s
+    CROSS JOIN normalized n
+    WHERE n.value <> ''
+      AND lower(regexp_replace(btrim(s.full_name), '\s+', ' ', 'g')) = n.value
+  )
+  SELECT login_match.email, login_match.is_active
+  FROM (
+    SELECT um.email, um.is_active
+    FROM username_matches um
+    UNION ALL
+    SELECT nm.email, nm.is_active
+    FROM name_matches nm
+    WHERE NOT EXISTS (SELECT 1 FROM username_matches)
+  ) AS login_match
+  LIMIT 2;
+$$;
+
+REVOKE ALL ON FUNCTION public.lookup_staff_login(TEXT) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.lookup_staff_login(TEXT) TO anon, authenticated;
+
+COMMIT;
+
+
+================================================================================
+FILE: 20261013000006_unambiguous_staff_login.sql
+================================================================================
+BEGIN;
+
+CREATE OR REPLACE FUNCTION public.lookup_staff_login(p_identifier TEXT)
+RETURNS TABLE (email TEXT, is_active BOOLEAN)
+LANGUAGE SQL
+STABLE
+SECURITY DEFINER
+SET search_path = public, pg_temp
+AS $$
+  WITH normalized AS (
+    SELECT lower(regexp_replace(btrim(coalesce(p_identifier, '')), '\s+', ' ', 'g')) AS value
+  ),
+  username_matches AS (
+    SELECT s.email, s.is_active
+    FROM public.staff AS s
+    CROSS JOIN normalized AS n
+    WHERE n.value <> ''
+      AND lower(btrim(s.username)) = n.value
+      AND s.email IS NOT NULL
+  ),
+  name_matches AS (
+    SELECT s.email, s.is_active
+    FROM public.staff AS s
+    CROSS JOIN normalized AS n
+    WHERE n.value <> ''
+      AND lower(regexp_replace(btrim(s.full_name), '\s+', ' ', 'g')) = n.value
+      AND s.email IS NOT NULL
+  )
+  SELECT matched.email, matched.is_active
+  FROM (
+    SELECT um.email, um.is_active
+    FROM username_matches AS um
+    UNION ALL
+    SELECT nm.email, nm.is_active
+    FROM name_matches AS nm
+    WHERE NOT EXISTS (SELECT 1 FROM username_matches)
+  ) AS matched
+  LIMIT 2;
+$$;
+
+REVOKE ALL ON FUNCTION public.lookup_staff_login(TEXT) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.lookup_staff_login(TEXT) TO anon, authenticated;
+
+NOTIFY pgrst, 'reload schema';
+
+COMMIT;
+
+
+================================================================================
+FILE: 20261013000007_bookkeeper_member_username.sql
+================================================================================
+BEGIN;
+
+DROP FUNCTION IF EXISTS public.bookkeeper_member_account_status(UUID[]);
+
+CREATE FUNCTION public.bookkeeper_member_account_status(p_member_ids UUID[])
+RETURNS TABLE (
+  member_id UUID,
+  has_account BOOLEAN,
+  is_active BOOLEAN,
+  must_change_password BOOLEAN,
+  username TEXT
+)
+LANGUAGE plpgsql
+STABLE
+SECURITY DEFINER
+SET search_path = public, pg_temp
+AS $$
+BEGIN
+  IF NOT public.has_role('bookkeeper') THEN
+    RAISE EXCEPTION 'Only Bookkeepers can view member account status';
+  END IF;
+
+  RETURN QUERY
+  SELECT DISTINCT ON (s.member_id)
+    s.member_id,
+    s.user_id IS NOT NULL,
+    s.is_active,
+    s.must_change_password,
+    s.username
+  FROM public.staff AS s
+  WHERE s.role = 'member'
+    AND s.member_id = ANY(COALESCE(p_member_ids, ARRAY[]::UUID[]))
+  ORDER BY s.member_id, s.is_active DESC, (s.user_id IS NOT NULL) DESC, s.created_at DESC;
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.bookkeeper_member_account_status(UUID[]) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.bookkeeper_member_account_status(UUID[]) TO authenticated;
+
+CREATE OR REPLACE FUNCTION public.bookkeeper_update_member_username(
+  p_member_id UUID,
+  p_username TEXT
+)
+RETURNS VOID
+LANGUAGE plpgsql
+VOLATILE
+SECURITY DEFINER
+SET search_path = public, pg_temp
+AS $$
+DECLARE
+  username_value TEXT := lower(trim(p_username));
+  member_staff public.staff%ROWTYPE;
+BEGIN
+  IF NOT public.has_role('bookkeeper') THEN
+    RAISE EXCEPTION 'Only Bookkeepers can update member usernames';
+  END IF;
+  IF username_value IS NULL OR username_value !~ '^[a-z0-9._]{3,30}$' THEN
+    RAISE EXCEPTION 'Username must be 3-30 characters and contain only letters, numbers, dots, and underscores';
+  END IF;
+
+  SELECT s.* INTO member_staff
+  FROM public.staff AS s
+  WHERE s.member_id = p_member_id
+    AND s.role = 'member'
+    AND s.user_id IS NOT NULL
+  FOR UPDATE;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'No linked member portal account was found';
+  END IF;
+
+  IF EXISTS (
+    SELECT 1
+    FROM public.staff AS s
+    WHERE lower(s.username) = username_value
+      AND s.id <> member_staff.id
+  ) THEN
+    RAISE EXCEPTION 'This username is already taken';
+  END IF;
+
+  UPDATE public.staff
+  SET username = username_value,
+      updated_at = timezone('utc'::text, now())
+  WHERE id = member_staff.id;
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.bookkeeper_update_member_username(UUID, TEXT) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.bookkeeper_update_member_username(UUID, TEXT) TO authenticated;
+
+NOTIFY pgrst, 'reload schema';
+
+COMMIT;
+
+
+================================================================================
+FILE: 20261013000008_username_only_member_accounts.sql
+================================================================================
+BEGIN;
+
+CREATE OR REPLACE FUNCTION public.bookkeeper_link_member_auth(
+  p_member_id UUID,
+  p_auth_user_id UUID
+)
+RETURNS JSONB
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, auth, pg_temp
+AS $$
+DECLARE
+  v_actor_id UUID := public.current_staff_id();
+  v_member public.members%ROWTYPE;
+  v_auth_email TEXT;
+  v_expected_email TEXT;
+  v_existing_staff public.staff%ROWTYPE;
+  v_staff_id UUID;
+  v_full_name TEXT;
+BEGIN
+  IF v_actor_id IS NULL OR NOT public.has_role('bookkeeper') THEN
+    RAISE EXCEPTION 'Only Bookkeepers can create member portal accounts';
+  END IF;
+
+  SELECT * INTO v_member
+  FROM public.members
+  WHERE id = p_member_id
+  FOR UPDATE;
+  IF NOT FOUND OR v_member.membership_status <> 'active' OR v_member.archived_at IS NOT NULL THEN
+    RAISE EXCEPTION 'An active member record is required for portal access';
+  END IF;
+
+  SELECT lower(email) INTO v_auth_email
+  FROM auth.users
+  WHERE id = p_auth_user_id;
+  IF v_auth_email IS NULL THEN
+    RAISE EXCEPTION 'The authentication account must have a login email';
+  END IF;
+
+  v_expected_email := COALESCE(
+    lower(NULLIF(btrim(v_member.email), '')),
+    lower(v_member.id::TEXT || '@members.amcoms.invalid')
+  );
+  IF v_auth_email <> v_expected_email THEN
+    RAISE EXCEPTION 'The authentication login does not match the member account';
+  END IF;
+
+  SELECT * INTO v_existing_staff
+  FROM public.staff
+  WHERE user_id = p_auth_user_id
+  FOR UPDATE;
+  IF FOUND THEN
+    IF v_existing_staff.role <> 'member'
+       OR (v_existing_staff.member_id IS NOT NULL AND v_existing_staff.member_id <> p_member_id) THEN
+      RAISE EXCEPTION 'This authentication account is already linked to another profile';
+    END IF;
+    v_staff_id := v_existing_staff.id;
+    UPDATE public.staff
+    SET member_id = p_member_id,
+        role = 'member',
+        is_active = true,
+        must_change_password = true,
+        full_name = concat_ws(' ', v_member.first_name, v_member.middle_name, v_member.last_name),
+        email = v_auth_email,
+        username = COALESCE(NULLIF(btrim(v_existing_staff.username), ''), v_member.member_number),
+        updated_at = timezone('utc'::TEXT, now())
+    WHERE id = v_staff_id;
+  ELSE
+    IF EXISTS (
+      SELECT 1
+      FROM public.staff
+      WHERE lower(email) = v_auth_email
+         OR lower(username) = lower(v_member.member_number)
+    ) THEN
+      RAISE EXCEPTION 'The login email or member number is already associated with another account';
+    END IF;
+
+    v_full_name := concat_ws(' ', v_member.first_name, v_member.middle_name, v_member.last_name);
+    INSERT INTO public.staff (
+      user_id, username, email, full_name, role, is_active, member_id, must_change_password
+    ) VALUES (
+      p_auth_user_id, v_member.member_number, v_auth_email, v_full_name,
+      'member', true, p_member_id, true
+    )
+    RETURNING id INTO v_staff_id;
+  END IF;
+
+  RETURN jsonb_build_object('staff_id', v_staff_id, 'must_change_password', true);
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.update_own_profile(p_profile JSONB)
+RETURNS VOID
+LANGUAGE plpgsql
+VOLATILE
+SECURITY DEFINER
+SET search_path = public, auth, pg_temp
+AS $$
+DECLARE
+  authenticated_user_id UUID := auth.uid();
+  actor public.staff%ROWTYPE;
+  authenticated_email TEXT;
+  profile_email TEXT := lower(trim(p_profile ->> 'email'));
+  first_name_value TEXT := trim(p_profile ->> 'first_name');
+  middle_name_value TEXT := NULLIF(trim(p_profile ->> 'middle_name'), '');
+  last_name_value TEXT := trim(p_profile ->> 'last_name');
+  username_value TEXT := lower(trim(p_profile ->> 'username'));
+  full_name_value TEXT;
+  date_of_birth_value DATE := NULLIF(trim(p_profile ->> 'date_of_birth'), '')::DATE;
+  member_contact_email TEXT;
+BEGIN
+  IF authenticated_user_id IS NULL THEN
+    RAISE EXCEPTION 'Authentication is required to update a profile';
+  END IF;
+  IF p_profile IS NULL OR jsonb_typeof(p_profile) <> 'object' THEN
+    RAISE EXCEPTION 'A valid profile is required';
+  END IF;
+  IF first_name_value IS NULL OR first_name_value = ''
+     OR last_name_value IS NULL OR last_name_value = '' THEN
+    RAISE EXCEPTION 'First and last name are required';
+  END IF;
+  IF username_value IS NULL OR username_value !~ '^[a-z0-9._]{3,30}$' THEN
+    RAISE EXCEPTION 'Username must be 3-30 characters and contain only letters, numbers, dots, and underscores';
+  END IF;
+
+  SELECT u.email INTO authenticated_email
+  FROM auth.users AS u
+  WHERE u.id = authenticated_user_id;
+  IF authenticated_email IS NULL OR lower(authenticated_email) <> profile_email THEN
+    RAISE EXCEPTION 'The profile email must match the verified account email';
+  END IF;
+  IF date_of_birth_value > CURRENT_DATE THEN
+    RAISE EXCEPTION 'Date of birth cannot be in the future';
+  END IF;
+
+  SELECT s.* INTO actor
+  FROM public.staff AS s
+  WHERE s.user_id = authenticated_user_id
+    AND s.is_active = true
+  FOR UPDATE;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'An active staff or member profile is required';
+  END IF;
+
+  IF EXISTS (
+    SELECT 1
+    FROM public.staff AS s
+    WHERE lower(s.username) = username_value
+      AND s.id <> actor.id
+  ) THEN
+    RAISE EXCEPTION 'This username is already taken. Please choose a different one';
+  END IF;
+
+  full_name_value := concat_ws(' ', first_name_value, middle_name_value, last_name_value);
+
+  IF actor.role = 'member' THEN
+    IF actor.member_id IS NULL THEN
+      RAISE EXCEPTION 'The member profile is not linked';
+    END IF;
+    IF NOT EXISTS (
+      SELECT 1
+      FROM public.members AS m
+      WHERE m.id = actor.member_id
+        AND m.membership_status = 'active'
+        AND m.archived_at IS NULL
+    ) THEN
+      RAISE EXCEPTION 'Only active members can update their profiles';
+    END IF;
+
+    member_contact_email := CASE
+      WHEN lower(authenticated_email) LIKE '%@members.amcoms.invalid'
+      THEN NULL
+      ELSE profile_email
+    END;
+
+    UPDATE public.members
+    SET first_name = first_name_value,
+        middle_name = middle_name_value,
+        last_name = last_name_value,
+        email = member_contact_email,
+        phone = NULLIF(trim(p_profile ->> 'phone'), ''),
+        address = NULLIF(trim(p_profile ->> 'address'), ''),
+        date_of_birth = date_of_birth_value,
+        emergency_contact_name = NULLIF(trim(p_profile ->> 'emergency_contact_name'), ''),
+        emergency_contact_phone = NULLIF(trim(p_profile ->> 'emergency_contact_phone'), ''),
+        emergency_contact_relationship = NULLIF(trim(p_profile ->> 'emergency_contact_relationship'), ''),
+        additional_emergency_contacts = CASE
+          WHEN jsonb_typeof(p_profile -> 'additional_emergency_contacts') = 'array'
+          THEN p_profile -> 'additional_emergency_contacts'
+          ELSE '[]'::JSONB
+        END
+    WHERE id = actor.member_id;
+    IF NOT FOUND THEN
+      RAISE EXCEPTION 'The linked member profile could not be found';
+    END IF;
+  END IF;
+
+  UPDATE public.staff
+  SET first_name = first_name_value,
+      middle_name = middle_name_value,
+      last_name = last_name_value,
+      full_name = full_name_value,
+      username = username_value,
+      email = profile_email,
+      phone = NULLIF(trim(p_profile ->> 'phone'), ''),
+      address = NULLIF(trim(p_profile ->> 'address'), ''),
+      date_of_birth = date_of_birth_value,
+      emergency_contact_name = NULLIF(trim(p_profile ->> 'emergency_contact_name'), ''),
+      emergency_contact_phone = NULLIF(trim(p_profile ->> 'emergency_contact_phone'), ''),
+      emergency_contact_relationship = NULLIF(trim(p_profile ->> 'emergency_contact_relationship'), ''),
+      updated_at = timezone('utc'::TEXT, now())
+  WHERE id = actor.id;
+
+  UPDATE auth.users
+  SET raw_user_meta_data = (
+    COALESCE(raw_user_meta_data, '{}'::JSONB) - 'display_name'
+  ) || jsonb_build_object('full_name', full_name_value)
+  WHERE id = authenticated_user_id;
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.update_own_profile(JSONB) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.update_own_profile(JSONB) TO authenticated;
+COMMENT ON FUNCTION public.update_own_profile(JSONB) IS
+  'Allows an authenticated active staff or member to update their own profile. Members without contact email retain a private non-deliverable Auth alias without writing it into members.email.';
+
+NOTIFY pgrst, 'reload schema';
+
+COMMIT;
+
+
+================================================================================
+FILE: 20261013000009_username_only_auth_for_all.sql
+================================================================================
+BEGIN;
+
+ALTER TABLE public.staff
+  ADD COLUMN IF NOT EXISTS auth_email TEXT;
+
+ALTER TABLE public.staff
+  ALTER COLUMN email DROP NOT NULL;
+
+UPDATE public.staff AS s
+SET auth_email = u.email
+FROM auth.users AS u
+WHERE u.id = s.user_id
+  AND s.auth_email IS NULL;
+
+UPDATE public.staff AS s
+SET email = NULLIF(lower(btrim(m.email)), '')
+FROM public.members AS m
+WHERE m.id = s.member_id
+  AND s.role = 'member';
+
+CREATE UNIQUE INDEX IF NOT EXISTS staff_auth_email_unique
+  ON public.staff (lower(auth_email))
+  WHERE auth_email IS NOT NULL;
+
+DROP TRIGGER IF EXISTS sync_confirmed_auth_email_to_profiles ON auth.users;
+
+CREATE OR REPLACE FUNCTION public.lookup_staff_login(p_identifier TEXT)
+RETURNS TABLE (email TEXT, is_active BOOLEAN)
+LANGUAGE SQL
+STABLE
+SECURITY DEFINER
+SET search_path = public, pg_temp
+AS $$
+  SELECT s.auth_email, s.is_active
+  FROM public.staff AS s
+  WHERE lower(btrim(s.username)) = lower(btrim(coalesce(p_identifier, '')))
+    AND btrim(coalesce(p_identifier, '')) <> ''
+    AND s.auth_email IS NOT NULL
+  LIMIT 2;
+$$;
+
+REVOKE ALL ON FUNCTION public.lookup_staff_login(TEXT) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.lookup_staff_login(TEXT) TO anon, authenticated;
+
+CREATE OR REPLACE FUNCTION public.bookkeeper_link_member_auth(
+  p_member_id UUID,
+  p_auth_user_id UUID
+)
+RETURNS JSONB
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, auth, pg_temp
+AS $$
+DECLARE
+  v_actor_id UUID := public.current_staff_id();
+  v_member public.members%ROWTYPE;
+  v_auth_email TEXT;
+  v_expected_email TEXT;
+  v_existing_staff public.staff%ROWTYPE;
+  v_staff_id UUID;
+  v_full_name TEXT;
+BEGIN
+  IF v_actor_id IS NULL OR NOT public.has_role('bookkeeper') THEN
+    RAISE EXCEPTION 'Only Bookkeepers can create member portal accounts';
+  END IF;
+
+  SELECT * INTO v_member
+  FROM public.members
+  WHERE id = p_member_id
+  FOR UPDATE;
+  IF NOT FOUND OR v_member.membership_status <> 'active' OR v_member.archived_at IS NOT NULL THEN
+    RAISE EXCEPTION 'An active member record is required for portal access';
+  END IF;
+
+  SELECT lower(email) INTO v_auth_email
+  FROM auth.users
+  WHERE id = p_auth_user_id;
+  IF v_auth_email IS NULL THEN
+    RAISE EXCEPTION 'The authentication account must have a login identifier';
+  END IF;
+
+  v_expected_email := lower(v_member.id::TEXT || '@members.amcoms.invalid');
+  IF v_auth_email <> v_expected_email THEN
+    RAISE EXCEPTION 'The authentication login does not match the member account';
+  END IF;
+
+  SELECT * INTO v_existing_staff
+  FROM public.staff
+  WHERE user_id = p_auth_user_id
+  FOR UPDATE;
+  IF FOUND THEN
+    IF v_existing_staff.role <> 'member'
+       OR (v_existing_staff.member_id IS NOT NULL AND v_existing_staff.member_id <> p_member_id) THEN
+      RAISE EXCEPTION 'This authentication account is already linked to another profile';
+    END IF;
+    v_staff_id := v_existing_staff.id;
+    UPDATE public.staff
+    SET member_id = p_member_id,
+        role = 'member',
+        is_active = true,
+        must_change_password = true,
+        full_name = concat_ws(' ', v_member.first_name, v_member.middle_name, v_member.last_name),
+        email = NULLIF(lower(btrim(v_member.email)), ''),
+        auth_email = v_auth_email,
+        username = COALESCE(NULLIF(btrim(v_existing_staff.username), ''), v_member.member_number),
+        updated_at = timezone('utc'::TEXT, now())
+    WHERE id = v_staff_id;
+  ELSE
+    IF EXISTS (
+      SELECT 1
+      FROM public.staff
+      WHERE lower(username) = lower(v_member.member_number)
+    ) THEN
+      RAISE EXCEPTION 'The member number is already associated with another account';
+    END IF;
+
+    v_full_name := concat_ws(' ', v_member.first_name, v_member.middle_name, v_member.last_name);
+    INSERT INTO public.staff (
+      user_id, username, email, auth_email, full_name, role, is_active, member_id, must_change_password
+    ) VALUES (
+      p_auth_user_id, v_member.member_number, NULLIF(lower(btrim(v_member.email)), ''),
+      v_auth_email, v_full_name, 'member', true, p_member_id, true
+    )
+    RETURNING id INTO v_staff_id;
+  END IF;
+
+  RETURN jsonb_build_object('staff_id', v_staff_id, 'must_change_password', true);
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.update_own_profile(p_profile JSONB)
+RETURNS VOID
+LANGUAGE plpgsql
+VOLATILE
+SECURITY DEFINER
+SET search_path = public, auth, pg_temp
+AS $$
+DECLARE
+  authenticated_user_id UUID := auth.uid();
+  actor public.staff%ROWTYPE;
+  profile_email TEXT := NULLIF(lower(trim(p_profile ->> 'email')), '');
+  first_name_value TEXT := trim(p_profile ->> 'first_name');
+  middle_name_value TEXT := NULLIF(trim(p_profile ->> 'middle_name'), '');
+  last_name_value TEXT := trim(p_profile ->> 'last_name');
+  username_value TEXT := lower(trim(p_profile ->> 'username'));
+  full_name_value TEXT;
+  date_of_birth_value DATE := NULLIF(trim(p_profile ->> 'date_of_birth'), '')::DATE;
+BEGIN
+  IF authenticated_user_id IS NULL THEN
+    RAISE EXCEPTION 'Authentication is required to update a profile';
+  END IF;
+  IF p_profile IS NULL OR jsonb_typeof(p_profile) <> 'object' THEN
+    RAISE EXCEPTION 'A valid profile is required';
+  END IF;
+  IF first_name_value IS NULL OR first_name_value = ''
+     OR last_name_value IS NULL OR last_name_value = '' THEN
+    RAISE EXCEPTION 'First and last name are required';
+  END IF;
+  IF username_value IS NULL OR username_value !~ '^[a-z0-9._]{3,30}$' THEN
+    RAISE EXCEPTION 'Username must be 3-30 characters and contain only letters, numbers, dots, and underscores';
+  END IF;
+  IF profile_email IS NOT NULL
+     AND profile_email !~* '^[^[:space:]@]+@[^[:space:]@]+\.[^[:space:]@]+$' THEN
+    RAISE EXCEPTION 'Enter a valid contact email address or leave it blank';
+  END IF;
+  IF date_of_birth_value > CURRENT_DATE THEN
+    RAISE EXCEPTION 'Date of birth cannot be in the future';
+  END IF;
+
+  SELECT s.* INTO actor
+  FROM public.staff AS s
+  WHERE s.user_id = authenticated_user_id
+    AND s.is_active = true
+  FOR UPDATE;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'An active staff or member profile is required';
+  END IF;
+
+  IF EXISTS (
+    SELECT 1
+    FROM public.staff AS s
+    WHERE lower(s.username) = username_value
+      AND s.id <> actor.id
+  ) THEN
+    RAISE EXCEPTION 'This username is already taken. Please choose a different one';
+  END IF;
+
+  full_name_value := concat_ws(' ', first_name_value, middle_name_value, last_name_value);
+
+  IF actor.role = 'member' THEN
+    IF actor.member_id IS NULL THEN
+      RAISE EXCEPTION 'The member profile is not linked';
+    END IF;
+    IF NOT EXISTS (
+      SELECT 1
+      FROM public.members AS m
+      WHERE m.id = actor.member_id
+        AND m.membership_status = 'active'
+        AND m.archived_at IS NULL
+    ) THEN
+      RAISE EXCEPTION 'Only active members can update their profiles';
+    END IF;
+
+    UPDATE public.members
+    SET first_name = first_name_value,
+        middle_name = middle_name_value,
+        last_name = last_name_value,
+        email = profile_email,
+        phone = NULLIF(trim(p_profile ->> 'phone'), ''),
+        address = NULLIF(trim(p_profile ->> 'address'), ''),
+        date_of_birth = date_of_birth_value,
+        emergency_contact_name = NULLIF(trim(p_profile ->> 'emergency_contact_name'), ''),
+        emergency_contact_phone = NULLIF(trim(p_profile ->> 'emergency_contact_phone'), ''),
+        emergency_contact_relationship = NULLIF(trim(p_profile ->> 'emergency_contact_relationship'), ''),
+        additional_emergency_contacts = CASE
+          WHEN jsonb_typeof(p_profile -> 'additional_emergency_contacts') = 'array'
+          THEN p_profile -> 'additional_emergency_contacts'
+          ELSE '[]'::JSONB
+        END
+    WHERE id = actor.member_id;
+    IF NOT FOUND THEN
+      RAISE EXCEPTION 'The linked member profile could not be found';
+    END IF;
+  END IF;
+
+  UPDATE public.staff
+  SET first_name = first_name_value,
+      middle_name = middle_name_value,
+      last_name = last_name_value,
+      full_name = full_name_value,
+      username = username_value,
+      email = profile_email,
+      phone = NULLIF(trim(p_profile ->> 'phone'), ''),
+      address = NULLIF(trim(p_profile ->> 'address'), ''),
+      date_of_birth = date_of_birth_value,
+      emergency_contact_name = NULLIF(trim(p_profile ->> 'emergency_contact_name'), ''),
+      emergency_contact_phone = NULLIF(trim(p_profile ->> 'emergency_contact_phone'), ''),
+      emergency_contact_relationship = NULLIF(trim(p_profile ->> 'emergency_contact_relationship'), ''),
+      updated_at = timezone('utc'::TEXT, now())
+  WHERE id = actor.id;
+
+  UPDATE auth.users
+  SET raw_user_meta_data = (
+    COALESCE(raw_user_meta_data, '{}'::JSONB) - 'display_name'
+  ) || jsonb_build_object('full_name', full_name_value)
+  WHERE id = authenticated_user_id;
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.update_own_profile(JSONB) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.update_own_profile(JSONB) TO authenticated;
+
+NOTIFY pgrst, 'reload schema';
+
+COMMIT;
+
+
+================================================================================
+FILE: 20261013000010_member_financial_entries.sql
+================================================================================
+-- Keep member sub-ledgers and the cash books in sync for Bookkeeper entries.
+
+ALTER TABLE public.cash_disbursements
+  ADD COLUMN IF NOT EXISTS member_id UUID REFERENCES public.members(id);
+
+CREATE TABLE IF NOT EXISTS public.member_capital_contributions (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  member_id UUID NOT NULL REFERENCES public.members(id),
+  due_month DATE NOT NULL CHECK (EXTRACT(DAY FROM due_month) = 1),
+  amount NUMERIC(15, 2) NOT NULL DEFAULT 100.00 CHECK (amount = 100.00),
+  receipt_id UUID NOT NULL REFERENCES public.cash_receipts(id) ON DELETE CASCADE,
+  created_by UUID REFERENCES public.staff(id),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE (member_id, due_month)
+);
+
+ALTER TABLE public.member_capital_contributions ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Members can view own capital contributions" ON public.member_capital_contributions;
+CREATE POLICY "Members can view own capital contributions"
+  ON public.member_capital_contributions FOR SELECT TO authenticated
+  USING (member_id = public.get_member_id());
+
+DROP POLICY IF EXISTS "Financial staff can view capital contributions" ON public.member_capital_contributions;
+CREATE POLICY "Financial staff can view capital contributions"
+  ON public.member_capital_contributions FOR SELECT TO authenticated
+  USING (public.has_any_role(ARRAY['bookkeeper', 'treasurer', 'manager', 'chairman']));
+
+REVOKE INSERT, UPDATE, DELETE ON public.member_capital_contributions FROM PUBLIC, anon, authenticated;
+GRANT SELECT ON public.member_capital_contributions TO authenticated;
+
+CREATE OR REPLACE FUNCTION public._get_or_create_member_savings_account(
+  p_member_id UUID,
+  p_account_type TEXT
+) RETURNS UUID
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path TO 'public', 'pg_temp'
+AS $$
+DECLARE
+  v_account_id UUID;
+  v_member_number TEXT;
+  v_account_number TEXT;
+BEGIN
+  IF p_account_type NOT IN ('regular', 'time_deposit') THEN
+    RAISE EXCEPTION 'Unsupported member savings account type';
+  END IF;
+
+  PERFORM 1 FROM public.members WHERE id = p_member_id FOR UPDATE;
+  SELECT id INTO v_account_id
+  FROM public.savings_accounts
+  WHERE member_id = p_member_id AND account_type = p_account_type AND status = 'active'
+  ORDER BY created_at
+  LIMIT 1
+  FOR UPDATE;
+  IF v_account_id IS NOT NULL THEN
+    RETURN v_account_id;
+  END IF;
+
+  SELECT member_number INTO v_member_number FROM public.members WHERE id = p_member_id;
+  IF v_member_number IS NULL THEN
+    RAISE EXCEPTION 'Member not found';
+  END IF;
+  v_account_number := CASE WHEN p_account_type = 'time_deposit' THEN 'TD-' ELSE 'SAV-' END
+    || v_member_number || '-' || upper(substr(replace(gen_random_uuid()::TEXT, '-', ''), 1, 6));
+
+  INSERT INTO public.savings_accounts (account_number, member_id, account_type)
+  VALUES (v_account_number, p_member_id, p_account_type)
+  RETURNING id INTO v_account_id;
+  RETURN v_account_id;
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public._get_or_create_member_savings_account(UUID, TEXT) FROM PUBLIC, anon, authenticated;
+
+CREATE OR REPLACE FUNCTION public.record_member_financial_entry(
+  p_receipt JSONB,
+  p_disbursement JSONB,
+  p_entry JSONB
+) RETURNS JSONB
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path TO 'public', 'pg_temp'
+AS $$
+DECLARE
+  v_type TEXT := p_entry->>'entry_type';
+  v_member_id UUID := NULLIF(COALESCE(p_receipt->>'member_id', p_disbursement->>'member_id'), '')::UUID;
+  v_amount NUMERIC(15, 2) := COALESCE(
+    NULLIF(COALESCE(p_receipt->>'amount', p_disbursement->>'amount'), '')::NUMERIC, 0
+  );
+  v_date DATE := COALESCE(
+    NULLIF(COALESCE(p_receipt->>'receipt_date', p_disbursement->>'disbursement_date'), '')::DATE,
+    CURRENT_DATE
+  );
+  v_reference TEXT := trim(COALESCE(p_receipt->>'receipt_number', p_disbursement->>'voucher_number', ''));
+  v_description TEXT := trim(COALESCE(p_receipt->>'description', p_disbursement->>'description', ''));
+  v_cash_account TEXT := COALESCE(NULLIF(p_entry->>'cash_account', ''), 'Cash on Hand');
+  v_account_type TEXT;
+  v_account_id UUID;
+  v_member_number TEXT;
+  v_account_number TEXT;
+  v_maturity_date DATE := NULLIF(p_entry->>'maturity_date', '')::DATE;
+  v_interest_rate NUMERIC(5, 2) := NULLIF(p_entry->>'interest_rate', '')::NUMERIC;
+  v_selected_loan_id UUID := NULLIF(p_entry->>'loan_id', '')::UUID;
+  v_receipt_result JSONB;
+  v_disbursement_result JSONB;
+  v_receipt_id UUID;
+  v_disbursement_id UUID;
+  v_loan RECORD;
+  v_schedule RECORD;
+  v_remaining NUMERIC(15, 2);
+  v_open_base NUMERIC(15, 2);
+  v_open_penalty NUMERIC(15, 2);
+  v_take NUMERIC(15, 2);
+  v_base_take NUMERIC(15, 2);
+  v_interest_installment NUMERIC(15, 2);
+  v_interest_piece NUMERIC(15, 2) := 0;
+  v_principal_piece NUMERIC(15, 2) := 0;
+  v_penalty_piece NUMERIC(15, 2) := 0;
+  v_balance_after NUMERIC(15, 2);
+  v_installments INTEGER;
+  v_total_interest NUMERIC(15, 2);
+  v_due_month DATE;
+  v_months JSONB;
+  v_count INTEGER;
+  v_activity_id UUID;
+  v_allocations JSONB;
+BEGIN
+  IF NOT public.has_role('bookkeeper') THEN
+    RAISE EXCEPTION 'Only bookkeepers can record member financial entries';
+  END IF;
+  IF v_type IS NULL OR v_type NOT IN ('savings_deposit', 'time_deposit', 'savings_withdrawal', 'time_deposit_withdrawal', 'loan_payment', 'capital_contribution') THEN
+    RAISE EXCEPTION 'Unsupported member financial entry type';
+  END IF;
+  IF v_member_id IS NULL OR v_amount <= 0 OR v_reference = '' OR v_description = '' THEN
+    RAISE EXCEPTION 'Member, reference, particulars, and a positive amount are required';
+  END IF;
+  IF v_cash_account NOT IN ('Cash on Hand', 'Cash in Bank') THEN
+    RAISE EXCEPTION 'Choose Cash on Hand or Cash in Bank';
+  END IF;
+
+  PERFORM 1 FROM public.members
+  WHERE id = v_member_id AND membership_status = 'active' AND archived_at IS NULL
+  FOR UPDATE;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'The selected member is not active';
+  END IF;
+
+  IF v_type IN ('savings_deposit', 'time_deposit', 'savings_withdrawal', 'time_deposit_withdrawal') THEN
+    v_account_type := CASE WHEN v_type IN ('time_deposit', 'time_deposit_withdrawal') THEN 'time_deposit' ELSE 'regular' END;
+    v_account_id := NULLIF(p_entry->>'savings_account_id', '')::UUID;
+    IF v_type = 'time_deposit' THEN
+      IF v_account_id IS NOT NULL THEN
+        RAISE EXCEPTION 'Each time-deposit placement must create its own account and maturity terms';
+      END IF;
+      IF v_maturity_date IS NULL OR v_maturity_date <= v_date OR v_interest_rate IS NULL OR v_interest_rate < 0 THEN
+        RAISE EXCEPTION 'A time deposit requires a future maturity date and a non-negative interest rate';
+      END IF;
+      SELECT member_number INTO v_member_number FROM public.members WHERE id = v_member_id;
+      v_account_number := 'TD-' || v_member_number || '-'
+        || upper(substr(replace(gen_random_uuid()::TEXT, '-', ''), 1, 6));
+      INSERT INTO public.savings_accounts (
+        account_number, member_id, account_type, opening_date, maturity_date, interest_rate
+      ) VALUES (
+        v_account_number, v_member_id, 'time_deposit', v_date, v_maturity_date, v_interest_rate
+      ) RETURNING id INTO v_account_id;
+    ELSIF v_account_id IS NULL AND v_type = 'savings_deposit' THEN
+      v_account_id := public._get_or_create_member_savings_account(v_member_id, v_account_type);
+    END IF;
+    IF v_account_id IS NULL THEN
+      RAISE EXCEPTION 'Select the member account to withdraw from';
+    END IF;
+    PERFORM 1 FROM public.savings_accounts
+    WHERE id = v_account_id AND member_id = v_member_id
+      AND account_type = v_account_type AND status = 'active'
+    FOR UPDATE;
+    IF NOT FOUND THEN
+      RAISE EXCEPTION 'The selected savings account is not active or does not belong to this member';
+    END IF;
+    IF v_type IN ('savings_withdrawal', 'time_deposit_withdrawal')
+       AND (SELECT balance FROM public.savings_accounts WHERE id = v_account_id) < v_amount THEN
+      RAISE EXCEPTION 'The withdrawal exceeds the available account balance';
+    END IF;
+
+    IF v_type IN ('savings_deposit', 'time_deposit') THEN
+      IF p_receipt IS NULL OR p_disbursement IS NOT NULL THEN
+        RAISE EXCEPTION 'A deposit must be recorded as a cash receipt';
+      END IF;
+      v_allocations := jsonb_build_array(
+        jsonb_build_object('account', v_cash_account, 'amount', v_amount, 'side', 'debit'),
+        jsonb_build_object('account', 'Savings / Time Deposit', 'amount', v_amount, 'side', 'credit')
+      );
+      v_receipt_result := public.save_cash_receipt(
+        p_receipt || jsonb_build_object('description', v_description || CASE WHEN v_type = 'time_deposit' THEN ' (time deposit)' ELSE ' (savings deposit)' END),
+        v_allocations
+      );
+      v_receipt_id := (v_receipt_result->>'receipt_id')::UUID;
+      DELETE FROM public.member_activity
+      WHERE member_id = v_member_id AND reference = v_reference AND activity_type = 'receipt';
+
+      UPDATE public.savings_accounts
+      SET balance = balance + v_amount, updated_at = now()
+      WHERE id = v_account_id;
+      INSERT INTO public.savings_transactions (
+        savings_account_id, transaction_type, amount, balance_after, transaction_date,
+        description, reference_number, receipt_id, created_by
+      )
+      SELECT v_account_id, 'deposit', v_amount, balance, v_date, v_description,
+             v_reference, v_receipt_id, public.current_staff_id()
+      FROM public.savings_accounts WHERE id = v_account_id;
+      RETURN jsonb_build_object('receipt_id', v_receipt_id, 'entry_type', v_type);
+    END IF;
+
+    IF p_disbursement IS NULL OR p_receipt IS NOT NULL THEN
+      RAISE EXCEPTION 'A withdrawal must be recorded as a cash disbursement';
+    END IF;
+    v_allocations := jsonb_build_array(
+      jsonb_build_object('account', 'Savings / Time Deposit', 'amount', v_amount)
+    );
+    v_disbursement_result := public.save_cash_disbursement(
+      p_disbursement || jsonb_build_object('description', v_description),
+      v_allocations
+    );
+    v_disbursement_id := (v_disbursement_result->>'disbursement_id')::UUID;
+    UPDATE public.cash_disbursements SET member_id = v_member_id WHERE id = v_disbursement_id;
+    UPDATE public.savings_accounts
+    SET balance = balance - v_amount, updated_at = now()
+    WHERE id = v_account_id;
+    INSERT INTO public.savings_transactions (
+      savings_account_id, transaction_type, amount, balance_after, transaction_date,
+      description, reference_number, disbursement_id, created_by
+    )
+    SELECT v_account_id, 'withdrawal', v_amount, balance, v_date, v_description,
+           v_reference, v_disbursement_id, public.current_staff_id()
+    FROM public.savings_accounts WHERE id = v_account_id;
+    RETURN jsonb_build_object('disbursement_id', v_disbursement_id, 'entry_type', v_type);
+  END IF;
+
+  IF p_receipt IS NULL OR p_disbursement IS NOT NULL THEN
+    RAISE EXCEPTION 'This member entry must be recorded as a cash receipt';
+  END IF;
+
+  IF v_type = 'capital_contribution' THEN
+    v_months := p_entry->'due_months';
+    IF v_months IS NULL OR jsonb_typeof(v_months) <> 'array' OR jsonb_array_length(v_months) = 0 THEN
+      RAISE EXCEPTION 'Select at least one unpaid monthly capital contribution';
+    END IF;
+    v_count := jsonb_array_length(v_months);
+    IF abs(v_amount - (v_count * 100.00)) > 0.001 THEN
+      RAISE EXCEPTION 'Capital contributions must be exactly â‚±100 for each selected due month';
+    END IF;
+    FOR v_due_month IN
+      SELECT DISTINCT date_trunc('month', value::DATE)::DATE
+      FROM jsonb_array_elements_text(v_months)
+    LOOP
+      IF v_due_month > date_trunc('month', v_date)::DATE
+         OR v_due_month < (
+           SELECT date_trunc('month', date_joined)::DATE FROM public.members WHERE id = v_member_id
+         ) THEN
+        RAISE EXCEPTION 'A selected capital due month is outside the memberâ€™s eligible period';
+      END IF;
+      IF EXISTS (
+        SELECT 1 FROM public.member_capital_contributions
+        WHERE member_id = v_member_id AND due_month = v_due_month
+      ) THEN
+        RAISE EXCEPTION 'One or more selected capital due months have already been paid';
+      END IF;
+    END LOOP;
+    IF (SELECT count(DISTINCT date_trunc('month', value::DATE))
+        FROM jsonb_array_elements_text(v_months)) <> v_count THEN
+      RAISE EXCEPTION 'Do not select a capital due month more than once';
+    END IF;
+
+    v_allocations := jsonb_build_array(
+      jsonb_build_object('account', v_cash_account, 'amount', v_amount, 'side', 'debit'),
+      jsonb_build_object('account', 'Capital Share', 'amount', v_amount, 'side', 'credit')
+    );
+    v_receipt_result := public.save_cash_receipt(p_receipt || jsonb_build_object('description', v_description), v_allocations);
+    v_receipt_id := (v_receipt_result->>'receipt_id')::UUID;
+    INSERT INTO public.member_capital_contributions (member_id, due_month, receipt_id, created_by)
+    SELECT v_member_id, date_trunc('month', value::DATE)::DATE, v_receipt_id, public.current_staff_id()
+    FROM jsonb_array_elements_text(v_months);
+    UPDATE public.members SET total_capital = COALESCE(total_capital, 0) + v_amount WHERE id = v_member_id;
+    SELECT id INTO v_activity_id FROM public.member_activity
+    WHERE member_id = v_member_id AND reference = v_reference AND activity_type = 'receipt'
+    ORDER BY created_at DESC LIMIT 1;
+    IF v_activity_id IS NOT NULL THEN
+      UPDATE public.member_activity
+      SET activity_type = 'capital_contribution', title = 'Capital share contribution', amount = v_amount
+      WHERE id = v_activity_id;
+    END IF;
+    RETURN jsonb_build_object('receipt_id', v_receipt_id, 'entry_type', v_type);
+  END IF;
+
+  SELECT * INTO v_loan
+  FROM public.loans
+  WHERE id = v_selected_loan_id AND member_id = v_member_id AND status = 'active' AND balance > 0
+  FOR UPDATE;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'Select an active loan belonging to this member with an outstanding balance';
+  END IF;
+  v_installments := GREATEST(COALESCE(v_loan.installments, v_loan.term_months), 1);
+  v_total_interest := COALESCE(v_loan.total_interest, 0);
+  v_remaining := v_amount;
+  FOR v_schedule IN
+    SELECT installment_number, amount_due, amount_paid, penalty_amount
+    FROM public.loan_schedule
+    WHERE loan_id = v_loan.id AND status <> 'paid'
+    ORDER BY installment_number
+    FOR UPDATE
+  LOOP
+    EXIT WHEN v_remaining <= 0;
+    v_open_base := GREATEST(v_schedule.amount_due - v_schedule.amount_paid, 0);
+    v_open_penalty := GREATEST(
+      COALESCE(v_schedule.penalty_amount, 0) - GREATEST(v_schedule.amount_paid - v_schedule.amount_due, 0),
+      0
+    );
+    v_take := LEAST(v_remaining, v_open_base + v_open_penalty);
+    v_base_take := LEAST(v_take, v_open_base);
+    v_interest_installment := CASE
+      WHEN v_schedule.installment_number = v_installments
+        THEN v_total_interest - round(v_total_interest / v_installments, 2) * (v_installments - 1)
+      ELSE round(v_total_interest / v_installments, 2)
+    END;
+    IF v_schedule.amount_due > 0 AND v_open_base > 0 THEN
+      v_interest_piece := v_interest_piece + round(
+        v_base_take * LEAST(v_interest_installment, v_schedule.amount_due) / v_schedule.amount_due, 2
+      );
+    END IF;
+    v_penalty_piece := v_penalty_piece + (v_take - v_base_take);
+    v_remaining := v_remaining - v_take;
+  END LOOP;
+  IF v_remaining > 0.001 THEN
+    RAISE EXCEPTION 'Payment exceeds the outstanding amount in the loan schedule';
+  END IF;
+  v_interest_piece := LEAST(v_interest_piece, v_amount);
+  v_penalty_piece := LEAST(v_penalty_piece, v_amount - v_interest_piece);
+  v_principal_piece := v_amount - v_interest_piece - v_penalty_piece;
+  IF v_principal_piece > v_loan.balance + 0.001 THEN
+    RAISE EXCEPTION 'Principal portion exceeds the outstanding balance of the selected loan';
+  END IF;
+  v_balance_after := GREATEST(v_loan.balance - v_principal_piece, 0);
+
+  v_allocations := jsonb_build_array(
+    jsonb_build_object('account', v_cash_account, 'amount', v_amount, 'side', 'debit')
+  );
+  IF v_principal_piece > 0 THEN
+    v_allocations := v_allocations || jsonb_build_array(
+      jsonb_build_object('account', 'Loan Receivable', 'amount', v_principal_piece, 'side', 'credit')
+    );
+  END IF;
+  IF v_interest_piece > 0 THEN
+    v_allocations := v_allocations || jsonb_build_array(
+      jsonb_build_object('account', 'Interest Income', 'amount', v_interest_piece, 'side', 'credit')
+    );
+  END IF;
+  IF v_penalty_piece > 0 THEN
+    v_allocations := v_allocations || jsonb_build_array(
+      jsonb_build_object('account', 'Other Income', 'amount', v_penalty_piece, 'side', 'credit')
+    );
+  END IF;
+  PERFORM set_config('amcoms.selected_loan_id', v_loan.id::TEXT, true);
+  v_receipt_result := public.save_cash_receipt(
+    p_receipt || jsonb_build_object('description', v_description || ' (member-loan-payment)'),
+    v_allocations
+  );
+  PERFORM set_config('amcoms.selected_loan_id', '', true);
+  v_receipt_id := (v_receipt_result->>'receipt_id')::UUID;
+  UPDATE public.loan_payments
+  SET principal_paid = v_principal_piece,
+      interest_paid = v_interest_piece,
+      penalty_paid = v_penalty_piece,
+      balance_after = v_balance_after
+  WHERE receipt_id = v_receipt_id;
+  UPDATE public.loans
+  SET balance = v_balance_after,
+      status = CASE WHEN v_balance_after = 0 THEN 'completed' ELSE 'active' END,
+      updated_at = now()
+  WHERE id = v_loan.id;
+
+  RETURN jsonb_build_object('receipt_id', v_receipt_id, 'loan_id', v_loan.id, 'entry_type', v_type);
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.record_member_financial_entry(JSONB, JSONB, JSONB) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.record_member_financial_entry(JSONB, JSONB, JSONB) TO authenticated;
+
+-- Existing deletion RPCs are retained, with member-ledger entries reversed first.
+ALTER FUNCTION public.delete_cash_receipt(UUID) RENAME TO delete_cash_receipt_before_member_finance;
+REVOKE ALL ON FUNCTION public.delete_cash_receipt_before_member_finance(UUID) FROM PUBLIC, anon, authenticated;
+
+CREATE OR REPLACE FUNCTION public.delete_cash_receipt(p_receipt_id UUID)
+RETURNS VOID
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path TO 'public', 'pg_temp'
+AS $$
+DECLARE
+  r RECORD;
+  t RECORD;
+  v_payment RECORD;
+  v_capital NUMERIC(15, 2);
+  v_had_loan_payment BOOLEAN := false;
+BEGIN
+  IF NOT public.has_role('bookkeeper') THEN
+    RAISE EXCEPTION 'Only bookkeepers can delete transactions';
+  END IF;
+  SELECT * INTO r FROM public.cash_receipts WHERE id = p_receipt_id FOR UPDATE;
+  IF NOT FOUND THEN RAISE EXCEPTION 'Transaction not found'; END IF;
+
+  FOR t IN SELECT * FROM public.savings_transactions WHERE receipt_id = r.id FOR UPDATE
+  LOOP
+    IF EXISTS (
+      SELECT 1 FROM public.savings_transactions later
+      WHERE later.savings_account_id = t.savings_account_id AND later.id <> t.id
+        AND later.created_at > t.created_at
+    ) THEN
+      RAISE EXCEPTION 'Cannot delete this receipt because later account transactions depend on its balance';
+    END IF;
+    UPDATE public.savings_accounts
+    SET balance = balance - CASE WHEN t.transaction_type = 'withdrawal' THEN -t.amount ELSE t.amount END,
+        updated_at = now()
+    WHERE id = t.savings_account_id;
+    DELETE FROM public.savings_transactions WHERE id = t.id;
+  END LOOP;
+
+  SELECT COALESCE(SUM(amount), 0) INTO v_capital
+  FROM public.member_capital_contributions WHERE receipt_id = r.id;
+  IF v_capital > 0 AND r.member_id IS NOT NULL THEN
+    UPDATE public.members
+    SET total_capital = GREATEST(COALESCE(total_capital, 0) - v_capital, 0)
+    WHERE id = r.member_id;
+  END IF;
+  DELETE FROM public.member_capital_contributions WHERE receipt_id = r.id;
+  DELETE FROM public.member_activity
+  WHERE member_id = r.member_id AND reference = r.receipt_number
+    AND activity_type = 'capital_contribution';
+  SELECT loan_id, interest_paid, penalty_paid INTO v_payment
+  FROM public.loan_payments
+  WHERE receipt_id = r.id
+  FOR UPDATE;
+  v_had_loan_payment := FOUND;
+  PERFORM public.delete_cash_receipt_before_member_finance(p_receipt_id);
+  IF v_had_loan_payment THEN
+    UPDATE public.loans
+    SET balance = GREATEST(balance - COALESCE(v_payment.interest_paid, 0) - COALESCE(v_payment.penalty_paid, 0), 0),
+        status = CASE
+          WHEN GREATEST(balance - COALESCE(v_payment.interest_paid, 0) - COALESCE(v_payment.penalty_paid, 0), 0) = 0
+            THEN 'completed'
+          ELSE 'active'
+        END,
+        updated_at = now()
+    WHERE id = v_payment.loan_id;
+  END IF;
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.delete_cash_receipt(UUID) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.delete_cash_receipt(UUID) TO authenticated;
+
+ALTER FUNCTION public.delete_cash_disbursement(UUID) RENAME TO delete_cash_disbursement_before_member_finance;
+REVOKE ALL ON FUNCTION public.delete_cash_disbursement_before_member_finance(UUID) FROM PUBLIC, anon, authenticated;
+
+CREATE OR REPLACE FUNCTION public.delete_cash_disbursement(p_disbursement_id UUID)
+RETURNS VOID
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path TO 'public', 'pg_temp'
+AS $$
+DECLARE
+  d RECORD;
+  t RECORD;
+BEGIN
+  IF NOT public.has_role('bookkeeper') THEN
+    RAISE EXCEPTION 'Only bookkeepers can delete transactions';
+  END IF;
+  SELECT * INTO d FROM public.cash_disbursements WHERE id = p_disbursement_id FOR UPDATE;
+  IF NOT FOUND THEN RAISE EXCEPTION 'Transaction not found'; END IF;
+
+  FOR t IN SELECT * FROM public.savings_transactions WHERE disbursement_id = d.id FOR UPDATE
+  LOOP
+    IF EXISTS (
+      SELECT 1 FROM public.savings_transactions later
+      WHERE later.savings_account_id = t.savings_account_id AND later.id <> t.id
+        AND later.created_at > t.created_at
+    ) THEN
+      RAISE EXCEPTION 'Cannot delete this voucher because later account transactions depend on its balance';
+    END IF;
+    UPDATE public.savings_accounts
+    SET balance = balance + CASE WHEN t.transaction_type = 'withdrawal' THEN t.amount ELSE -t.amount END,
+        updated_at = now()
+    WHERE id = t.savings_account_id;
+    DELETE FROM public.savings_transactions WHERE id = t.id;
+  END LOOP;
+  PERFORM public.delete_cash_disbursement_before_member_finance(p_disbursement_id);
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.delete_cash_disbursement(UUID) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.delete_cash_disbursement(UUID) TO authenticated;
+
+CREATE TABLE IF NOT EXISTS public.member_dividend_distributions (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  member_id UUID NOT NULL REFERENCES public.members(id),
+  distribution_year INTEGER NOT NULL,
+  reference_number TEXT NOT NULL UNIQUE,
+  distribution_date DATE NOT NULL,
+  dividend_amount NUMERIC(15, 2) NOT NULL CHECK (dividend_amount >= 0),
+  patronage_amount NUMERIC(15, 2) NOT NULL CHECK (patronage_amount >= 0),
+  mortuary_deduction NUMERIC(15, 2) NOT NULL CHECK (mortuary_deduction >= 0),
+  retention_amount NUMERIC(15, 2) NOT NULL CHECK (retention_amount >= 0),
+  savings_amount NUMERIC(15, 2) NOT NULL CHECK (savings_amount >= 0),
+  loan_payment_amount NUMERIC(15, 2) NOT NULL CHECK (loan_payment_amount >= 0),
+  loan_id UUID REFERENCES public.loans(id),
+  loan_principal_paid NUMERIC(15, 2) NOT NULL DEFAULT 0 CHECK (loan_principal_paid >= 0),
+  loan_interest_paid NUMERIC(15, 2) NOT NULL DEFAULT 0 CHECK (loan_interest_paid >= 0),
+  loan_penalty_paid NUMERIC(15, 2) NOT NULL DEFAULT 0 CHECK (loan_penalty_paid >= 0),
+  savings_account_id UUID REFERENCES public.savings_accounts(id),
+  journal_entry_id UUID NOT NULL UNIQUE REFERENCES public.journal_entries(id),
+  created_by UUID REFERENCES public.staff(id),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  CHECK (
+    round(dividend_amount + patronage_amount - mortuary_deduction, 2)
+    = round(retention_amount + savings_amount + loan_payment_amount, 2)
+  ),
+  CHECK ((loan_payment_amount = 0 AND loan_id IS NULL) OR (loan_payment_amount > 0 AND loan_id IS NOT NULL))
+);
+
+ALTER TABLE public.member_dividend_distributions ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Members can view own dividend distributions" ON public.member_dividend_distributions;
+CREATE POLICY "Members can view own dividend distributions"
+  ON public.member_dividend_distributions FOR SELECT TO authenticated
+  USING (member_id = public.get_member_id());
+
+DROP POLICY IF EXISTS "Financial staff can view dividend distributions" ON public.member_dividend_distributions;
+CREATE POLICY "Financial staff can view dividend distributions"
+  ON public.member_dividend_distributions FOR SELECT TO authenticated
+  USING (public.has_any_role(ARRAY['bookkeeper', 'treasurer', 'manager', 'chairman']));
+
+REVOKE INSERT, UPDATE, DELETE ON public.member_dividend_distributions FROM PUBLIC, anon, authenticated;
+GRANT SELECT ON public.member_dividend_distributions TO authenticated;
+
+INSERT INTO public.chart_of_accounts (account_code, account_name, account_type, account_category, description)
+SELECT 'EQUITY-DIV-PATRONAGE', 'Member Dividend and Patronage Distributions', 'equity', 'Member distributions',
+       'Approved member dividends and patronage distributions distributed from cooperative equity'
+WHERE NOT EXISTS (
+  SELECT 1 FROM public.chart_of_accounts WHERE account_name = 'Member Dividend and Patronage Distributions'
+)
+ON CONFLICT (account_code) DO NOTHING;
+
+INSERT INTO public.chart_of_accounts (account_code, account_name, account_type, account_category, description)
+SELECT 'LIAB-MORTUARY-PAYABLE', 'Mortuary Aid Payable', 'liability', 'Member benefits',
+       'Mortuary deductions retained for cooperative mortuary aid'
+WHERE NOT EXISTS (
+  SELECT 1 FROM public.chart_of_accounts WHERE account_name = 'Mortuary Aid Payable'
+)
+ON CONFLICT (account_code) DO NOTHING;
+
+CREATE OR REPLACE FUNCTION public.record_member_dividend(p_distribution JSONB)
+RETURNS JSONB
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path TO 'public', 'pg_temp'
+AS $$
+DECLARE
+  v_member_id UUID := NULLIF(p_distribution->>'member_id', '')::UUID;
+  v_date DATE := NULLIF(p_distribution->>'distribution_date', '')::DATE;
+  v_reference TEXT := trim(COALESCE(p_distribution->>'reference_number', ''));
+  v_dividend NUMERIC(15, 2) := round(COALESCE(NULLIF(p_distribution->>'dividend_amount', '')::NUMERIC, 0), 2);
+  v_patronage NUMERIC(15, 2) := round(COALESCE(NULLIF(p_distribution->>'patronage_amount', '')::NUMERIC, 0), 2);
+  v_mortuary NUMERIC(15, 2) := round(COALESCE(NULLIF(p_distribution->>'mortuary_deduction', '')::NUMERIC, 0), 2);
+  v_retention NUMERIC(15, 2) := round(COALESCE(NULLIF(p_distribution->>'retention_amount', '')::NUMERIC, 0), 2);
+  v_savings NUMERIC(15, 2) := round(COALESCE(NULLIF(p_distribution->>'savings_amount', '')::NUMERIC, 0), 2);
+  v_loan_payment NUMERIC(15, 2) := round(COALESCE(NULLIF(p_distribution->>'loan_payment_amount', '')::NUMERIC, 0), 2);
+  v_gross NUMERIC(15, 2);
+  v_net NUMERIC(15, 2);
+  v_loan RECORD;
+  v_schedule RECORD;
+  v_loan_id UUID;
+  v_savings_account_id UUID;
+  v_journal_id UUID;
+  v_next_payment INTEGER;
+  v_installments INTEGER;
+  v_interest_installment NUMERIC(15, 2);
+  v_remaining NUMERIC(15, 2);
+  v_open_base NUMERIC(15, 2);
+  v_open_penalty NUMERIC(15, 2);
+  v_take NUMERIC(15, 2);
+  v_base_take NUMERIC(15, 2);
+  v_interest NUMERIC(15, 2) := 0;
+  v_penalty NUMERIC(15, 2) := 0;
+  v_principal NUMERIC(15, 2);
+  v_balance_after NUMERIC(15, 2);
+  v_distribution_account UUID;
+  v_mortuary_account UUID;
+  v_capital_account UUID;
+  v_savings_account UUID;
+  v_receivable_account UUID;
+  v_interest_account UUID;
+  v_penalty_account UUID;
+  v_created_by UUID := public.current_staff_id();
+BEGIN
+  IF NOT public.has_role('bookkeeper') THEN
+    RAISE EXCEPTION 'Only bookkeepers can record approved dividend distributions';
+  END IF;
+  IF v_member_id IS NULL OR v_date IS NULL OR v_reference = '' THEN
+    RAISE EXCEPTION 'Member, distribution date, and reference number are required';
+  END IF;
+  IF v_dividend + v_patronage <= 0 THEN
+    RAISE EXCEPTION 'Dividend and patronage total must be greater than zero';
+  END IF;
+  IF LEAST(v_dividend, v_patronage, v_mortuary, v_retention, v_savings, v_loan_payment) < 0 THEN
+    RAISE EXCEPTION 'Dividend distribution amounts cannot be negative';
+  END IF;
+  v_gross := v_dividend + v_patronage;
+  v_net := v_gross - v_mortuary;
+  IF v_net < 0 OR round(v_net, 2) <> round(v_retention + v_savings + v_loan_payment, 2) THEN
+    RAISE EXCEPTION 'Dividend and patronage less mortuary must equal retention plus savings plus loan payment';
+  END IF;
+
+  PERFORM pg_advisory_xact_lock(hashtext('member_dividend:' || v_reference));
+  PERFORM 1 FROM public.members
+  WHERE id = v_member_id AND membership_status = 'active' AND archived_at IS NULL
+  FOR UPDATE;
+  IF NOT FOUND THEN RAISE EXCEPTION 'The selected member is not active'; END IF;
+  IF EXISTS (SELECT 1 FROM public.member_dividend_distributions WHERE reference_number = v_reference) THEN
+    RAISE EXCEPTION 'This dividend reference number has already been used';
+  END IF;
+
+  IF v_savings > 0 THEN
+    v_savings_account_id := NULLIF(p_distribution->>'savings_account_id', '')::UUID;
+    IF v_savings_account_id IS NULL THEN
+      v_savings_account_id := public._get_or_create_member_savings_account(v_member_id, 'regular');
+    ELSE
+      PERFORM 1 FROM public.savings_accounts
+      WHERE id = v_savings_account_id AND member_id = v_member_id
+        AND account_type = 'regular' AND status = 'active'
+      FOR UPDATE;
+      IF NOT FOUND THEN RAISE EXCEPTION 'The selected savings account is not active or does not belong to this member'; END IF;
+    END IF;
+    SELECT id INTO v_savings_account FROM public.chart_of_accounts
+    WHERE account_name = 'Savings / Time Deposit' AND is_active;
+  END IF;
+  IF v_loan_payment > 0 THEN
+    SELECT * INTO v_loan
+    FROM public.loans
+    WHERE member_id = v_member_id AND status = 'active' AND balance > 0
+    ORDER BY release_date NULLS LAST, created_at
+    LIMIT 1
+    FOR UPDATE;
+    IF NOT FOUND THEN RAISE EXCEPTION 'This member has no active loan for the dividend loan-payment allocation'; END IF;
+    v_loan_id := v_loan.id;
+    IF NULLIF(p_distribution->>'loan_id', '')::UUID IS DISTINCT FROM v_loan.id THEN
+      RAISE EXCEPTION 'Select the oldest active loan so the dividend payment follows its unpaid schedule';
+    END IF;
+    v_installments := GREATEST(COALESCE(v_loan.installments, v_loan.term_months), 1);
+    v_remaining := v_loan_payment;
+    FOR v_schedule IN
+      SELECT installment_number, amount_due, amount_paid, penalty_amount
+      FROM public.loan_schedule
+      WHERE loan_id = v_loan.id AND status <> 'paid'
+      ORDER BY installment_number
+      FOR UPDATE
+    LOOP
+      EXIT WHEN v_remaining <= 0;
+      v_open_base := GREATEST(v_schedule.amount_due - v_schedule.amount_paid, 0);
+      v_open_penalty := GREATEST(
+        COALESCE(v_schedule.penalty_amount, 0) - GREATEST(v_schedule.amount_paid - v_schedule.amount_due, 0),
+        0
+      );
+      v_take := LEAST(v_remaining, v_open_base + v_open_penalty);
+      v_base_take := LEAST(v_take, v_open_base);
+      v_interest_installment := CASE
+        WHEN v_schedule.installment_number = v_installments
+          THEN COALESCE(v_loan.total_interest, 0) - round(COALESCE(v_loan.total_interest, 0) / v_installments, 2) * (v_installments - 1)
+        ELSE round(COALESCE(v_loan.total_interest, 0) / v_installments, 2)
+      END;
+      IF v_schedule.amount_due > 0 AND v_open_base > 0 THEN
+        v_interest := v_interest + round(
+          v_base_take * LEAST(v_interest_installment, v_schedule.amount_due) / v_schedule.amount_due, 2
+        );
+      END IF;
+      v_penalty := v_penalty + (v_take - v_base_take);
+      v_remaining := v_remaining - v_take;
+    END LOOP;
+    IF v_remaining > 0.001 THEN
+      RAISE EXCEPTION 'Dividend loan allocation exceeds the outstanding scheduled amount';
+    END IF;
+    v_interest := LEAST(v_interest, v_loan_payment);
+    v_penalty := LEAST(v_penalty, v_loan_payment - v_interest);
+    v_principal := v_loan_payment - v_interest - v_penalty;
+    IF v_principal > v_loan.balance + 0.001 THEN
+      RAISE EXCEPTION 'Dividend principal allocation exceeds the outstanding loan balance';
+    END IF;
+    v_balance_after := GREATEST(v_loan.balance - v_principal, 0);
+  ELSE
+    v_principal := 0;
+    v_balance_after := NULL;
+  END IF;
+
+  SELECT id INTO v_distribution_account FROM public.chart_of_accounts
+  WHERE account_name = 'Member Dividend and Patronage Distributions' AND is_active;
+  SELECT id INTO v_mortuary_account FROM public.chart_of_accounts
+  WHERE account_name = 'Mortuary Aid Payable' AND is_active;
+  SELECT id INTO v_capital_account FROM public.chart_of_accounts
+  WHERE account_name = 'Capital Share' AND is_active;
+  SELECT id INTO v_receivable_account FROM public.chart_of_accounts
+  WHERE account_name = 'Loan Receivable' AND is_active;
+  SELECT id INTO v_interest_account FROM public.chart_of_accounts
+  WHERE account_name = 'Interest Income' AND is_active;
+  SELECT id INTO v_penalty_account FROM public.chart_of_accounts
+  WHERE account_name = 'Other Income' AND is_active;
+  IF v_distribution_account IS NULL OR v_mortuary_account IS NULL OR v_capital_account IS NULL
+     OR (v_savings > 0 AND v_savings_account IS NULL)
+     OR (v_principal > 0 AND v_receivable_account IS NULL)
+     OR (v_interest > 0 AND v_interest_account IS NULL)
+     OR (v_penalty > 0 AND v_penalty_account IS NULL) THEN
+    RAISE EXCEPTION 'A required chart-of-accounts mapping is missing';
+  END IF;
+
+  INSERT INTO public.journal_entries (
+    entry_number, entry_date, description, reference_number, entry_type, status,
+    created_by, posted_by, posted_at
+  ) VALUES (
+    'DIV-' || v_reference, v_date, 'Approved dividend and patronage distribution',
+    v_reference, 'general', 'posted', v_created_by, v_created_by, now()
+  ) RETURNING id INTO v_journal_id;
+
+  INSERT INTO public.journal_entry_lines (journal_entry_id, account_id, debit_amount, credit_amount, description)
+  SELECT v_journal_id, a.account_id, a.debit, a.credit, 'Dividend distribution ' || v_reference
+  FROM (VALUES
+    (v_distribution_account, v_gross, 0::NUMERIC),
+    (v_mortuary_account, 0::NUMERIC, v_mortuary),
+    (v_capital_account, 0::NUMERIC, v_retention),
+    (v_savings_account, 0::NUMERIC, v_savings),
+    (v_receivable_account, 0::NUMERIC, v_principal),
+    (v_interest_account, 0::NUMERIC, v_interest),
+    (v_penalty_account, 0::NUMERIC, v_penalty)
+  ) AS a(account_id, debit, credit)
+  WHERE a.account_id IS NOT NULL AND (a.debit > 0 OR a.credit > 0);
+
+  INSERT INTO public.member_dividend_distributions (
+    member_id, distribution_year, reference_number, distribution_date,
+    dividend_amount, patronage_amount, mortuary_deduction, retention_amount,
+    savings_amount, loan_payment_amount, loan_id, loan_principal_paid,
+    loan_interest_paid, loan_penalty_paid, savings_account_id,
+    journal_entry_id, created_by
+  ) VALUES (
+    v_member_id, EXTRACT(YEAR FROM v_date)::INTEGER, v_reference, v_date,
+    v_dividend, v_patronage, v_mortuary, v_retention, v_savings, v_loan_payment,
+    v_loan_id, v_principal, v_interest, v_penalty, v_savings_account_id,
+    v_journal_id, v_created_by
+  );
+
+  IF v_retention > 0 THEN
+    UPDATE public.members SET total_capital = COALESCE(total_capital, 0) + v_retention WHERE id = v_member_id;
+  END IF;
+  IF v_savings > 0 THEN
+    UPDATE public.savings_accounts
+    SET balance = balance + v_savings, updated_at = now()
+    WHERE id = v_savings_account_id;
+    INSERT INTO public.savings_transactions (
+      savings_account_id, transaction_type, amount, balance_after, transaction_date,
+      description, reference_number, created_by
+    )
+    SELECT v_savings_account_id, 'deposit', v_savings, balance, v_date,
+           'Dividend distribution', v_reference, v_created_by
+    FROM public.savings_accounts WHERE id = v_savings_account_id;
+  END IF;
+  IF v_loan_payment > 0 THEN
+    SELECT COALESCE(MAX(payment_number), 0) + 1 INTO v_next_payment
+    FROM public.loan_payments WHERE loan_id = v_loan_id;
+    INSERT INTO public.loan_payments (
+      loan_id, payment_number, payment_date, amount_paid, principal_paid,
+      interest_paid, penalty_paid, balance_after, payment_method, reference_number, created_by
+    ) VALUES (
+      v_loan_id, v_next_payment, v_date, v_loan_payment, v_principal,
+      v_interest, v_penalty, v_balance_after, 'other', v_reference, v_created_by
+    );
+    UPDATE public.loans
+    SET balance = v_balance_after,
+        status = CASE WHEN v_balance_after = 0 THEN 'completed' ELSE 'active' END,
+        updated_at = now()
+    WHERE id = v_loan_id;
+    UPDATE public.loan_payments
+    SET balance_after = v_balance_after
+    WHERE loan_id = v_loan_id AND payment_number = v_next_payment;
+  END IF;
+  INSERT INTO public.member_activity (member_id, activity_type, title, amount, reference, created_by)
+  VALUES (
+    v_member_id, 'dividend', 'Dividend and patronage distribution',
+    v_net, v_reference, v_created_by
+  );
+
+  RETURN jsonb_build_object('distribution_id', (
+    SELECT id FROM public.member_dividend_distributions WHERE journal_entry_id = v_journal_id
+  ), 'journal_entry_id', v_journal_id);
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.record_member_dividend(JSONB) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.record_member_dividend(JSONB) TO authenticated;
+
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM pg_publication WHERE pubname = 'supabase_realtime')
+     AND NOT EXISTS (
+       SELECT 1 FROM pg_publication_tables
+       WHERE pubname = 'supabase_realtime' AND schemaname = 'public'
+         AND tablename = 'member_dividend_distributions'
+     ) THEN
+    ALTER PUBLICATION supabase_realtime ADD TABLE public.member_dividend_distributions;
+  END IF;
+END $$;
+
+
+================================================================================
+FILE: 20261013000011_bookkeeper_sales_and_time_deposit_terms.sql
+================================================================================
+ALTER TABLE public.savings_accounts
+  ADD COLUMN IF NOT EXISTS maturity_date DATE;
+
+ALTER TABLE public.sales_orders
+  ADD COLUMN IF NOT EXISTS cash_receipt_id UUID REFERENCES public.cash_receipts(id),
+  ADD COLUMN IF NOT EXISTS amount_paid NUMERIC(15, 2) NOT NULL DEFAULT 0;
+
+UPDATE public.sales_orders
+SET amount_paid = net_amount
+WHERE payment_status = 'paid' AND amount_paid = 0;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint
+    WHERE conname = 'sales_orders_amount_paid_check'
+      AND conrelid = 'public.sales_orders'::regclass
+  ) THEN
+    ALTER TABLE public.sales_orders
+      ADD CONSTRAINT sales_orders_amount_paid_check
+      CHECK (amount_paid >= 0 AND amount_paid <= net_amount);
+  END IF;
+END;
+$$;
+
+CREATE UNIQUE INDEX IF NOT EXISTS sales_orders_cash_receipt_id_idx
+  ON public.sales_orders(cash_receipt_id)
+  WHERE cash_receipt_id IS NOT NULL;
+
+ALTER TABLE public.sales_order_items
+  ALTER COLUMN product_id DROP NOT NULL,
+  ADD COLUMN IF NOT EXISTS item_description TEXT;
+
+CREATE OR REPLACE FUNCTION public.create_loan_from_request()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, pg_temp
+AS $$
+DECLARE
+  v_term INTEGER;
+  v_freq TEXT;
+  q JSONB;
+  v_loan UUID;
+  v_number TEXT;
+  v_seq INTEGER;
+  v_prefix TEXT := 'L-' || to_char(CURRENT_DATE, 'YYYY') || '-';
+  n INTEGER;
+  v_installment NUMERIC;
+  v_total NUMERIC;
+  v_due DATE;
+  i INTEGER;
+BEGIN
+  IF NEW.request_type <> 'loan_application' OR NEW.status <> 'approved' OR OLD.status = 'approved' THEN
+    RETURN NEW;
+  END IF;
+  IF EXISTS (SELECT 1 FROM public.loans WHERE request_id = NEW.id) THEN
+    RETURN NEW;
+  END IF;
+
+  v_term := COALESCE(NULLIF(NEW.request_data->>'term_months', '')::INTEGER, 12);
+  v_freq := COALESCE(NULLIF(NEW.request_data->>'payment_frequency', ''), 'monthly');
+  q := public.loan_quote(NEW.amount, v_term, v_freq);
+  n := (q->>'installments')::INTEGER;
+  v_installment := (q->>'installment_amount')::NUMERIC;
+  v_total := (q->>'total_payable')::NUMERIC;
+
+  PERFORM pg_advisory_xact_lock(hashtext('loan_number'));
+  SELECT COALESCE(MAX(substring(loan_number FROM '(\d+)$')::INTEGER), 0) + 1 INTO v_seq
+  FROM public.loans WHERE loan_number LIKE v_prefix || '%';
+  v_number := v_prefix || lpad(v_seq::TEXT, 5, '0');
+
+  INSERT INTO public.loans (
+    loan_number, member_id, principal_amount, interest_rate, term_months,
+    monthly_payment, total_interest, total_amount, balance,
+    application_date, approval_date, release_date, maturity_date, status, approved_by,
+    notes, payment_frequency, installments, installment_amount, penalty_rate, request_id
+  ) VALUES (
+    v_number, NEW.member_id, NEW.amount, (q->>'annual_rate')::NUMERIC, v_term,
+    round(v_total / v_term, 2), (q->>'total_interest')::NUMERIC, v_total, NEW.amount,
+    NEW.created_at::DATE, CURRENT_DATE, CURRENT_DATE,
+    CASE WHEN v_freq = 'weekly' THEN CURRENT_DATE + (n * 7) ELSE (CURRENT_DATE + make_interval(months => n))::DATE END,
+    'active', NEW.reviewed_by,
+    NULLIF(NEW.request_data->>'purpose', ''), v_freq, n, v_installment, (q->>'penalty_rate')::NUMERIC, NEW.id
+  ) RETURNING id INTO v_loan;
+
+  FOR i IN 1..n LOOP
+    v_due := CASE WHEN v_freq = 'weekly' THEN CURRENT_DATE + (i * 7)
+                  ELSE (CURRENT_DATE + make_interval(months => i))::DATE END;
+    INSERT INTO public.loan_schedule (loan_id, installment_number, due_date, amount_due)
+    VALUES (
+      v_loan, i, v_due,
+      CASE WHEN i = n THEN v_total - v_installment * (n - 1) ELSE v_installment END
+    );
+  END LOOP;
+  RETURN NEW;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.process_member_receipt(p_receipt_id UUID)
+RETURNS VOID
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path TO 'public', 'pg_temp'
+AS $$
+DECLARE
+  r RECORD;
+  v_is_loan_payment BOOLEAN;
+  v_loan RECORD;
+  v_apply NUMERIC(15, 2);
+  v_next INTEGER;
+  v_reason TEXT;
+  v_selected_loan_id UUID := NULLIF(current_setting('amcoms.selected_loan_id', true), '')::UUID;
+BEGIN
+  SELECT * INTO r FROM public.cash_receipts WHERE id = p_receipt_id;
+  IF NOT FOUND OR r.status <> 'recorded' THEN
+    RETURN;
+  END IF;
+
+  IF EXISTS (
+    SELECT 1 FROM public.member_activity
+    WHERE reference = r.receipt_number AND activity_type IN ('loan_payment', 'receipt')
+  ) OR EXISTS (
+    SELECT 1 FROM public.data_discrepancies WHERE source_type = 'cash_receipt' AND source_id = r.id
+  ) THEN
+    RETURN;
+  END IF;
+
+  SELECT EXISTS (
+    SELECT 1
+    FROM public.cash_receipt_lines l
+    JOIN public.chart_of_accounts a ON a.id = l.account_id
+    WHERE l.cash_receipt_id = r.id AND a.account_name = 'Loan Receivable' AND l.side = 'credit'
+  ) OR COALESCE(r.description, '') ~* 'member-loan-payment' INTO v_is_loan_payment;
+
+  IF NOT v_is_loan_payment THEN
+    IF r.member_id IS NOT NULL THEN
+      INSERT INTO public.member_activity (member_id, activity_type, title, amount, reference, created_by)
+      VALUES (r.member_id, 'receipt', COALESCE(NULLIF(trim(r.description), ''), 'Payment received'), r.amount, r.receipt_number, r.created_by);
+    END IF;
+    RETURN;
+  END IF;
+
+  IF r.member_id IS NULL THEN
+    v_reason := 'Loan payment recorded for "' || r.received_from || '" but no member account is linked to this receipt.';
+    INSERT INTO public.data_discrepancies (source_type, source_id, reference, category, reason, amount, created_by)
+    VALUES ('cash_receipt', r.id, r.receipt_number, 'Loan payment', v_reason, r.amount, r.created_by);
+    RETURN;
+  END IF;
+
+  SELECT * INTO v_loan
+  FROM public.loans
+  WHERE member_id = r.member_id AND status = 'active' AND balance > 0
+    AND (v_selected_loan_id IS NULL OR id = v_selected_loan_id)
+  ORDER BY release_date NULLS LAST, created_at
+  LIMIT 1
+  FOR UPDATE;
+
+  IF NOT FOUND THEN
+    v_reason := 'Loan payment of ' || to_char(r.amount, 'FM999,999,990.00') || ' was recorded but the member has no matching active loan to apply it to.';
+    INSERT INTO public.member_activity (member_id, activity_type, title, amount, reference, created_by, is_discrepancy, note)
+    VALUES (r.member_id, 'loan_payment', 'Loan payment (discrepancy)', r.amount, r.receipt_number, r.created_by, true, v_reason);
+    INSERT INTO public.data_discrepancies (member_id, source_type, source_id, reference, category, reason, amount, created_by)
+    VALUES (r.member_id, 'cash_receipt', r.id, r.receipt_number, 'Loan payment', v_reason, r.amount, r.created_by);
+    RETURN;
+  END IF;
+
+  v_apply := CASE
+    WHEN v_selected_loan_id IS NOT NULL THEN r.amount
+    ELSE LEAST(r.amount, v_loan.balance)
+  END;
+  SELECT COALESCE(MAX(payment_number), 0) + 1 INTO v_next
+  FROM public.loan_payments WHERE loan_id = v_loan.id;
+
+  INSERT INTO public.loan_payments (
+    loan_id, payment_number, payment_date, amount_paid, principal_paid, interest_paid,
+    balance_after, payment_method, reference_number, receipt_id, created_by
+  ) VALUES (
+    v_loan.id, v_next, r.receipt_date, v_apply, v_apply, 0,
+    v_loan.balance - v_apply, r.payment_method, r.receipt_number, r.id, r.created_by
+  );
+
+  IF r.amount - v_apply > 0.009 THEN
+    v_reason := 'Loan payment of ' || to_char(r.amount, 'FM999,999,990.00') || ' exceeds the outstanding balance of '
+      || to_char(v_loan.balance, 'FM999,999,990.00') || ' on loan ' || v_loan.loan_number || '. Excess of '
+      || to_char(r.amount - v_apply, 'FM999,999,990.00') || ' was not applied.';
+    INSERT INTO public.member_activity (member_id, activity_type, title, amount, reference, created_by, is_discrepancy, note)
+    VALUES (r.member_id, 'loan_payment', 'Loan payment (' || v_loan.loan_number || ')', r.amount, r.receipt_number, r.created_by, true, v_reason);
+    INSERT INTO public.data_discrepancies (member_id, source_type, source_id, reference, category, reason, amount, created_by)
+    VALUES (r.member_id, 'cash_receipt', r.id, r.receipt_number, 'Loan overpayment', v_reason, r.amount - v_apply, r.created_by);
+  ELSE
+    INSERT INTO public.member_activity (member_id, activity_type, title, amount, reference, created_by)
+    VALUES (r.member_id, 'loan_payment', 'Loan payment (' || v_loan.loan_number || ')', v_apply, r.receipt_number, r.created_by);
+  END IF;
+END;
+$$;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint
+    WHERE conname = 'sales_order_items_product_or_description_check'
+      AND conrelid = 'public.sales_order_items'::regclass
+  ) THEN
+    ALTER TABLE public.sales_order_items
+      ADD CONSTRAINT sales_order_items_product_or_description_check
+      CHECK (product_id IS NOT NULL OR COALESCE(trim(item_description), '') <> '');
+  END IF;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.record_cooperative_sale(p_sale JSONB)
+RETURNS JSONB
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path TO 'public', 'pg_temp'
+AS $$
+DECLARE
+  v_date DATE := NULLIF(p_sale->>'transaction_date', '')::DATE;
+  v_reference TEXT := trim(COALESCE(p_sale->>'reference_number', ''));
+  v_flow TEXT := COALESCE(NULLIF(p_sale->>'flow', ''), 'sale');
+  v_selected_order_id UUID := NULLIF(p_sale->>'sales_order_id', '')::UUID;
+  v_customer TEXT := trim(COALESCE(p_sale->>'customer_name', ''));
+  v_member_id UUID := NULLIF(p_sale->>'member_id', '')::UUID;
+  v_product_id UUID := NULLIF(p_sale->>'product_id', '')::UUID;
+  v_item_description TEXT := trim(COALESCE(p_sale->>'item_description', ''));
+  v_quantity INTEGER := COALESCE(NULLIF(p_sale->>'quantity', '')::INTEGER, 0);
+  v_amount NUMERIC(15, 2) := round(COALESCE(NULLIF(p_sale->>'amount', '')::NUMERIC, 0), 2);
+  v_payment_type TEXT := COALESCE(NULLIF(p_sale->>'payment_type', ''), 'cash');
+  v_payment_method TEXT := COALESCE(NULLIF(p_sale->>'payment_method', ''), 'cash');
+  v_cash_account TEXT := COALESCE(NULLIF(p_sale->>'cash_account', ''), 'Cash on Hand');
+  v_revenue_name TEXT := trim(COALESCE(p_sale->>'revenue_account', ''));
+  v_staff_id UUID := public.current_staff_id();
+  v_order_id UUID;
+  v_receipt_id UUID;
+  v_journal_id UUID;
+  v_receivable_account_id UUID;
+  v_revenue_account_id UUID;
+  v_order RECORD;
+  v_amount_due NUMERIC(15, 2);
+  v_product RECORD;
+  v_member RECORD;
+  v_stock RECORD;
+  v_available INTEGER := 0;
+  v_remaining INTEGER;
+  v_take INTEGER;
+  v_has_inventory BOOLEAN := false;
+  v_receipt_result JSONB;
+BEGIN
+  IF v_staff_id IS NULL OR NOT public.has_role('bookkeeper') THEN
+    RAISE EXCEPTION 'Only bookkeepers can record sales';
+  END IF;
+  IF v_flow = 'collection' THEN
+    IF v_date IS NULL OR v_reference = '' OR v_selected_order_id IS NULL OR v_amount <= 0 THEN
+      RAISE EXCEPTION 'Collection date, receipt number, credit sale, and a positive amount are required';
+    END IF;
+    IF v_payment_method NOT IN ('cash', 'check', 'bank_transfer', 'gcash', 'paymaya', 'other')
+       OR v_cash_account NOT IN ('Cash on Hand', 'Cash in Bank') THEN
+      RAISE EXCEPTION 'Select a valid collection payment method and cash account';
+    END IF;
+
+    PERFORM pg_advisory_xact_lock(hashtext('cash_receipt:' || v_reference));
+    SELECT * INTO v_order
+    FROM public.sales_orders
+    WHERE id = v_selected_order_id
+    FOR UPDATE;
+    IF NOT FOUND THEN
+      RAISE EXCEPTION 'Select an outstanding credit sale';
+    END IF;
+    IF v_order.payment_status NOT IN ('pending', 'partial') THEN
+      RAISE EXCEPTION 'Select an outstanding credit sale';
+    END IF;
+    v_amount_due := v_order.net_amount - COALESCE(v_order.amount_paid, 0);
+    IF v_amount > v_amount_due THEN
+      RAISE EXCEPTION 'Collection exceeds the outstanding sale balance of %', to_char(v_amount_due, 'FM999,999,990.00');
+    END IF;
+    IF EXISTS (SELECT 1 FROM public.cash_receipts WHERE receipt_number = v_reference)
+       OR EXISTS (SELECT 1 FROM public.journal_entries WHERE entry_number = 'CR-' || v_reference)
+       OR EXISTS (SELECT 1 FROM public.sales_orders WHERE order_number = v_reference) THEN
+      RAISE EXCEPTION 'Receipt number % has already been used; enter a new receipt number', v_reference;
+    END IF;
+
+    v_receivable_account_id := NULL;
+    SELECT id INTO v_receivable_account_id
+    FROM public.chart_of_accounts
+    WHERE account_name = 'Account Receivable' AND account_type = 'asset' AND is_active;
+    IF v_receivable_account_id IS NULL THEN
+      RAISE EXCEPTION 'Account Receivable is missing from the active chart of accounts';
+    END IF;
+    v_receipt_result := public.save_cash_receipt(
+      jsonb_build_object(
+        'receipt_date', v_date,
+        'receipt_number', v_reference,
+        'received_from', v_order.customer_name,
+        'member_id', v_order.member_id,
+        'amount', v_amount,
+        'payment_method', v_payment_method,
+        'description', 'Collection for sale ' || v_order.order_number,
+        'status', 'recorded'
+      ),
+      jsonb_build_array(
+        jsonb_build_object('account', v_cash_account, 'amount', v_amount, 'side', 'debit'),
+        jsonb_build_object('account', 'Account Receivable', 'amount', v_amount, 'side', 'credit')
+      )
+    );
+    v_receipt_id := (v_receipt_result->>'receipt_id')::UUID;
+    UPDATE public.sales_orders
+    SET amount_paid = COALESCE(amount_paid, 0) + v_amount,
+        payment_status = CASE
+          WHEN COALESCE(amount_paid, 0) + v_amount >= net_amount THEN 'paid'
+          ELSE 'partial'
+        END
+    WHERE id = v_order.id;
+    RETURN jsonb_build_object(
+      'sales_order_id', v_order.id,
+      'cash_receipt_id', v_receipt_id,
+      'payment_status', CASE WHEN COALESCE(v_order.amount_paid, 0) + v_amount >= v_order.net_amount THEN 'paid' ELSE 'partial' END
+    );
+  ELSIF v_flow <> 'sale' THEN
+    RAISE EXCEPTION 'Unsupported sales transaction flow';
+  END IF;
+
+  IF v_date IS NULL OR v_reference = '' OR v_customer = '' OR v_item_description = ''
+     OR v_quantity <= 0 OR v_amount <= 0 OR v_revenue_name = '' THEN
+    RAISE EXCEPTION 'Date, reference, customer, product or service, positive quantity and amount, and sales account are required';
+  END IF;
+  IF v_payment_type NOT IN ('cash', 'credit') THEN
+    RAISE EXCEPTION 'Choose paid now or on credit';
+  END IF;
+  IF v_payment_type = 'cash' THEN
+    IF v_payment_method NOT IN ('cash', 'check', 'bank_transfer', 'gcash', 'paymaya', 'other') THEN
+      RAISE EXCEPTION 'Unsupported payment method';
+    END IF;
+    IF v_cash_account NOT IN ('Cash on Hand', 'Cash in Bank') THEN
+      RAISE EXCEPTION 'Choose Cash on Hand or Cash in Bank';
+    END IF;
+  END IF;
+
+  SELECT id INTO v_revenue_account_id
+  FROM public.chart_of_accounts
+  WHERE account_name = v_revenue_name AND account_type = 'revenue' AND is_active;
+  IF v_revenue_account_id IS NULL THEN
+    RAISE EXCEPTION 'The selected sales account is not an active revenue account';
+  END IF;
+
+  IF v_member_id IS NOT NULL THEN
+    SELECT * INTO v_member FROM public.members
+    WHERE id = v_member_id AND membership_status = 'active' AND archived_at IS NULL;
+    IF NOT FOUND THEN RAISE EXCEPTION 'The selected customer is not an active member'; END IF;
+    IF lower(v_customer) NOT IN (
+      lower(trim(concat_ws(' ', v_member.first_name, v_member.middle_name, v_member.last_name))),
+      lower(trim(concat_ws(' ', v_member.first_name, v_member.last_name)))
+    ) THEN
+      RAISE EXCEPTION 'Customer name does not match the selected member';
+    END IF;
+  ELSE
+    IF EXISTS (
+      SELECT 1 FROM public.members
+      WHERE membership_status = 'active' AND archived_at IS NULL
+        AND lower(v_customer) IN (
+          lower(trim(concat_ws(' ', first_name, middle_name, last_name))),
+          lower(trim(concat_ws(' ', first_name, last_name)))
+        )
+    ) THEN
+      RAISE EXCEPTION 'Select this customer as a member instead of entering their name manually';
+    END IF;
+  END IF;
+
+  IF v_product_id IS NOT NULL THEN
+    SELECT id, product_name, is_active INTO v_product
+    FROM public.products WHERE id = v_product_id FOR UPDATE;
+    IF NOT FOUND THEN
+      RAISE EXCEPTION 'The selected product is not active';
+    END IF;
+    IF NOT v_product.is_active THEN
+      RAISE EXCEPTION 'The selected product is not active';
+    END IF;
+    IF v_item_description = '' THEN v_item_description := v_product.product_name; END IF;
+
+    FOR v_stock IN
+      SELECT id, quantity_on_hand, quantity_reserved
+      FROM public.stock_inventory
+      WHERE product_id = v_product_id
+      ORDER BY created_at, id
+      FOR UPDATE
+    LOOP
+      v_has_inventory := true;
+      v_available := v_available + GREATEST(v_stock.quantity_on_hand - COALESCE(v_stock.quantity_reserved, 0), 0);
+    END LOOP;
+    IF v_has_inventory AND v_available < v_quantity THEN
+      RAISE EXCEPTION 'Not enough stock for %. Available quantity: %', v_item_description, v_available;
+    END IF;
+  END IF;
+
+  PERFORM pg_advisory_xact_lock(hashtext('cash_receipt:' || v_reference));
+  PERFORM pg_advisory_xact_lock(hashtext('sales_order:' || v_reference));
+  IF EXISTS (SELECT 1 FROM public.sales_orders WHERE order_number = v_reference)
+     OR EXISTS (SELECT 1 FROM public.cash_receipts WHERE receipt_number = v_reference)
+     OR EXISTS (SELECT 1 FROM public.journal_entries WHERE entry_number IN ('CR-' || v_reference, 'SALE-' || v_reference)) THEN
+    RAISE EXCEPTION 'Reference number % has already been used; nothing was duplicated. Enter a new reference number.', v_reference;
+  END IF;
+
+  INSERT INTO public.sales_orders (
+    order_number, order_date, member_id, customer_name, total_amount, net_amount,
+    amount_paid, payment_status, order_status, notes, created_by
+  ) VALUES (
+    v_reference, v_date, v_member_id, v_customer, v_amount, v_amount,
+    CASE WHEN v_payment_type = 'cash' THEN v_amount ELSE 0 END,
+    CASE WHEN v_payment_type = 'cash' THEN 'paid' ELSE 'pending' END,
+    'completed',
+    CASE WHEN v_payment_type = 'credit' THEN 'Credit sale' ELSE 'Paid sale' END,
+    v_staff_id
+  ) RETURNING id INTO v_order_id;
+
+  INSERT INTO public.sales_order_items (
+    sales_order_id, product_id, item_description, quantity, unit_price, line_total
+  ) VALUES (
+    v_order_id, v_product_id, v_item_description, v_quantity,
+    round(v_amount / v_quantity, 2), v_amount
+  );
+
+  IF v_product_id IS NOT NULL AND v_has_inventory THEN
+    v_remaining := v_quantity;
+    FOR v_stock IN
+      SELECT id, quantity_on_hand, quantity_reserved
+      FROM public.stock_inventory
+      WHERE product_id = v_product_id
+      ORDER BY created_at, id
+      FOR UPDATE
+    LOOP
+      EXIT WHEN v_remaining = 0;
+      v_take := LEAST(
+        v_remaining,
+        GREATEST(v_stock.quantity_on_hand - COALESCE(v_stock.quantity_reserved, 0), 0)
+      );
+      IF v_take > 0 THEN
+        UPDATE public.stock_inventory
+        SET quantity_on_hand = quantity_on_hand - v_take, updated_at = now()
+        WHERE id = v_stock.id;
+        v_remaining := v_remaining - v_take;
+      END IF;
+    END LOOP;
+    INSERT INTO public.stock_movements (
+      product_id, movement_type, quantity, reference_number, movement_date,
+      description, created_by
+    ) VALUES (
+      v_product_id, 'sale', v_quantity, v_reference, v_date,
+      'Sale to ' || v_customer, v_staff_id
+    );
+  END IF;
+
+  IF v_payment_type = 'cash' THEN
+    v_receipt_result := public.save_cash_receipt(
+      jsonb_build_object(
+        'receipt_date', v_date,
+        'receipt_number', v_reference,
+        'received_from', v_customer,
+        'member_id', v_member_id,
+        'amount', v_amount,
+        'payment_method', v_payment_method,
+        'description', 'Sale: ' || v_item_description,
+        'status', 'recorded'
+      ),
+      jsonb_build_array(
+        jsonb_build_object('account', v_cash_account, 'amount', v_amount, 'side', 'debit'),
+        jsonb_build_object('account', v_revenue_name, 'amount', v_amount, 'side', 'credit')
+      )
+    );
+    v_receipt_id := (v_receipt_result->>'receipt_id')::UUID;
+    UPDATE public.sales_orders SET cash_receipt_id = v_receipt_id WHERE id = v_order_id;
+  ELSE
+    SELECT id INTO v_receivable_account_id
+    FROM public.chart_of_accounts
+    WHERE account_name = 'Account Receivable' AND account_type = 'asset' AND is_active;
+    IF v_receivable_account_id IS NULL THEN
+      RAISE EXCEPTION 'Account Receivable is missing from the active chart of accounts';
+    END IF;
+    INSERT INTO public.journal_entries (
+      entry_number, entry_date, description, reference_number, entry_type, status,
+      created_by, posted_by, posted_at
+    ) VALUES (
+      'SALE-' || v_reference, v_date, 'Credit sale: ' || v_item_description,
+      v_reference, 'general', 'posted', v_staff_id, v_staff_id, now()
+    ) RETURNING id INTO v_journal_id;
+    INSERT INTO public.journal_entry_lines (
+      journal_entry_id, account_id, debit_amount, credit_amount, description
+    ) VALUES
+      (v_journal_id, v_receivable_account_id, v_amount, 0, 'Credit sale ' || v_reference),
+      (v_journal_id, v_revenue_account_id, 0, v_amount, 'Sales revenue ' || v_reference);
+  END IF;
+
+  RETURN jsonb_build_object(
+    'sales_order_id', v_order_id,
+    'cash_receipt_id', v_receipt_id,
+    'journal_entry_id', v_journal_id,
+    'payment_status', CASE WHEN v_payment_type = 'cash' THEN 'paid' ELSE 'pending' END
+  );
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.record_cooperative_sale(JSONB) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.record_cooperative_sale(JSONB) TO authenticated;
+
+
+================================================================================
+FILE: 20261013000012_manager_loan_review_and_disbursement.sql
+================================================================================
+-- Separate loan approval from the cash release: Managers decide applications;
+-- Bookkeepers post the disbursement and activate the repayment schedule.
+
+ALTER TABLE public.cash_disbursements
+  ADD COLUMN IF NOT EXISTS loan_id UUID REFERENCES public.loans(id);
+
+CREATE UNIQUE INDEX IF NOT EXISTS cash_disbursements_loan_id_idx
+  ON public.cash_disbursements (loan_id)
+  WHERE loan_id IS NOT NULL;
+
+DROP POLICY IF EXISTS "Bookkeepers can review requests" ON public.requests;
+DROP POLICY IF EXISTS "Bookkeepers review non-loan requests" ON public.requests;
+CREATE POLICY "Bookkeepers review non-loan requests"
+  ON public.requests FOR UPDATE
+  USING (public.has_role('bookkeeper') AND request_type <> 'loan_application')
+  WITH CHECK (public.has_role('bookkeeper') AND request_type <> 'loan_application');
+
+CREATE OR REPLACE FUNCTION public.review_loan_request(
+  p_request_id UUID,
+  p_decision TEXT,
+  p_notes TEXT
+) RETURNS VOID
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, pg_temp
+AS $$
+DECLARE
+  v_request public.requests%ROWTYPE;
+  v_staff_id UUID := public.current_staff_id();
+BEGIN
+  IF v_staff_id IS NULL OR NOT public.has_role('manager') THEN
+    RAISE EXCEPTION 'Only an active Manager can review loan applications';
+  END IF;
+  IF p_decision IS NULL OR p_decision NOT IN ('approved', 'rejected')
+     OR COALESCE(trim(p_notes), '') = '' THEN
+    RAISE EXCEPTION 'Choose approve or reject and provide decision notes';
+  END IF;
+
+  SELECT * INTO v_request
+  FROM public.requests
+  WHERE id = p_request_id AND request_type = 'loan_application'
+  FOR UPDATE;
+  IF NOT FOUND OR v_request.status NOT IN ('pending', 'under_review') THEN
+    RAISE EXCEPTION 'This loan application was not found or has already been reviewed';
+  END IF;
+
+  UPDATE public.requests
+  SET status = p_decision,
+      reviewed_by = v_staff_id,
+      reviewed_at = now(),
+      review_notes = trim(p_notes),
+      approved_by = CASE WHEN p_decision = 'approved' THEN v_staff_id ELSE NULL END,
+      approved_at = CASE WHEN p_decision = 'approved' THEN now() ELSE NULL END,
+      approval_notes = CASE WHEN p_decision = 'approved' THEN trim(p_notes) ELSE NULL END,
+      updated_at = now()
+  WHERE id = p_request_id;
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.review_loan_request(UUID, TEXT, TEXT) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.review_loan_request(UUID, TEXT, TEXT) TO authenticated;
+
+-- Approval creates a priced loan record in the approved state, but no debt,
+-- cash disbursement, or repayment schedule until the Bookkeeper releases funds.
+CREATE OR REPLACE FUNCTION public.create_loan_from_request()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, pg_temp
+AS $$
+DECLARE
+  v_term INTEGER;
+  v_freq TEXT;
+  q JSONB;
+  v_number TEXT;
+  v_seq INTEGER;
+  v_prefix TEXT := 'L-' || to_char(CURRENT_DATE, 'YYYY') || '-';
+BEGIN
+  IF NEW.request_type <> 'loan_application' OR NEW.status <> 'approved' OR OLD.status = 'approved' THEN
+    RETURN NEW;
+  END IF;
+  IF EXISTS (SELECT 1 FROM public.loans WHERE request_id = NEW.id) THEN
+    RETURN NEW;
+  END IF;
+
+  v_term := COALESCE(NULLIF(NEW.request_data->>'term_months', '')::INTEGER, 12);
+  v_freq := COALESCE(NULLIF(NEW.request_data->>'payment_frequency', ''), 'monthly');
+  q := public.loan_quote(NEW.amount, v_term, v_freq);
+
+  PERFORM pg_advisory_xact_lock(hashtext('loan_number'));
+  SELECT COALESCE(MAX(substring(loan_number FROM '(\d+)$')::INTEGER), 0) + 1 INTO v_seq
+  FROM public.loans WHERE loan_number LIKE v_prefix || '%';
+  v_number := v_prefix || lpad(v_seq::TEXT, 5, '0');
+
+  INSERT INTO public.loans (
+    loan_number, member_id, principal_amount, interest_rate, term_months,
+    monthly_payment, total_interest, total_amount, balance,
+    application_date, approval_date, release_date, maturity_date, status, approved_by,
+    notes, payment_frequency, installments, installment_amount, penalty_rate, request_id
+  ) VALUES (
+    v_number, NEW.member_id, NEW.amount, (q->>'annual_rate')::NUMERIC, v_term,
+    round((q->>'total_payable')::NUMERIC / v_term, 2),
+    (q->>'total_interest')::NUMERIC, (q->>'total_payable')::NUMERIC, 0,
+    NEW.created_at::DATE, CURRENT_DATE, NULL, NULL, 'approved', NEW.reviewed_by,
+    NULLIF(NEW.request_data->>'purpose', ''), v_freq, (q->>'installments')::INTEGER,
+    (q->>'installment_amount')::NUMERIC, (q->>'penalty_rate')::NUMERIC, NEW.id
+  );
+
+  RETURN NEW;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.record_loan_disbursement(
+  p_loan_id UUID,
+  p_voucher_number TEXT,
+  p_disbursement_date DATE,
+  p_payment_source TEXT
+) RETURNS JSONB
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, pg_temp
+AS $$
+DECLARE
+  v_loan public.loans%ROWTYPE;
+  v_member_name TEXT;
+  v_voucher TEXT := trim(COALESCE(p_voucher_number, ''));
+  v_result JSONB;
+  v_disbursement_id UUID;
+  v_installment INTEGER;
+  v_installments INTEGER;
+  v_installment_amount NUMERIC(15, 2);
+  v_final_amount NUMERIC(15, 2);
+  v_due_date DATE;
+BEGIN
+  IF NOT public.has_role('bookkeeper') THEN
+    RAISE EXCEPTION 'Only an active Bookkeeper can record a loan cash release';
+  END IF;
+  IF p_disbursement_date IS NULL OR v_voucher = '' OR p_payment_source IS NULL
+     OR p_payment_source NOT IN ('cash-on-hand', 'cash-in-bank') THEN
+    RAISE EXCEPTION 'Enter a release date, voucher number, and valid cash account';
+  END IF;
+
+  SELECT * INTO v_loan
+  FROM public.loans
+  WHERE id = p_loan_id AND status = 'approved'
+  FOR UPDATE;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'This loan is not approved or has already been released';
+  END IF;
+  IF NOT EXISTS (
+    SELECT 1 FROM public.requests
+    WHERE id = v_loan.request_id AND request_type = 'loan_application' AND status = 'approved'
+  ) THEN
+    RAISE EXCEPTION 'The loan application has not been approved';
+  END IF;
+  IF EXISTS (SELECT 1 FROM public.cash_disbursements WHERE loan_id = v_loan.id) THEN
+    RAISE EXCEPTION 'This loan already has a recorded cash release';
+  END IF;
+
+  SELECT trim(concat_ws(' ', first_name, middle_name, last_name))
+  INTO v_member_name
+  FROM public.members
+  WHERE id = v_loan.member_id;
+  IF COALESCE(v_member_name, '') = '' THEN
+    RAISE EXCEPTION 'The member linked to this loan could not be found';
+  END IF;
+
+  v_result := public.save_cash_disbursement(
+    jsonb_build_object(
+      'disbursement_date', p_disbursement_date,
+      'voucher_number', v_voucher,
+      'payee', v_member_name,
+      'member_id', v_loan.member_id,
+      'amount', v_loan.principal_amount,
+      'payment_source', p_payment_source,
+      'description', 'Loan release ' || v_loan.loan_number,
+      'status', 'recorded'
+    ),
+    jsonb_build_array(
+      jsonb_build_object('account', 'Loan Payable', 'amount', v_loan.principal_amount)
+    )
+  );
+  v_disbursement_id := (v_result->>'disbursement_id')::UUID;
+
+  UPDATE public.cash_disbursements
+  SET member_id = v_loan.member_id,
+      loan_id = v_loan.id
+  WHERE id = v_disbursement_id;
+
+  v_installments := COALESCE(v_loan.installments, v_loan.term_months);
+  v_installment_amount := COALESCE(v_loan.installment_amount, round(v_loan.total_amount / v_installments, 2));
+  IF v_installments < 1 OR v_installment_amount <= 0 THEN
+    RAISE EXCEPTION 'The approved loan has invalid repayment terms';
+  END IF;
+  v_final_amount := v_loan.total_amount - v_installment_amount * (v_installments - 1);
+
+  UPDATE public.loans
+  SET status = 'active',
+      balance = principal_amount,
+      release_date = p_disbursement_date,
+      maturity_date = CASE
+        WHEN v_loan.payment_frequency = 'weekly' THEN p_disbursement_date + (v_installments * 7)
+        ELSE (p_disbursement_date + make_interval(months => v_installments))::DATE
+      END,
+      updated_at = now()
+  WHERE id = v_loan.id;
+
+  FOR v_installment IN 1..v_installments LOOP
+    v_due_date := CASE
+      WHEN v_loan.payment_frequency = 'weekly' THEN p_disbursement_date + (v_installment * 7)
+      ELSE (p_disbursement_date + make_interval(months => v_installment))::DATE
+    END;
+    INSERT INTO public.loan_schedule (loan_id, installment_number, due_date, amount_due)
+    VALUES (
+      v_loan.id,
+      v_installment,
+      v_due_date,
+      CASE WHEN v_installment = v_installments THEN v_final_amount ELSE v_installment_amount END
+    );
+  END LOOP;
+
+  RETURN v_result || jsonb_build_object(
+    'loan_id', v_loan.id,
+    'loan_number', v_loan.loan_number,
+    'status', 'active',
+    'release_date', p_disbursement_date
+  );
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.record_loan_disbursement(UUID, TEXT, DATE, TEXT) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.record_loan_disbursement(UUID, TEXT, DATE, TEXT) TO authenticated;
+
+
+================================================================================
+FILE: 20261013000013_prevent_duplicate_open_loan_applications.sql
+================================================================================
+CREATE OR REPLACE FUNCTION public.submit_loan_request(
+  p_amount NUMERIC,
+  p_loan_type TEXT,
+  p_purpose TEXT,
+  p_term_months INTEGER,
+  p_frequency TEXT
+) RETURNS UUID
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, pg_temp
+AS $$
+DECLARE
+  v_member UUID := public.get_member_id();
+  v_staff UUID;
+  v_quote JSONB;
+  v_id UUID;
+BEGIN
+  IF v_member IS NULL THEN
+    RAISE EXCEPTION 'Your member profile could not be verified.';
+  END IF;
+  IF COALESCE(trim(p_loan_type), '') = '' OR COALESCE(trim(p_purpose), '') = '' THEN
+    RAISE EXCEPTION 'Enter the loan type and purpose.';
+  END IF;
+
+  PERFORM pg_advisory_xact_lock(hashtext(v_member::TEXT));
+  IF EXISTS (
+    SELECT 1
+    FROM public.requests r
+    WHERE r.member_id = v_member
+      AND r.request_type = 'loan_application'
+      AND (
+        r.status IN ('pending', 'under_review')
+        OR (
+          r.status = 'approved'
+          AND EXISTS (
+            SELECT 1
+            FROM public.loans l
+            WHERE l.request_id = r.id
+              AND l.status = 'approved'
+          )
+        )
+      )
+  ) THEN
+    RAISE EXCEPTION 'You already have a loan application awaiting a decision or cash release.';
+  END IF;
+
+  v_quote := public.loan_quote(p_amount, p_term_months, p_frequency);
+  SELECT id INTO v_staff FROM public.staff WHERE user_id = auth.uid() LIMIT 1;
+
+  INSERT INTO public.requests (request_number, request_type, member_id, requester_id, request_data, amount)
+  VALUES (
+    'LOAN-' || to_char(now(), 'YYYYMMDD') || '-' || upper(substr(gen_random_uuid()::TEXT, 1, 6)),
+    'loan_application', v_member, v_staff,
+    jsonb_build_object(
+      'type', 'Loan Application',
+      'loan_type', left(trim(p_loan_type), 60),
+      'purpose', left(trim(p_purpose), 500)
+    ) || v_quote,
+    p_amount
+  )
+  RETURNING id INTO v_id;
+
+  RETURN v_id;
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.submit_loan_request(NUMERIC, TEXT, TEXT, INTEGER, TEXT) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.submit_loan_request(NUMERIC, TEXT, TEXT, INTEGER, TEXT) TO authenticated;
+
+
+================================================================================
+FILE: 20261013000014_fifo_inventory_costing.sql
+================================================================================
+ALTER TABLE public.stock_movements
+  ADD COLUMN IF NOT EXISTS total_cost NUMERIC(15, 2)
+  CHECK (total_cost IS NULL OR total_cost >= 0);
+
+CREATE TABLE public.inventory_cost_layers (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  product_id UUID NOT NULL REFERENCES public.products(id),
+  source_movement_id UUID NOT NULL UNIQUE REFERENCES public.stock_movements(id),
+  received_date DATE NOT NULL,
+  quantity_received INTEGER NOT NULL CHECK (quantity_received > 0),
+  quantity_remaining INTEGER NOT NULL CHECK (quantity_remaining >= 0 AND quantity_remaining <= quantity_received),
+  unit_cost NUMERIC(15, 4) NOT NULL CHECK (unit_cost > 0),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  created_by UUID REFERENCES public.staff(id)
+);
+
+CREATE INDEX inventory_cost_layers_fifo_idx
+  ON public.inventory_cost_layers(product_id, received_date, created_at, id)
+  WHERE quantity_remaining > 0;
+
+CREATE TABLE public.inventory_cost_allocations (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  stock_movement_id UUID NOT NULL REFERENCES public.stock_movements(id),
+  cost_layer_id UUID NOT NULL REFERENCES public.inventory_cost_layers(id),
+  quantity INTEGER NOT NULL CHECK (quantity > 0),
+  unit_cost NUMERIC(15, 4) NOT NULL CHECK (unit_cost > 0),
+  total_cost NUMERIC(15, 2) NOT NULL CHECK (total_cost >= 0),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX inventory_cost_allocations_movement_idx
+  ON public.inventory_cost_allocations(stock_movement_id);
+
+CREATE TRIGGER audit_inventory_cost_layers
+  AFTER INSERT OR UPDATE OR DELETE ON public.inventory_cost_layers
+  FOR EACH ROW EXECUTE FUNCTION public.audit_trigger();
+
+CREATE TRIGGER audit_inventory_cost_allocations
+  AFTER INSERT OR UPDATE OR DELETE ON public.inventory_cost_allocations
+  FOR EACH ROW EXECUTE FUNCTION public.audit_trigger();
+
+ALTER TABLE public.inventory_cost_layers ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.inventory_cost_allocations ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Staff can view FIFO inventory costs"
+  ON public.inventory_cost_layers FOR SELECT TO authenticated
+  USING (EXISTS (SELECT 1 FROM public.staff WHERE user_id = auth.uid() AND is_active));
+
+CREATE POLICY "Staff can view FIFO cost allocations"
+  ON public.inventory_cost_allocations FOR SELECT TO authenticated
+  USING (EXISTS (SELECT 1 FROM public.staff WHERE user_id = auth.uid() AND is_active));
+
+GRANT SELECT ON public.inventory_cost_layers, public.inventory_cost_allocations TO authenticated;
+
+-- Inventory and sale writes must use the atomic RPCs so stock, FIFO costs, and
+-- journal entries cannot drift apart through direct table writes.
+DROP POLICY IF EXISTS "Authenticated users can manage stock_inventory" ON public.stock_inventory;
+DROP POLICY IF EXISTS "Inventory staff can manage stock" ON public.stock_inventory;
+DROP POLICY IF EXISTS "Authenticated users can manage stock_movements" ON public.stock_movements;
+DROP POLICY IF EXISTS "Inventory staff can create movements" ON public.stock_movements;
+DROP POLICY IF EXISTS "Authenticated users can manage production_records" ON public.production_records;
+DROP POLICY IF EXISTS "Inventory staff can manage production" ON public.production_records;
+DROP POLICY IF EXISTS "Authenticated users can manage sales_orders" ON public.sales_orders;
+DROP POLICY IF EXISTS "Authorized staff can manage sales" ON public.sales_orders;
+DROP POLICY IF EXISTS "Authenticated users can manage sales_order_items" ON public.sales_order_items;
+DROP POLICY IF EXISTS "Authorized staff can manage sales items" ON public.sales_order_items;
+
+INSERT INTO public.chart_of_accounts (account_code, account_name, account_type, account_category, is_active)
+SELECT account_code, account_name, account_type, 'Inventory', true
+FROM (VALUES
+  ('INV-ASSET', 'Inventory', 'asset'),
+  ('INV-COGS', 'Cost of Goods Sold', 'expense'),
+  ('INV-LOSS', 'Inventory Loss', 'expense'),
+  ('INV-TRANSIT', 'Inventory in Transit', 'asset'),
+  ('INV-WIP', 'Work in Process Inventory', 'asset'),
+  ('INV-OPENING', 'Opening Inventory Balance', 'equity'),
+  ('INV-GAIN', 'Inventory Adjustment Gain', 'revenue')
+) AS accounts(account_code, account_name, account_type)
+WHERE NOT EXISTS (
+  SELECT 1 FROM public.chart_of_accounts existing
+  WHERE existing.account_name = accounts.account_name
+    AND existing.account_type = accounts.account_type
+)
+ON CONFLICT (account_code) DO NOTHING;
+
+CREATE OR REPLACE FUNCTION public.require_valued_product_sale()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, pg_temp
+AS $$
+DECLARE
+  v_on_hand INTEGER;
+  v_available INTEGER;
+  v_valued INTEGER;
+BEGIN
+  IF NEW.product_id IS NULL THEN
+    RETURN NEW;
+  END IF;
+
+  PERFORM id
+  FROM public.stock_inventory
+  WHERE product_id = NEW.product_id
+  FOR UPDATE;
+  SELECT COALESCE(sum(quantity_on_hand), 0),
+         COALESCE(sum(GREATEST(quantity_on_hand - COALESCE(quantity_reserved, 0), 0)), 0)
+  INTO v_on_hand, v_available
+  FROM public.stock_inventory
+  WHERE product_id = NEW.product_id;
+  SELECT COALESCE(sum(quantity_remaining), 0)
+  INTO v_valued
+  FROM public.inventory_cost_layers
+  WHERE product_id = NEW.product_id;
+
+  IF v_on_hand < NEW.quantity OR v_available < NEW.quantity THEN
+    RAISE EXCEPTION 'There is not enough available stock to complete this sale';
+  END IF;
+  IF v_valued < v_on_hand THEN
+    RAISE EXCEPTION 'Value all existing stock for this product with verified opening FIFO costs before selling it';
+  END IF;
+
+  RETURN NEW;
+END;
+$$;
+
+CREATE TRIGGER require_valued_product_sale
+  BEFORE INSERT ON public.sales_order_items
+  FOR EACH ROW EXECUTE FUNCTION public.require_valued_product_sale();
+
+CREATE OR REPLACE FUNCTION public.process_fifo_stock_movement()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, pg_temp
+AS $$
+DECLARE
+  v_quantity INTEGER;
+  v_remaining INTEGER;
+  v_take INTEGER;
+  v_total_cost NUMERIC(15, 2) := 0;
+  v_layer public.inventory_cost_layers%ROWTYPE;
+  v_inventory_account UUID;
+  v_offset_account UUID;
+  v_entry_id UUID;
+  v_entry_number TEXT;
+  v_description TEXT;
+  v_is_outflow BOOLEAN;
+  v_stock_quantity INTEGER;
+  v_valued_quantity INTEGER;
+  v_offset_name TEXT;
+  v_reference TEXT := trim(COALESCE(NEW.reference_number, ''));
+BEGIN
+  IF NEW.movement_type IN ('purchase', 'production', 'return')
+     OR (NEW.movement_type = 'adjustment' AND NEW.quantity > 0) THEN
+    IF NEW.quantity <= 0 OR NEW.unit_cost IS NULL OR NEW.unit_cost <= 0 THEN
+      RAISE EXCEPTION 'Inbound inventory requires a positive quantity and verified unit cost';
+    END IF;
+    IF NEW.movement_type IN ('purchase', 'return') AND v_reference = '' THEN
+      RAISE EXCEPTION 'Supplier purchases need an invoice reference; returns need the original sale reference';
+    END IF;
+    IF NEW.movement_type = 'purchase' AND EXISTS (
+      SELECT 1
+      FROM public.stock_movements sm
+      WHERE sm.id <> NEW.id
+        AND sm.movement_type = 'purchase'
+        AND sm.product_id = NEW.product_id
+        AND sm.reference_number = v_reference
+    ) THEN
+      RAISE EXCEPTION 'This product is already recorded against supplier invoice %; combine same-product invoice lines into one restock', v_reference;
+    END IF;
+
+    IF NEW.movement_type = 'return' THEN
+      SELECT COALESCE(sum(soi.quantity), 0) INTO v_stock_quantity
+      FROM public.sales_orders so
+      JOIN public.sales_order_items soi ON soi.sales_order_id = so.id
+      WHERE so.order_number = v_reference AND soi.product_id = NEW.product_id;
+      SELECT COALESCE(sum(abs(sm.quantity)), 0) INTO v_valued_quantity
+      FROM public.stock_movements sm
+      WHERE sm.movement_type = 'return'
+        AND sm.reference_number = v_reference
+        AND sm.product_id = NEW.product_id;
+      IF v_stock_quantity = 0 OR v_valued_quantity + NEW.quantity > v_stock_quantity THEN
+        RAISE EXCEPTION 'Returned quantity exceeds the original sale or the sale reference is invalid';
+      END IF;
+    END IF;
+
+    INSERT INTO public.inventory_cost_layers (
+      product_id, source_movement_id, received_date, quantity_received,
+      quantity_remaining, unit_cost, created_by
+    ) VALUES (
+      NEW.product_id, NEW.id, NEW.movement_date, NEW.quantity,
+      NEW.quantity, NEW.unit_cost, NEW.created_by
+    );
+    UPDATE public.stock_movements
+    SET total_cost = round(NEW.quantity * NEW.unit_cost, 2)
+    WHERE id = NEW.id;
+
+    SELECT id INTO v_inventory_account
+    FROM public.chart_of_accounts
+    WHERE account_name = 'Inventory' AND account_type = 'asset' AND is_active
+    ORDER BY created_at LIMIT 1;
+
+    IF NEW.movement_type = 'purchase' THEN
+      v_offset_name := 'Account Payable';
+      v_entry_number := 'INVPUR-' || v_reference || '-' || NEW.product_id::TEXT;
+      v_description := 'Inventory received on supplier invoice ' || v_reference
+        || CASE WHEN COALESCE(NEW.description, '') = '' THEN '' ELSE ' (' || NEW.description || ')' END;
+    ELSIF NEW.movement_type = 'production' THEN
+      v_offset_name := 'Work in Process Inventory';
+      v_entry_number := 'INVPROD-' || NEW.id::TEXT;
+      v_description := 'Finished goods transferred from work in process';
+    ELSIF NEW.movement_type = 'return' THEN
+      v_offset_name := 'Cost of Goods Sold';
+      v_entry_number := 'INVRETURN-' || NEW.id::TEXT;
+      v_description := 'Inventory returned against sale ' || v_reference;
+    ELSE
+      v_offset_name := 'Inventory Adjustment Gain';
+      v_entry_number := 'INVGAIN-' || NEW.id::TEXT;
+      v_description := 'Positive inventory adjustment';
+    END IF;
+
+    SELECT id INTO v_offset_account
+    FROM public.chart_of_accounts
+    WHERE account_name = v_offset_name
+      AND account_type = CASE v_offset_name
+        WHEN 'Account Payable' THEN 'liability'
+        WHEN 'Work in Process Inventory' THEN 'asset'
+        WHEN 'Cost of Goods Sold' THEN 'expense'
+        ELSE 'revenue'
+      END
+      AND is_active
+    ORDER BY created_at LIMIT 1;
+    IF v_inventory_account IS NULL OR v_offset_account IS NULL THEN
+      RAISE EXCEPTION 'Inventory receipt requires active Inventory and % accounts', v_offset_name;
+    END IF;
+
+    INSERT INTO public.journal_entries (
+      entry_number, entry_date, description, reference_number, entry_type, status,
+      created_by, posted_by, posted_at
+    ) VALUES (
+      v_entry_number, NEW.movement_date, v_description, v_reference,
+      'general', 'posted', NEW.created_by, NEW.created_by, now()
+    ) RETURNING id INTO v_entry_id;
+
+    INSERT INTO public.journal_entry_lines (
+      journal_entry_id, account_id, debit_amount, credit_amount, description
+    ) VALUES
+      (v_entry_id, v_inventory_account, round(NEW.quantity * NEW.unit_cost, 2), 0, v_description),
+      (v_entry_id, v_offset_account, 0, round(NEW.quantity * NEW.unit_cost, 2), v_description);
+    RETURN NEW;
+  END IF;
+
+  v_is_outflow := NEW.movement_type IN ('sale', 'transfer', 'waste')
+    OR (NEW.movement_type = 'adjustment' AND NEW.quantity < 0);
+  IF NOT v_is_outflow THEN
+    RETURN NEW;
+  END IF;
+
+  v_quantity := abs(NEW.quantity);
+  IF v_quantity <= 0 THEN
+    RAISE EXCEPTION 'Inventory outflow quantity must be greater than zero';
+  END IF;
+
+  SELECT COALESCE(sum(quantity_on_hand), 0) INTO v_stock_quantity
+  FROM public.stock_inventory
+  WHERE product_id = NEW.product_id;
+  SELECT COALESCE(sum(quantity_remaining), 0) INTO v_valued_quantity
+  FROM public.inventory_cost_layers
+  WHERE product_id = NEW.product_id;
+  IF v_valued_quantity < v_stock_quantity + v_quantity THEN
+    RAISE EXCEPTION 'Value all existing stock for this product with verified opening FIFO costs before recording an outflow';
+  END IF;
+
+  IF NEW.movement_type = 'sale' AND NOT EXISTS (
+    SELECT 1
+    FROM public.sales_orders so
+    JOIN public.sales_order_items soi ON soi.sales_order_id = so.id
+    WHERE so.order_number = NEW.reference_number
+      AND soi.product_id = NEW.product_id
+      AND soi.quantity = v_quantity
+  ) THEN
+    RAISE EXCEPTION 'Record product sales through the Sales transaction so revenue and inventory costs stay linked';
+  END IF;
+
+  SELECT id INTO v_inventory_account
+  FROM public.chart_of_accounts
+  WHERE account_name = 'Inventory' AND account_type = 'asset' AND is_active
+  ORDER BY created_at
+  LIMIT 1;
+  IF v_inventory_account IS NULL THEN
+    RAISE EXCEPTION 'Inventory asset account is missing from the active chart of accounts';
+  END IF;
+
+  v_remaining := v_quantity;
+  FOR v_layer IN
+    SELECT *
+    FROM public.inventory_cost_layers
+    WHERE product_id = NEW.product_id AND quantity_remaining > 0
+    ORDER BY received_date, created_at, id
+    FOR UPDATE
+  LOOP
+    EXIT WHEN v_remaining = 0;
+    v_take := LEAST(v_remaining, v_layer.quantity_remaining);
+    v_total_cost := v_total_cost + round(v_take * v_layer.unit_cost, 2);
+
+    UPDATE public.inventory_cost_layers
+    SET quantity_remaining = quantity_remaining - v_take
+    WHERE id = v_layer.id;
+
+    INSERT INTO public.inventory_cost_allocations (
+      stock_movement_id, cost_layer_id, quantity, unit_cost, total_cost
+    ) VALUES (
+      NEW.id, v_layer.id, v_take, v_layer.unit_cost, round(v_take * v_layer.unit_cost, 2)
+    );
+    v_remaining := v_remaining - v_take;
+  END LOOP;
+
+  IF v_remaining > 0 THEN
+    RAISE EXCEPTION 'Not enough valued stock for this movement: % unit(s) need an approved opening FIFO cost', v_remaining;
+  END IF;
+
+  UPDATE public.stock_movements
+  SET unit_cost = round(v_total_cost / v_quantity, 2),
+      total_cost = v_total_cost
+  WHERE id = NEW.id;
+
+  IF NEW.movement_type = 'sale' THEN
+    SELECT id INTO v_offset_account
+    FROM public.chart_of_accounts
+    WHERE account_name = 'Cost of Goods Sold' AND account_type = 'expense' AND is_active
+    ORDER BY created_at
+    LIMIT 1;
+    v_entry_number := 'COGS-' || NEW.reference_number;
+    v_description := 'FIFO cost of goods sold: ' || NEW.reference_number;
+  ELSIF NEW.movement_type = 'transfer' THEN
+    SELECT id INTO v_offset_account
+    FROM public.chart_of_accounts
+    WHERE account_name = 'Inventory in Transit' AND account_type = 'asset' AND is_active
+    ORDER BY created_at
+    LIMIT 1;
+    v_entry_number := 'INVTRANS-' || NEW.id::TEXT;
+    v_description := 'FIFO inventory transfer: ' || COALESCE(NEW.reference_number, NEW.id::TEXT);
+  ELSE
+    SELECT id INTO v_offset_account
+    FROM public.chart_of_accounts
+    WHERE account_name = 'Inventory Loss' AND account_type = 'expense' AND is_active
+    ORDER BY created_at
+    LIMIT 1;
+    v_entry_number := 'INVLOSS-' || NEW.id::TEXT;
+    v_description := 'FIFO inventory write-off: ' || COALESCE(NEW.reference_number, NEW.id::TEXT);
+  END IF;
+
+  IF v_offset_account IS NULL THEN
+    RAISE EXCEPTION 'The required inventory offset account is missing or inactive';
+  END IF;
+  IF EXISTS (SELECT 1 FROM public.journal_entries WHERE entry_number = v_entry_number) THEN
+    RAISE EXCEPTION 'Inventory cost posting % already exists', v_entry_number;
+  END IF;
+
+  INSERT INTO public.journal_entries (
+    entry_number, entry_date, description, reference_number, entry_type, status,
+    created_by, posted_by, posted_at
+  ) VALUES (
+    v_entry_number, NEW.movement_date, v_description, NEW.reference_number,
+    'general', 'posted', NEW.created_by, NEW.created_by, now()
+  ) RETURNING id INTO v_entry_id;
+
+  INSERT INTO public.journal_entry_lines (
+    journal_entry_id, account_id, debit_amount, credit_amount, description
+  ) VALUES
+    (v_entry_id, v_offset_account, v_total_cost, 0, v_description),
+    (v_entry_id, v_inventory_account, 0, v_total_cost, v_description);
+
+  RETURN NEW;
+END;
+$$;
+
+CREATE TRIGGER process_fifo_stock_movement
+  AFTER INSERT ON public.stock_movements
+  FOR EACH ROW EXECUTE FUNCTION public.process_fifo_stock_movement();
+
+CREATE OR REPLACE FUNCTION public.record_inventory_movement(
+  p_product_id UUID,
+  p_movement_type TEXT,
+  p_quantity INTEGER,
+  p_direction INTEGER,
+  p_movement_date DATE,
+  p_reference TEXT,
+  p_description TEXT,
+  p_unit_cost NUMERIC
+) RETURNS UUID
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, pg_temp
+AS $$
+DECLARE
+  v_staff_id UUID := public.current_staff_id();
+  v_inventory public.stock_inventory%ROWTYPE;
+  v_available INTEGER;
+  v_remaining INTEGER;
+  v_take INTEGER;
+  v_movement_id UUID;
+  v_product_name TEXT;
+  v_inbound BOOLEAN;
+BEGIN
+  IF v_staff_id IS NULL OR NOT public.has_any_role(ARRAY['inventory', 'manager']) THEN
+    RAISE EXCEPTION 'Only active Inventory staff or Managers can record stock movements';
+  END IF;
+  IF p_product_id IS NULL OR p_quantity IS NULL OR p_quantity <= 0
+     OR p_direction IS NULL OR p_direction NOT IN (-1, 1) OR p_movement_date IS NULL
+     OR p_movement_type IS NULL THEN
+    RAISE EXCEPTION 'Select a product, valid quantity, direction, and movement date';
+  END IF;
+  IF p_movement_type NOT IN ('purchase', 'production', 'return', 'adjustment', 'transfer', 'waste') THEN
+    RAISE EXCEPTION 'Use the correct inventory workflow for this movement type';
+  END IF;
+  IF p_movement_type IN ('purchase', 'production', 'return') AND p_direction <> 1 THEN
+    RAISE EXCEPTION 'Purchase, production, and returned stock must be inbound movements';
+  END IF;
+  IF p_movement_type IN ('transfer', 'waste') AND p_direction <> -1 THEN
+    RAISE EXCEPTION 'Transfer and waste movements must be outbound';
+  END IF;
+  IF p_movement_type IN ('purchase', 'return') AND COALESCE(trim(p_reference), '') = '' THEN
+    RAISE EXCEPTION 'Supplier purchases need an invoice number; returns need the original sale reference';
+  END IF;
+
+  v_inbound := p_direction = 1;
+  IF v_inbound AND (p_unit_cost IS NULL OR p_unit_cost <= 0) THEN
+    RAISE EXCEPTION 'Enter a verified unit cost greater than zero to receive inventory';
+  END IF;
+
+  PERFORM pg_advisory_xact_lock(hashtext('stock:' || p_product_id::TEXT));
+
+  SELECT product_name INTO v_product_name
+  FROM public.products
+  WHERE id = p_product_id AND is_active
+  FOR UPDATE;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'The selected product is not active';
+  END IF;
+
+  IF v_inbound THEN
+    SELECT * INTO v_inventory
+    FROM public.stock_inventory
+    WHERE product_id = p_product_id
+    ORDER BY created_at, id
+    LIMIT 1
+    FOR UPDATE;
+
+    IF FOUND THEN
+      UPDATE public.stock_inventory
+      SET quantity_on_hand = quantity_on_hand + p_quantity,
+          last_restock_date = p_movement_date,
+          updated_at = now()
+      WHERE id = v_inventory.id;
+    ELSE
+      INSERT INTO public.stock_inventory (product_id, quantity_on_hand, last_restock_date)
+      VALUES (p_product_id, p_quantity, p_movement_date);
+    END IF;
+  ELSE
+    PERFORM id
+    FROM public.stock_inventory
+    WHERE product_id = p_product_id
+    FOR UPDATE;
+    SELECT COALESCE(sum(GREATEST(quantity_on_hand - COALESCE(quantity_reserved, 0), 0)), 0)
+    INTO v_available
+    FROM public.stock_inventory
+    WHERE product_id = p_product_id;
+    IF v_available < p_quantity THEN
+      RAISE EXCEPTION 'Not enough stock for %. Available quantity: %', v_product_name, v_available;
+    END IF;
+
+    v_remaining := p_quantity;
+    FOR v_inventory IN
+      SELECT * FROM public.stock_inventory
+      WHERE product_id = p_product_id
+      ORDER BY created_at, id
+      FOR UPDATE
+    LOOP
+      EXIT WHEN v_remaining = 0;
+      v_take := LEAST(v_remaining, GREATEST(v_inventory.quantity_on_hand - COALESCE(v_inventory.quantity_reserved, 0), 0));
+      IF v_take > 0 THEN
+        UPDATE public.stock_inventory
+        SET quantity_on_hand = quantity_on_hand - v_take,
+            updated_at = now()
+        WHERE id = v_inventory.id;
+        v_remaining := v_remaining - v_take;
+      END IF;
+    END LOOP;
+  END IF;
+
+  INSERT INTO public.stock_movements (
+    product_id, movement_type, quantity, unit_cost, reference_number,
+    movement_date, description, created_by
+  ) VALUES (
+    p_product_id, p_movement_type,
+    CASE WHEN p_movement_type = 'adjustment' THEN p_quantity * p_direction ELSE p_quantity END,
+    CASE WHEN v_inbound THEN p_unit_cost ELSE NULL END,
+    NULLIF(trim(p_reference), ''), p_movement_date,
+    NULLIF(trim(p_description), ''), v_staff_id
+  ) RETURNING id INTO v_movement_id;
+
+  RETURN v_movement_id;
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.record_inventory_movement(UUID, TEXT, INTEGER, INTEGER, DATE, TEXT, TEXT, NUMERIC) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.record_inventory_movement(UUID, TEXT, INTEGER, INTEGER, DATE, TEXT, TEXT, NUMERIC) TO authenticated;
+
+CREATE OR REPLACE FUNCTION public.value_existing_inventory_fifo(
+  p_product_id UUID,
+  p_unit_cost NUMERIC,
+  p_received_date DATE
+) RETURNS INTEGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, pg_temp
+AS $$
+DECLARE
+  v_staff_id UUID := public.current_staff_id();
+  v_product_code TEXT;
+  v_stock_quantity INTEGER;
+  v_valued_quantity INTEGER;
+  v_unvalued_quantity INTEGER;
+  v_movement_id UUID;
+  v_journal_id UUID;
+  v_inventory_account UUID;
+  v_offset_account UUID;
+  v_reference TEXT;
+BEGIN
+  IF v_staff_id IS NULL OR NOT public.has_any_role(ARRAY['inventory', 'manager']) THEN
+    RAISE EXCEPTION 'Only active Inventory staff or Managers can value existing stock';
+  END IF;
+  IF p_unit_cost IS NULL OR p_unit_cost <= 0 OR p_received_date IS NULL OR p_received_date > CURRENT_DATE THEN
+    RAISE EXCEPTION 'Enter a verified opening unit cost and a valid stock date';
+  END IF;
+
+  PERFORM pg_advisory_xact_lock(hashtext('stock:' || p_product_id::TEXT));
+  SELECT product_code INTO v_product_code
+  FROM public.products
+  WHERE id = p_product_id AND is_active
+  FOR UPDATE;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'The selected product is not active';
+  END IF;
+
+  PERFORM id FROM public.stock_inventory WHERE product_id = p_product_id FOR UPDATE;
+  SELECT COALESCE(sum(quantity_on_hand), 0) INTO v_stock_quantity
+  FROM public.stock_inventory
+  WHERE product_id = p_product_id;
+  SELECT COALESCE(sum(quantity_remaining), 0) INTO v_valued_quantity
+  FROM public.inventory_cost_layers
+  WHERE product_id = p_product_id;
+  v_unvalued_quantity := v_stock_quantity - v_valued_quantity;
+  IF v_unvalued_quantity <= 0 THEN
+    RAISE EXCEPTION 'This product has no unvalued on-hand quantity';
+  END IF;
+
+  v_reference := 'OPEN-' || v_product_code || '-' || upper(substr(gen_random_uuid()::TEXT, 1, 8));
+  INSERT INTO public.stock_movements (
+    product_id, movement_type, quantity, unit_cost, total_cost, reference_number,
+    movement_date, description, created_by
+  ) VALUES (
+    p_product_id, 'adjustment', 0, p_unit_cost,
+    round(v_unvalued_quantity * p_unit_cost, 2), v_reference,
+    p_received_date, 'Opening FIFO valuation for existing on-hand stock (' || v_unvalued_quantity || ' units)', v_staff_id
+  ) RETURNING id INTO v_movement_id;
+
+  INSERT INTO public.inventory_cost_layers (
+    product_id, source_movement_id, received_date, quantity_received,
+    quantity_remaining, unit_cost, created_by
+  ) VALUES (
+    p_product_id, v_movement_id, p_received_date, v_unvalued_quantity,
+    v_unvalued_quantity, p_unit_cost, v_staff_id
+  );
+
+  INSERT INTO public.journal_entries (
+    entry_number, entry_date, description, reference_number, entry_type, status,
+    created_by, posted_by, posted_at
+  ) VALUES (
+    'INVOPEN-' || v_movement_id::TEXT, p_received_date,
+    'Opening FIFO valuation for ' || v_product_code, v_reference,
+    'general', 'posted', v_staff_id, v_staff_id, now()
+  ) RETURNING id INTO v_journal_id;
+
+  SELECT id INTO v_inventory_account
+  FROM public.chart_of_accounts
+  WHERE account_name = 'Inventory' AND account_type = 'asset' AND is_active
+  ORDER BY created_at LIMIT 1;
+  SELECT id INTO v_offset_account
+  FROM public.chart_of_accounts
+  WHERE account_name = 'Opening Inventory Balance' AND account_type = 'equity' AND is_active
+  ORDER BY created_at LIMIT 1;
+  IF v_inventory_account IS NULL OR v_offset_account IS NULL THEN
+    RAISE EXCEPTION 'Active Inventory and Opening Inventory Balance accounts are required';
+  END IF;
+
+  INSERT INTO public.journal_entry_lines (
+    journal_entry_id, account_id, debit_amount, credit_amount, description
+  ) VALUES
+    (v_journal_id, v_inventory_account, round(v_unvalued_quantity * p_unit_cost, 2), 0, v_reference),
+    (v_journal_id, v_offset_account, 0, round(v_unvalued_quantity * p_unit_cost, 2), v_reference);
+
+  RETURN v_unvalued_quantity;
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.value_existing_inventory_fifo(UUID, NUMERIC, DATE) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.value_existing_inventory_fifo(UUID, NUMERIC, DATE) TO authenticated;
+
+CREATE OR REPLACE FUNCTION public.record_production_with_inventory(
+  p_production_number TEXT,
+  p_product_id UUID,
+  p_quantity INTEGER,
+  p_production_date DATE,
+  p_unit_cost NUMERIC,
+  p_batch_number TEXT,
+  p_notes TEXT
+) RETURNS UUID
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, pg_temp
+AS $$
+DECLARE
+  v_staff_id UUID := public.current_staff_id();
+  v_production_id UUID;
+BEGIN
+  IF v_staff_id IS NULL OR NOT public.has_any_role(ARRAY['inventory', 'manager']) THEN
+    RAISE EXCEPTION 'Only active Inventory staff or Managers can record production';
+  END IF;
+  IF COALESCE(trim(p_production_number), '') = '' OR p_product_id IS NULL
+     OR p_quantity IS NULL OR p_quantity <= 0 OR p_production_date IS NULL
+     OR p_unit_cost IS NULL OR p_unit_cost <= 0 THEN
+    RAISE EXCEPTION 'Enter a production number, product, positive quantity, date, and verified unit cost';
+  END IF;
+
+  INSERT INTO public.production_records (
+    production_number, product_id, quantity_produced, production_date,
+    production_cost, batch_number, status, notes, created_by
+  ) VALUES (
+    trim(p_production_number), p_product_id, p_quantity, p_production_date,
+    round(p_quantity * p_unit_cost, 2), NULLIF(trim(p_batch_number), ''),
+    'completed', NULLIF(trim(p_notes), ''), v_staff_id
+  ) RETURNING id INTO v_production_id;
+
+  PERFORM public.record_inventory_movement(
+    p_product_id, 'production', p_quantity, 1, p_production_date,
+    COALESCE(NULLIF(trim(p_batch_number), ''), trim(p_production_number)),
+    'Production ' || trim(p_production_number), p_unit_cost
+  );
+
+  RETURN v_production_id;
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.record_production_with_inventory(TEXT, UUID, INTEGER, DATE, NUMERIC, TEXT, TEXT) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.record_production_with_inventory(TEXT, UUID, INTEGER, DATE, NUMERIC, TEXT, TEXT) TO authenticated;
+
+CREATE OR REPLACE FUNCTION public.create_inventory_product(p_product JSONB)
+RETURNS UUID
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, pg_temp
+AS $$
+DECLARE
+  v_product_id UUID;
+BEGIN
+  IF public.current_staff_id() IS NULL OR NOT public.has_any_role(ARRAY['inventory', 'manager']) THEN
+    RAISE EXCEPTION 'Only active Inventory staff or Managers can create products';
+  END IF;
+  IF COALESCE(trim(p_product->>'product_code'), '') = ''
+     OR COALESCE(trim(p_product->>'product_name'), '') = ''
+     OR COALESCE(trim(p_product->>'unit_of_measure'), '') = '' THEN
+    RAISE EXCEPTION 'Product code, name, and unit of measure are required';
+  END IF;
+
+  INSERT INTO public.products (
+    product_code, product_name, category_id, unit_of_measure,
+    unit_price, cost_price, reorder_level, description
+  ) VALUES (
+    trim(p_product->>'product_code'),
+    trim(p_product->>'product_name'),
+    NULLIF(p_product->>'category_id', '')::UUID,
+    trim(p_product->>'unit_of_measure'),
+    COALESCE(NULLIF(p_product->>'unit_price', '')::NUMERIC, 0),
+    COALESCE(NULLIF(p_product->>'cost_price', '')::NUMERIC, 0),
+    COALESCE(NULLIF(p_product->>'reorder_level', '')::INTEGER, 0),
+    NULLIF(trim(p_product->>'description'), '')
+  ) RETURNING id INTO v_product_id;
+
+  INSERT INTO public.stock_inventory (product_id, quantity_on_hand)
+  VALUES (v_product_id, 0);
+
+  RETURN v_product_id;
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.create_inventory_product(JSONB) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.create_inventory_product(JSONB) TO authenticated;
+
+
+================================================================================
+FILE: 20261013000016_complete_staff_password_setup.sql
+================================================================================
+CREATE OR REPLACE FUNCTION public.complete_own_staff_password_setup()
+RETURNS VOID
+LANGUAGE plpgsql
+VOLATILE
+SECURITY DEFINER
+SET search_path = public, auth, pg_temp
+AS $$
+DECLARE
+  authenticated_user_id UUID := auth.uid();
+  updated_staff_id UUID;
+BEGIN
+  IF authenticated_user_id IS NULL THEN
+    RAISE EXCEPTION 'Authentication is required to complete password setup';
+  END IF;
+
+  UPDATE public.staff
+  SET must_change_password = false,
+      updated_at = timezone('utc'::TEXT, now())
+  WHERE user_id = authenticated_user_id
+    AND is_active = true
+    AND role IN ('chairman', 'manager', 'treasurer', 'bookkeeper', 'inventory')
+    AND must_change_password = true
+  RETURNING id INTO updated_staff_id;
+
+  IF updated_staff_id IS NULL THEN
+    RAISE EXCEPTION 'No active staff password setup is pending for this account';
+  END IF;
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.complete_own_staff_password_setup() FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.complete_own_staff_password_setup() TO authenticated;
+
+COMMENT ON FUNCTION public.complete_own_staff_password_setup() IS
+  'Clears the first-login password-change requirement for the authenticated active staff account only.';
+
+
+================================================================================
+FILE: 20261013000017_reconcile_purchase_items_realtime.sql
+================================================================================
+-- Ensure raw-material purchase lines work even if the earlier conversion
+-- migration was skipped on a deployed database.
+ALTER TABLE public.purchase_items
+  ALTER COLUMN product_id DROP NOT NULL,
+  ADD COLUMN IF NOT EXISTS item_name TEXT,
+  ADD COLUMN IF NOT EXISTS unit TEXT;
+
+ALTER TABLE public.purchase_items
+  DROP CONSTRAINT IF EXISTS purchase_items_item_check;
+
+ALTER TABLE public.purchase_items
+  ADD CONSTRAINT purchase_items_item_check
+  CHECK (product_id IS NOT NULL OR NULLIF(trim(item_name), '') IS NOT NULL);
+
+-- Purchase entry and receipt screens subscribe to changes in both tables.
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1
+    FROM pg_publication
+    WHERE pubname = 'supabase_realtime'
+  ) THEN
+    RAISE EXCEPTION 'Supabase Realtime publication is not available';
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1
+    FROM pg_publication_tables
+    WHERE pubname = 'supabase_realtime'
+      AND schemaname = 'public'
+      AND tablename = 'purchases'
+  ) THEN
+    ALTER PUBLICATION supabase_realtime ADD TABLE public.purchases;
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1
+    FROM pg_publication_tables
+    WHERE pubname = 'supabase_realtime'
+      AND schemaname = 'public'
+      AND tablename = 'purchase_items'
+  ) THEN
+    ALTER PUBLICATION supabase_realtime ADD TABLE public.purchase_items;
+  END IF;
+END;
+$$;
+
+NOTIFY pgrst, 'reload schema';
+
+
+================================================================================
+FILE: 20261013000018_bookkeeper_member_types.sql
+================================================================================
+ALTER TABLE public.members
+  DROP CONSTRAINT IF EXISTS members_membership_type_check;
+
+ALTER TABLE public.members
+  ADD CONSTRAINT members_membership_type_check
+  CHECK (membership_type IN ('regular', 'associate'));
+
+CREATE OR REPLACE FUNCTION public.bookkeeper_update_member(
+  p_member_id UUID,
+  p_member JSONB
+)
+RETURNS VOID
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, pg_temp
+AS $$
+DECLARE
+  v_staff_id UUID := public.current_staff_id();
+  v_current_email TEXT;
+  v_membership_type TEXT := NULLIF(trim(p_member->>'membership_type'), '');
+BEGIN
+  IF v_staff_id IS NULL OR NOT public.has_role('bookkeeper') THEN
+    RAISE EXCEPTION 'Only bookkeepers can edit member records';
+  END IF;
+
+  IF p_member ? 'membership_type' AND (
+    v_membership_type IS NULL OR v_membership_type NOT IN ('regular', 'associate')
+  ) THEN
+    RAISE EXCEPTION 'Membership type must be regular or associate';
+  END IF;
+
+  SELECT lower(email) INTO v_current_email FROM public.members WHERE id = p_member_id;
+  IF NOT FOUND THEN RAISE EXCEPTION 'Member not found'; END IF;
+  IF p_member ? 'email' AND lower(NULLIF(trim(p_member->>'email'), '')) IS DISTINCT FROM v_current_email THEN
+    RAISE EXCEPTION 'Email changes require a separate verified account update';
+  END IF;
+
+  UPDATE public.members
+  SET first_name = CASE WHEN p_member ? 'first_name' THEN trim(p_member->>'first_name') ELSE first_name END,
+      middle_name = CASE WHEN p_member ? 'middle_name' THEN NULLIF(trim(p_member->>'middle_name'), '') ELSE middle_name END,
+      last_name = CASE WHEN p_member ? 'last_name' THEN trim(p_member->>'last_name') ELSE last_name END,
+      membership_type = CASE WHEN p_member ? 'membership_type' THEN v_membership_type ELSE membership_type END,
+      phone = CASE WHEN p_member ? 'phone' THEN NULLIF(trim(p_member->>'phone'), '') ELSE phone END,
+      address = CASE WHEN p_member ? 'address' THEN NULLIF(trim(p_member->>'address'), '') ELSE address END,
+      date_of_birth = CASE WHEN p_member ? 'date_of_birth' THEN NULLIF(p_member->>'date_of_birth', '')::DATE ELSE date_of_birth END,
+      gender = CASE WHEN p_member ? 'gender' THEN NULLIF(p_member->>'gender', '') ELSE gender END,
+      emergency_contact_name = CASE WHEN p_member ? 'emergency_contact_name' THEN NULLIF(trim(p_member->>'emergency_contact_name'), '') ELSE emergency_contact_name END,
+      emergency_contact_phone = CASE WHEN p_member ? 'emergency_contact_phone' THEN NULLIF(trim(p_member->>'emergency_contact_phone'), '') ELSE emergency_contact_phone END,
+      family_members = CASE WHEN p_member ? 'family_members' THEN COALESCE(p_member->'family_members', '[]'::JSONB) ELSE family_members END,
+      rsbsa = CASE WHEN p_member ? 'rsbsa' THEN NULLIF(trim(p_member->>'rsbsa'), '') ELSE rsbsa END,
+      tin = CASE WHEN p_member ? 'tin' THEN NULLIF(trim(p_member->>'tin'), '') ELSE tin END,
+      ncfrs = CASE WHEN p_member ? 'ncfrs' THEN NULLIF(trim(p_member->>'ncfrs'), '') ELSE ncfrs END,
+      pca_id = CASE WHEN p_member ? 'pca_id' THEN NULLIF(trim(p_member->>'pca_id'), '') ELSE pca_id END,
+      occupation = CASE WHEN p_member ? 'occupation' THEN NULLIF(trim(p_member->>'occupation'), '') ELSE occupation END,
+      barangay = CASE WHEN p_member ? 'barangay' THEN NULLIF(trim(p_member->>'barangay'), '') ELSE barangay END,
+      municipality = CASE WHEN p_member ? 'municipality' THEN NULLIF(trim(p_member->>'municipality'), '') ELSE municipality END,
+      province = CASE WHEN p_member ? 'province' THEN NULLIF(trim(p_member->>'province'), '') ELSE province END
+  WHERE id = p_member_id
+    AND membership_status IN ('active', 'suspended')
+    AND archived_at IS NULL;
+
+  IF NOT FOUND THEN RAISE EXCEPTION 'Member is archived or does not exist'; END IF;
+  IF EXISTS (
+    SELECT 1 FROM public.members m
+    WHERE m.id = p_member_id
+      AND (
+        m.first_name = ''
+        OR m.last_name = ''
+        OR (m.address IS NULL AND m.membership_type <> 'associate')
+      )
+  ) THEN
+    RAISE EXCEPTION 'First name and last name are required; regular members also need an address';
+  END IF;
+END;
+$$;
+
+
+================================================================================
+FILE: 20261013000019_allow_member_number_usernames.sql
+================================================================================
+BEGIN;
+
+CREATE OR REPLACE FUNCTION public.validate_username(p_username TEXT)
+RETURNS BOOLEAN
+LANGUAGE plpgsql
+AS $$
+BEGIN
+  RETURN p_username ~ '^[a-zA-Z0-9._-]{3,30}$';
+END;
+$$;
+
+COMMENT ON FUNCTION public.validate_username IS
+  'Validates usernames: 3-30 characters, alphanumeric with dots, underscores, or hyphens';
+
+CREATE OR REPLACE FUNCTION public.bookkeeper_update_member_username(
+  p_member_id UUID,
+  p_username TEXT
+)
+RETURNS VOID
+LANGUAGE plpgsql
+VOLATILE
+SECURITY DEFINER
+SET search_path = public, pg_temp
+AS $$
+DECLARE
+  username_value TEXT := lower(trim(p_username));
+  member_staff public.staff%ROWTYPE;
+BEGIN
+  IF NOT public.has_role('bookkeeper') THEN
+    RAISE EXCEPTION 'Only Bookkeepers can update member usernames';
+  END IF;
+  IF username_value IS NULL OR username_value !~ '^[a-z0-9._-]{3,30}$' THEN
+    RAISE EXCEPTION 'Username must be 3-30 characters and contain only letters, numbers, dots, underscores, or hyphens';
+  END IF;
+
+  SELECT s.* INTO member_staff
+  FROM public.staff AS s
+  WHERE s.member_id = p_member_id
+    AND s.role = 'member'
+    AND s.user_id IS NOT NULL
+  FOR UPDATE;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'No linked member portal account was found';
+  END IF;
+
+  IF EXISTS (
+    SELECT 1
+    FROM public.staff AS s
+    WHERE lower(s.username) = username_value
+      AND s.id <> member_staff.id
+  ) THEN
+    RAISE EXCEPTION 'This username is already taken';
+  END IF;
+
+  UPDATE public.staff
+  SET username = username_value,
+      updated_at = timezone('utc'::TEXT, now())
+  WHERE id = member_staff.id;
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.bookkeeper_update_member_username(UUID, TEXT) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.bookkeeper_update_member_username(UUID, TEXT) TO authenticated;
+
+CREATE OR REPLACE FUNCTION public.update_own_profile(p_profile JSONB)
+RETURNS VOID
+LANGUAGE plpgsql
+VOLATILE
+SECURITY DEFINER
+SET search_path = public, auth, pg_temp
+AS $$
+DECLARE
+  authenticated_user_id UUID := auth.uid();
+  actor public.staff%ROWTYPE;
+  profile_email TEXT := NULLIF(lower(trim(p_profile ->> 'email')), '');
+  first_name_value TEXT := trim(p_profile ->> 'first_name');
+  middle_name_value TEXT := NULLIF(trim(p_profile ->> 'middle_name'), '');
+  last_name_value TEXT := trim(p_profile ->> 'last_name');
+  username_value TEXT := lower(trim(p_profile ->> 'username'));
+  full_name_value TEXT;
+  date_of_birth_value DATE := NULLIF(trim(p_profile ->> 'date_of_birth'), '')::DATE;
+BEGIN
+  IF authenticated_user_id IS NULL THEN
+    RAISE EXCEPTION 'Authentication is required to update a profile';
+  END IF;
+  IF p_profile IS NULL OR jsonb_typeof(p_profile) <> 'object' THEN
+    RAISE EXCEPTION 'A valid profile is required';
+  END IF;
+  IF first_name_value IS NULL OR first_name_value = ''
+     OR last_name_value IS NULL OR last_name_value = '' THEN
+    RAISE EXCEPTION 'First and last name are required';
+  END IF;
+  IF username_value IS NULL OR username_value !~ '^[a-z0-9._-]{3,30}$' THEN
+    RAISE EXCEPTION 'Username must be 3-30 characters and contain only letters, numbers, dots, underscores, or hyphens';
+  END IF;
+  IF profile_email IS NOT NULL
+     AND profile_email !~* '^[^[:space:]@]+@[^[:space:]@]+\.[^[:space:]@]+$' THEN
+    RAISE EXCEPTION 'Enter a valid contact email address or leave it blank';
+  END IF;
+  IF date_of_birth_value > CURRENT_DATE THEN
+    RAISE EXCEPTION 'Date of birth cannot be in the future';
+  END IF;
+
+  SELECT s.* INTO actor
+  FROM public.staff AS s
+  WHERE s.user_id = authenticated_user_id
+    AND s.is_active = true
+  FOR UPDATE;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'An active staff or member profile is required';
+  END IF;
+
+  IF EXISTS (
+    SELECT 1
+    FROM public.staff AS s
+    WHERE lower(s.username) = username_value
+      AND s.id <> actor.id
+  ) THEN
+    RAISE EXCEPTION 'This username is already taken. Please choose a different one';
+  END IF;
+
+  full_name_value := concat_ws(' ', first_name_value, middle_name_value, last_name_value);
+
+  IF actor.role = 'member' THEN
+    IF actor.member_id IS NULL THEN
+      RAISE EXCEPTION 'The member profile is not linked';
+    END IF;
+    IF NOT EXISTS (
+      SELECT 1
+      FROM public.members AS m
+      WHERE m.id = actor.member_id
+        AND m.membership_status = 'active'
+        AND m.archived_at IS NULL
+    ) THEN
+      RAISE EXCEPTION 'Only active members can update their profiles';
+    END IF;
+
+    UPDATE public.members
+    SET first_name = first_name_value,
+        middle_name = middle_name_value,
+        last_name = last_name_value,
+        email = profile_email,
+        phone = NULLIF(trim(p_profile ->> 'phone'), ''),
+        address = NULLIF(trim(p_profile ->> 'address'), ''),
+        date_of_birth = date_of_birth_value,
+        emergency_contact_name = NULLIF(trim(p_profile ->> 'emergency_contact_name'), ''),
+        emergency_contact_phone = NULLIF(trim(p_profile ->> 'emergency_contact_phone'), ''),
+        emergency_contact_relationship = NULLIF(trim(p_profile ->> 'emergency_contact_relationship'), ''),
+        additional_emergency_contacts = CASE
+          WHEN jsonb_typeof(p_profile -> 'additional_emergency_contacts') = 'array'
+          THEN p_profile -> 'additional_emergency_contacts'
+          ELSE '[]'::JSONB
+        END
+    WHERE id = actor.member_id;
+    IF NOT FOUND THEN
+      RAISE EXCEPTION 'The linked member profile could not be found';
+    END IF;
+  END IF;
+
+  UPDATE public.staff
+  SET first_name = first_name_value,
+      middle_name = middle_name_value,
+      last_name = last_name_value,
+      full_name = full_name_value,
+      username = username_value,
+      email = profile_email,
+      phone = NULLIF(trim(p_profile ->> 'phone'), ''),
+      address = NULLIF(trim(p_profile ->> 'address'), ''),
+      date_of_birth = date_of_birth_value,
+      emergency_contact_name = NULLIF(trim(p_profile ->> 'emergency_contact_name'), ''),
+      emergency_contact_phone = NULLIF(trim(p_profile ->> 'emergency_contact_phone'), ''),
+      emergency_contact_relationship = NULLIF(trim(p_profile ->> 'emergency_contact_relationship'), ''),
+      updated_at = timezone('utc'::TEXT, now())
+  WHERE id = actor.id;
+
+  UPDATE auth.users
+  SET raw_user_meta_data = (
+    COALESCE(raw_user_meta_data, '{}'::JSONB) - 'display_name'
+  ) || jsonb_build_object('full_name', full_name_value)
+  WHERE id = authenticated_user_id;
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.update_own_profile(JSONB) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.update_own_profile(JSONB) TO authenticated;
+
+NOTIFY pgrst, 'reload schema';
+
+COMMIT;
+
+
+================================================================================
+FILE: 20261014000001_offline_operation_sync.sql
+================================================================================
+BEGIN;
+
+CREATE TABLE IF NOT EXISTS public.offline_sync_operations (
+  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  operation_id UUID NOT NULL,
+  operation_type TEXT NOT NULL CHECK (
+    operation_type IN ('inventory_movement', 'member_contact_update')
+  ),
+  response JSONB,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  PRIMARY KEY (user_id, operation_id)
+);
+
+ALTER TABLE public.offline_sync_operations ENABLE ROW LEVEL SECURITY;
+REVOKE ALL ON TABLE public.offline_sync_operations FROM PUBLIC, anon, authenticated;
+
+CREATE OR REPLACE FUNCTION public.sync_offline_operation(
+  p_operation_id UUID,
+  p_operation_type TEXT,
+  p_payload JSONB
+)
+RETURNS JSONB
+LANGUAGE plpgsql
+VOLATILE
+SECURITY DEFINER
+SET search_path = public, auth, pg_temp
+AS $$
+DECLARE
+  authenticated_user_id UUID := auth.uid();
+  inserted_rows INTEGER;
+  existing_type TEXT;
+  existing_response JSONB;
+  operation_response JSONB;
+  movement_id UUID;
+BEGIN
+  IF authenticated_user_id IS NULL THEN
+    RAISE EXCEPTION 'Authentication is required to synchronize changes';
+  END IF;
+  IF p_operation_id IS NULL THEN
+    RAISE EXCEPTION 'A valid operation ID is required';
+  END IF;
+  IF p_operation_type IS NULL
+     OR p_operation_type NOT IN ('inventory_movement', 'member_contact_update') THEN
+    RAISE EXCEPTION 'Unsupported offline operation type';
+  END IF;
+  IF p_payload IS NULL OR jsonb_typeof(p_payload) <> 'object' THEN
+    RAISE EXCEPTION 'A valid operation payload is required';
+  END IF;
+
+  INSERT INTO public.offline_sync_operations (user_id, operation_id, operation_type)
+  VALUES (authenticated_user_id, p_operation_id, p_operation_type)
+  ON CONFLICT (user_id, operation_id) DO NOTHING;
+  GET DIAGNOSTICS inserted_rows = ROW_COUNT;
+
+  IF inserted_rows = 0 THEN
+    SELECT operation_type, response
+      INTO existing_type, existing_response
+    FROM public.offline_sync_operations
+    WHERE user_id = authenticated_user_id
+      AND operation_id = p_operation_id;
+
+    IF existing_type <> p_operation_type THEN
+      RAISE EXCEPTION 'Operation ID was already used for a different operation';
+    END IF;
+    IF existing_response IS NULL THEN
+      RAISE EXCEPTION 'The previous operation is still being processed';
+    END IF;
+
+    RETURN existing_response || jsonb_build_object('replayed', true);
+  END IF;
+
+  IF p_operation_type = 'inventory_movement' THEN
+    IF jsonb_typeof(p_payload -> 'productId') IS DISTINCT FROM 'string'
+       OR jsonb_typeof(p_payload -> 'movementType') IS DISTINCT FROM 'string'
+       OR (
+         jsonb_typeof(p_payload -> 'quantity') IS DISTINCT FROM 'number'
+         AND jsonb_typeof(p_payload -> 'quantity') IS DISTINCT FROM 'string'
+       )
+       OR (
+         jsonb_typeof(p_payload -> 'direction') IS DISTINCT FROM 'number'
+         AND jsonb_typeof(p_payload -> 'direction') IS DISTINCT FROM 'string'
+       )
+       OR jsonb_typeof(p_payload -> 'date') IS DISTINCT FROM 'string' THEN
+      RAISE EXCEPTION 'Inventory movement details are incomplete';
+    END IF;
+
+    movement_id := public.record_inventory_movement(
+      (p_payload ->> 'productId')::UUID,
+      p_payload ->> 'movementType',
+      (p_payload ->> 'quantity')::INTEGER,
+      (p_payload ->> 'direction')::INTEGER,
+      (p_payload ->> 'date')::DATE,
+      p_payload ->> 'reference',
+      p_payload ->> 'description',
+      NULLIF(p_payload ->> 'unitCost', '')::NUMERIC
+    );
+    operation_response := jsonb_build_object(
+      'accepted', true,
+      'stored', true,
+      'operationId', p_operation_id,
+      'replayed', false,
+      'result', jsonb_build_object('movementId', movement_id)
+    );
+  ELSE
+    PERFORM public.update_own_profile(p_payload);
+    operation_response := jsonb_build_object(
+      'accepted', true,
+      'stored', true,
+      'operationId', p_operation_id,
+      'replayed', false,
+      'result', jsonb_build_object('profileUpdated', true)
+    );
+  END IF;
+
+  UPDATE public.offline_sync_operations
+  SET response = operation_response
+  WHERE user_id = authenticated_user_id
+    AND operation_id = p_operation_id;
+
+  RETURN operation_response;
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.sync_offline_operation(UUID, TEXT, JSONB) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.sync_offline_operation(UUID, TEXT, JSONB) TO authenticated;
+COMMENT ON FUNCTION public.sync_offline_operation(UUID, TEXT, JSONB) IS
+  'Applies a supported offline operation once per authenticated user and operation ID.';
+
+COMMIT;
+
