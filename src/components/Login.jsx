@@ -1,12 +1,26 @@
 import React, { useCallback, useState, useEffect } from 'react';
-import { Link, useParams, useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { unlockWithOfflinePasskey } from '../lib/Offline/offlineAccess';
 
-const Login = () => {
-  const { portalType } = useParams(); // Get portal type from URL
+const Login = ({ portalType }) => {
   const navigate = useNavigate();
   const { login, staff, user, unlockOffline } = useAuth();
+  const isStaffPortal = portalType === 'staff';
+  const portalConfig = {
+    name: 'AMCOMS',
+    subtitle: isStaffPortal ? 'Staff Portal' : 'Member Portal',
+    cooperative: 'Agay-ayan Multi-Purpose Cooperative',
+    gradient: isStaffPortal
+      ? 'from-blue-950 to-blue-800'
+      : 'from-[#0d3b2d] via-[#146344] to-[#2a8057]',
+    buttonColor: 'bg-[#c49a45] hover:bg-[#b18835]',
+    inputFocus: 'focus:ring-[#c49a45] focus:border-[#c49a45]',
+    linkColor: isStaffPortal
+      ? 'text-blue-800 hover:text-amber-700'
+      : 'text-emerald-800 hover:text-amber-700',
+    backLinkHover: 'hover:text-amber-700'
+  };
   const [fullName, setFullName] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -15,17 +29,6 @@ const Login = () => {
   const [loading, setLoading] = useState(false);
   const [online, setOnline] = useState(navigator.onLine);
   const [fieldErrors, setFieldErrors] = useState({ fullName: '', password: '' });
-  const [portalConfig, setPortalConfig] = useState({
-    name: 'AMCOMS',
-    subtitle: 'Member Portal',
-    cooperative: 'Agay-ayan Multi-Purpose Cooperative',
-    gradient: 'from-blue-950 to-blue-800',
-    buttonColor: 'bg-[#c49a45] hover:bg-[#b18835]',
-    inputFocus: 'focus:ring-[#c49a45] focus:border-[#c49a45]',
-    linkColor: 'text-blue-800 hover:text-amber-700',
-    backLinkHover: 'hover:text-amber-700'
-  });
-
   const redirectToPortal = useCallback((role) => {
     const staffRoles = ['chairman', 'manager', 'treasurer', 'bookkeeper', 'inventory'];
     if (staffRoles.includes(role)) {
@@ -38,34 +41,6 @@ const Login = () => {
   }, [navigate]);
 
   useEffect(() => {
-    // Configure the login page based on selected portal
-    const configs = {
-      'staff': {
-        name: 'AMCOMS',
-        subtitle: 'Staff Portal',
-        cooperative: 'Agay-ayan Multi-Purpose Cooperative',
-        gradient: 'from-blue-950 to-blue-800',
-        buttonColor: 'bg-[#c49a45] hover:bg-[#b18835]',
-        inputFocus: 'focus:ring-[#c49a45] focus:border-[#c49a45]',
-        linkColor: 'text-blue-800 hover:text-amber-700',
-        backLinkHover: 'hover:text-amber-700'
-      },
-      'member': {
-        name: 'AMCOMS',
-        subtitle: 'Member Portal',
-        cooperative: 'Agay-ayan Multi-Purpose Cooperative',
-        gradient: 'from-[#0d3b2d] via-[#146344] to-[#2a8057]',
-        buttonColor: 'bg-[#c49a45] hover:bg-[#b18835]',
-        inputFocus: 'focus:ring-[#c49a45] focus:border-[#c49a45]',
-        linkColor: 'text-emerald-800 hover:text-amber-700',
-        backLinkHover: 'hover:text-amber-700'
-      }
-    };
-
-    if (portalType && configs[portalType]) {
-      setPortalConfig(configs[portalType]);
-    }
-
     // Add keyboard shortcuts
     const handleKeyDown = (e) => {
       // Escape key - go back to portal selection

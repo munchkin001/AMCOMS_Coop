@@ -26,7 +26,7 @@ function StaffApp() {
             element={<Navigate to="/login/staff" replace />}
           />
 
-          <Route path="/login/staff" element={<Login />} />
+          <Route path="/login/staff" element={<Login portalType="staff" />} />
 
           <Route
             path="/forgot-password"

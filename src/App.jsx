@@ -20,7 +20,7 @@ function App() {
           <Route path="/" element={<LandingPage />} />
           <Route path="/demo" element={<DemoPages />} />
           <Route path="/portal-selection" element={<Navigate to="/" replace />} />
-          <Route path="/login/member" element={<Login />} />
+          <Route path="/login/member" element={<Login portalType="member" />} />
           <Route path="/member-signup" element={<Navigate to="/login/member" replace />} />
           <Route path="/forgot-password" element={<ForgotPassword />} />
           <Route path="/reset-password" element={<ResetPassword />} />
