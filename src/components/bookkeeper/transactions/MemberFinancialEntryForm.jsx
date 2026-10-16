@@ -32,6 +32,9 @@ const MemberFinancialEntryForm = ({
   const [unpaidMonths, setUnpaidMonths] = useState([]);
   const [selectedMonths, setSelectedMonths] = useState([]);
   const [entryType, setEntryType] = useState(initialEntryType);
+  const [memberLoadAttempt, setMemberLoadAttempt] = useState(0);
+  const [membersLoading, setMembersLoading] = useState(false);
+  const [membersError, setMembersError] = useState('');
   const [date, setDate] = useState(currentDate());
   const [reference, setReference] = useState('');
   const [amount, setAmount] = useState('');
@@ -73,19 +76,59 @@ const MemberFinancialEntryForm = ({
 
   useEffect(() => {
     let active = true;
-    supabase
-      .from('members')
-      .select('id, member_number, first_name, middle_name, last_name, date_joined')
-      .eq('membership_status', 'active')
-      .is('archived_at', null)
-      .order('last_name')
-      .then(({ data, error: queryError }) => {
+
+    const loadMembers = async () => {
+      if (!navigator.onLine) {
+        setMembersError('You are offline. Reconnect to load members and record financial entries.');
+        setMembersLoading(false);
+        return;
+      }
+
+      setMembersLoading(true);
+      setMembersError('');
+      try {
+        const { data, error: queryError } = await supabase
+          .from('members')
+          .select('id, member_number, first_name, middle_name, last_name, date_joined')
+          .eq('membership_status', 'active')
+          .is('archived_at', null)
+          .order('last_name');
         if (!active) return;
-        if (queryError) setError(`Unable to load members: ${queryError.message}`);
-        else setMembers(data || []);
-      });
-    return () => { active = false; };
-  }, []);
+        if (queryError) {
+          const isNetworkError = queryError instanceof TypeError
+            || /failed to fetch|network/i.test(queryError.message || '');
+          setMembersError(isNetworkError
+            ? 'Unable to reach Supabase. Check your connection and the staff deployment’s Supabase settings, then retry.'
+            : `Unable to load members: ${queryError.message}`);
+        } else {
+          setMembers(data || []);
+        }
+      } catch (loadError) {
+        if (!active) return;
+        setMembersError(loadError instanceof TypeError
+          ? 'Unable to reach Supabase. Check your connection and the staff deployment’s Supabase settings, then retry.'
+          : `Unable to load members: ${loadError.message}`);
+      } finally {
+        if (active) setMembersLoading(false);
+      }
+    };
+
+    const handleOffline = () => {
+      setMembersError('You are offline. Reconnect to load members and record financial entries.');
+      setMembersLoading(false);
+    };
+    const handleOnline = () => { loadMembers(); };
+
+    window.addEventListener('offline', handleOffline);
+    window.addEventListener('online', handleOnline);
+    loadMembers();
+
+    return () => {
+      active = false;
+      window.removeEventListener('offline', handleOffline);
+      window.removeEventListener('online', handleOnline);
+    };
+  }, [memberLoadAttempt]);
 
   useEffect(() => {
     if (!memberId) return undefined;
@@ -266,6 +309,21 @@ const MemberFinancialEntryForm = ({
       </div>
 
       {error && <p role="alert" className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{error}</p>}
+      {membersError && (
+        <div role="alert" className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
+          <span>{membersError}</span>
+          {navigator.onLine && (
+            <button
+              type="button"
+              onClick={() => setMemberLoadAttempt((attempt) => attempt + 1)}
+              disabled={membersLoading}
+              className="rounded-md border border-red-300 px-3 py-1.5 font-semibold hover:bg-red-100 disabled:cursor-wait disabled:opacity-60"
+            >
+              {membersLoading ? 'Retrying...' : 'Retry'}
+            </button>
+          )}
+        </div>
+      )}
 
       <form onSubmit={handleSubmit} className="space-y-5 rounded-lg border border-gray-200 bg-white p-4 sm:p-6">
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -273,6 +331,7 @@ const MemberFinancialEntryForm = ({
             Member *
             <select
               value={memberId}
+              disabled={membersLoading || Boolean(membersError)}
               onChange={(event) => {
                 setMemberId(event.target.value);
                 setAccounts([]);
@@ -285,7 +344,7 @@ const MemberFinancialEntryForm = ({
               required
               className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2"
             >
-              <option value="">Select member</option>
+              <option value="">{membersLoading ? 'Loading members...' : 'Select member'}</option>
               {members.map((member) => (
                 <option key={member.id} value={member.id}>
                   {[member.first_name, member.middle_name, member.last_name].filter(Boolean).join(' ')}{member.member_number ? ` (${member.member_number})` : ''}
