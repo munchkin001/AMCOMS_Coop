@@ -8,7 +8,7 @@ import Transactions from '../components/treasurer/Transactions';
 import MemberAccounts from '../components/treasurer/MemberAccounts';
 import DailyCollection from '../components/treasurer/DailyCollection';
 import TransactionHistory from '../components/treasurer/TransactionHistory';
-import StaffProfile from '../components/common/StaffProfile';
+import StaffProfile from '../staff/StaffProfile';
 
 const TreasurerPortal = () => {
   const navigate = useNavigate();

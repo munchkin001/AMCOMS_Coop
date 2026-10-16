@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { Menu } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
-import { getNavigationForRole, getRoleDisplayName, getRoleColors } from '../config/staffNavigation';
+import { getNavigationForRole, getRoleDisplayName, getRoleColors } from './staffNavigation';
 
 const StaffLayout = ({ children }) => {
   const navigate = useNavigate();

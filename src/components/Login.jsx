@@ -17,7 +17,7 @@ const Login = () => {
   const [fieldErrors, setFieldErrors] = useState({ fullName: '', password: '' });
   const [portalConfig, setPortalConfig] = useState({
     name: 'AMCOMS',
-    subtitle: 'Login Portal',
+    subtitle: 'Member Portal',
     cooperative: 'Agay-ayan Multi-Purpose Cooperative',
     gradient: 'from-blue-950 to-blue-800',
     buttonColor: 'bg-[#c49a45] hover:bg-[#b18835]',
@@ -380,7 +380,7 @@ const Login = () => {
                   {loading ? 'Verifying your identity…' : 'Unlock with biometrics'}
                 </button>
                 <p className="mt-2 text-xs text-amber-900">
-                  Use Face ID, fingerprint, or Windows Hello when available. Your device may offer its screen-lock PIN as a fallback. Offline access is local only; financial transactions need internet.
+                  On a PC, use Windows Hello face, fingerprint, or PIN. If Windows shows a passkey prompt, choose this Windows device or Windows Hello. Offline access is local only; financial transactions need internet.
                 </p>
               </div>
             )}

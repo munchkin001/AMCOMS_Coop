@@ -114,7 +114,7 @@ const Navbar = () => {
                   if (event.key === 'Escape') setIsLoginMenuOpen(false);
                 }}
               >
-                <span>Login Portal</span>
+                <span>Member Login</span>
                 <ChevronDown aria-hidden="true" className="h-4 w-4" />
               </button>
               {isLoginMenuOpen && (
@@ -126,14 +126,6 @@ const Navbar = () => {
                     className="block px-4 py-3 text-sm font-medium text-gray-700 hover:bg-emerald-50 hover:text-emerald-900"
                   >
                     Member Portal
-                  </Link>
-                  <Link
-                    role="menuitem"
-                    to="/login/staff"
-                    onClick={() => setIsLoginMenuOpen(false)}
-                    className="block w-full px-4 py-3 text-left text-sm font-medium text-gray-700 hover:bg-emerald-50 hover:text-emerald-900"
-                  >
-                    Staff &amp; Admin Desk
                   </Link>
                 </div>
               )}
@@ -187,7 +179,7 @@ const Navbar = () => {
                   aria-expanded={isLoginMenuOpen}
                   onClick={() => setIsLoginMenuOpen((open) => !open)}
                 >
-                  <span>Login Portal</span>
+                  <span>Member Login</span>
                   <ChevronDown aria-hidden="true" className={`h-4 w-4 transition-transform ${isLoginMenuOpen ? 'rotate-180' : ''}`} />
                 </button>
                 {isLoginMenuOpen && (
@@ -201,16 +193,6 @@ const Navbar = () => {
                       className="block px-4 py-3 text-sm font-medium text-gray-700 hover:bg-emerald-50"
                     >
                       Member Portal
-                    </Link>
-                    <Link
-                      to="/login/staff"
-                      onClick={() => {
-                        setIsMenuOpen(false);
-                        setIsLoginMenuOpen(false);
-                      }}
-                      className="block w-full px-4 py-3 text-left text-sm font-medium text-gray-700 hover:bg-emerald-50"
-                    >
-                      Staff &amp; Admin Desk
                     </Link>
                   </div>
                 )}

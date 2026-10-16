@@ -14,9 +14,9 @@ const PortalSelection = () => {
       <header className="mx-auto flex w-full max-w-6xl items-center justify-between gap-4">
         <div className="flex min-w-0 items-center gap-4">
           <Link
-            to="/login/staff"
-            aria-label="Staff login"
-            title="Staff login"
+            to="/"
+            aria-label="AMCOMS homepage"
+            title="AMCOMS homepage"
             className="flex h-16 w-16 shrink-0 items-center justify-center rounded-xl border border-[#E9C46A]/35 bg-emerald-100/10 shadow-[0_0_34px_rgba(233,196,106,0.18)] backdrop-blur-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#E9C46A] focus-visible:ring-offset-2 focus-visible:ring-offset-[#071c17] sm:h-[4.5rem] sm:w-[4.5rem]"
           >
             <img src="/LOGO.png" alt="" className="h-12 w-12 object-contain sm:h-14 sm:w-14" />

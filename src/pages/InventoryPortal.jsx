@@ -5,7 +5,7 @@ import StockManagement from '../components/inventory/StockManagement';
 import Production from '../components/inventory/Production';
 import InventoryHistory from '../components/inventory/InventoryHistory';
 import InventoryReports from '../components/inventory/InventoryReports';
-import StaffProfile from '../components/common/StaffProfile';
+import StaffProfile from '../staff/StaffProfile';
 
 const InventoryPortal = () => {
   const [activeModule, setActiveModule] = useState('dashboard');

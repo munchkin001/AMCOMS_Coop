@@ -1,8 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useCallback, useState, useEffect } from 'react';
 import { Building2, CalendarClock, HandCoins, Landmark, PiggyBank } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import { useMultipleRealtimeSubscriptions } from '../../hooks/useRealtimeSubscription';
+import offlineDb from '../../lib/Offline/OfflineDb';
 import DashboardMetricCard from '../common/DashboardMetricCard';
 
 const savingsTransactionTitle = (transaction) => {
@@ -14,9 +15,10 @@ const savingsTransactionTitle = (transaction) => {
 };
 
 const MemberDashboard = ({ onNavigate }) => {
-  const { staff } = useAuth();
+  const { staff, offlineMode } = useAuth();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [offlineNotice, setOfflineNotice] = useState('');
   const [memberData, setMemberData] = useState({
     memberId: null,
     memberNumber: '',
@@ -33,92 +35,46 @@ const MemberDashboard = ({ onNavigate }) => {
     announcements: []
   });
 
-  useEffect(() => {
-    if (staff?.member_id) {
-      fetchMemberData();
+  const fetchMemberData = useCallback(async () => {
+    const memberId = staff?.member_id;
+    if (!memberId) {
+      setError('Your member profile is not linked to a member record.');
+      setLoading(false);
+      return;
     }
-  }, [staff]);
 
-  // Set up real-time subscriptions for live updates
-  useMultipleRealtimeSubscriptions([
-    {
-      table: 'members',
-      onUpdate: () => {
-        if (staff?.member_id) {
-          fetchMemberData();
+    const cacheKey = `member-dashboard:${memberId}`;
+    const loadCachedDashboard = async (notice) => {
+      const cachedDashboard = await offlineDb.cachedData.get(cacheKey);
+      if (!cachedDashboard?.data?.memberData) return false;
+
+      setMemberData(cachedDashboard.data.memberData);
+      setOfflineNotice(notice);
+      setError('');
+      return true;
+    };
+
+    if (offlineMode || !navigator.onLine) {
+      setLoading(true);
+      try {
+        const loaded = await loadCachedDashboard(
+          'You are viewing the last account summary saved on this device. Reconnect to refresh your balances and activity.'
+        );
+        if (!loaded) {
+          setOfflineNotice('No saved account summary is available on this device yet. Connect to the internet and open the dashboard to save one for offline viewing.');
         }
+      } catch (cacheError) {
+        console.error('Unable to load cached member dashboard:', cacheError);
+        setOfflineNotice('The saved account summary on this device could not be opened. Reconnect to refresh your account.');
+      } finally {
+        setLoading(false);
       }
-    },
-    {
-      table: 'savings_accounts',
-      onUpdate: () => {
-        if (staff?.member_id) {
-          fetchMemberData();
-        }
-      }
-    },
-    {
-      table: 'savings_transactions',
-      onUpdate: () => {
-        if (staff?.member_id) {
-          fetchMemberData();
-        }
-      }
-    },
-    {
-      table: 'loans',
-      onUpdate: () => {
-        if (staff?.member_id) {
-          fetchMemberData();
-        }
-      }
-    },
-    {
-      table: 'loan_payments',
-      onUpdate: () => {
-        if (staff?.member_id) {
-          fetchMemberData();
-        }
-      }
-    },
-    {
-      table: 'member_activity',
-      onUpdate: () => {
-        if (staff?.member_id) {
-          fetchMemberData();
-        }
-      }
-    },
-    {
-      table: 'loan_schedule',
-      onUpdate: () => {
-        if (staff?.member_id) {
-          fetchMemberData();
-        }
-      }
-    },
-    {
-      table: 'announcements',
-      onUpdate: () => {
-        if (staff?.member_id) {
-          fetchMemberData();
-        }
-      }
+      return;
     }
-  ], [staff?.member_id]);
 
-  const fetchMemberData = async () => {
     try {
       setLoading(true);
-
-      // Get member_id from staff profile (members have their member_id linked)
-      const memberId = staff.member_id;
-      
-      if (!memberId) {
-        setError('Your member profile is not linked to a member record.');
-        setLoading(false);
-        return;
-      }
+      setOfflineNotice('');
 
       // Fetch member details
       const { data: memberInfo, error: memberError } = await supabase
@@ -264,7 +220,7 @@ const MemberDashboard = ({ onNavigate }) => {
 
       if (announcementsError) throw announcementsError;
 
-      setMemberData({
+      const refreshedMemberData = {
         memberId,
         memberNumber: memberInfo.member_number,
         fullName: `${memberInfo.first_name} ${memberInfo.last_name}`,
@@ -278,21 +234,69 @@ const MemberDashboard = ({ onNavigate }) => {
         nextPaymentDate,
         recentTransactions,
         announcements: announcements || []
-      });
+      };
+      setMemberData(refreshedMemberData);
+      try {
+        await offlineDb.cachedData.put({
+          key: cacheKey,
+          data: { memberData: refreshedMemberData },
+          updatedAt: new Date().toISOString()
+        });
+      } catch (cacheError) {
+        console.error('Unable to cache member dashboard for offline viewing:', cacheError);
+      }
       setError('');
     } catch (error) {
       console.error('Error fetching member data:', error);
-      setError(`Unable to load your account data: ${error.message}`);
+      try {
+        const loaded = await loadCachedDashboard(
+          'We could not refresh your account right now, so this is the last summary saved on this device.'
+        );
+        if (!loaded) {
+          setError(`Unable to load your account data: ${error.message}`);
+        }
+      } catch (cacheError) {
+        console.error('Unable to load cached member dashboard after refresh failed:', cacheError);
+        setError(`Unable to load your account data: ${error.message}`);
+      }
     } finally {
       setLoading(false);
     }
-  };
+  }, [staff?.member_id, offlineMode]);
+
+  useEffect(() => {
+    const refreshDashboard = () => {
+      if (staff?.member_id) fetchMemberData();
+    };
+    refreshDashboard();
+    window.addEventListener('online', refreshDashboard);
+    window.addEventListener('offline', refreshDashboard);
+    return () => {
+      window.removeEventListener('online', refreshDashboard);
+      window.removeEventListener('offline', refreshDashboard);
+    };
+  }, [staff?.member_id, fetchMemberData]);
+
+  useMultipleRealtimeSubscriptions(
+    [
+      { table: 'members', onUpdate: fetchMemberData },
+      { table: 'savings_accounts', onUpdate: fetchMemberData },
+      { table: 'savings_transactions', onUpdate: fetchMemberData },
+      { table: 'loans', onUpdate: fetchMemberData },
+      { table: 'loan_payments', onUpdate: fetchMemberData },
+      { table: 'member_activity', onUpdate: fetchMemberData },
+      { table: 'loan_schedule', onUpdate: fetchMemberData },
+      { table: 'announcements', onUpdate: fetchMemberData }
+    ],
+    [fetchMemberData]
+  );
 
   // Announcements now fetched from database
 
   return (
     <div className="space-y-6">
       {error && <p role="alert" className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{error}</p>}
+      {offlineNotice && <p role="status" className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950">{offlineNotice}</p>}
       {/* Greeting and account summary */}
       <div>
         <h2 className="text-xl font-bold text-gray-900 sm:text-2xl">Hi, {memberData.firstName || 'Member'}!</h2>

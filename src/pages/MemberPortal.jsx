@@ -241,6 +241,21 @@ const MemberPortal = () => {
               <span>Announcements</span>
             </div>
           </button>
+
+          <button
+            onClick={() => handleModuleChange('profile')}
+            aria-current={activeModule === 'profile' ? 'page' : undefined}
+            className={`w-full rounded-lg px-4 py-3 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#e9c46a] ${
+              activeModule === 'profile'
+                ? 'bg-gradient-to-r from-[#e9c46a] to-[#d6ab4a] font-semibold text-[#0d3b2d] shadow-md'
+                : 'text-green-50/95 hover:bg-white/10 hover:text-[#f0d995]'
+            }`}
+          >
+            <div className="flex items-center space-x-3">
+              <UserRound size={18} />
+              <span>Profile</span>
+            </div>
+          </button>
         </nav>
       </div>
 

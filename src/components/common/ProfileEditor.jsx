@@ -482,10 +482,10 @@ const ProfileEditor = ({ profileType = 'staff', roleLabel }) => {
       <section className="rounded-2xl border border-amber-200 bg-amber-50 p-5">
         <h3 className="font-semibold text-amber-950">Offline sign-in on this device</h3>
         <p className="mt-1 text-sm text-amber-900">
-          Enable biometric sign-in while online. Offline unlock uses your device authenticator (such as Face ID, fingerprint, or Windows Hello) to open cached information; it does not verify your account with the server or allow financial transactions.
+          On a Windows PC, set up Windows Hello face, fingerprint, or PIN in Settings → Accounts → Sign-in options. Then enable this while online in the same browser you will use offline. Windows may label the setup prompt as a passkey; choose this Windows device or Windows Hello, not a phone QR code or security key.
         </p>
         <p className="mt-2 text-sm text-amber-900">
-          Your device may offer its screen-lock PIN as a fallback. Signing out keeps biometric sign-in enabled so you can unlock later without internet. Remove it before signing out on a shared or untrusted device.
+          Offline unlock uses the device authenticator to open cached information; it does not verify your account with the server or allow financial transactions. Signing out keeps biometric sign-in enabled. Remove it before signing out on a shared or untrusted device.
         </p>
         {offlineSetup.error && <p role="alert" className="mt-3 text-sm text-red-800">{offlineSetup.error}</p>}
         {offlineSetup.message && <p role="status" className="mt-3 text-sm text-green-800">{offlineSetup.message}</p>}

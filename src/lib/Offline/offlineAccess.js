@@ -4,6 +4,17 @@ import { supabase } from "../supabase";
 const ACCESS_PREFIX = "offline-access:";
 const ACCESS_LIFETIME_MS = 7 * 24 * 60 * 60 * 1000;
 
+const requirePlatformAuthenticator = async () => {
+  const isAvailable = window.PublicKeyCredential
+    ?.isUserVerifyingPlatformAuthenticatorAvailable;
+  if (typeof isAvailable !== "function") {
+    throw new Error("This browser cannot check for Windows Hello or another built-in biometric authenticator. Update Chrome or Edge and try again.");
+  }
+  if (!await isAvailable.call(window.PublicKeyCredential)) {
+    throw new Error("No built-in biometric authenticator is available. Set up Windows Hello face, fingerprint, or PIN in Windows Settings, then try again.");
+  }
+};
+
 const toBase64Url = (buffer) => {
   const bytes = new Uint8Array(buffer);
   let binary = "";
@@ -127,6 +138,7 @@ export async function enableOfflineAccess({ user, staff }) {
   if (!window.isSecureContext || !navigator.credentials || !window.PublicKeyCredential) {
     throw new Error("Biometric sign-in requires a supported browser on HTTPS or localhost.");
   }
+  await requirePlatformAuthenticator();
   if (!user?.id || !staff?.is_active || staff.user_id !== user.id) {
     throw new Error("Sign in online before setting up offline access on this device.");
   }
@@ -217,16 +229,45 @@ export async function unlockWithOfflinePasskey() {
   if (!window.isSecureContext || !navigator.credentials || !window.PublicKeyCredential) {
     throw new Error("Offline biometric sign-in requires a supported browser on HTTPS or localhost.");
   }
+  await requirePlatformAuthenticator();
+
+  const enrolledRecords = await offlineDb.cachedData
+    .where("key")
+    .startsWith(ACCESS_PREFIX)
+    .toArray();
+  const activeRecords = enrolledRecords.filter(({ data }) =>
+    data?.credentialId && data.expiresAt > Date.now()
+  );
+  if (activeRecords.length === 0) {
+    const hasExpiredRecord = enrolledRecords.some(({ data }) =>
+      data?.credentialId && data.expiresAt <= Date.now()
+    );
+    throw new Error(hasExpiredRecord
+      ? "Offline biometric sign-in has expired. Connect to the internet, sign in, and set it up again."
+      : "Biometric sign-in has not been set up on this browser. Connect, sign in, and enable it from your Profile first.");
+  }
 
   const challenge = crypto.getRandomValues(new Uint8Array(32));
-  const assertion = await navigator.credentials.get({
-    publicKey: {
-      challenge,
-      rpId: window.location.hostname,
-      userVerification: "required",
-      timeout: 60000,
-    },
-  });
+  let assertion;
+  try {
+    assertion = await navigator.credentials.get({
+      publicKey: {
+        challenge,
+        rpId: window.location.hostname,
+        allowCredentials: activeRecords.map(({ data }) => ({
+          type: "public-key",
+          id: fromBase64Url(data.credentialId),
+        })),
+        userVerification: "required",
+        timeout: 60000,
+      },
+    });
+  } catch (error) {
+    if (error?.name === "NotAllowedError") {
+      throw new Error("Biometric sign-in was canceled or no matching device credential is available. Set it up again on this browser while online.");
+    }
+    throw error;
+  }
   if (!assertion || !(assertion instanceof PublicKeyCredential)) {
     throw new Error("No biometric or device verification method was selected.");
   }
@@ -235,7 +276,7 @@ export async function unlockWithOfflinePasskey() {
   const stored = await offlineDb.cachedData.get(`${ACCESS_PREFIX}${credentialId}`);
   const accessRecord = stored?.data;
   if (!accessRecord?.staff || !accessRecord.userId) {
-    throw new Error("Biometric sign-in has not been set up for AMCOMS on this device.");
+    throw new Error("This device credential is not enrolled for AMCOMS in this browser.");
   }
   if (accessRecord.expiresAt <= Date.now()) {
     throw new Error("Offline access has expired. Connect to the internet, sign in, and set it up again.");

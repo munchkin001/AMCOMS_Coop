@@ -1,4 +1,4 @@
-import ProfileEditor from './ProfileEditor';
+import ProfileEditor from '../components/common/ProfileEditor';
 
 const StaffProfile = ({ roleName }) => (
   <ProfileEditor profileType="staff" roleLabel={roleName} />

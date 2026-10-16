@@ -1,9 +1,9 @@
 import React from 'react';
 import { Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-import StaffLayout from '../layouts/StaffLayout';
+import StaffLayout from './StaffLayout';
 import LoadingSpinner from '../components/common/LoadingSpinner';
-import StaffProfile from '../components/common/StaffProfile';
+import StaffProfile from './StaffProfile';
 
 // Dashboard Components
 import ChairmanDashboard from '../components/chairman/ChairmanDashboard';

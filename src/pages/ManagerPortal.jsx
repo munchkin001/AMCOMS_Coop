@@ -9,7 +9,7 @@ import OperationsMonitoring from '../components/manager/OperationsMonitoring';
 import Reports from '../components/manager/Reports';
 import Announcements from '../components/manager/Announcements';
 import SMSCenter from '../components/manager/SMSCenter';
-import StaffProfile from '../components/common/StaffProfile';
+import StaffProfile from '../staff/StaffProfile';
 
 const ManagerPortal = () => {
   const navigate = useNavigate();

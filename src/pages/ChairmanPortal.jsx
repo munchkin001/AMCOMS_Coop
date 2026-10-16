@@ -7,7 +7,7 @@ import ChairmanDashboard from '../components/chairman/ChairmanDashboard';
 import PerformanceReport from '../components/chairman/PerformanceReport';
 import AuditLog from '../components/chairman/AuditLog';
 import Policies from '../components/chairman/Policies';
-import StaffProfile from '../components/common/StaffProfile';
+import StaffProfile from '../staff/StaffProfile';
 
 const ChairmanPortal = () => {
   const navigate = useNavigate();

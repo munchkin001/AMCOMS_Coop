@@ -6,6 +6,8 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
+    "build:member": "vite build --mode member",
+    "build:staff": "vite build --mode staff",
     "lint": "oxlint",
     "preview": "vite preview",
     "cleanup:staff-auth": "node scripts/cleanup-staff-auth.js",

@@ -7,7 +7,6 @@ import Login from './components/Login'
 import ForgotPassword from './components/ForgotPassword'
 import ResetPassword from './components/ResetPassword'
 import DemoPages from './pages/DemoPages'
-import StaffPortal from './pages/StaffPortal'
 import MemberPortal from './pages/MemberPortal'
 import FormSubmissionConfirmation from './components/FormSubmissionConfirmation'
 import OfflineSyncStatus from "./components/common/OfflineSyncStatus";
@@ -21,22 +20,10 @@ function App() {
           <Route path="/" element={<LandingPage />} />
           <Route path="/demo" element={<DemoPages />} />
           <Route path="/portal-selection" element={<Navigate to="/" replace />} />
-          <Route path="/login/staff" element={<Login />} />
-          <Route path="/login/:portalType" element={<Login />} />
+          <Route path="/login/member" element={<Login />} />
           <Route path="/member-signup" element={<Navigate to="/login/member" replace />} />
           <Route path="/forgot-password" element={<ForgotPassword />} />
           <Route path="/reset-password" element={<ResetPassword />} />
-          
-          
-          {/* Staff Portal - All staff roles access this */}
-          <Route 
-            path="/staff/*" 
-            element={
-              <ProtectedRoute allowedRoles={['chairman', 'manager', 'treasurer', 'bookkeeper', 'inventory']}>
-                <StaffPortal />
-              </ProtectedRoute>
-            } 
-          />
           
           {/* Member Portal */}
           <Route 
@@ -47,6 +34,7 @@ function App() {
               </ProtectedRoute>
             } 
           />
+          <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
         <FormSubmissionConfirmation />
         <OfflineSyncStatus />
