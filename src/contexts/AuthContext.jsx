@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '../lib/supabase';
 import { getAppUrl } from '../lib/appUrl';
 import { findStaffByLoginIdentifier } from '../lib/authHelpers';
@@ -22,6 +22,7 @@ export const AuthProvider = ({ children }) => {
   const [session, setSession] = useState(null);
   const [authError, setAuthError] = useState(null);
   const [offlineMode, setOfflineMode] = useState(false);
+  const offlineModeRef = useRef(false);
 
   const logAuthEvent = useCallback(async (event) => {
     let lastError = null;
@@ -100,6 +101,7 @@ export const AuthProvider = ({ children }) => {
 
       console.log('Staff profile loaded successfully');
       setStaff(staffProfile);
+      offlineModeRef.current = false;
       setOfflineMode(false);
       setAuthError(null);
       try {
@@ -145,6 +147,19 @@ export const AuthProvider = ({ children }) => {
   useEffect(() => {
     // Get initial session
     supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session?.user && !navigator.onLine) {
+        setSession(null);
+        setUser(null);
+        setStaff(null);
+        setLoading(false);
+        return;
+      }
+      if (!session && offlineModeRef.current && !navigator.onLine) {
+        setSession(null);
+        setLoading(false);
+        return;
+      }
+      offlineModeRef.current = false;
       setSession(session);
       setUser(session?.user ?? null);
       if (session?.user) {
@@ -159,6 +174,21 @@ export const AuthProvider = ({ children }) => {
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((event, session) => {
+      if (session?.user && !navigator.onLine) {
+        setSession(null);
+        if (!offlineModeRef.current) {
+          setUser(null);
+          setStaff(null);
+        }
+        setLoading(false);
+        return;
+      }
+      if (!session && offlineModeRef.current && !navigator.onLine) {
+        setSession(null);
+        setLoading(false);
+        return;
+      }
+      offlineModeRef.current = false;
       setSession(session);
       setUser(session?.user ?? null);
       if (session?.user) {
@@ -169,6 +199,8 @@ export const AuthProvider = ({ children }) => {
           }, 0);
         }
       } else {
+        offlineModeRef.current = false;
+        setOfflineMode(false);
         setStaff(null);
         setLoading(false);
       }
@@ -188,6 +220,7 @@ export const AuthProvider = ({ children }) => {
   const signIn = async (identifier, password) => {
     try {
       setAuthError(null);
+      offlineModeRef.current = false;
       setOfflineMode(false);
 
       const { data: staffProfile, error: lookupError } = await findStaffByLoginIdentifier(identifier);
@@ -323,6 +356,7 @@ export const AuthProvider = ({ children }) => {
       setStaff(null);
       setUser(null);
       setSession(null);
+      offlineModeRef.current = false;
       setOfflineMode(false);
       setAuthError(null);
       return { error: null };
@@ -336,6 +370,7 @@ export const AuthProvider = ({ children }) => {
       setStaff(null);
       setUser(null);
       setSession(null);
+      offlineModeRef.current = false;
       setOfflineMode(false);
       return { error: null };
     } catch (error) {
@@ -359,6 +394,7 @@ export const AuthProvider = ({ children }) => {
     setStaff(offlineStaff);
     setSession(null);
     setAuthError(null);
+    offlineModeRef.current = true;
     setOfflineMode(true);
     setLoading(false);
   };

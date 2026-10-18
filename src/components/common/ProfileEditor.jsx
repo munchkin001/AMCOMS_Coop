@@ -5,7 +5,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import offlineDb from '../../lib/Offline/OfflineDb';
 import { queueOperation, getOperation } from '../../lib/Offline/syncQueue';
 import { syncPendingOperations } from '../../lib/Offline/syncOperations';
-import { enableOfflineAccess, removeOfflineAccess } from '../../lib/Offline/offlineAccess';
+import { enableOfflineAccess, removeOfflineAccess } from '../../lib/Offline/offlinePin';
 
 const emptyProfile = {
   first_name: '',
@@ -59,6 +59,8 @@ const ProfileEditor = ({ profileType = 'staff', roleLabel }) => {
   const [passwordSaving, setPasswordSaving] = useState(false);
   const [showPasswords, setShowPasswords] = useState(false);
   const [offlineSetup, setOfflineSetup] = useState({ busy: false, message: '', error: '' });
+  const [offlinePin, setOfflinePin] = useState('');
+  const [offlinePinConfirm, setOfflinePinConfirm] = useState('');
 
   useEffect(() => {
     let active = true;
@@ -208,10 +210,6 @@ const ProfileEditor = ({ profileType = 'staff', roleLabel }) => {
 
   const saveProfile = async (event) => {
     event.preventDefault();
-    if (offlineMode) {
-      setProfileError('Reconnect and sign in online before saving profile changes.');
-      return;
-    }
     setSaving(true);
     setProfileError('');
     setProfileNotice('');
@@ -228,7 +226,8 @@ const ProfileEditor = ({ profileType = 'staff', roleLabel }) => {
 
       const operationId = await queueOperation({
         type: 'member_contact_update',
-        payload: profileUpdate
+        payload: profileUpdate,
+        userId: user.id
       });
 
       try {
@@ -249,7 +248,9 @@ const ProfileEditor = ({ profileType = 'staff', roleLabel }) => {
         setProfileNotice('Your changes are saved on this device and remain queued.');
         setProfileError(`The server could not apply this profile update yet: ${operation.lastError}`);
       } else {
-        setProfileNotice('Your changes are saved on this device and will sync when online.');
+        setProfileNotice(offlineMode
+          ? 'Your changes are saved on this device. Reconnect and sign in online to sync them.'
+          : 'Your changes are saved on this device and will sync when online.');
       }
     } catch (error) {
       console.error('Unable to save profile:', error);
@@ -262,38 +263,43 @@ const ProfileEditor = ({ profileType = 'staff', roleLabel }) => {
   const setupOfflineAccess = async () => {
     setOfflineSetup({ busy: true, message: '', error: '' });
     try {
-      await enableOfflineAccess({ user, staff });
+      if (offlinePin !== offlinePinConfirm) {
+        throw new Error('The PIN entries do not match.');
+      }
+      await enableOfflineAccess({ user, staff, pin: offlinePin });
+      setOfflinePin('');
+      setOfflinePinConfirm('');
       setOfflineSetup({
         busy: false,
-        message: 'Biometric sign-in is set up. This device can unlock your cached account for up to 7 days without internet.',
+        message: 'Offline PIN access is set up. This device can unlock your cached account for up to 7 days without internet.',
         error: ''
       });
     } catch (error) {
-      console.error('Unable to enable biometric offline sign-in:', error);
+      console.error('Unable to enable offline PIN access:', error);
       setOfflineSetup({
         busy: false,
         message: '',
-        error: error instanceof Error ? error.message : 'Biometric offline sign-in setup failed.'
+        error: error instanceof Error ? error.message : 'Offline PIN setup failed.'
       });
     }
   };
 
   const removeOfflineAccessFromDevice = async () => {
-    if (!user?.id || !window.confirm('Remove biometric offline sign-in and its cached profile from this device?')) return;
+    if (!user?.id || !window.confirm('Remove offline PIN access and its cached profile from this device?')) return;
     setOfflineSetup({ busy: true, message: '', error: '' });
     try {
       await removeOfflineAccess(user.id);
       setOfflineSetup({
         busy: false,
-        message: 'Biometric offline sign-in was removed from this device.',
+        message: 'Offline PIN access was removed from this device.',
         error: ''
       });
     } catch (error) {
-      console.error('Unable to remove biometric offline sign-in:', error);
+      console.error('Unable to remove offline PIN access:', error);
       setOfflineSetup({
         busy: false,
         message: '',
-        error: error instanceof Error ? error.message : 'Biometric offline sign-in could not be removed.'
+        error: error instanceof Error ? error.message : 'Offline PIN access could not be removed.'
       });
     }
   };
@@ -471,9 +477,9 @@ const ProfileEditor = ({ profileType = 'staff', roleLabel }) => {
           )}
 
           <div className={`sticky -mx-4 border-t border-gray-100 bg-white/95 px-4 py-3 backdrop-blur sm:static sm:mx-0 sm:flex sm:justify-end sm:bg-transparent sm:px-0 sm:pb-0 ${profileType === 'member' ? 'bottom-16 lg:bottom-0' : 'bottom-0'}`}>
-            <button type="submit" disabled={saving || offlineMode} className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-emerald-700 px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-emerald-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-700 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto">
+            <button type="submit" disabled={saving} className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-emerald-700 px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-emerald-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-700 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto">
               <Save aria-hidden="true" size={17} />
-              {offlineMode ? 'Online sign-in required to save' : saving ? 'Saving...' : 'Save profile'}
+              {saving ? 'Saving...' : offlineMode ? 'Save changes locally' : 'Save profile'}
             </button>
           </div>
         </form>
@@ -482,11 +488,43 @@ const ProfileEditor = ({ profileType = 'staff', roleLabel }) => {
       <section className="rounded-2xl border border-amber-200 bg-amber-50 p-5">
         <h3 className="font-semibold text-amber-950">Offline sign-in on this device</h3>
         <p className="mt-1 text-sm text-amber-900">
-          On a Windows PC, set up Windows Hello face, fingerprint, or PIN in Settings → Accounts → Sign-in options. Then enable this while online in the same browser you will use offline. Windows may label the setup prompt as a passkey; choose this Windows device or Windows Hello, not a phone QR code or security key.
+          After signing in online, set a six-digit device PIN here in the same browser you will use offline. Your PIN is stored only as a salted password hash on this device.
         </p>
         <p className="mt-2 text-sm text-amber-900">
-          Offline unlock uses the device authenticator to open cached information; it does not verify your account with the server or allow financial transactions. Signing out keeps biometric sign-in enabled. Remove it before signing out on a shared or untrusted device.
+          Offline PIN unlock only opens cached information and locally permitted features; it does not authenticate with Supabase. Changes are queued on this device and require online sign-in before the server can authorize and apply them. Five incorrect PIN attempts lock offline access for 15 minutes. Remove the PIN before signing out on a shared or untrusted device.
         </p>
+        {!offlineMode && (
+          <div className="mt-4 grid gap-3 sm:grid-cols-2">
+            <label className="text-sm font-medium text-amber-950">
+              Six-digit PIN
+              <input
+                type="password"
+                inputMode="numeric"
+                autoComplete="new-password"
+                pattern="[0-9]{6}"
+                maxLength={6}
+                value={offlinePin}
+                onChange={(event) => setOfflinePin(event.target.value.replace(/\D/g, '').slice(0, 6))}
+                className="mt-1 w-full rounded-lg border border-amber-300 bg-white px-3 py-2 text-gray-900"
+                aria-label="Six-digit offline PIN"
+              />
+            </label>
+            <label className="text-sm font-medium text-amber-950">
+              Confirm PIN
+              <input
+                type="password"
+                inputMode="numeric"
+                autoComplete="new-password"
+                pattern="[0-9]{6}"
+                maxLength={6}
+                value={offlinePinConfirm}
+                onChange={(event) => setOfflinePinConfirm(event.target.value.replace(/\D/g, '').slice(0, 6))}
+                className="mt-1 w-full rounded-lg border border-amber-300 bg-white px-3 py-2 text-gray-900"
+                aria-label="Confirm six-digit offline PIN"
+              />
+            </label>
+          </div>
+        )}
         {offlineSetup.error && <p role="alert" className="mt-3 text-sm text-red-800">{offlineSetup.error}</p>}
         {offlineSetup.message && <p role="status" className="mt-3 text-sm text-green-800">{offlineSetup.message}</p>}
         {offlineMode ? (
@@ -495,10 +533,10 @@ const ProfileEditor = ({ profileType = 'staff', roleLabel }) => {
           <button
             type="button"
             onClick={setupOfflineAccess}
-            disabled={offlineSetup.busy || !navigator.onLine || !user?.id || staff?.must_change_password}
+            disabled={offlineSetup.busy || !navigator.onLine || !user?.id || staff?.must_change_password || offlinePin.length !== 6 || offlinePinConfirm.length !== 6}
             className="mt-4 rounded-lg bg-amber-700 px-4 py-2 text-sm font-semibold text-white hover:bg-amber-800 disabled:cursor-not-allowed disabled:opacity-50"
           >
-            {offlineSetup.busy ? 'Setting up biometric sign-in…' : 'Set up biometric sign-in'}
+            {offlineSetup.busy ? 'Setting up PIN access…' : 'Set up or update offline PIN'}
           </button>
         )}
         {!navigator.onLine && !offlineMode && (
@@ -510,7 +548,7 @@ const ProfileEditor = ({ profileType = 'staff', roleLabel }) => {
           disabled={offlineSetup.busy || !user?.id}
           className="mt-3 rounded-lg border border-amber-700 px-4 py-2 text-sm font-semibold text-amber-900 hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-50"
         >
-          Remove biometric offline sign-in
+          Remove offline PIN access
         </button>
       </section>
 

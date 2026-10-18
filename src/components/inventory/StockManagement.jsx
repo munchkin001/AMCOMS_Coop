@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { useAuth } from '../../contexts/AuthContext';
 import { supabase } from '../../lib/supabase';
 import { useMultipleRealtimeSubscriptions } from '../../hooks/useRealtimeSubscription';
 import { toDateString } from '../../lib/dashboardAccounting';
@@ -13,6 +14,7 @@ import {
 const newForm = () => ({ productId: '', quantity: '', unitCost: '', date: toDateString(new Date()), reason: '', reference: '', remarks: '' });
 
 const StockManagement = () => {
+  const { user } = useAuth();
   const [activeTab, setActiveTab] = useState('stock-in');
   const [products, setProducts] = useState([]);
   const [form, setForm] = useState(newForm);
@@ -122,7 +124,8 @@ const StockManagement = () => {
         date: form.date,
         reference: requiresReference ? form.reference.trim() : choice.label,
         description: form.remarks.trim() ? `${choice.label}: ${form.remarks.trim()}` : choice.label,
-        unitCost: isStockIn ? Number(form.unitCost) : null
+        unitCost: isStockIn ? Number(form.unitCost) : null,
+        userId: user?.id
       });
       if (result.status === 'synced') {
         setNotice(`${isStockIn ? 'Stock in' : 'Stock out'} synchronized for ${selectedProduct?.product_name}.`);

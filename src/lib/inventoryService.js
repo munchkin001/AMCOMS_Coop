@@ -64,7 +64,8 @@ export const recordStockMovement = async ({
   date,
   reference = null,
   description = null,
-  unitCost = null
+  unitCost = null,
+  userId
 }) => {
   const amount = Math.abs(Number(quantity));
   if (!productId) throw new Error('Select a product.');
@@ -72,6 +73,7 @@ export const recordStockMovement = async ({
 
   const operationId = await queueOperation({
     type: 'inventory_movement',
+    userId,
     payload: {
       productId,
       movementType,

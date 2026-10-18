@@ -5,7 +5,7 @@ import { supabase } from "../supabase";
 const ALLOWED_TYPES = new Set(["inventory_movement", "member_contact_update"]);
 const QUEUE_UPDATED_EVENT = "amcoms-offline-queue-updated";
 
-export async function queueOperation({ type, payload }) {
+export async function queueOperation({ type, payload, userId }) {
   if (!ALLOWED_TYPES.has(type)) {
     throw new Error("This operation is not enabled for offline sync.");
   }
@@ -16,15 +16,17 @@ export async function queueOperation({ type, payload }) {
 
   const { data: { session }, error } = await supabase.auth.getSession();
   if (error) throw error;
-  if (!session?.user?.id) {
-    throw new Error("Sign in before saving an operation for offline sync.");
+  if (session?.user?.id && userId && session.user.id !== userId) {
+    throw new Error("The signed-in account does not match the account saving this operation.");
   }
+  const operationUserId = session?.user?.id || userId;
+  if (!operationUserId) throw new Error("Sign in before saving an operation for offline sync.");
 
   const operationId = crypto.randomUUID();
 
   await offlineDb.syncQueue.add({
     operationId,
-    userId: session.user.id,
+    userId: operationUserId,
     type,
     payload,
     status: "pending",

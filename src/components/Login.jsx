@@ -1,7 +1,7 @@
 import React, { useCallback, useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-import { unlockWithOfflinePasskey } from '../lib/Offline/offlineAccess';
+import { unlockWithOfflinePin } from '../lib/Offline/offlinePin';
 
 const Login = ({ portalType }) => {
   const navigate = useNavigate();
@@ -23,6 +23,7 @@ const Login = ({ portalType }) => {
   };
   const [fullName, setFullName] = useState('');
   const [password, setPassword] = useState('');
+  const [offlinePin, setOfflinePin] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(false);
   const [error, setError] = useState('');
@@ -108,7 +109,7 @@ const Login = ({ portalType }) => {
     setError('');
     setFieldErrors({ fullName: '', password: '' });
     if (!navigator.onLine) {
-      setError('Internet is required for regular sign-in. Use biometric sign-in if it was enabled on this device earlier.');
+      setError('Internet is required for regular sign-in. Use your device PIN if offline access was enabled on this device earlier.');
       return;
     }
 
@@ -167,7 +168,10 @@ const Login = ({ portalType }) => {
     setError('');
     setLoading(true);
     try {
-      const offlineAccount = await unlockWithOfflinePasskey();
+      const offlineAccount = await unlockWithOfflinePin({
+        username: fullName,
+        pin: offlinePin,
+      });
       const role = offlineAccount.staff.role;
       const staffRoles = ['chairman', 'manager', 'treasurer', 'bookkeeper', 'inventory'];
       const isStaffUser = staffRoles.includes(role);
@@ -175,15 +179,16 @@ const Login = ({ portalType }) => {
         (portalType === 'staff' && !isStaffUser) ||
         (portalType === 'member' && role !== 'member')
       ) {
-        throw new Error('This biometric sign-in belongs to a different portal. Choose the correct portal and try again.');
+        throw new Error('This offline PIN belongs to a different portal. Choose the correct portal and try again.');
       }
       if (offlineAccount.staff.must_change_password) {
         throw new Error('Connect to the internet and complete the required password change before using offline access.');
       }
       unlockOffline(offlineAccount);
+      setOfflinePin('');
       redirectToPortal(role);
     } catch (unlockError) {
-      console.error('Offline passkey unlock failed:', unlockError);
+      console.error('Offline PIN unlock failed:', unlockError);
       setError(unlockError instanceof Error ? unlockError.message : 'Offline unlock failed.');
       setLoading(false);
     }
@@ -235,6 +240,7 @@ const Login = ({ portalType }) => {
                   value={fullName}
                   onChange={(e) => {
                     setFullName(e.target.value);
+                    setOfflinePin('');
                     if (fieldErrors.fullName) {
                       setFieldErrors(prev => ({ ...prev, fullName: '' }));
                     }
@@ -255,6 +261,7 @@ const Login = ({ portalType }) => {
               </div>
 
               {/* Password Field */}
+              {online && (
               <div className="mb-6">
                 <label htmlFor="password" className="block text-gray-700 text-sm font-semibold mb-2">
                   Password
@@ -305,8 +312,10 @@ const Login = ({ portalType }) => {
                   </p>
                 )}
               </div>
+              )}
 
               {/* Remember Me & Forgot Password */}
+              {online && (
               <div className="flex items-center justify-between mb-6">
                 <label className="flex items-center text-sm text-gray-600 cursor-pointer">
                   <input
@@ -321,11 +330,13 @@ const Login = ({ portalType }) => {
                   Forgot Password?
                 </Link>
               </div>
+              )}
 
               {/* Login Button */}
+              {online && (
               <button
                 type="submit"
-                disabled={loading || !online}
+                disabled={loading}
                 className={`flex w-full items-center justify-center rounded-lg ${portalConfig.buttonColor} py-3 font-semibold text-[#183c30] shadow-sm transition-colors hover:shadow-md disabled:cursor-not-allowed disabled:bg-gray-400 disabled:text-white`}
               >
                 {loading ? (
@@ -340,22 +351,39 @@ const Login = ({ portalType }) => {
                   'Sign in'
                 )}
               </button>
+              )}
             </form>
             {!online && (
               <div className="mt-5 rounded-lg border border-amber-200 bg-amber-50 p-4">
                 <p className="text-sm text-amber-950">
-                  Offline access works only on a device where you previously enabled biometric sign-in while online.
+                  Enter your username above and the six-digit device PIN you set up while signed in online.
                 </p>
+                <label htmlFor="offline-pin" className="mt-3 block text-sm font-semibold text-amber-950">
+                  Device PIN
+                </label>
+                <input
+                  id="offline-pin"
+                  type="password"
+                  inputMode="numeric"
+                  autoComplete="one-time-code"
+                  pattern="[0-9]{6}"
+                  maxLength={6}
+                  value={offlinePin}
+                  onChange={(event) => setOfflinePin(event.target.value.replace(/\D/g, '').slice(0, 6))}
+                  placeholder="Enter your 6-digit PIN"
+                  className="mt-1 w-full rounded-lg border border-amber-300 bg-white px-4 py-3 text-center tracking-[0.5em] text-gray-900"
+                  disabled={loading}
+                />
                 <button
                   type="button"
                   onClick={handleOfflineUnlock}
-                  disabled={loading}
+                  disabled={loading || !fullName.trim() || offlinePin.length !== 6}
                   className="mt-3 w-full rounded-lg border border-amber-700 px-4 py-3 font-semibold text-amber-900 transition-colors hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-60"
                 >
-                  {loading ? 'Verifying your identity…' : 'Unlock with biometrics'}
+                  {loading ? 'Verifying PIN…' : 'Unlock with PIN'}
                 </button>
                 <p className="mt-2 text-xs text-amber-900">
-                  On a PC, use Windows Hello face, fingerprint, or PIN. If Windows shows a passkey prompt, choose this Windows device or Windows Hello. Offline access is local only; financial transactions need internet.
+                  Offline PIN access opens cached information only. Transactions and other server changes still require an internet connection and online sign-in.
                 </p>
               </div>
             )}

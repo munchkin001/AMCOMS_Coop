@@ -66,7 +66,14 @@ export default function OfflineSyncStatus() {
               ? "No pending changes"
               : "No changes waiting to sync"}
         </span>
-        {!online && pendingCount > 0 && (
+        {offlineMode && pendingCount > 0 && (
+          <span>
+            {online
+              ? "Saved on this device; sign in online to sync."
+              : "Saved on this device; reconnect and sign in online to sync."}
+          </span>
+        )}
+        {!online && pendingCount > 0 && !offlineMode && (
           <span>Saved on this device; sync resumes when online.</span>
         )}
         {failed.length > 0 && (
@@ -74,7 +81,7 @@ export default function OfflineSyncStatus() {
             {failed.length} need{failed.length === 1 ? "s" : ""} attention
           </span>
         )}
-        {online && (pendingCount > 0 || failed.length > 0) && (
+        {online && !offlineMode && (pendingCount > 0 || failed.length > 0) && (
           <button type="button" onClick={sync} className="font-semibold underline">
             Sync now
           </button>
@@ -82,7 +89,7 @@ export default function OfflineSyncStatus() {
       </div>
       {offlineMode && (
         <p role="status" className="bg-amber-50 px-3 py-2 text-sm text-amber-950">
-          Unlocked with this device’s biometric sign-in. You are viewing local cached data only; transactions and account changes require online sign-in.
+          Unlocked with this device’s PIN. You are viewing cached data; locally queued changes require online sign-in before the server can apply them.
         </p>
       )}
       {syncError && (
