@@ -371,7 +371,7 @@ const Login = ({ portalType }) => {
                   value={offlinePin}
                   onChange={(event) => setOfflinePin(event.target.value.replace(/\D/g, '').slice(0, 6))}
                   placeholder="Enter your 6-digit PIN"
-                  className="mt-1 w-full rounded-lg border border-amber-300 bg-white px-4 py-3 text-center tracking-[0.5em] text-gray-900"
+                  className="mt-1 w-full rounded-lg border border-amber-300 bg-white px-4 py-3 text-center text-gray-900"
                   disabled={loading}
                 />
                 <button
