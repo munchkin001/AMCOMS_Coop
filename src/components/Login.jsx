@@ -115,7 +115,7 @@ const Login = ({ portalType }) => {
     // Validate fields
     const errors = {};
     if (!fullName.trim()) {
-      errors.fullName = 'Enter your username or full name';
+      errors.fullName = 'Enter your username';
     }
     if (!password.trim()) {
       errors.password = 'Password is required';
@@ -131,7 +131,7 @@ const Login = ({ portalType }) => {
     setLoading(true);
 
     try {
-      // Authenticate with full name
+      // Authenticate with the username.
       const result = await login(fullName, password);
 
       if (!result.success) {
@@ -223,15 +223,15 @@ const Login = ({ portalType }) => {
                 </div>
               )}
 
-              {/* Full Name Field */}
+              {/* Username Field */}
               <div className="mb-5">
                 <label htmlFor="fullName" className="block text-gray-700 text-sm font-semibold mb-2">
-                  Username or full name
+                  Username
                 </label>
                 <input
                   type="text"
                   id="fullName"
-                  autoComplete="name"
+                  autoComplete="username"
                   value={fullName}
                   onChange={(e) => {
                     setFullName(e.target.value);
@@ -239,7 +239,7 @@ const Login = ({ portalType }) => {
                       setFieldErrors(prev => ({ ...prev, fullName: '' }));
                     }
                   }}
-                  placeholder="Enter your username or full name"
+                  placeholder="Enter your username"
                   className={`w-full rounded-lg border ${fieldErrors.fullName ? 'border-red-300' : 'border-gray-200'} px-4 py-3 transition-all focus:outline-none focus:ring-2 ${portalConfig.inputFocus}`}
                   required
                   disabled={loading}

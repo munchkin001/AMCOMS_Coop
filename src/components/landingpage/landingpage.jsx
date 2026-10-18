@@ -55,7 +55,6 @@ const useActiveSection = () => {
 
 const Navbar = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
-  const [isLoginMenuOpen, setIsLoginMenuOpen] = useState(false);
   const activeSection = useActiveSection();
 
   return (
@@ -99,37 +98,12 @@ const Navbar = () => {
               );
             })}
             
-            <div
-              className="relative"
-              onMouseEnter={() => setIsLoginMenuOpen(true)}
-              onMouseLeave={() => setIsLoginMenuOpen(false)}
+            <Link
+              to="/login/member"
+              className="amcoms-login-btn whitespace-nowrap"
             >
-              <button
-                type="button"
-                className="amcoms-login-btn whitespace-nowrap"
-                aria-haspopup="menu"
-                aria-expanded={isLoginMenuOpen}
-                onClick={() => setIsLoginMenuOpen(true)}
-                onKeyDown={(event) => {
-                  if (event.key === 'Escape') setIsLoginMenuOpen(false);
-                }}
-              >
-                <span>Member Login</span>
-                <ChevronDown aria-hidden="true" className="h-4 w-4" />
-              </button>
-              {isLoginMenuOpen && (
-                <div role="menu" className="absolute right-0 top-full z-50 w-56 overflow-hidden rounded-lg border border-gray-100 bg-white py-1 shadow-xl">
-                  <Link
-                    role="menuitem"
-                    to="/login/member"
-                    onClick={() => setIsLoginMenuOpen(false)}
-                    className="block px-4 py-3 text-sm font-medium text-gray-700 hover:bg-emerald-50 hover:text-emerald-900"
-                  >
-                    Member Portal
-                  </Link>
-                </div>
-              )}
-            </div>
+              Member Login
+            </Link>
           </div>
 
           {/* Mobile menu button */}
@@ -172,31 +146,13 @@ const Navbar = () => {
                 </div>
               ))}
               
-              <div className="space-y-2">
-                <button
-                  type="button"
-                  className="amcoms-login-btn amcoms-login-btn--block"
-                  aria-expanded={isLoginMenuOpen}
-                  onClick={() => setIsLoginMenuOpen((open) => !open)}
-                >
-                  <span>Member Login</span>
-                  <ChevronDown aria-hidden="true" className={`h-4 w-4 transition-transform ${isLoginMenuOpen ? 'rotate-180' : ''}`} />
-                </button>
-                {isLoginMenuOpen && (
-                  <div className="overflow-hidden rounded-lg border border-gray-200 bg-white">
-                    <Link
-                      to="/login/member"
-                      onClick={() => {
-                        setIsMenuOpen(false);
-                        setIsLoginMenuOpen(false);
-                      }}
-                      className="block px-4 py-3 text-sm font-medium text-gray-700 hover:bg-emerald-50"
-                    >
-                      Member Portal
-                    </Link>
-                  </div>
-                )}
-              </div>
+              <Link
+                to="/login/member"
+                onClick={() => setIsMenuOpen(false)}
+                className="amcoms-login-btn amcoms-login-btn--block"
+              >
+                Member Login
+              </Link>
             </div>
           </div>
         )}
