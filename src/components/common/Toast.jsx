@@ -40,12 +40,13 @@ const Toast = ({ message, type = 'success', onClose, duration = 3000 }) => {
   };
 
   return (
-    <div className="fixed bottom-4 right-4 z-50 animate-slide-up">
+    <div className="relative pointer-events-auto animate-slide-up" role={type === 'error' ? 'alert' : 'status'} aria-live={type === 'error' ? 'assertive' : 'polite'}>
       <div className={`flex items-center space-x-3 px-6 py-4 rounded-lg border shadow-lg ${styles[type]} min-w-[300px] max-w-md`}>
         <div className="flex-shrink-0">{icons[type]}</div>
         <p className="text-sm font-medium flex-1">{message}</p>
         <button
           onClick={onClose}
+          aria-label="Dismiss notification"
           className="flex-shrink-0 hover:opacity-70"
         >
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">

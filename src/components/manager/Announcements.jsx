@@ -2,6 +2,8 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import { useRealtimeSubscription } from '../../hooks/useRealtimeSubscription';
+import useToast from '../../hooks/useToast';
+import ToastContainer from '../common/ToastContainer';
 
 const roleKeys = {
   allMembers: 'member',
@@ -34,9 +36,10 @@ const Announcements = () => {
   });
   const [alsoSendViaSMS, setAlsoSendViaSMS] = useState(false);
   const [sending, setSending] = useState(false);
-  const [sendError, setSendError] = useState('');
-  const [sendNotice, setSendNotice] = useState('');
   const [announcements, setAnnouncements] = useState([]);
+  const [announcementToDiscard, setAnnouncementToDiscard] = useState(null);
+  const [discarding, setDiscarding] = useState(false);
+  const { toasts, removeToast, success, error: showError, warning, info } = useToast();
 
   const loadAnnouncements = useCallback(async () => {
     const { data, error } = await supabase
@@ -47,7 +50,7 @@ const Announcements = () => {
 
     if (error) {
       console.error('Unable to load announcements:', error);
-      setSendError('Published announcements could not be loaded.');
+      showError('Published announcements could not be loaded.');
       return;
     }
 
@@ -58,7 +61,7 @@ const Announcements = () => {
       date: new Date(item.published_at).toLocaleDateString('en-PH', { year: 'numeric', month: 'short', day: 'numeric' }),
       recipients: (item.target_roles || []).filter((role) => role !== 'public').map((role) => roleLabels[role] || role)
     })));
-  }, []);
+  }, [showError]);
 
   useEffect(() => {
     loadAnnouncements();
@@ -66,13 +69,21 @@ const Announcements = () => {
 
   useRealtimeSubscription('announcements', loadAnnouncements, null, [loadAnnouncements]);
 
-  const handleDelete = async (id) => {
-    if (!window.confirm('Remove this announcement? It will no longer appear for members or on the landing page.')) return;
-    const { error } = await supabase.from('announcements').update({ is_active: false }).eq('id', id);
-    if (error) {
-      setSendError('The announcement could not be removed. Please try again.');
+  const handleDelete = async () => {
+    if (!announcementToDiscard) return;
+    setDiscarding(true);
+    const { error: discardError } = await supabase
+      .from('announcements')
+      .update({ is_active: false })
+      .eq('id', announcementToDiscard);
+    setDiscarding(false);
+    if (discardError) {
+      console.error('Unable to discard announcement:', discardError);
+      showError('The announcement could not be discarded. Please try again.');
       return;
     }
+    setAnnouncementToDiscard(null);
+    success('Announcement discarded.');
     loadAnnouncements();
   };
 
@@ -102,14 +113,12 @@ const Announcements = () => {
   };
 
   const handlePublish = async () => {
-    setSendError('');
-    setSendNotice('');
     if (!subject.trim() || !message.trim()) {
-      alert('Please fill in subject and message');
+      warning('Please fill in subject and message.');
       return;
     }
     if (getSelectedRecipientsCount() === 0) {
-      alert('Please select at least one recipient');
+      warning('Please select at least one recipient.');
       return;
     }
 
@@ -131,9 +140,11 @@ const Announcements = () => {
           throw new Error(serverMessage || 'SMS delivery failed. The announcement was not published.');
         }
         if (!data?.sent_count) throw new Error('No SMS recipients with valid mobile numbers were found.');
-        setSendNotice(`${data.sent_count} SMS message(s) accepted${data.failed_count ? `; ${data.failed_count} failed` : ''}.`);
+        const sentMessage = `${data.sent_count} SMS message(s) accepted${data.failed_count ? `; ${data.failed_count} failed` : ''}.`;
+        if (data.failed_count) warning(sentMessage);
+        else success(sentMessage);
       } catch (smsError) {
-        setSendError(smsError.message || 'SMS delivery failed. The announcement was not published.');
+        showError(smsError.message || 'SMS delivery failed. The announcement was not published.');
         setSending(false);
         return;
       }
@@ -150,11 +161,11 @@ const Announcements = () => {
     });
     if (insertError) {
       console.error('Unable to publish announcement:', insertError);
-      setSendError('The announcement could not be published. Please try again.');
+      showError('The announcement could not be published. Please try again.');
       return;
     }
 
-    alert('Announcement published successfully!');
+    success('Announcement published successfully!');
     setSubject('');
     setMessage('');
     setRecipients({
@@ -169,7 +180,7 @@ const Announcements = () => {
   };
 
   const handleSaveDraft = () => {
-    alert('Announcement saved as draft');
+    info('Announcement saved as draft.');
   };
 
   const handleTemplateClick = (template) => {
@@ -178,6 +189,7 @@ const Announcements = () => {
 
   return (
     <div className="space-y-6">
+      <ToastContainer toasts={toasts} removeToast={removeToast} />
       {/* Header */}
       <div>
         <h3 className="text-2xl font-bold text-gray-900">Announcements</h3>
@@ -337,8 +349,6 @@ const Announcements = () => {
       </div>
 
       {/* Published Announcements */}
-      {sendError && <p role="alert" className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{sendError}</p>}
-      {sendNotice && <p role="status" className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">{sendNotice}</p>}
       <div className="bg-white rounded-lg shadow border border-gray-200 p-6">
         <h4 className="text-lg font-semibold text-gray-900 mb-4">Published Announcements</h4>
         <div className="space-y-3">
@@ -355,14 +365,50 @@ const Announcements = () => {
                 </div>
               </div>
               <div className="flex space-x-2 ml-4">
-                <button onClick={() => handleDelete(announcement.id)} className="px-3 py-1 bg-red-600 text-white rounded text-xs hover:bg-red-700">
-                  Delete
+                <button onClick={() => setAnnouncementToDiscard(announcement.id)} className="px-3 py-1 bg-red-600 text-white rounded text-xs hover:bg-red-700">
+                  Discard
                 </button>
               </div>
             </div>
           ))}
         </div>
       </div>
+      {announcementToDiscard && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div
+            role="alertdialog"
+            aria-modal="true"
+            aria-labelledby="discard-announcement-title"
+            aria-describedby="discard-announcement-description"
+            className="w-full max-w-md rounded-lg bg-white p-6 shadow-xl"
+          >
+            <h4 id="discard-announcement-title" className="text-lg font-semibold text-gray-900">
+              Discard announcement?
+            </h4>
+            <p id="discard-announcement-description" className="mt-2 text-sm text-gray-600">
+              It will no longer appear for members or on the landing page.
+            </p>
+            <div className="mt-6 flex justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => setAnnouncementToDiscard(null)}
+                disabled={discarding}
+                className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-60"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleDelete}
+                disabled={discarding}
+                className="rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {discarding ? 'Discarding…' : 'Discard'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
