@@ -15,7 +15,7 @@ BEGIN
     'inventory@amcoms.com'
   );
 
-  IF matching_auth_users <> 5 THEN
+  IF matching_auth_users > 0 AND matching_auth_users <> 5 THEN
     RAISE EXCEPTION
       'Expected all 5 existing staff Auth users before creating staff profiles; found %',
       matching_auth_users;

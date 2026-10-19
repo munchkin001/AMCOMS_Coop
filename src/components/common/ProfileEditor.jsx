@@ -227,7 +227,12 @@ const ProfileEditor = ({ profileType = 'staff', roleLabel }) => {
       const operationId = await queueOperation({
         type: 'member_contact_update',
         payload: profileUpdate,
-        userId: user.id
+        userId: user.id,
+        actorRole: staff?.role,
+        actorName: staff?.full_name,
+        allowLocalQueue: offlineMode || !navigator.onLine,
+        entityId: staff?.member_id || staff?.id,
+        summary: `${profileType === 'member' ? 'Member' : 'Staff'} profile update`,
       });
 
       try {
@@ -248,7 +253,7 @@ const ProfileEditor = ({ profileType = 'staff', roleLabel }) => {
         setProfileNotice('Your changes are saved on this device and remain queued.');
         setProfileError(`The server could not apply this profile update yet: ${operation.lastError}`);
       } else {
-        setProfileNotice(offlineMode
+        setProfileNotice(offlineMode || !navigator.onLine
           ? 'Your changes are saved on this device. Reconnect and sign in online to sync them.'
           : 'Your changes are saved on this device and will sync when online.');
       }

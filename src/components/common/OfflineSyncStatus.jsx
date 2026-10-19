@@ -4,24 +4,27 @@ import { useAuth } from "../../contexts/AuthContext";
 import { syncPendingOperations } from "../../lib/Offline/syncOperations";
 import { supabase } from "../../lib/supabase";
 import usePendingCount from "../../lib/Offline/usePendingCount";
+import OfflineActivityHistory from "./OfflineActivityHistory";
 
 export default function OfflineSyncStatus() {
   const [online, setOnline] = useState(navigator.onLine);
   const [syncError, setSyncError] = useState("");
   const { user, offlineMode } = useAuth();
-  const { pendingCount, failed } = usePendingCount(user?.id);
+  const { pendingCount, failed, counts, latestSyncResult } = usePendingCount(user?.id);
+  const [historyOpen, setHistoryOpen] = useState(false);
 
   const sync = useCallback(async () => {
     try {
+      if (offlineMode) return;
       const result = await syncPendingOperations();
       setSyncError(result.failedCount > 0
         ? "Some queued changes could not be synced. Review the error details below."
-        : "");
+        : result.refreshErrors?.join(" ") || "");
     } catch (error) {
       console.error("Unable to process offline sync queue:", error);
       setSyncError(error instanceof Error ? error.message : "The offline queue could not be synced.");
     }
-  }, []);
+  }, [offlineMode]);
 
   useEffect(() => {
     const handleOnline = () => {
@@ -37,18 +40,18 @@ export default function OfflineSyncStatus() {
 
     window.addEventListener("online", handleOnline);
     window.addEventListener("offline", handleOffline);
-    const initialSyncTimer = window.setTimeout(() => {
+    const initialSyncTimer = offlineMode ? null : window.setTimeout(() => {
       sync().catch((error) => console.error("Unable to start offline sync:", error));
     }, 0);
     const { data: { subscription } } = supabase.auth.onAuthStateChange(handleAuthChange);
 
     return () => {
-      window.clearTimeout(initialSyncTimer);
+      if (initialSyncTimer != null) window.clearTimeout(initialSyncTimer);
       window.removeEventListener("online", handleOnline);
       window.removeEventListener("offline", handleOffline);
       subscription.unsubscribe();
     };
-  }, [sync]);
+  }, [offlineMode, sync]);
 
   return (
     <>
@@ -66,6 +69,14 @@ export default function OfflineSyncStatus() {
               ? "No pending changes"
               : "No changes waiting to sync"}
         </span>
+        <span className="text-xs">
+          {counts.pending} pending · {counts.syncing} syncing · {counts.synced} synced · {counts.failed} failed
+        </span>
+        {latestSyncResult && (
+          <span className="text-xs">
+            Latest server confirmation: {latestSyncResult.summary} ({new Date(latestSyncResult.syncedAt).toLocaleString()})
+          </span>
+        )}
         {offlineMode && pendingCount > 0 && (
           <span>
             {online
@@ -86,7 +97,11 @@ export default function OfflineSyncStatus() {
             Sync now
           </button>
         )}
+        <button type="button" onClick={() => setHistoryOpen((open) => !open)} className="font-semibold underline">
+          {historyOpen ? "Hide activity history" : "Offline activity history"}
+        </button>
       </div>
+      <OfflineActivityHistory open={historyOpen} online={online} offlineMode={offlineMode} />
       {offlineMode && (
         <p role="status" className="bg-amber-50 px-3 py-2 text-sm text-amber-950">
           Unlocked with this device’s PIN. You are viewing cached data; locally queued changes require online sign-in before the server can apply them.

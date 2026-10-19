@@ -1,8 +1,11 @@
 import { useEffect, useState } from 'react';
+import { useAuth } from '../../../contexts/AuthContext';
 import { supabase } from '../../../lib/supabase';
+import offlineDb from '../../../lib/Offline/OfflineDb';
 import { Upload, Plus, X, AlertCircle } from 'lucide-react';
 
 const CashDisbursementForm = ({ onSave, onCancel, transaction = null }) => {
+  const { user, offlineMode } = useAuth();
   const [formData, setFormData] = useState(transaction ? {
     date: transaction.date,
     voucherNumber: transaction.voucherNumber || transaction.repCvNumber || transaction.referenceNo || '',
@@ -37,6 +40,15 @@ const CashDisbursementForm = ({ onSave, onCancel, transaction = null }) => {
 
   useEffect(() => {
     let active = true;
+    const cacheKey = user?.id ? `cashbook-open-purchases:${user.id}` : null;
+    if (!navigator.onLine || offlineMode) {
+      if (cacheKey) {
+        offlineDb.cachedData.get(cacheKey).then((cached) => {
+          if (active) setOpenPurchases(cached?.data || []);
+        }).catch((error) => console.error('Unable to read cached purchase references:', error));
+      }
+      return () => { active = false; };
+    }
     supabase
       .from('purchases')
       .select('id, purchase_number, net_amount, payment_status, suppliers(supplier_name)')
@@ -44,11 +56,30 @@ const CashDisbursementForm = ({ onSave, onCancel, transaction = null }) => {
       .neq('payment_status', 'paid')
       .order('purchase_date', { ascending: false })
       .limit(200)
-      .then(({ data }) => {
-        if (active) setOpenPurchases(data || []);
+      .then(async ({ data, error }) => {
+        if (!active) return;
+        if (error) {
+          console.error('Unable to load open purchases:', error);
+          if (cacheKey) {
+            const cached = await offlineDb.cachedData.get(cacheKey);
+            if (active) setOpenPurchases(cached?.data || []);
+          }
+          return;
+        }
+        setOpenPurchases(data || []);
+        if (cacheKey) {
+          try {
+            await offlineDb.cachedData.put({ key: cacheKey, data: data || [], updatedAt: new Date().toISOString() });
+          } catch (cacheError) {
+            console.error('Unable to cache open purchase references:', cacheError);
+          }
+        }
+      })
+      .catch((loadError) => {
+        console.error('Unable to load open purchases:', loadError);
       });
     return () => { active = false; };
-  }, []);
+  }, [offlineMode, user?.id]);
 
   const handlePurchaseLink = (purchaseNumber) => {
     const purchase = openPurchases.find((item) => item.purchase_number === purchaseNumber);
@@ -66,17 +97,45 @@ const CashDisbursementForm = ({ onSave, onCancel, transaction = null }) => {
 
   useEffect(() => {
     let active = true;
+    const cacheKey = user?.id ? `cashbook-members:${user.id}` : null;
+    if (!navigator.onLine || offlineMode) {
+      if (cacheKey) {
+        offlineDb.cachedData.get(cacheKey).then((cached) => {
+          if (active) setMembers(cached?.data || []);
+        }).catch((error) => console.error('Unable to read cached disbursement members:', error));
+      }
+      return () => { active = false; };
+    }
     supabase
       .from('members')
       .select('id, member_number, first_name, middle_name, last_name')
       .eq('membership_status', 'active')
       .is('archived_at', null)
       .order('last_name')
-      .then(({ data }) => {
-        if (active) setMembers(data || []);
+      .then(async ({ data, error }) => {
+        if (!active) return;
+        if (error) {
+          console.error('Unable to load disbursement members:', error);
+          if (cacheKey) {
+            const cached = await offlineDb.cachedData.get(cacheKey);
+            if (active) setMembers(cached?.data || []);
+          }
+          return;
+        }
+        setMembers(data || []);
+        if (cacheKey) {
+          try {
+            await offlineDb.cachedData.put({ key: cacheKey, data: data || [], updatedAt: new Date().toISOString() });
+          } catch (cacheError) {
+            console.error('Unable to cache disbursement members:', cacheError);
+          }
+        }
+      })
+      .catch((loadError) => {
+        console.error('Unable to load disbursement members:', loadError);
       });
     return () => { active = false; };
-  }, []);
+  }, [offlineMode, user?.id]);
 
   const memberName = (m) => [m.first_name, m.middle_name, m.last_name].filter(Boolean).join(' ');
   const hasLoanPayable = formData.accountAllocations.some(

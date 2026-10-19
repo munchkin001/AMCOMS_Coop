@@ -1,25 +1,62 @@
 import React, { useEffect, useState } from 'react';
+import { useAuth } from '../../../contexts/AuthContext';
 import { supabase } from '../../../lib/supabase';
+import offlineDb from '../../../lib/Offline/OfflineDb';
 
 const getDefaultSide = (account) => ['Cash on Hand', 'Cash in Bank'].includes(account) ? 'debit' : 'credit';
 
 const CashReceiptForm = ({ onSave, onCancel, transaction = null }) => {
+  const { user, offlineMode } = useAuth();
   const [members, setMembers] = useState([]);
   const [otherMode, setOtherMode] = useState(false);
 
   useEffect(() => {
     let active = true;
+    const cacheKey = user?.id ? `cashbook-members:${user.id}` : null;
+    if (!navigator.onLine || offlineMode) {
+      if (cacheKey) {
+        offlineDb.cachedData.get(cacheKey).then((cached) => {
+          if (active) setMembers(cached?.data || []);
+        }).catch((error) => {
+          console.error('Unable to read cached receipt members:', error);
+        });
+      }
+      return () => { active = false; };
+    }
     supabase
       .from('members')
       .select('id, member_number, first_name, middle_name, last_name')
       .eq('membership_status', 'active')
       .is('archived_at', null)
       .order('last_name')
-      .then(({ data }) => {
-        if (active) setMembers(data || []);
+      .then(async ({ data, error }) => {
+        if (!active) return;
+        if (error) {
+          console.error('Unable to load receipt members:', error);
+          if (cacheKey) {
+            const cached = await offlineDb.cachedData.get(cacheKey);
+            if (active) setMembers(cached?.data || []);
+          }
+          return;
+        }
+        setMembers(data || []);
+        if (cacheKey) {
+          try {
+            await offlineDb.cachedData.put({
+              key: cacheKey,
+              data: data || [],
+              updatedAt: new Date().toISOString(),
+            });
+          } catch (cacheError) {
+            console.error('Unable to cache receipt members:', cacheError);
+          }
+        }
+      })
+      .catch((loadError) => {
+        console.error('Unable to load receipt members:', loadError);
       });
     return () => { active = false; };
-  }, []);
+  }, [offlineMode, user?.id]);
 
   const memberName = (m) => [m.first_name, m.middle_name, m.last_name].filter(Boolean).join(' ');
 

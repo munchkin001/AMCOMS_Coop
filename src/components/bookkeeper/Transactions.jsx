@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import { useLocation } from 'react-router-dom';
+import { useAuth } from '../../contexts/AuthContext';
 import { supabase } from '../../lib/supabase';
+import { queueOperation } from '../../lib/Offline/syncQueue';
 import TransactionList from './transactions/TransactionList';
 import TransactionTypeSelector from './transactions/TransactionTypeSelector';
 import CashReceiptForm from './transactions/CashReceiptForm';
@@ -11,12 +13,14 @@ import TransactionDetail from './transactions/TransactionDetail';
 
 const Transactions = ({ initialType = null, startNewTransaction = false }) => {
   const location = useLocation();
+  const { user, staff, offlineMode } = useAuth();
   const requestedType = initialType || location.state?.initialTransactionType || null;
   const shouldStartNew = startNewTransaction || location.state?.startNewTransaction;
   const [view, setView] = useState(requestedType ? 'form' : shouldStartNew ? 'type-selector' : 'list'); // 'list', 'type-selector', 'form', 'detail'
   const [selectedType, setSelectedType] = useState(requestedType);
   const [selectedTransaction, setSelectedTransaction] = useState(null);
   const [actionError, setActionError] = useState('');
+  const [actionNotice, setActionNotice] = useState('');
 
   const handleNewTransaction = () => {
     setView('type-selector');
@@ -33,18 +37,80 @@ const Transactions = ({ initialType = null, startNewTransaction = false }) => {
     setSelectedTransaction(null);
   };
 
+  const queueOfflineOperation = async ({ type, payload, entityId = null, summary, details = {} }) => {
+    await queueOperation({
+      type,
+      payload,
+      userId: user?.id,
+      actorRole: staff?.role,
+      actorName: staff?.full_name,
+      allowLocalQueue: true,
+      entityId,
+      summary,
+      details: { ...details, localRecordedAt: new Date().toISOString() },
+    });
+    setActionNotice("Saved on this device as pending. It has not been posted or changed on the server; AMCOMS will validate and authorize it after reconnecting.");
+  };
+
   const handleSaveTransaction = async (data) => {
     setActionError('');
+    setActionNotice('');
+    const shouldQueue = !navigator.onLine || offlineMode;
     if (selectedType === 'sales') {
-      const { error } = await supabase.rpc('record_cooperative_sale', data);
-      if (error) throw error;
+      if (shouldQueue) {
+        const sale = data.p_sale;
+        await queueOfflineOperation({
+          type: 'cooperative_sale',
+          payload: data,
+          entityId: sale.sales_order_id || sale.product_id || null,
+          summary: sale.flow === 'collection' ? 'Credit sale collection queued' : 'Cooperative sale queued',
+          details: { amount: sale.amount, reference: sale.reference_number },
+        });
+      } else {
+        const { error } = await supabase.rpc('record_cooperative_sale', data);
+        if (error) throw error;
+      }
     } else if (['loan-payment', 'savings-deposit', 'other-transaction'].includes(selectedType)) {
-      const { error } = data.dividend
-        ? await supabase.rpc('record_member_dividend', { p_distribution: data.p_distribution })
-        : await supabase.rpc('record_member_financial_entry', data);
-      if (error) throw error;
+      if (shouldQueue) {
+        if (staff?.role !== 'bookkeeper') {
+          throw new Error('Only a bookkeeper can queue this operation. Nothing was saved.');
+        }
+        const entry = data.p_entry;
+        const memberId = data.p_receipt?.member_id || data.p_disbursement?.member_id;
+        const entryLabels = {
+          savings_deposit: 'Savings deposit',
+          savings_withdrawal: 'Savings withdrawal',
+          time_deposit: 'Time deposit placement',
+          time_deposit_withdrawal: 'Time deposit withdrawal',
+          loan_payment: 'Loan payment',
+          capital_contribution: 'Capital contribution',
+        };
+        const dividend = Boolean(data.dividend);
+        await queueOfflineOperation({
+          type: dividend ? 'member_dividend' : 'member_financial_entry',
+          payload: dividend ? { p_distribution: data.p_distribution } : data,
+          entityId: memberId,
+          summary: dividend
+            ? 'Approved member dividend distribution queued'
+            : `${entryLabels[entry?.entry_type] || 'Member financial entry'} queued`,
+          details: {
+            entryType: dividend ? 'dividend_distribution' : entry?.entry_type,
+            amount: dividend
+              ? Number(data.p_distribution?.dividend_amount || 0) + Number(data.p_distribution?.patronage_amount || 0)
+              : data.p_receipt?.amount ?? data.p_disbursement?.amount ?? null,
+            reference: dividend
+              ? data.p_distribution?.reference_number
+              : data.p_receipt?.receipt_number ?? data.p_disbursement?.voucher_number ?? null,
+          },
+        });
+      } else {
+        const { error } = data.dividend
+          ? await supabase.rpc('record_member_dividend', { p_distribution: data.p_distribution })
+          : await supabase.rpc('record_member_financial_entry', data);
+        if (error) throw error;
+      }
     } else if (selectedType === 'cash-receipt' || data.type === 'cash-receipt') {
-      const { error } = await supabase.rpc('save_cash_receipt', {
+      const payload = {
         p_receipt: {
           receipt_date: data.date,
           receipt_number: data.receiptNo.trim(),
@@ -60,11 +126,22 @@ const Transactions = ({ initialType = null, startNewTransaction = false }) => {
           amount: Number(allocation.amount),
           side: allocation.side
         }))
-      });
+      };
 
-      if (error) throw error;
+      if (shouldQueue) {
+        await queueOfflineOperation({
+          type: 'cash_receipt',
+          payload,
+          entityId: data.memberId || null,
+          summary: `Cash receipt ${data.receiptNo.trim()} queued`,
+          details: { amount: Number(data.amount), reference: data.receiptNo.trim() },
+        });
+      } else {
+        const { error } = await supabase.rpc('save_cash_receipt', payload);
+        if (error) throw error;
+      }
     } else if (selectedType === 'cash-disbursement' || data.type === 'cash-disbursement') {
-      const { error } = await supabase.rpc('save_cash_disbursement', {
+      const payload = {
         p_disbursement: {
           disbursement_date: data.date,
           voucher_number: data.voucherNumber.trim(),
@@ -80,9 +157,20 @@ const Transactions = ({ initialType = null, startNewTransaction = false }) => {
           account: allocation.account,
           amount: Number(allocation.amount)
         }))
-      });
+      };
 
-      if (error) throw error;
+      if (shouldQueue) {
+        await queueOfflineOperation({
+          type: 'cash_disbursement',
+          payload,
+          entityId: data.memberId || null,
+          summary: `Cash disbursement ${data.voucherNumber.trim()} queued`,
+          details: { amount: Number(data.paymentAmount), reference: data.voucherNumber.trim() },
+        });
+      } else {
+        const { error } = await supabase.rpc('save_cash_disbursement', payload);
+        if (error) throw error;
+      }
     } else {
       throw new Error('Unsupported transaction type.');
     }
@@ -107,6 +195,23 @@ const Transactions = ({ initialType = null, startNewTransaction = false }) => {
     setActionError('');
     const fn = transaction.type === 'cash-disbursement' ? 'delete_cash_disbursement' : 'delete_cash_receipt';
     const param = transaction.type === 'cash-disbursement' ? 'p_disbursement_id' : 'p_receipt_id';
+    if (!navigator.onLine || offlineMode) {
+      try {
+        const disbursement = transaction.type === 'cash-disbursement';
+        await queueOfflineOperation({
+          type: disbursement ? 'cash_disbursement_delete' : 'cash_receipt_delete',
+          payload: { [param]: transaction.id },
+          entityId: transaction.id,
+          summary: `${disbursement ? 'Cash disbursement' : 'Cash receipt'} deletion queued`,
+          details: { reference: transaction.repCvNumber || transaction.receiptNo || transaction.referenceNo || null },
+        });
+        setView('list');
+        setSelectedTransaction(null);
+      } catch (error) {
+        setActionError(`Unable to queue transaction deletion: ${error.message}`);
+      }
+      return;
+    }
     const { error } = await supabase.rpc(fn, { [param]: transaction.id });
     if (error) {
       setActionError(`Unable to delete transaction: ${error.message}`);
@@ -119,6 +224,7 @@ const Transactions = ({ initialType = null, startNewTransaction = false }) => {
   return (
     <div>
       {actionError && <p role="alert" className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{actionError}</p>}
+      {actionNotice && <p role="status" className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">{actionNotice}</p>}
       {view === 'list' && (
         <TransactionList 
           onNewTransaction={handleNewTransaction}

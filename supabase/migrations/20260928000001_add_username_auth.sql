@@ -100,10 +100,29 @@ ALTER COLUMN username SET NOT NULL;
 
 COMMENT ON COLUMN public.staff.username IS 'Unique username for authentication (replaces email login)';
 
--- Add check constraint for username format (now that all usernames are valid)
-ALTER TABLE public.staff
-ADD CONSTRAINT staff_username_format_check 
-CHECK (validate_username(username));
+-- Make this safe to re-run if the schema change was applied before its
+-- migration version was recorded.
+DO $$
+DECLARE
+  constraint_definition TEXT;
+BEGIN
+  SELECT pg_get_constraintdef(constraint_row.oid)
+    INTO constraint_definition
+  FROM pg_constraint AS constraint_row
+  WHERE constraint_row.conrelid = 'public.staff'::regclass
+    AND constraint_row.conname = 'staff_username_format_check';
+
+  IF constraint_definition IS NULL THEN
+    ALTER TABLE public.staff
+      ADD CONSTRAINT staff_username_format_check
+      CHECK (validate_username(username));
+  ELSIF replace(constraint_definition, 'public.', '') <> 'CHECK (validate_username(username))' THEN
+    RAISE EXCEPTION
+      'Constraint staff_username_format_check already exists with unexpected definition: %',
+      constraint_definition;
+  END IF;
+END;
+$$;
 
 -- RLS: Update policies to allow username lookups during login
 -- This policy allows anyone to read staff records by username during authentication

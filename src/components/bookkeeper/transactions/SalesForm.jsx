@@ -1,11 +1,14 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { useAuth } from '../../../contexts/AuthContext';
 import { supabase } from '../../../lib/supabase';
+import offlineDb from '../../../lib/Offline/OfflineDb';
 
 const today = () => new Date().toISOString().slice(0, 10);
 
 const createReference = (prefix = 'SAL') => `${prefix}-${today().replace(/-/g, '')}-${globalThis.crypto.randomUUID().slice(0, 8).toUpperCase()}`;
 
 const SalesForm = ({ onSave, onCancel }) => {
+  const { user, offlineMode } = useAuth();
   const [products, setProducts] = useState([]);
   const [members, setMembers] = useState([]);
   const [revenueAccounts, setRevenueAccounts] = useState([]);
@@ -41,6 +44,28 @@ const SalesForm = ({ onSave, onCancel }) => {
   useEffect(() => {
     let active = true;
     const loadOptions = async () => {
+      const cacheKey = user?.id ? `sales-options:${user.id}` : null;
+      const loadCachedOptions = async (message) => {
+        const cached = cacheKey ? await offlineDb.cachedData.get(cacheKey) : null;
+        if (!active) return;
+        if (!cached?.data) {
+          setError(message);
+          setLoading(false);
+          return;
+        }
+        const options = cached.data;
+        setProducts(options.products || []);
+        setMembers(options.members || []);
+        setRevenueAccounts(options.revenueAccounts || []);
+        setOutstandingSales(options.outstandingSales || []);
+        setCollectionOrderId(options.outstandingSales?.[0]?.id || '');
+        setError(`${message} Showing the saved options; the server will validate stock, balances, and eligibility when this operation syncs.`);
+        setLoading(false);
+      };
+      if (!navigator.onLine || offlineMode) {
+        await loadCachedOptions('You are offline.');
+        return;
+      }
       const [productResult, memberResult, accountResult, saleResult] = await Promise.all([
         supabase.from('products')
           .select('id, product_name, product_code, unit_of_measure')
@@ -63,7 +88,9 @@ const SalesForm = ({ onSave, onCancel }) => {
       ]);
       if (!active) return;
       const failure = productResult.error || memberResult.error || accountResult.error || saleResult.error;
-      if (failure) setError(`Unable to load sales options: ${failure.message}`);
+      if (failure) {
+        await loadCachedOptions(`Unable to refresh sales options: ${failure.message}`);
+      }
       else {
         setProducts(productResult.data || []);
         setMembers(memberResult.data || []);
@@ -75,12 +102,35 @@ const SalesForm = ({ onSave, onCancel }) => {
         } else if (accountResult.data?.[0]) {
           setForm((current) => ({ ...current, revenueAccount: accountResult.data[0].account_name }));
         }
+        if (cacheKey) {
+          try {
+            await offlineDb.cachedData.put({
+              key: cacheKey,
+              data: {
+                products: productResult.data || [],
+                members: memberResult.data || [],
+                revenueAccounts: accountResult.data || [],
+                outstandingSales: (saleResult.data || []).filter(
+                  (sale) => Number(sale.net_amount) > Number(sale.amount_paid || 0)
+                ),
+              },
+              updatedAt: new Date().toISOString(),
+            });
+          } catch (cacheError) {
+            console.error('Unable to cache sales options:', cacheError);
+          }
+        }
+        setLoading(false);
       }
-      setLoading(false);
     };
-    loadOptions();
+    loadOptions().catch((loadError) => {
+      if (!active) return;
+      console.error('Unable to load sales options:', loadError);
+      setError(`Unable to load sales options: ${loadError.message}`);
+      setLoading(false);
+    });
     return () => { active = false; };
-  }, []);
+  }, [offlineMode, user?.id]);
 
   const getMemberName = (member) => [member.first_name, member.middle_name, member.last_name].filter(Boolean).join(' ');
 
@@ -91,7 +141,9 @@ const SalesForm = ({ onSave, onCancel }) => {
     if (flow === 'collection') {
       const sale = outstandingSales.find((item) => item.id === collectionOrderId);
       const outstanding = sale ? Number(sale.net_amount) - Number(sale.amount_paid || 0) : 0;
-      if (!form.date || !form.reference.trim() || !sale || !Number.isFinite(amount) || amount <= 0 || amount > outstanding) {
+      const isOffline = !navigator.onLine || offlineMode;
+      if (!form.date || !form.reference.trim() || !sale || !Number.isFinite(amount) || amount <= 0
+          || (!isOffline && amount > outstanding)) {
         setError('Select an outstanding credit sale and enter a collection amount greater than zero and no more than its balance.');
         return;
       }

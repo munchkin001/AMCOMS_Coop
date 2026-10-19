@@ -1,6 +1,8 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { ChevronDown, ChevronRight, Plus, Trash2, Undo2 } from 'lucide-react';
+import { useAuth } from '../../contexts/AuthContext';
 import { supabase } from '../../lib/supabase';
+import { queueOperation } from '../../lib/Offline/syncQueue';
 import { useMultipleRealtimeSubscriptions } from '../../hooks/useRealtimeSubscription';
 import {
   amount, buttonClass, formatDate, formatDateTime, inputClass, primaryButtonClass, startOfYearISO, todayISO, useAccounts
@@ -9,6 +11,7 @@ import {
 const emptyLine = () => ({ account_id: '', debit_amount: '', credit_amount: '', description: '' });
 
 const EntryForm = ({ accounts, onPosted, onCancel }) => {
+  const { user, staff, offlineMode } = useAuth();
   const [entry, setEntry] = useState({ entry_type: 'general', entry_date: todayISO(), reference_number: '', description: '' });
   const [lines, setLines] = useState([emptyLine(), emptyLine()]);
   const [saving, setSaving] = useState(false);
@@ -42,12 +45,16 @@ const EntryForm = ({ accounts, onPosted, onCancel }) => {
     event.preventDefault();
     const message = validate();
     if (message) { setError(message); return; }
-    if (!window.confirm('Post this entry? Posted entries cannot be edited or deleted; they can only be reversed.')) return;
+    const offline = !navigator.onLine || offlineMode;
+    const confirmation = offline
+      ? 'Save this journal entry on this device for server posting after reconnect? It will not be posted to the ledger until the server confirms it.'
+      : 'Post this entry? Posted entries cannot be edited or deleted; they can only be reversed.';
+    if (!window.confirm(confirmation)) return;
 
     setSaving(true);
     setError('');
     const used = lines.filter((line) => line.account_id);
-    const { error: rpcError } = await supabase.rpc('post_journal_entry', {
+    const payload = {
       p_entry: entry,
       p_lines: used.map((line) => ({
         account_id: line.account_id,
@@ -55,10 +62,34 @@ const EntryForm = ({ accounts, onPosted, onCancel }) => {
         credit_amount: Number(line.credit_amount) || 0,
         description: line.description
       }))
-    });
-    setSaving(false);
-    if (rpcError) { setError(rpcError.message); return; }
-    onPosted();
+    };
+    try {
+      if (offline) {
+        await queueOperation({
+          type: 'journal_entry',
+          payload,
+          userId: user?.id,
+          actorRole: staff?.role,
+          actorName: staff?.full_name,
+          allowLocalQueue: true,
+          summary: 'Journal entry queued for server posting',
+          details: {
+            reference: entry.reference_number || null,
+            amount: totals.debit,
+            localRecordedAt: new Date().toISOString(),
+          },
+        });
+        onPosted(true);
+      } else {
+        const { error: rpcError } = await supabase.rpc('post_journal_entry', payload);
+        if (rpcError) throw rpcError;
+        onPosted(false);
+      }
+    } catch (saveError) {
+      setError(saveError.message || 'The journal entry could not be saved.');
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -124,10 +155,12 @@ const EntryForm = ({ accounts, onPosted, onCancel }) => {
 };
 
 const EntryDetail = ({ entry, canPost, onReversed }) => {
+  const { user, staff, offlineMode } = useAuth();
   const [lines, setLines] = useState([]);
   const [reason, setReason] = useState('');
   const [reversing, setReversing] = useState(false);
   const [error, setError] = useState('');
+  const [notice, setNotice] = useState('');
 
   useEffect(() => {
     supabase.from('journal_entry_lines')
@@ -142,11 +175,32 @@ const EntryDetail = ({ entry, canPost, onReversed }) => {
     if (!reason.trim()) { setError('Enter the reason for the reversal.'); return; }
     if (!window.confirm(`Post a reversing entry for ${entry.entry_number}? The original stays in the ledger.`)) return;
     setReversing(true);
-    const { error: rpcError } = await supabase.rpc('reverse_journal_entry', { p_entry_id: entry.id, p_reason: reason });
-    setReversing(false);
-    if (rpcError) { setError(rpcError.message); return; }
-    setReason('');
-    onReversed();
+    try {
+      const payload = { p_entry_id: entry.id, p_reason: reason };
+      if (!navigator.onLine || offlineMode) {
+        await queueOperation({
+          type: 'journal_reversal',
+          payload,
+          userId: user?.id,
+          actorRole: staff?.role,
+          actorName: staff?.full_name,
+          allowLocalQueue: true,
+          entityId: entry.id,
+          summary: `Reversal of journal entry ${entry.entry_number} queued`,
+          details: { localRecordedAt: new Date().toISOString() },
+        });
+        setNotice('Reversal is pending on this device. The posted entry remains unchanged until the server validates and confirms the reversal.');
+      } else {
+        const { error: rpcError } = await supabase.rpc('reverse_journal_entry', payload);
+        if (rpcError) throw rpcError;
+        setReason('');
+        onReversed();
+      }
+    } catch (reverseError) {
+      setError(reverseError.message || 'The journal entry could not be reversed.');
+    } finally {
+      setReversing(false);
+    }
   };
 
   return (
@@ -180,6 +234,7 @@ const EntryDetail = ({ entry, canPost, onReversed }) => {
         </div>
       )}
       {error && <p role="alert" className="text-sm text-red-700">{error}</p>}
+      {notice && <p role="status" className="text-sm text-amber-900">{notice}</p>}
     </div>
   );
 };
@@ -192,7 +247,8 @@ const statusBadge = (entry) => {
 };
 
 const JournalEntries = ({ canPost }) => {
-  const accounts = useAccounts();
+  const { user, offlineMode } = useAuth();
+  const accounts = useAccounts(user?.id, offlineMode);
   const [entries, setEntries] = useState([]);
   const [from, setFrom] = useState(startOfYearISO());
   const [to, setTo] = useState(todayISO());
@@ -201,6 +257,7 @@ const JournalEntries = ({ canPost }) => {
   const [showForm, setShowForm] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [notice, setNotice] = useState('');
 
   const load = useCallback(async () => {
     let query = supabase.from('journal_entry_register').select('*')
@@ -231,7 +288,14 @@ const JournalEntries = ({ canPost }) => {
           <button type="button" onClick={() => setShowForm(true)} className={primaryButtonClass}><Plus className="size-4" aria-hidden="true" />New journal entry</button>
         </div>
       )}
-      {showForm && <EntryForm accounts={accounts} onPosted={() => { setShowForm(false); load(); }} onCancel={() => setShowForm(false)} />}
+      {showForm && <EntryForm accounts={accounts} onPosted={(queued) => {
+        setShowForm(false);
+        setNotice(queued
+          ? 'Journal entry saved locally as pending. It is not posted in the ledger until the server confirms it.'
+          : '');
+        if (!queued) load();
+      }} onCancel={() => setShowForm(false)} />}
+      {notice && <p role="status" className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">{notice}</p>}
 
       <div className="grid gap-3 rounded-xl border border-gray-200 bg-white p-4 shadow-sm sm:grid-cols-3">
         <label className="text-sm font-medium text-gray-700">From

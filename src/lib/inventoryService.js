@@ -65,7 +65,10 @@ export const recordStockMovement = async ({
   reference = null,
   description = null,
   unitCost = null,
-  userId
+  userId,
+  actorRole = null,
+  actorName = null,
+  allowLocalQueue = false
 }) => {
   const amount = Math.abs(Number(quantity));
   if (!productId) throw new Error('Select a product.');
@@ -74,6 +77,12 @@ export const recordStockMovement = async ({
   const operationId = await queueOperation({
     type: 'inventory_movement',
     userId,
+    actorRole,
+    actorName,
+    allowLocalQueue,
+    summary: `${movementType.replaceAll('_', ' ')} stock movement`,
+    details: { quantity: amount, direction, date },
+    entityId: productId,
     payload: {
       productId,
       movementType,

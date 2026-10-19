@@ -10,6 +10,17 @@ const corsHeaders = {
 const operationTypes = new Set([
   "inventory_movement",
   "member_contact_update",
+  "member_financial_entry",
+  "cash_receipt",
+  "cash_disbursement",
+  "cash_receipt_delete",
+  "cash_disbursement_delete",
+  "cooperative_sale",
+  "member_dividend",
+  "loan_application",
+  "production_record",
+  "journal_entry",
+  "journal_reversal",
 ]);
 const operationIdPattern =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;

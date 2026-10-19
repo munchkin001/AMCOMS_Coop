@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
+import offlineDb from '../../lib/Offline/OfflineDb';
 import { supabase } from '../../lib/supabase';
 
 export const peso = (value) => `PHP ${Number(value || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -31,16 +32,35 @@ export const PrintStyles = () => (
   `}</style>
 );
 
-export const useAccounts = () => {
+export const useAccounts = (userId = null, offlineMode = false) => {
   const [accounts, setAccounts] = useState([]);
 
   const load = useCallback(async () => {
+    const cacheKey = userId ? `chart-of-accounts:${userId}` : null;
+    if (!navigator.onLine || offlineMode) {
+      const cached = cacheKey ? await offlineDb.cachedData.get(cacheKey) : null;
+      setAccounts(cached?.data || []);
+      return;
+    }
     const { data } = await supabase
       .from('chart_of_accounts')
       .select('id, account_code, account_name, account_type, is_active')
       .order('account_name');
-    setAccounts(data || []);
-  }, []);
+    if (data) {
+      setAccounts(data);
+      if (cacheKey) {
+        try {
+          await offlineDb.cachedData.put({ key: cacheKey, data, updatedAt: new Date().toISOString() });
+        } catch (error) {
+          console.error('Unable to cache chart of accounts:', error);
+        }
+      }
+    } else {
+      console.error('Unable to load chart of accounts while online.');
+      const cached = cacheKey ? await offlineDb.cachedData.get(cacheKey) : null;
+      setAccounts(cached?.data || []);
+    }
+  }, [offlineMode, userId]);
 
   useEffect(() => { load(); }, [load]);
   return accounts;

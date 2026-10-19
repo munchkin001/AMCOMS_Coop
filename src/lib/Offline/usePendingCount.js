@@ -3,9 +3,15 @@ import { useEffect, useState } from "react";
 import { getQueueSummary } from "./syncQueue";
 
 const QUEUE_UPDATED_EVENT = "amcoms-offline-queue-updated";
+const emptySummary = {
+  counts: { pending: 0, syncing: 0, synced: 0, failed: 0 },
+  pendingCount: 0,
+  failed: [],
+  latestSyncResult: null,
+};
 
 export default function usePendingCount(userId) {
-  const [summary, setSummary] = useState({ pendingCount: 0, failed: [] });
+  const [summary, setSummary] = useState(emptySummary);
 
   useEffect(() => {
     let active = true;
@@ -14,7 +20,7 @@ export default function usePendingCount(userId) {
       try {
         const currentSummary = userId
           ? await getQueueSummary(userId)
-          : { pendingCount: 0, failed: [] };
+          : emptySummary;
         if (active) setSummary(currentSummary);
       } catch (error) {
         console.error("Unable to read the offline sync queue:", error);

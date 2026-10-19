@@ -14,7 +14,8 @@ import {
 const newForm = () => ({ productId: '', quantity: '', unitCost: '', date: toDateString(new Date()), reason: '', reference: '', remarks: '' });
 
 const StockManagement = () => {
-  const { user } = useAuth();
+  const { user, staff, offlineMode } = useAuth();
+  const productCacheKey = user?.id ? `inventory-products:${user.id}` : null;
   const [activeTab, setActiveTab] = useState('stock-in');
   const [products, setProducts] = useState([]);
   const [form, setForm] = useState(newForm);
@@ -43,7 +44,7 @@ const StockManagement = () => {
     if (loadError) {
       console.error('Unable to refresh inventory products:', loadError);
       try {
-        const cachedProducts = await offlineDb.cachedData.get('inventory-products');
+        const cachedProducts = productCacheKey ? await offlineDb.cachedData.get(productCacheKey) : null;
         if (currentRequest !== requestId.current) return;
         if (Array.isArray(cachedProducts?.data)) {
           setProducts(cachedProducts.data);
@@ -58,18 +59,20 @@ const StockManagement = () => {
     } else {
       setProducts(data || []);
       setError('');
-      try {
-        await offlineDb.cachedData.put({
-          key: 'inventory-products',
-          data: data || [],
-          updatedAt: new Date().toISOString()
-        });
-      } catch (cacheError) {
-        console.error('Unable to cache inventory products:', cacheError);
+      if (productCacheKey) {
+        try {
+          await offlineDb.cachedData.put({
+            key: productCacheKey,
+            data: data || [],
+            updatedAt: new Date().toISOString()
+          });
+        } catch (cacheError) {
+          console.error('Unable to cache inventory products:', cacheError);
+        }
       }
     }
     setLoading(false);
-  }, []);
+  }, [productCacheKey]);
 
   useEffect(() => {
     fetchProducts();
@@ -125,7 +128,10 @@ const StockManagement = () => {
         reference: requiresReference ? form.reference.trim() : choice.label,
         description: form.remarks.trim() ? `${choice.label}: ${form.remarks.trim()}` : choice.label,
         unitCost: isStockIn ? Number(form.unitCost) : null,
-        userId: user?.id
+        userId: user?.id,
+        actorRole: staff?.role,
+        actorName: staff?.full_name,
+        allowLocalQueue: offlineMode || !navigator.onLine
       });
       if (result.status === 'synced') {
         setNotice(`${isStockIn ? 'Stock in' : 'Stock out'} synchronized for ${selectedProduct?.product_name}.`);

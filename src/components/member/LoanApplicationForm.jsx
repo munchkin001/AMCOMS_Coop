@@ -2,13 +2,15 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Clock3, Send } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { supabase } from '../../lib/supabase';
+import offlineDb from '../../lib/Offline/OfflineDb';
+import { getActivityHistory, queueOperation } from '../../lib/Offline/syncQueue';
 import { useRealtimeSubscription } from '../../hooks/useRealtimeSubscription';
 
 const money = (amount) => `₱${Number(amount || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })}`;
 const statusText = (status) => status.replaceAll('_', ' ');
 
 const LoanApplicationForm = () => {
-  const { staff } = useAuth();
+  const { user, staff, offlineMode } = useAuth();
   const [terms, setTerms] = useState([]);
   const [applications, setApplications] = useState([]);
   const [loanType, setLoanType] = useState('');
@@ -19,6 +21,7 @@ const LoanApplicationForm = () => {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
+  const [queuedApplicationPending, setQueuedApplicationPending] = useState(false);
 
   const selectedTerm = terms.find((term) => term.id === termId) || terms[0];
   const amountNumber = Number(amount);
@@ -34,6 +37,23 @@ const LoanApplicationForm = () => {
 
   const load = useCallback(async () => {
     try {
+      const cacheKey = user?.id ? `loan-applications:${user.id}` : null;
+      const offlineQueue = user?.id
+        ? await getActivityHistory({ userId: user.id, module: 'loans' })
+        : [];
+      setQueuedApplicationPending(offlineQueue.some((operation) =>
+        operation.type === 'loan_application' &&
+        (['pending', 'syncing'].includes(operation.status) ||
+          (operation.status === 'failed' && operation.retryable !== false))
+      ));
+      if (!navigator.onLine || offlineMode) {
+        const cached = cacheKey ? await offlineDb.cachedData.get(cacheKey) : null;
+        if (!cached?.data) throw new Error('No loan terms are saved on this device. Reconnect before preparing an application.');
+        setTerms(cached.data.terms || []);
+        setApplications(cached.data.applications || []);
+        setError('Showing saved loan information. Applications remain pending until the server verifies eligibility and accepts them.');
+        return;
+      }
       const [termsResult, applicationsResult] = await Promise.all([
         supabase.from('loan_term_options')
           .select('id, term_months, payment_frequency, annual_rate, penalty_rate')
@@ -51,16 +71,29 @@ const LoanApplicationForm = () => {
       setError('');
       setTerms(termsResult.data || []);
       setApplications(applicationsResult.data || []);
+      if (cacheKey) {
+        await offlineDb.cachedData.put({
+          key: cacheKey,
+          data: { terms: termsResult.data || [], applications: applicationsResult.data || [] },
+          updatedAt: new Date().toISOString(),
+        });
+      }
     } catch (loadError) {
       console.error('Unable to load loan application options:', loadError);
       setError(`Loan application information could not be loaded: ${loadError.message}`);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [offlineMode, user?.id]);
 
   useEffect(() => {
     load();
+  }, [load]);
+
+  useEffect(() => {
+    const refreshQueuedStatus = () => load();
+    window.addEventListener('amcoms-offline-queue-updated', refreshQueuedStatus);
+    return () => window.removeEventListener('amcoms-offline-queue-updated', refreshQueuedStatus);
   }, [load]);
 
   useRealtimeSubscription(
@@ -71,7 +104,7 @@ const LoanApplicationForm = () => {
     Boolean(staff?.member_id)
   );
 
-  const hasOpenApplication = applications.some((application) =>
+  const hasOpenApplication = queuedApplicationPending || applications.some((application) =>
     ['pending', 'under_review'].includes(application.status)
   );
 
@@ -90,13 +123,34 @@ const LoanApplicationForm = () => {
 
     setSaving(true);
     try {
-      const { error: submitError } = await supabase.rpc('submit_loan_request', {
+      const payload = {
         p_amount: amountNumber,
         p_loan_type: loanType.trim(),
         p_purpose: purpose.trim(),
         p_term_months: selectedTerm.term_months,
         p_frequency: selectedTerm.payment_frequency
-      });
+      };
+      if (!navigator.onLine || offlineMode) {
+        await queueOperation({
+          type: 'loan_application',
+          payload,
+          userId: user?.id,
+          actorRole: staff?.role || 'member',
+          actorName: staff?.full_name || null,
+          allowLocalQueue: true,
+          summary: 'Loan application submitted for server validation',
+          details: {
+            amount: amountNumber,
+            termMonths: selectedTerm.term_months,
+            paymentFrequency: selectedTerm.payment_frequency,
+            localRecordedAt: new Date().toISOString(),
+          },
+        });
+        setQueuedApplicationPending(true);
+        setNotice('Your loan application is saved on this device as pending. It is not submitted for review yet; the server must validate it after you reconnect.');
+        return;
+      }
+      const { error: submitError } = await supabase.rpc('submit_loan_request', payload);
       if (submitError) throw submitError;
       setAmount('');
       setLoanType('');
@@ -115,7 +169,7 @@ const LoanApplicationForm = () => {
     <section className="space-y-4 rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
       <div>
         <h2 className="text-lg font-bold text-gray-900">Loan Applications</h2>
-        <p className="mt-1 text-sm text-gray-600">Submit a request for Manager review. If approved, the Bookkeeper records the cash release before repayment begins.</p>
+        <p className="mt-1 text-sm text-gray-600">Submit a request for Manager review. If approved, the Bookkeeper records the cash release before repayment begins. Offline applications remain local and are not submitted for review until server-confirmed.</p>
       </div>
 
       {error && <p role="alert" className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">{error}</p>}

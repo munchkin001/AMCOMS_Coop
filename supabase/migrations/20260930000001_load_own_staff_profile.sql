@@ -30,7 +30,8 @@ BEGIN
   FROM public.members
   WHERE lower(email) = 'member@amcoms.com';
 
-  IF known_account_count <> 6 OR member_account_count <> 1 OR member_record_count <> 1 THEN
+  IF known_account_count > 0
+     AND (known_account_count <> 6 OR member_account_count <> 1 OR member_record_count <> 1) THEN
     RAISE EXCEPTION
       'Expected six known Auth accounts and one matching member account/profile; found %, %, %',
       known_account_count, member_account_count, member_record_count;

@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { supabase } from '../../../lib/supabase';
 import { useAuth } from '../../../contexts/AuthContext';
+import offlineDb from '../../../lib/Offline/OfflineDb';
 
 const entryTypes = [
   { value: 'savings_deposit', label: 'Savings deposit', receipt: true, account: 'regular' },
@@ -21,7 +22,7 @@ const MemberFinancialEntryForm = ({
   allowedEntryTypes = null,
   title = 'Member Financial Entry'
 }) => {
-  const { offlineMode } = useAuth();
+  const { user, offlineMode } = useAuth();
   const visibleEntryTypes = allowedEntryTypes
     ? entryTypes.filter((type) => allowedEntryTypes.includes(type.value))
     : entryTypes;
@@ -78,15 +79,21 @@ const MemberFinancialEntryForm = ({
     let active = true;
 
     const loadMembers = async () => {
-      if (!navigator.onLine) {
-        setMembersError('You are offline. Reconnect to load members and record financial entries.');
-        setMembersLoading(false);
-        return;
-      }
-
       setMembersLoading(true);
       setMembersError('');
+      const cacheKey = `financial-members:${user?.id}`;
       try {
+        if (!navigator.onLine || offlineMode) {
+          const cached = user?.id ? await offlineDb.cachedData.get(cacheKey) : null;
+          if (active && cached?.data) {
+            setMembers(cached.data);
+            setMembersError('Using member information saved on this device. Account balances and eligibility are not authoritative until the server validates the entry.');
+          } else if (active) {
+            setMembersError('No member list is available on this device. Reconnect and sign in online to load it.');
+          }
+          return;
+        }
+
         const { data, error: queryError } = await supabase
           .from('members')
           .select('id, member_number, first_name, middle_name, last_name, date_joined')
@@ -95,6 +102,12 @@ const MemberFinancialEntryForm = ({
           .order('last_name');
         if (!active) return;
         if (queryError) {
+          const cached = user?.id ? await offlineDb.cachedData.get(cacheKey) : null;
+          if (cached?.data) {
+            setMembers(cached.data);
+            setMembersError('Supabase could not be reached. Showing member information saved on this device; server validation still applies at sync.');
+            return;
+          }
           const isNetworkError = queryError instanceof TypeError
             || /failed to fetch|network/i.test(queryError.message || '');
           setMembersError(isNetworkError
@@ -102,12 +115,25 @@ const MemberFinancialEntryForm = ({
             : `Unable to load members: ${queryError.message}`);
         } else {
           setMembers(data || []);
+          if (user?.id) {
+            await offlineDb.cachedData.put({
+              key: cacheKey,
+              data: data || [],
+              updatedAt: new Date().toISOString(),
+            });
+          }
         }
       } catch (loadError) {
         if (!active) return;
-        setMembersError(loadError instanceof TypeError
-          ? 'Unable to reach Supabase. Check your connection and the staff deployment’s Supabase settings, then retry.'
-          : `Unable to load members: ${loadError.message}`);
+        const cached = user?.id ? await offlineDb.cachedData.get(cacheKey) : null;
+        if (cached?.data) {
+          setMembers(cached.data);
+          setMembersError('Supabase could not be reached. Showing member information saved on this device; server validation still applies at sync.');
+        } else {
+          setMembersError(loadError instanceof TypeError
+            ? 'Unable to reach Supabase. Check your connection and the staff deployment’s Supabase settings, then retry.'
+            : `Unable to load members: ${loadError.message}`);
+        }
       } finally {
         if (active) setMembersLoading(false);
       }
@@ -128,7 +154,7 @@ const MemberFinancialEntryForm = ({
       window.removeEventListener('offline', handleOffline);
       window.removeEventListener('online', handleOnline);
     };
-  }, [memberLoadAttempt]);
+  }, [memberLoadAttempt, offlineMode, user?.id]);
 
   useEffect(() => {
     if (!memberId) return undefined;
@@ -137,7 +163,37 @@ const MemberFinancialEntryForm = ({
     const loadMemberRecords = async () => {
       setLoadingMemberData(true);
       setError('');
+      const cacheKey = `financial-member-records:${user?.id}:${memberId}`;
       try {
+        if (!navigator.onLine || offlineMode) {
+          const cached = user?.id ? await offlineDb.cachedData.get(cacheKey) : null;
+          if (!cached?.data) throw new Error('No account or loan details for this member are saved on this device.');
+          if (!active) return;
+          const { accounts: cachedAccounts, loans: cachedLoans, contributions } = cached.data;
+          setAccounts(cachedAccounts);
+          setLoans(cachedLoans);
+          const paidMonths = new Set((contributions || []).map((row) => row.due_month.slice(0, 7)));
+          const member = members.find((item) => item.id === memberId);
+          const first = member?.date_joined ? new Date(`${member.date_joined}T00:00:00`) : null;
+          const last = new Date();
+          const months = [];
+          if (first) {
+            const cursor = new Date(first.getFullYear(), first.getMonth(), 1);
+            const end = new Date(last.getFullYear(), last.getMonth(), 1);
+            while (cursor <= end) {
+              const key = `${cursor.getFullYear()}-${String(cursor.getMonth() + 1).padStart(2, '0')}`;
+              if (!paidMonths.has(key)) months.push(`${key}-01`);
+              cursor.setMonth(cursor.getMonth() + 1);
+            }
+          }
+          setUnpaidMonths(months);
+          setSelectedMonths([]);
+          setAccountId('');
+          setLoanId(cachedLoans?.[0]?.id || '');
+          setError('Using saved account and loan details. Balances may be stale; the server will revalidate this entry before posting.');
+          return;
+        }
+
         const [accountResult, loanResult, contributionResult] = await Promise.all([
           supabase.from('savings_accounts')
             .select('id, account_number, account_type, balance, maturity_date, interest_rate')
@@ -159,6 +215,18 @@ const MemberFinancialEntryForm = ({
         if (loanResult.error) throw loanResult.error;
         if (contributionResult.error) throw contributionResult.error;
         if (!active) return;
+        const records = {
+          accounts: accountResult.data || [],
+          loans: loanResult.data || [],
+          contributions: contributionResult.data || [],
+        };
+        if (user?.id) {
+          await offlineDb.cachedData.put({
+            key: cacheKey,
+            data: records,
+            updatedAt: new Date().toISOString(),
+          });
+        }
 
         const member = members.find((item) => item.id === memberId);
         const paidMonths = new Set((contributionResult.data || []).map((row) => row.due_month.slice(0, 7)));
@@ -188,7 +256,7 @@ const MemberFinancialEntryForm = ({
     };
     loadMemberRecords();
     return () => { active = false; };
-  }, [memberId, members]);
+  }, [memberId, members, offlineMode, user?.id]);
 
   const handleMonthToggle = (month) => {
     setSelectedMonths((current) => {
@@ -203,10 +271,6 @@ const MemberFinancialEntryForm = ({
   const handleSubmit = async (event) => {
     event.preventDefault();
     setError('');
-    if (!navigator.onLine || offlineMode) {
-      setError('Financial entries cannot be recorded with offline access. Sign in online before submitting; this entry was not saved or queued.');
-      return;
-    }
     const numericAmount = Number(amount);
     if (!selectedMember || !date || !reference.trim() || (!selectedEntry?.dividend && !particulars.trim())) {
       setError('Select a member and enter a date and reference number.');
@@ -222,6 +286,10 @@ const MemberFinancialEntryForm = ({
     }
     if (entryType === 'dividend_distribution' && !dividendBalanced) {
       setError('Dividend plus patronage, less mortuary, must equal retention plus savings plus loan payment.');
+      return;
+    }
+    if ((!navigator.onLine || offlineMode) && entryType === 'dividend_distribution') {
+      setError('Approved dividend distributions cannot be queued offline yet. Nothing was saved.');
       return;
     }
     if (entryType === 'dividend_distribution' && Number(dividendValues.loan_payment_amount) > 0 && !loanId) {
@@ -310,9 +378,9 @@ const MemberFinancialEntryForm = ({
 
       {error && <p role="alert" className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{error}</p>}
       {membersError && (
-        <div role="alert" className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
+        <div role={members.length ? 'status' : 'alert'} className={`flex flex-wrap items-center justify-between gap-3 rounded-lg border px-4 py-3 text-sm ${members.length ? 'border-amber-200 bg-amber-50 text-amber-900' : 'border-red-200 bg-red-50 text-red-800'}`}>
           <span>{membersError}</span>
-          {navigator.onLine && (
+          {navigator.onLine && !offlineMode && (
             <button
               type="button"
               onClick={() => setMemberLoadAttempt((attempt) => attempt + 1)}
@@ -331,7 +399,7 @@ const MemberFinancialEntryForm = ({
             Member *
             <select
               value={memberId}
-              disabled={membersLoading || Boolean(membersError)}
+              disabled={membersLoading || members.length === 0}
               onChange={(event) => {
                 setMemberId(event.target.value);
                 setAccounts([]);

@@ -1,5 +1,8 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { useAuth } from '../../contexts/AuthContext';
 import { supabase } from '../../lib/supabase';
+import offlineDb from '../../lib/Offline/OfflineDb';
+import { queueOperation } from '../../lib/Offline/syncQueue';
 import { useMultipleRealtimeSubscriptions } from '../../hooks/useRealtimeSubscription';
 import { toDateString } from '../../lib/dashboardAccounting';
 
@@ -17,6 +20,7 @@ const makeProductionNumber = (date) =>
   `PR-${date.replace(/-/g, '')}-${Date.now().toString(36).toUpperCase().slice(-5)}`;
 
 const Production = () => {
+  const { user, staff, offlineMode } = useAuth();
   const [records, setRecords] = useState([]);
   const [products, setProducts] = useState([]);
   const [form, setForm] = useState(newForm);
@@ -42,14 +46,34 @@ const Production = () => {
     if (currentRequest !== requestId.current) return;
 
     const failure = recordResult.error || productResult.error;
-    if (failure) setError(`Unable to load production records: ${failure.message}`);
-    else {
+    if (failure) {
+      console.error('Unable to load production data:', failure);
+      const cacheKey = user?.id ? `inventory-products:${user.id}` : null;
+      const cached = cacheKey ? await offlineDb.cachedData.get(cacheKey) : null;
+      if (Array.isArray(cached?.data)) {
+        setProducts(cached.data);
+        setError('Using the product list saved on this device. Production remains pending until the server validates stock and cost.');
+      } else {
+        setError(`Unable to load production data: ${failure.message}`);
+      }
+    } else {
       setRecords(recordResult.data || []);
       setProducts(productResult.data || []);
       setError('');
+      if (user?.id) {
+        try {
+          await offlineDb.cachedData.put({
+            key: `inventory-products:${user.id}`,
+            data: productResult.data || [],
+            updatedAt: new Date().toISOString(),
+          });
+        } catch (cacheError) {
+          console.error('Unable to cache production products:', cacheError);
+        }
+      }
     }
     setLoading(false);
-  }, []);
+  }, [user?.id]);
 
   useEffect(() => {
     fetchData();
@@ -84,7 +108,7 @@ const Production = () => {
       .join('. ');
 
     try {
-      const { error: productionError } = await supabase.rpc('record_production_with_inventory', {
+      const payload = {
         p_production_number: productionNumber,
         p_product_id: form.productId,
         p_quantity: quantity,
@@ -92,11 +116,32 @@ const Production = () => {
         p_unit_cost: unitCost,
         p_batch_number: form.batch.trim() || null,
         p_notes: notes || null
-      });
-      if (productionError) throw productionError;
-      setNotice(`Production recorded: ${quantity.toLocaleString()} ${selectedProduct?.unit_of_measure || ''} of ${selectedProduct?.product_name}. Stock updated.`);
+      };
+      if (!navigator.onLine || offlineMode) {
+        await queueOperation({
+          type: 'production_record',
+          payload,
+          userId: user?.id,
+          actorRole: staff?.role,
+          actorName: staff?.full_name,
+          allowLocalQueue: true,
+          entityId: form.productId,
+          summary: `Production record ${productionNumber} queued`,
+          details: {
+            product: selectedProduct?.product_name || 'Saved product',
+            quantity,
+            date: form.date,
+            localRecordedAt: new Date().toISOString(),
+          },
+        });
+        setNotice(`Production ${productionNumber} is pending on this device. Stock and production records have not changed on the server.`);
+      } else {
+        const { error: productionError } = await supabase.rpc('record_production_with_inventory', payload);
+        if (productionError) throw productionError;
+        setNotice(`Production recorded: ${quantity.toLocaleString()} ${selectedProduct?.unit_of_measure || ''} of ${selectedProduct?.product_name}. Stock updated.`);
+        fetchData();
+      }
       setForm(newForm());
-      fetchData();
     } catch (productionError) {
       setError(`Production and stock were not saved: ${productionError.message}`);
     } finally {
