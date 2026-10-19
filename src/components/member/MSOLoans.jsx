@@ -85,6 +85,7 @@ const MSOLoans = () => {
             receipt_number, notes, loans!inner(loan_number)
           `)
           .in('loan_id', loans.map(l => l.id))
+          .eq('status', 'recorded')
           .order('payment_date', { ascending: false });
 
         if (payError) throw payError;

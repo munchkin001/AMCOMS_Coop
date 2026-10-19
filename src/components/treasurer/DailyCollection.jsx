@@ -35,10 +35,10 @@ const DailyCollection = () => {
           .order('created_at', { ascending: false }),
         supabase.from('loan_payments')
           .select('receipt_id')
-          .eq('payment_date', selectedDate),
+          .eq('status', 'recorded').eq('payment_date', selectedDate),
         supabase.from('savings_transactions')
           .select('receipt_id, transaction_type, savings_accounts!inner(account_type)')
-          .eq('transaction_date', selectedDate)
+          .eq('status', 'recorded').eq('transaction_date', selectedDate)
       ]);
       const failed = [receiptsResult, paymentsResult, savingsResult].find((result) => result.error);
       if (failed) throw failed.error;

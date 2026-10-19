@@ -14,7 +14,7 @@ const moduleLabels = {
 };
 
 const statusLabels = {
-  pending: "Pending",
+  pending: "Pending Sync",
   syncing: "Syncing",
   synced: "Synced",
   failed: "Failed",
@@ -106,7 +106,14 @@ export default function OfflineActivityHistory({ open, online, offlineMode }) {
                     {activity.actorName || "Signed-in user"}{activity.actorRole ? ` (${activity.actorRole})` : ""} · recorded {formatTime(activity.createdAt)} (device time)
                   </p>
                   {activity.status === "synced" && (
-                    <p className="text-green-800">Server confirmed {formatTime(activity.syncedAt)}</p>
+                    <>
+                      <p className="text-green-800">Server confirmed {formatTime(activity.syncedAt)}</p>
+                      {activity.serverResponse?.result?.receipt_number && (
+                        <p className="font-semibold text-green-900">
+                          Official receipt: {activity.serverResponse.result.receipt_number}
+                        </p>
+                      )}
+                    </>
                   )}
                   {activity.status === "failed" && (
                     <p className="mt-1 text-red-800">

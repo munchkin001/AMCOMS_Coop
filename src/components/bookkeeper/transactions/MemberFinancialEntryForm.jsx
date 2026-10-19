@@ -258,6 +258,7 @@ const MemberFinancialEntryForm = ({
           supabase.from('member_capital_contributions')
             .select('due_month')
             .eq('member_id', memberId)
+            .eq('status', 'recorded')
         ]);
         if (accountResult.error) throw accountResult.error;
         if (loanResult.error) throw loanResult.error;
@@ -341,8 +342,10 @@ const MemberFinancialEntryForm = ({
     event.preventDefault();
     setError('');
     const numericAmount = Number(amount);
-    if (!selectedMember || !date || !reference.trim() || (!selectedEntry?.dividend && !particulars.trim())) {
-      setError('Select a member and enter a date and reference number.');
+    if (!selectedMember || !date || (!selectedEntry?.receipt && !reference.trim()) || (!selectedEntry?.dividend && !particulars.trim())) {
+      setError(selectedEntry?.receipt
+        ? 'Select a member and enter a date and particulars.'
+        : 'Select a member and enter a date, reference number, and particulars.');
       return;
     }
     if (!selectedEntry?.dividend && (!Number.isFinite(numericAmount) || numericAmount <= 0)) {
@@ -388,7 +391,7 @@ const MemberFinancialEntryForm = ({
     const pReceipt = selectedEntry.receipt ? {
       ...common,
       receipt_date: date,
-      receipt_number: reference.trim(),
+
       received_from: [selectedMember.first_name, selectedMember.middle_name, selectedMember.last_name].filter(Boolean).join(' '),
       payment_method: paymentMethod,
       status: 'recorded'
@@ -512,10 +515,12 @@ const MemberFinancialEntryForm = ({
             Date *
             <input type="date" value={date} onChange={(event) => setDate(event.target.value)} required className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2" />
           </label>
-          <label className="text-sm font-medium text-gray-700">
-              {selectedEntry?.dividend ? 'Distribution reference *' : selectedEntry?.receipt ? 'Receipt number *' : 'Voucher number *'}
-            <input value={reference} onChange={(event) => setReference(event.target.value)} required className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2" />
-          </label>
+          {(!selectedEntry?.receipt || selectedEntry?.dividend) && (
+            <label className="text-sm font-medium text-gray-700">
+              {selectedEntry?.dividend ? 'Distribution reference *' : 'Voucher number *'}
+              <input value={reference} onChange={(event) => setReference(event.target.value)} required className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2" />
+            </label>
+          )}
             {entryType !== 'capital_contribution' && !selectedEntry?.dividend && (
             <label className="text-sm font-medium text-gray-700">
               Amount (₱) *

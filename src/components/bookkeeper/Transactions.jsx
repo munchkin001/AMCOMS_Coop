@@ -49,13 +49,14 @@ const Transactions = ({ initialType = null, startNewTransaction = false }) => {
       summary,
       details: { ...details, localRecordedAt: new Date().toISOString() },
     });
-    setActionNotice("Saved on this device as pending. It has not been posted or changed on the server; AMCOMS will validate and authorize it after reconnecting.");
+    setActionNotice("Pending Sync: saved on this device, not yet posted. The server will validate it and issue any official receipt number after reconnecting.");
   };
 
   const handleSaveTransaction = async (data) => {
     setActionError('');
     setActionNotice('');
     const shouldQueue = !navigator.onLine || offlineMode;
+    let issuedReceiptNumber = null;
     if (selectedType === 'sales') {
       if (shouldQueue) {
         const sale = data.p_sale;
@@ -67,8 +68,9 @@ const Transactions = ({ initialType = null, startNewTransaction = false }) => {
           details: { amount: sale.amount, reference: sale.reference_number },
         });
       } else {
-        const { error } = await supabase.rpc('record_cooperative_sale', data);
+        const { data: result, error } = await supabase.rpc('record_cooperative_sale', data);
         if (error) throw error;
+        issuedReceiptNumber = result?.receipt_number || null;
       }
     } else if (['loan-payment', 'savings-deposit', 'other-transaction'].includes(selectedType)) {
       if (shouldQueue) {
@@ -100,20 +102,20 @@ const Transactions = ({ initialType = null, startNewTransaction = false }) => {
               : data.p_receipt?.amount ?? data.p_disbursement?.amount ?? null,
             reference: dividend
               ? data.p_distribution?.reference_number
-              : data.p_receipt?.receipt_number ?? data.p_disbursement?.voucher_number ?? null,
+              : data.p_disbursement?.voucher_number ?? null,
           },
         });
       } else {
-        const { error } = data.dividend
+        const { data: result, error } = data.dividend
           ? await supabase.rpc('record_member_dividend', { p_distribution: data.p_distribution })
           : await supabase.rpc('record_member_financial_entry', data);
         if (error) throw error;
+        issuedReceiptNumber = result?.receipt_number || null;
       }
     } else if (selectedType === 'cash-receipt' || data.type === 'cash-receipt') {
       const payload = {
         p_receipt: {
           receipt_date: data.date,
-          receipt_number: data.receiptNo.trim(),
           received_from: data.member.trim(),
           member_id: data.memberId || null,
           amount: Number(data.amount),
@@ -133,12 +135,13 @@ const Transactions = ({ initialType = null, startNewTransaction = false }) => {
           type: 'cash_receipt',
           payload,
           entityId: data.memberId || null,
-          summary: `Cash receipt ${data.receiptNo.trim()} queued`,
-          details: { amount: Number(data.amount), reference: data.receiptNo.trim() },
+          summary: 'Cash receipt queued for server-issued receipt number',
+          details: { amount: Number(data.amount) },
         });
       } else {
-        const { error } = await supabase.rpc('save_cash_receipt', payload);
+        const { data: result, error } = await supabase.rpc('save_cash_receipt', payload);
         if (error) throw error;
+        issuedReceiptNumber = result?.receipt_number || null;
       }
     } else if (selectedType === 'cash-disbursement' || data.type === 'cash-disbursement') {
       const payload = {
@@ -175,6 +178,12 @@ const Transactions = ({ initialType = null, startNewTransaction = false }) => {
       throw new Error('Unsupported transaction type.');
     }
 
+    if (issuedReceiptNumber) {
+      setActionNotice(`Official receipt ${issuedReceiptNumber} was issued.`);
+    } else if (!shouldQueue && data.type === 'cash-receipt' && data.status === 'draft') {
+      setActionNotice('Draft saved. An official receipt number will be issued when the receipt is recorded.');
+    }
+
     setView('list');
     setSelectedType(null);
     setSelectedTransaction(null);
@@ -191,18 +200,22 @@ const Transactions = ({ initialType = null, startNewTransaction = false }) => {
     setView('form');
   };
 
-  const handleDeleteTransaction = async (transaction) => {
+  const handleDeleteTransaction = async (transaction, reason = '') => {
     setActionError('');
     const fn = transaction.type === 'cash-disbursement' ? 'delete_cash_disbursement' : 'delete_cash_receipt';
     const param = transaction.type === 'cash-disbursement' ? 'p_disbursement_id' : 'p_receipt_id';
     if (!navigator.onLine || offlineMode) {
+      if (transaction.type === 'cash-receipt') {
+        setActionError('Reconnect to void this receipt so the reason and reversal are recorded on the server.');
+        return;
+      }
       try {
         const disbursement = transaction.type === 'cash-disbursement';
         await queueOfflineOperation({
           type: disbursement ? 'cash_disbursement_delete' : 'cash_receipt_delete',
           payload: { [param]: transaction.id },
           entityId: transaction.id,
-          summary: `${disbursement ? 'Cash disbursement' : 'Cash receipt'} deletion queued`,
+          summary: 'Cash disbursement deletion queued',
           details: { reference: transaction.repCvNumber || transaction.receiptNo || transaction.referenceNo || null },
         });
         setView('list');
@@ -212,10 +225,15 @@ const Transactions = ({ initialType = null, startNewTransaction = false }) => {
       }
       return;
     }
-    const { error } = await supabase.rpc(fn, { [param]: transaction.id });
+    const { error } = transaction.type === 'cash-receipt'
+      ? await supabase.rpc('void_cash_receipt', { p_receipt_id: transaction.id, p_reason: reason })
+      : await supabase.rpc(fn, { [param]: transaction.id });
     if (error) {
-      setActionError(`Unable to delete transaction: ${error.message}`);
+      setActionError(`${transaction.type === 'cash-receipt' ? 'Unable to void receipt' : 'Unable to delete transaction'}: ${error.message}`);
       return;
+    }
+    if (transaction.type === 'cash-receipt') {
+      setActionNotice(`Receipt ${transaction.repCvNumber} was voided. Its number and history have been retained.`);
     }
     setView('list');
     setSelectedTransaction(null);

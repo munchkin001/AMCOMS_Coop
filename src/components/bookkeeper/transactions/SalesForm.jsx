@@ -176,7 +176,7 @@ const SalesForm = ({ onSave, onCancel }) => {
 
     if (!form.date || !form.reference.trim() || !customerName || !itemDescription || !form.revenueAccount
         || !Number.isInteger(quantity) || quantity <= 0 || !Number.isFinite(amount) || amount <= 0) {
-      setError('Enter the date, receipt/reference, customer, product or service, whole-number quantity, revenue account, and a positive amount.');
+      setError('Enter the date, sale reference, customer, product or service, whole-number quantity, revenue account, and a positive amount.');
       return;
     }
     if (form.paymentType === 'cash' && !form.paymentMethod) {
@@ -228,7 +228,7 @@ const SalesForm = ({ onSave, onCancel }) => {
                   setFlow(nextFlow);
                   setForm((current) => ({
                     ...current,
-                    reference: createReference(nextFlow === 'collection' ? 'RCPT' : 'SAL'),
+                    reference: createReference(nextFlow === 'collection' ? 'COLL' : 'SAL'),
                     amount: ''
                   }));
                 }}
@@ -243,8 +243,13 @@ const SalesForm = ({ onSave, onCancel }) => {
               <input type="date" value={form.date} onChange={(event) => setForm({ ...form, date: event.target.value })} required className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2" />
             </label>
             <label className="text-sm font-medium text-gray-700">
-              {flow === 'sale' ? 'Receipt / invoice number *' : 'Collection receipt number *'}
+              {flow === 'sale' ? 'Sale reference / invoice number *' : 'Collection reference *'}
               <input value={form.reference} onChange={(event) => setForm({ ...form, reference: event.target.value })} required className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2" />
+              <span className="mt-1 block text-xs text-gray-500">
+                {flow === 'sale' && form.paymentType === 'credit'
+                  ? 'This identifies the sale record. An official receipt number is issued when payment is collected.'
+                  : 'This identifies the sale or collection record. The official receipt number is issued by the server after recording.'}
+              </span>
             </label>
             {flow === 'collection' ? (
               <>

@@ -109,15 +109,15 @@ const Reports = () => {
       let result = {};
       if (reportType === 'financial') {
         const [r, d] = await Promise.all([
-          supabase.from('cash_receipts').select('id, receipt_number, receipt_date, received_from, amount, payment_method, description, status').gte('receipt_date', from).lte('receipt_date', to).neq('status', 'draft').order('receipt_date'),
-          supabase.from('cash_disbursements').select('id, voucher_number, disbursement_date, payee, amount, payment_method, description, status').gte('disbursement_date', from).lte('disbursement_date', to).neq('status', 'draft').order('disbursement_date')
+          supabase.from('cash_receipts').select('id, receipt_number, receipt_date, received_from, amount, payment_method, description, status').eq('status', 'recorded').gte('receipt_date', from).lte('receipt_date', to).order('receipt_date'),
+          supabase.from('cash_disbursements').select('id, voucher_number, disbursement_date, payee, amount, payment_method, description, status').eq('status', 'recorded').gte('disbursement_date', from).lte('disbursement_date', to).order('disbursement_date')
         ]);
         if (r.error || d.error) throw r.error || d.error;
         result = { receipts: r.data || [], disbursements: d.data || [] };
       } else if (reportType === 'loan') {
         const [l, p] = await Promise.all([
           supabase.from('loans').select('id, loan_number, principal_amount, balance, status, term_months, payment_frequency, release_date, application_date, member:members(first_name, middle_name, last_name)').order('application_date', { ascending: false }),
-          supabase.from('loan_payments').select('id, payment_date, amount_paid, principal_paid, interest_paid, penalty_paid, loan:loans(loan_number, member:members(first_name, middle_name, last_name))').gte('payment_date', from).lte('payment_date', to).order('payment_date')
+          supabase.from('loan_payments').select('id, payment_date, amount_paid, principal_paid, interest_paid, penalty_paid, loan:loans(loan_number, member:members(first_name, middle_name, last_name))').eq('status', 'recorded').gte('payment_date', from).lte('payment_date', to).order('payment_date')
         ]);
         if (l.error || p.error) throw l.error || p.error;
         result = { loans: l.data || [], payments: p.data || [] };

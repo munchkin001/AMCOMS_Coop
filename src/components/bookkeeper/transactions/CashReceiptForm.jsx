@@ -62,7 +62,6 @@ const CashReceiptForm = ({ onSave, onCancel, transaction = null }) => {
 
   const [formData, setFormData] = useState(transaction ? {
     date: transaction.date,
-    receiptNo: transaction.repCvNumber || transaction.receiptNo || '',
     member: transaction.member || '',
     memberId: transaction.memberId || '',
     particulars: transaction.particulars || '',
@@ -70,7 +69,6 @@ const CashReceiptForm = ({ onSave, onCancel, transaction = null }) => {
     paymentMethod: transaction.paymentMethod || 'cash'
   } : {
     date: new Date().toISOString().split('T')[0],
-    receiptNo: '',
     member: '',
     memberId: '',
     particulars: '',
@@ -92,8 +90,8 @@ const CashReceiptForm = ({ onSave, onCancel, transaction = null }) => {
   const handleSubmit = async (e, status = 'draft') => {
     e.preventDefault();
     setFormError('');
-    if (!formData.date || !formData.receiptNo.trim() || !formData.member.trim() || !formData.particulars.trim() || Number(formData.amount) <= 0) {
-      setFormError('Enter the date, receipt number, customer, particulars, and a positive amount before saving.');
+    if (!formData.date || !formData.member.trim() || !formData.particulars.trim() || Number(formData.amount) <= 0) {
+      setFormError('Enter the date, customer, particulars, and a positive amount before saving.');
       return;
     }
     if (/\bloan\b/i.test(formData.particulars)) {
@@ -186,18 +184,6 @@ const CashReceiptForm = ({ onSave, onCancel, transaction = null }) => {
                 type="date"
                 value={formData.date}
                 onChange={(e) => setFormData({ ...formData, date: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm lg:text-base"
-                required
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Receipt / CV No. *</label>
-              <input
-                type="text"
-                value={formData.receiptNo}
-                onChange={(e) => setFormData({ ...formData, receiptNo: e.target.value })}
-                placeholder="OR-000123"
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm lg:text-base"
                 required
               />

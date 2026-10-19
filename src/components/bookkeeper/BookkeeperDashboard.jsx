@@ -37,12 +37,12 @@ const BookkeeperDashboard = ({ onSelectTransaction }) => {
         supabase
         .from('cash_receipts')
         .select('id, receipt_date, received_from, description, receipt_number, amount')
-        .eq('receipt_date', selectedDate)
+        .eq('status', 'recorded').eq('receipt_date', selectedDate)
         .order('created_at', { ascending: false }),
         supabase
         .from('cash_disbursements')
         .select('id, disbursement_date, payee, description, voucher_number, amount')
-        .eq('disbursement_date', selectedDate)
+        .eq('status', 'recorded').eq('disbursement_date', selectedDate)
         .order('created_at', { ascending: false }),
         supabase
           .from('journal_entries')

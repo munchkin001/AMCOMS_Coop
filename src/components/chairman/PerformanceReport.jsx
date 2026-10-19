@@ -66,14 +66,14 @@ const PerformanceReport = () => {
         fetchAccountBalances(range.start, range.end),
         fetchAccountBalances(),
         supabase.from('cash_receipts').select('amount')
-          .gte('receipt_date', range.start).lte('receipt_date', range.end),
+          .eq('status', 'recorded').gte('receipt_date', range.start).lte('receipt_date', range.end),
         supabase.from('cash_disbursements').select('amount')
           .gte('disbursement_date', range.start).lte('disbursement_date', range.end),
         supabase.from('members').select('membership_status, date_joined, total_capital'),
         supabase.from('savings_accounts').select('balance, account_type').eq('status', 'active'),
         supabase.from('loans').select('principal_amount, balance, status, maturity_date'),
         supabase.from('loan_payments').select('amount_paid')
-          .gte('payment_date', range.start).lte('payment_date', range.end),
+          .eq('status', 'recorded').gte('payment_date', range.start).lte('payment_date', range.end),
         supabase.from('products').select('reorder_level, stock_inventory(quantity_available)').eq('is_active', true),
         supabase.from('production_records').select('quantity_produced')
           .eq('status', 'completed').gte('production_date', range.start).lte('production_date', range.end),

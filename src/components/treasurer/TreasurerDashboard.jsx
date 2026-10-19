@@ -104,10 +104,10 @@ const TreasurerDashboard = () => {
           .select('id, disbursement_date, voucher_number, payee, description, amount, created_at')
           .eq('status', 'recorded').eq('disbursement_date', today).order('created_at', { ascending: false }),
         supabase.from('loan_payments').select('amount_paid, receipt_id')
-          .eq('payment_date', today),
+          .eq('status', 'recorded').eq('payment_date', today),
         supabase.from('savings_transactions')
           .select('transaction_type, amount, receipt_id, disbursement_id, savings_accounts!inner(account_type)')
-          .eq('transaction_date', today),
+          .eq('status', 'recorded').eq('transaction_date', today),
         supabase.from('loans').select('principal_amount')
           .eq('release_date', today).neq('status', 'rejected'),
         supabase.from('savings_accounts').select('balance, account_type').eq('status', 'active'),

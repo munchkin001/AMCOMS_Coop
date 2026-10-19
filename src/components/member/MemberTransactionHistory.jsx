@@ -6,11 +6,13 @@ import EmptyState from '../common/EmptyState';
 
 const peso = (value) => `₱${Number(value || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 const fmtDate = (value) => new Date(value).toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' });
+const officialReceiptNumber = (value) => /^AMCOMS-\d{4}-\d{6}$/.test(value || '') ? value : null;
 
 const statusStyles = {
   Recorded: 'bg-green-100 text-green-800',
   Discrepancy: 'bg-red-100 text-red-800',
-  Completed: 'bg-blue-100 text-blue-800'
+  Completed: 'bg-blue-100 text-blue-800',
+  Voided: 'bg-gray-100 text-gray-700'
 };
 
 const MemberTransactionHistory = () => {
@@ -33,7 +35,7 @@ const MemberTransactionHistory = () => {
 
       const { data: activity } = await supabase
         .from('member_activity')
-        .select('id, activity_type, title, amount, created_at, is_discrepancy, note, reference')
+        .select('id, activity_type, title, amount, created_at, is_discrepancy, note, reference, voided_at, void_reason')
         .eq('member_id', memberId);
       const dividendReferences = new Set(
         (activity || []).filter((row) => row.activity_type === 'dividend').map((row) => row.reference)
@@ -48,8 +50,9 @@ const MemberTransactionHistory = () => {
           category: /loan/i.test(row.activity_type) ? 'Loan' : 'Other',
           amount: Number(row.amount || 0),
           signed: false,
-          status: row.is_discrepancy ? 'Discrepancy' : 'Recorded',
-          note: row.note
+          status: row.voided_at ? 'Voided' : row.is_discrepancy ? 'Discrepancy' : 'Recorded',
+          receiptNumber: officialReceiptNumber(row.reference),
+          note: row.void_reason || row.note
         });
       });
 
@@ -76,7 +79,7 @@ const MemberTransactionHistory = () => {
       if (accounts?.length) {
         const { data: savings } = await supabase
           .from('savings_transactions')
-          .select('id, transaction_type, amount, transaction_date, savings_account_id, reference_number')
+          .select('id, transaction_type, amount, transaction_date, savings_account_id, reference_number, status, void_reason')
           .in('savings_account_id', accounts.map((account) => account.id));
         (savings || []).filter((txn) => !dividendReferences.has(txn.reference_number)).forEach((txn) => {
           const account = accounts.find(a => a.id === txn.savings_account_id);
@@ -89,7 +92,9 @@ const MemberTransactionHistory = () => {
             category: isTimeDeposit ? 'Time Deposit' : 'Savings', 
             amount: deposit ? Number(txn.amount) : -Number(txn.amount), 
             signed: true, 
-            status: 'Completed' 
+            status: txn.status === 'void' ? 'Voided' : 'Completed',
+            receiptNumber: officialReceiptNumber(txn.reference_number),
+            note: txn.void_reason
           });
         });
       }
@@ -99,9 +104,19 @@ const MemberTransactionHistory = () => {
         const { data: payments } = await supabase
           .from('loan_payments')
           .select('id, payment_date, amount_paid, receipt_id, reference_number')
-          .in('loan_id', loans.map((loan) => loan.id));
+          .in('loan_id', loans.map((loan) => loan.id))
+          .eq('status', 'recorded');
         (payments || []).filter((payment) => !payment.receipt_id && !dividendReferences.has(payment.reference_number)).forEach((payment) => {
-          items.push({ id: `loan-${payment.id}`, rawDate: payment.payment_date, type: 'Loan payment', category: 'Loan', amount: -Number(payment.amount_paid), signed: true, status: 'Completed' });
+          items.push({
+            id: `loan-${payment.id}`,
+            rawDate: payment.payment_date,
+            type: 'Loan payment',
+            category: 'Loan',
+            amount: -Number(payment.amount_paid),
+            signed: true,
+            status: 'Completed',
+            receiptNumber: officialReceiptNumber(payment.reference_number)
+          });
         });
       }
 
@@ -169,6 +184,7 @@ const MemberTransactionHistory = () => {
                 <div className="min-w-0">
                   <p className="text-sm font-medium text-gray-900">{t.type}</p>
                   <p className="text-xs text-gray-500">{fmtDate(t.rawDate)} · {t.category}</p>
+                  {t.receiptNumber && <p className="mt-1 text-xs font-medium text-green-800">Official receipt: {t.receiptNumber}</p>}
                   {t.details && <p className="mt-1 text-xs text-gray-600">{t.details}</p>}
                   {t.note && <p className="mt-1 text-xs text-red-700">Reason: {t.note}</p>}
                 </div>

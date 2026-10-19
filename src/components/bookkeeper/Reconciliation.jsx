@@ -61,7 +61,7 @@ const Reconciliation = () => {
         .neq('entry_type', 'reversing')
         .gte('entry_date', from).lte('entry_date', selectedDate),
       supabase.from('loan_payments').select('id, payment_date, amount_paid, receipt_id')
-        .gte('payment_date', from).lte('payment_date', selectedDate),
+        .eq('status', 'recorded').gte('payment_date', from).lte('payment_date', selectedDate),
       supabase.from('loans').select('id, release_date, principal_amount, status')
         .gte('release_date', from).lte('release_date', selectedDate).neq('status', 'rejected')
     ]);
@@ -79,7 +79,8 @@ const Reconciliation = () => {
 
     let drafts = 0;
     (receiptsRes.data || []).forEach((receipt) => {
-      if (receipt.status !== 'recorded') { drafts += 1; return; }
+      if (receipt.status === 'draft') { drafts += 1; return; }
+      if (receipt.status !== 'recorded') return;
       const d = day(receipt.receipt_date);
       d.receipts += Number(receipt.amount);
       d.receiptCount += 1;
@@ -89,7 +90,8 @@ const Reconciliation = () => {
       );
     });
     (disbursementsRes.data || []).forEach((disbursement) => {
-      if (disbursement.status !== 'recorded') { drafts += 1; return; }
+      if (disbursement.status === 'draft') { drafts += 1; return; }
+      if (disbursement.status !== 'recorded') return;
       const d = day(disbursement.disbursement_date);
       d.disbursements += Number(disbursement.amount);
       d.disbursementCount += 1;

@@ -64,6 +64,7 @@ const MSOSavings = () => {
         .from('savings_transactions')
         .select('id, transaction_type, amount, balance_after, transaction_date, description, reference_number')
         .in('savings_account_id', accountIds)
+        .eq('status', 'recorded')
         .order('transaction_date', { ascending: false })
         .limit(50);
 

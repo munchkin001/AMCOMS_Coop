@@ -70,10 +70,10 @@ const ManagerDashboard = () => {
           .eq('is_active', true),
         supabase.from('loans').select('id', { count: 'exact', head: true }).eq('approval_date', today),
         supabase.from('savings_transactions').select('id', { count: 'exact', head: true })
-          .eq('transaction_date', today),
+          .eq('status', 'recorded').eq('transaction_date', today),
         supabase.from('savings_transactions')
           .select('id, savings_accounts!inner(account_type)')
-          .eq('transaction_date', today).eq('savings_accounts.account_type', 'time_deposit'),
+          .eq('status', 'recorded').eq('transaction_date', today).eq('savings_accounts.account_type', 'time_deposit'),
         supabase.from('members').select('id', { count: 'exact', head: true })
           .gte('date_joined', today).lt('date_joined', toDateString(tomorrow)),
         supabase.from('journal_entries').select('id', { count: 'exact', head: true })

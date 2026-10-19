@@ -18,7 +18,7 @@ const TransactionList = ({ onNewTransaction, onViewTransaction }) => {
       const results = await Promise.all([
         supabase
           .from('cash_receipts')
-          .select('id, receipt_date, receipt_number, received_from, amount, payment_method, description, status, journal_entry_id, accountAllocations:cash_receipt_lines(amount, side, description, account:chart_of_accounts(account_name))')
+          .select('id, receipt_date, receipt_number, received_from, member_id, amount, payment_method, description, status, void_reason, voided_at, journal_entry_id, accountAllocations:cash_receipt_lines(amount, side, description, account:chart_of_accounts(account_name))')
           .order('receipt_date', { ascending: false }),
         supabase
           .from('cash_disbursements')
@@ -30,7 +30,7 @@ const TransactionList = ({ onNewTransaction, onViewTransaction }) => {
           .order('distribution_date', { ascending: false }),
         supabase
           .from('sales_orders')
-          .select('id, order_date, order_number, customer_name, total_amount, net_amount, amount_paid, payment_status, cash_receipt_id, notes, sales_order_items(item_description, quantity, product:products(product_name))')
+          .select('id, order_date, order_number, customer_name, total_amount, net_amount, amount_paid, payment_status, cash_receipt_id, cash_receipt:cash_receipts(receipt_number, status), notes, sales_order_items(item_description, quantity, product:products(product_name))')
           .order('order_date', { ascending: false })
       ]);
       const [receiptsResult, disbursementsResult, dividendsResult, salesResult] = results;
@@ -51,6 +51,7 @@ const TransactionList = ({ onNewTransaction, onViewTransaction }) => {
       const sales = (salesResult.data || []).map((sale) => {
         const item = sale.sales_order_items?.[0];
         const product = Array.isArray(item?.product) ? item.product[0] : item?.product;
+        const linkedReceipt = Array.isArray(sale.cash_receipt) ? sale.cash_receipt[0] : sale.cash_receipt;
         return {
           id: sale.id,
           date: sale.order_date,
@@ -61,15 +62,17 @@ const TransactionList = ({ onNewTransaction, onViewTransaction }) => {
           type: 'sale',
           transactionType: 'Sales',
           amount: Number(sale.total_amount) || 0,
-          status: ['pending', 'partial'].includes(sale.payment_status) ? 'Credit' : 'Recorded',
+          status: sale.payment_status === 'cancelled'
+            ? 'Voided'
+            : ['pending', 'partial'].includes(sale.payment_status) ? 'Credit' : 'Recorded',
           paymentStatus: sale.payment_status,
           cashReceiptId: sale.cash_receipt_id,
-          readOnly: true
+          receiptNumber: linkedReceipt?.receipt_number || null,
+          readOnly: false
         };
       });
-      const saleReceiptIds = new Set((salesResult.data || []).map((sale) => sale.cash_receipt_id).filter(Boolean));
 
-      const receipts = (receiptsResult.data || []).filter((receipt) => !saleReceiptIds.has(receipt.id)).map((receipt) => ({
+      const receipts = (receiptsResult.data || []).map((receipt) => ({
         id: receipt.id,
         date: receipt.receipt_date,
         referenceNo: receipt.receipt_number,
@@ -81,14 +84,19 @@ const TransactionList = ({ onNewTransaction, onViewTransaction }) => {
         transactionType: 'Receipt',
         amount: Number(receipt.amount) || 0,
         status: receipt.status === 'draft' ? 'Draft' : receipt.status === 'void' ? 'Voided' : 'Recorded',
+        memberId: receipt.member_id,
+        voidReason: receipt.void_reason,
+        voidedAt: receipt.voided_at,
         journalEntryId: receipt.journal_entry_id,
-        readOnly: receipt.description?.startsWith('Collection for sale ') || false,
+        readOnly: false,
         accountAllocations: (receipt.accountAllocations || []).map((line) => ({
           account: Array.isArray(line.account) ? line.account[0]?.account_name : line.account?.account_name,
           amount: Number(line.amount) || 0,
           side: line.side
         }))
       }));
+      const saleReceiptIds = new Set((salesResult.data || []).map((sale) => sale.cash_receipt_id).filter(Boolean));
+      const visibleReceipts = receipts.filter((receipt) => !saleReceiptIds.has(receipt.id));
 
       const disbursements = (disbursementsResult.data || []).map((disbursement) => ({
         id: disbursement.id,
@@ -129,7 +137,7 @@ const TransactionList = ({ onNewTransaction, onViewTransaction }) => {
         };
       });
 
-      setTransactions([...receipts, ...disbursements, ...dividends, ...sales].sort((first, second) => new Date(second.date) - new Date(first.date)));
+      setTransactions([...visibleReceipts, ...disbursements, ...dividends, ...sales].sort((first, second) => new Date(second.date) - new Date(first.date)));
     } catch (fetchError) {
       setError(getDataLoadErrorMessage(fetchError, 'transactions'));
     } finally {
@@ -154,7 +162,8 @@ const TransactionList = ({ onNewTransaction, onViewTransaction }) => {
   const today = toDateString(new Date());
   const todayTransactions = transactions.filter((transaction) => transaction.date === today).length;
   const totalReceipts = transactions.filter((transaction) =>
-    (transaction.transactionType === 'Receipt' || (transaction.transactionType === 'Sales' && transaction.cashReceiptId))
+    (transaction.transactionType === 'Receipt'
+      || (transaction.transactionType === 'Sales' && transaction.receiptNumber))
       && transaction.status === 'Recorded'
   ).reduce((sum, transaction) => sum + transaction.amount, 0);
   const totalDisbursements = transactions.filter((transaction) => transaction.transactionType === 'Disbursement' && transaction.status === 'Recorded').reduce((sum, transaction) => sum + transaction.amount, 0);
@@ -176,8 +185,10 @@ const TransactionList = ({ onNewTransaction, onViewTransaction }) => {
   };
 
   const filteredTransactions = transactions.filter(txn => {
-    const matchesSearch = txn.referenceNo.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                         txn.particulars.toLowerCase().includes(searchQuery.toLowerCase());
+    const query = searchQuery.toLowerCase();
+    const matchesSearch = (txn.referenceNo || '').toLowerCase().includes(query) ||
+                         txn.receiptNumber?.toLowerCase().includes(query) ||
+                         txn.particulars.toLowerCase().includes(query);
     const matchesType = filterType === 'all' || txn.transactionType === filterType;
     const matchesStatus = filterStatus === 'all' || txn.status === filterStatus;
     return matchesSearch && matchesType && matchesStatus;
@@ -255,6 +266,7 @@ const TransactionList = ({ onNewTransaction, onViewTransaction }) => {
               <option value="Draft">Draft</option>
               <option value="Recorded">Recorded</option>
               <option value="Credit">Credit</option>
+              <option value="Voided">Voided</option>
             </select>
           </div>
         </div>
@@ -294,7 +306,12 @@ const TransactionList = ({ onNewTransaction, onViewTransaction }) => {
                     className={txn.readOnly ? 'bg-indigo-50/40' : 'hover:bg-gray-50 cursor-pointer'}
                   >
                     <td className="px-4 py-3 text-sm text-gray-900 whitespace-nowrap">{new Date(`${txn.date}T00:00:00`).toLocaleDateString('en-PH')}</td>
-                    <td className="px-4 py-3 text-sm font-medium text-purple-600 whitespace-nowrap">{txn.referenceNo}</td>
+                    <td className="px-4 py-3 text-sm font-medium text-purple-600 whitespace-nowrap">
+                      {txn.referenceNo}
+                      {txn.receiptNumber && txn.receiptNumber !== txn.referenceNo && (
+                        <span className="mt-1 block text-xs font-normal text-green-800">OR {txn.receiptNumber}</span>
+                      )}
+                    </td>
                     <td className="px-4 py-3 text-sm text-gray-900">{txn.particulars}</td>
                     <td className="px-4 py-3 text-sm text-gray-900 whitespace-nowrap">{txn.transactionType}</td>
                     <td className="px-4 py-3 text-sm text-gray-900 text-right whitespace-nowrap font-medium">

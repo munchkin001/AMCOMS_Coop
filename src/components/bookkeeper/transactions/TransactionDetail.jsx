@@ -16,6 +16,7 @@ import {
 
 const TransactionDetail = ({ transaction, onBack, onEdit, onDelete }) => {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [voidReason, setVoidReason] = useState('');
 
   const getTypeConfig = (type) => {
     const configs = {
@@ -60,8 +61,22 @@ const TransactionDetail = ({ transaction, onBack, onEdit, onDelete }) => {
         textColor: 'text-green-700',
         borderColor: 'border-green-200'
       },
+      'credit': {
+        label: 'Credit',
+        icon: Clock,
+        bgColor: 'bg-amber-50',
+        textColor: 'text-amber-700',
+        borderColor: 'border-amber-200'
+      },
       'void': {
-        label: 'Void',
+        label: 'Voided',
+        icon: AlertCircle,
+        bgColor: 'bg-gray-50',
+        textColor: 'text-gray-700',
+        borderColor: 'border-gray-200'
+      },
+      'voided': {
+        label: 'Voided',
         icon: AlertCircle,
         bgColor: 'bg-gray-50',
         textColor: 'text-gray-700',
@@ -72,13 +87,14 @@ const TransactionDetail = ({ transaction, onBack, onEdit, onDelete }) => {
   };
 
   const typeConfig = getTypeConfig(transaction.type);
-  const statusConfig = getStatusConfig(transaction.status);
+  const statusKey = String(transaction.status || '').toLowerCase();
+  const statusConfig = getStatusConfig(statusKey);
   const TypeIcon = typeConfig.icon;
   const StatusIcon = statusConfig.icon;
 
   const handleDelete = () => {
     setShowDeleteConfirm(false);
-    onDelete(transaction);
+    onDelete(transaction, voidReason.trim());
   };
 
   const formatDate = (dateString) => {
@@ -107,7 +123,7 @@ const TransactionDetail = ({ transaction, onBack, onEdit, onDelete }) => {
           </button>
 
           {!transaction.readOnly && <div className="flex gap-2">
-            {transaction.status === 'draft' && (
+            {statusKey === 'draft' && transaction.type !== 'sale' && (
               <button
                 onClick={() => onEdit(transaction)}
                 className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
@@ -116,13 +132,14 @@ const TransactionDetail = ({ transaction, onBack, onEdit, onDelete }) => {
                 <span>Edit</span>
               </button>
             )}
-            <button
+            {['cash-receipt', 'cash-disbursement'].includes(transaction.type)
+              && statusKey !== 'voided' && statusKey !== 'void' && <button
               onClick={() => setShowDeleteConfirm(true)}
               className="flex items-center gap-2 px-4 py-2 border border-red-300 text-red-600 rounded-lg hover:bg-red-50 transition-colors"
             >
               <Trash2 className="w-4 h-4" />
-              <span>Delete</span>
-            </button>
+              <span>{transaction.type === 'cash-receipt' ? 'Void' : 'Delete'}</span>
+            </button>}
           </div>}
         </div>
 
@@ -159,9 +176,21 @@ const TransactionDetail = ({ transaction, onBack, onEdit, onDelete }) => {
             <div>
               <label className="flex items-center gap-2 text-sm font-medium text-gray-500 mb-1">
                 <Receipt className="w-4 h-4" />
-                {transaction.type === 'cash-receipt' ? 'OR #' : 'Rep./CV #'}
+                {transaction.type === 'cash-receipt'
+                  ? 'OR #'
+                  : transaction.type === 'sale' ? 'Sale reference' : 'Rep./CV #'}
               </label>
               <p className="text-gray-900">{transaction.repCvNumber}</p>
+            </div>
+          )}
+
+          {transaction.receiptNumber && (
+            <div>
+              <label className="flex items-center gap-2 text-sm font-medium text-gray-500 mb-1">
+                <Receipt className="w-4 h-4" />
+                Official Receipt
+              </label>
+              <p className="text-gray-900">{transaction.receiptNumber}</p>
             </div>
           )}
 
@@ -187,6 +216,16 @@ const TransactionDetail = ({ transaction, onBack, onEdit, onDelete }) => {
             </p>
           </div>
         </div>
+
+        {transaction.voidReason && (
+          <div className="mt-6 rounded-lg border border-red-200 bg-red-50 p-4">
+            <p className="text-sm font-semibold text-red-900">Void reason</p>
+            <p className="mt-1 whitespace-pre-wrap text-sm text-red-800">{transaction.voidReason}</p>
+            {transaction.voidedAt && (
+              <p className="mt-1 text-xs text-red-700">Voided {formatDate(transaction.voidedAt)}</p>
+            )}
+          </div>
+        )}
 
         {transaction.particulars && (
           <div className="mt-6">
@@ -326,26 +365,46 @@ const TransactionDetail = ({ transaction, onBack, onEdit, onDelete }) => {
               </div>
               <div>
                 <h3 className="text-lg font-semibold text-gray-900 mb-2">
-                  Delete Transaction
+                  {transaction.type === 'cash-receipt' ? 'Void Cash Receipt' : 'Delete Transaction'}
                 </h3>
                 <p className="text-sm text-gray-600">
-                  Are you sure you want to delete this transaction? This action cannot be undone.
+                  {transaction.type === 'cash-receipt'
+                    ? `Voiding retains receipt ${transaction.repCvNumber || ''} and its audit history, reverses its accounting entries, and requires an online connection.`
+                    : 'Are you sure you want to delete this transaction? This action cannot be undone.'}
                 </p>
               </div>
             </div>
 
+            {transaction.type === 'cash-receipt' && (
+              <label className="mb-4 block text-sm font-medium text-gray-700">
+                Reason for voiding *
+                <textarea
+                  value={voidReason}
+                  onChange={(event) => setVoidReason(event.target.value)}
+                  maxLength={1000}
+                  rows={3}
+                  required
+                  className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2"
+                />
+              </label>
+            )}
+
             <div className="flex gap-3">
               <button
-                onClick={() => setShowDeleteConfirm(false)}
+                onClick={() => {
+                  setShowDeleteConfirm(false);
+                  setVoidReason('');
+                }}
                 className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
               >
                 Cancel
               </button>
               <button
                 onClick={handleDelete}
+                disabled={transaction.type === 'cash-receipt' && !voidReason.trim()}
                 className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
               >
-                Delete
+                {transaction.type === 'cash-receipt' ? 'Void receipt' : 'Delete'}
               </button>
             </div>
           </div>

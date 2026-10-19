@@ -29,6 +29,7 @@ const AccountList = ({ kind }) => {
         .from('savings_transactions')
         .select('id, transaction_type, amount, balance_after, transaction_date')
         .in('savings_account_id', matching.map((account) => account.id))
+        .eq('status', 'recorded')
         .order('transaction_date', { ascending: false });
       setTransactions(txs || []);
     } else {

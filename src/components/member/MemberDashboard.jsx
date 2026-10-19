@@ -15,6 +15,8 @@ const savingsTransactionTitle = (transaction) => {
   return `${account} ${action}`;
 };
 
+const officialReceiptNumber = (value) => /^AMCOMS-\d{4}-\d{6}$/.test(value || '') ? value : null;
+
 const MemberDashboard = ({ onNavigate }) => {
   const { staff, offlineMode } = useAuth();
   const [loading, setLoading] = useState(true);
@@ -143,6 +145,7 @@ const MemberDashboard = ({ onNavigate }) => {
           savings_accounts!inner(account_number, member_id, account_type)
         `)
         .eq('savings_accounts.member_id', memberId)
+        .eq('status', 'recorded')
         .order('transaction_date', { ascending: false })
         .limit(5);
 
@@ -163,6 +166,7 @@ const MemberDashboard = ({ onNavigate }) => {
           loans!inner(loan_number, member_id)
         `)
         .eq('loans.member_id', memberId)
+        .eq('status', 'recorded')
         .order('payment_date', { ascending: false })
         .limit(5);
 
@@ -172,7 +176,7 @@ const MemberDashboard = ({ onNavigate }) => {
       // Bookkeeper actions (loan released, disbursements) are mirrored here
       const { data: activityRows, error: activityError } = await supabase
         .from('member_activity')
-        .select('id, activity_type, title, amount, created_at, is_discrepancy, note, reference')
+        .select('id, activity_type, title, amount, created_at, is_discrepancy, note, reference, voided_at, void_reason')
         .eq('member_id', memberId)
         .order('created_at', { ascending: false })
         .limit(10);
@@ -184,8 +188,9 @@ const MemberDashboard = ({ onNavigate }) => {
         type: row.title,
         amount: null,
         requested: row.amount,
-        status: row.is_discrepancy ? 'Discrepancy' : 'Recorded',
-        note: row.note
+        status: row.voided_at ? 'Voided' : row.is_discrepancy ? 'Discrepancy' : 'Recorded',
+        note: row.void_reason || row.note,
+        receiptNumber: officialReceiptNumber(row.reference)
       }));
       const dividendReferences = new Set(
         (activityRows || []).filter((row) => row.activity_type === 'dividend').map((row) => row.reference)
@@ -197,6 +202,7 @@ const MemberDashboard = ({ onNavigate }) => {
           rawDate: t.transaction_date,
           type: savingsTransactionTitle(t),
           amount: t.amount,
+          receiptNumber: officialReceiptNumber(t.reference_number),
           status: 'Completed'
         })),
         ...(loanPayments || []).filter((t) => !t.receipt_id && !dividendReferences.has(t.reference_number)).map(t => ({
@@ -493,6 +499,11 @@ const MemberDashboard = ({ onNavigate }) => {
                     <td className="py-3 px-4 text-sm text-gray-900">{transaction.date}</td>
                     <td className="py-3 px-4 text-sm text-gray-900">
                       {transaction.type}
+                      {transaction.receiptNumber && (
+                        <p className="mt-1 text-xs font-medium text-green-800">
+                          Official receipt: {transaction.receiptNumber}
+                        </p>
+                      )}
                       {transaction.note && <p className="mt-1 text-xs text-red-700">Reason: {transaction.note}</p>}
                     </td>
                     <td className={`py-3 px-4 text-sm text-right font-medium ${
@@ -503,7 +514,11 @@ const MemberDashboard = ({ onNavigate }) => {
                         : `${transaction.amount > 0 ? '+' : ''}₱${Math.abs(transaction.amount).toLocaleString()}`}
                     </td>
                     <td className="py-3 px-4">
-                      <span className={`px-3 py-1 rounded-full text-xs font-medium ${transaction.status === 'Discrepancy' ? 'bg-red-100 text-red-800' : 'bg-blue-100 text-blue-800'}`}>
+                      <span className={`px-3 py-1 rounded-full text-xs font-medium ${
+                        transaction.status === 'Discrepancy' ? 'bg-red-100 text-red-800'
+                          : transaction.status === 'Voided' ? 'bg-gray-100 text-gray-700'
+                            : 'bg-blue-100 text-blue-800'
+                      }`}>
                         {transaction.status}
                       </span>
                     </td>

@@ -20,7 +20,7 @@ const OperationsMonitoring = () => {
     const [loanRes, overdueRes, payRes] = await Promise.all([
       supabase.from('loans').select('id, status, balance, principal_amount'),
       supabase.from('loan_schedule').select('loan_id').neq('status', 'paid').lt('due_date', today),
-      supabase.from('loan_payments').select('id, amount_paid, payment_date, created_at, loan:loans(loan_number, member:members(first_name, last_name))').order('created_at', { ascending: false }).limit(8)
+      supabase.from('loan_payments').select('id, amount_paid, payment_date, created_at, loan:loans(loan_number, member:members(first_name, last_name))').eq('status', 'recorded').order('created_at', { ascending: false }).limit(8)
     ]);
     setLoans(loanRes.data || []);
     setOverdueLoanIds(new Set((overdueRes.data || []).map((row) => row.loan_id)).size);
@@ -32,7 +32,7 @@ const OperationsMonitoring = () => {
     const weekAhead = new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10);
     const [accRes, txRes] = await Promise.all([
       supabase.from('savings_accounts').select('id, account_type, balance, status, closing_date, created_at'),
-      supabase.from('savings_transactions').select('id, transaction_type, amount, created_at, transaction_date').order('created_at', { ascending: false }).limit(200)
+      supabase.from('savings_transactions').select('id, transaction_type, amount, created_at, transaction_date').eq('status', 'recorded').order('created_at', { ascending: false }).limit(200)
     ]);
     setAccounts((accRes.data || []).map((a) => ({ ...a, maturing: a.closing_date && a.closing_date <= weekAhead })));
     setSavingsTx(txRes.data || []);

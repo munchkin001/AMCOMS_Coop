@@ -12,7 +12,7 @@ const CashReceiptsBook = ({ period = 'April 2026' }) => {
     try {
       const { data, error: fetchError } = await supabase
         .from('cash_receipts')
-        .select('id, receipt_date, receipt_number, received_from, description, status, cash_receipt_lines(amount, side, account:chart_of_accounts(account_name))')
+        .select('id, receipt_date, receipt_number, received_from, description, status, void_reason, cash_receipt_lines(amount, side, account:chart_of_accounts(account_name))')
         .order('receipt_date', { ascending: true });
       if (fetchError) throw fetchError;
 
@@ -28,6 +28,7 @@ const CashReceiptsBook = ({ period = 'April 2026' }) => {
           particulars: `${receipt.description}${receipt.received_from ? ` - ${receipt.received_from}` : ''}`,
           ref: receipt.receipt_number,
           status: receipt.status,
+          voidReason: receipt.void_reason,
           accounts
         };
       }));
@@ -53,7 +54,10 @@ const CashReceiptsBook = ({ period = 'April 2026' }) => {
   ];
   const accountNames = [...new Set([...baseAccounts, ...entries.flatMap((entry) => Object.keys(entry.accounts))])];
   const totals = accountNames.reduce((result, account) => {
-    result[account] = entries.reduce((sum, entry) => sum + (entry.accounts[account] || 0), 0);
+    result[account] = entries.reduce(
+      (sum, entry) => sum + (entry.status === 'recorded' ? entry.accounts[account] || 0 : 0),
+      0
+    );
     return result;
   }, {});
 
@@ -87,10 +91,17 @@ const CashReceiptsBook = ({ period = 'April 2026' }) => {
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
               {entries.map((entry) => (
-                <tr key={entry.id} className="hover:bg-gray-50">
+                <tr key={entry.id} className={entry.status === 'void' ? 'bg-red-50 text-gray-500' : 'hover:bg-gray-50'}>
                   <td className="px-3 py-3 text-sm text-gray-900 whitespace-nowrap">{new Date(`${entry.date}T00:00:00`).toLocaleDateString('en-PH')}</td>
-                  <td className="px-3 py-3 text-sm text-gray-900">{entry.particulars}</td>
-                  <td className="px-3 py-3 text-sm font-medium text-purple-600 whitespace-nowrap cursor-pointer hover:text-purple-700">
+                  <td className="px-3 py-3 text-sm text-gray-900">
+                    {entry.particulars}
+                    {entry.status === 'void' && (
+                      <span className="mt-1 block text-xs text-red-800">
+                        Voided{entry.voidReason ? `: ${entry.voidReason}` : ''}
+                      </span>
+                    )}
+                  </td>
+                  <td className="px-3 py-3 text-sm font-medium text-purple-600 whitespace-nowrap">
                     {entry.ref}
                   </td>
                   {accountNames.map((account) => (
