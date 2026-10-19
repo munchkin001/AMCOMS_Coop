@@ -3,7 +3,6 @@ import { supabase } from "../supabase";
 
 const ACCESS_PREFIX = "offline-pin:";
 const LEGACY_ACCESS_PREFIX = "offline-access:";
-const ACCESS_LIFETIME_MS = 7 * 24 * 60 * 60 * 1000;
 const PIN_ITERATIONS = 310_000;
 const MAX_FAILED_ATTEMPTS = 5;
 const LOCKOUT_MS = 15 * 60 * 1000;
@@ -112,7 +111,6 @@ export async function enableOfflineAccess({ user, staff, pin }) {
     iterations: PIN_ITERATIONS,
     failedAttempts: 0,
     lockoutUntil: 0,
-    expiresAt: Date.now() + ACCESS_LIFETIME_MS,
     enrolledAt,
   };
 
@@ -149,13 +147,9 @@ export async function unlockWithOfflinePin({ username, pin }) {
     access.staff.is_active !== true ||
     !access.staff.username ||
     access.staff.must_change_password ||
-    !Number.isFinite(access.expiresAt) ||
     access.iterations !== PIN_ITERATIONS
   ) {
     throw new Error("The offline account is invalid or requires an online password change.");
-  }
-  if (access.expiresAt <= Date.now()) {
-    throw new Error("Offline PIN access has expired. Connect, sign in, and set it up again.");
   }
   if (access.lockoutUntil > Date.now()) {
     const minutes = Math.ceil((access.lockoutUntil - Date.now()) / 60_000);

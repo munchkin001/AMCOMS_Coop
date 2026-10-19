@@ -276,7 +276,7 @@ const ProfileEditor = ({ profileType = 'staff', roleLabel }) => {
       setOfflinePinConfirm('');
       setOfflineSetup({
         busy: false,
-        message: 'Offline PIN access is set up. This device can unlock your cached account for up to 7 days without internet.',
+        message: "Offline PIN access is set up and will not expire automatically. It remains on this device until you remove it or clear this browser's site data.",
         error: ''
       });
     } catch (error) {
@@ -496,7 +496,7 @@ const ProfileEditor = ({ profileType = 'staff', roleLabel }) => {
           After signing in online, set a six-digit device PIN here in the same browser you will use offline. Your PIN is stored only as a salted password hash on this device.
         </p>
         <p className="mt-2 text-sm text-amber-900">
-          Offline PIN unlock only opens cached information and locally permitted features; it does not authenticate with Supabase. Changes are queued on this device and require online sign-in before the server can authorize and apply them. Five incorrect PIN attempts lock offline access for 15 minutes. Remove the PIN before signing out on a shared or untrusted device.
+          Offline PIN unlock only opens cached information and locally permitted features; it does not authenticate with Supabase. Changes are queued on this device and require online sign-in before the server can authorize and apply them. Access will not expire automatically; remove it before signing out on a shared or untrusted device. Five incorrect PIN attempts lock offline access for 15 minutes.
         </p>
         {!offlineMode && (
           <div className="mt-4 grid gap-3 sm:grid-cols-2">
