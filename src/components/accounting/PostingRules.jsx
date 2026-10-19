@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { supabase } from '../../lib/supabase';
+import { getDataLoadErrorMessage } from '../../lib/errorHandler';
 
 const Table = ({ title, rows, cashSide }) => (
   <div className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
@@ -50,7 +51,7 @@ const PostingRules = () => {
       .order('sort_order')
       .then(({ data, error: queryError }) => {
         if (!active) return;
-        setError(queryError ? queryError.message : '');
+        setError(queryError ? getDataLoadErrorMessage(queryError, 'posting rules') : '');
         setRows(data || []);
       });
     return () => { active = false; };

@@ -5,6 +5,7 @@ import offlineDb from '../../lib/Offline/OfflineDb';
 import { queueOperation } from '../../lib/Offline/syncQueue';
 import { useMultipleRealtimeSubscriptions } from '../../hooks/useRealtimeSubscription';
 import { toDateString } from '../../lib/dashboardAccounting';
+import { getDataLoadErrorMessage } from '../../lib/errorHandler';
 
 const newForm = () => ({
   date: toDateString(new Date()),
@@ -54,7 +55,7 @@ const Production = () => {
         setProducts(cached.data);
         setError('Using the product list saved on this device. Production remains pending until the server validates stock and cost.');
       } else {
-        setError(`Unable to load production data: ${failure.message}`);
+        setError(getDataLoadErrorMessage(failure, 'production data'));
       }
     } else {
       setRecords(recordResult.data || []);

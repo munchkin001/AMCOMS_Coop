@@ -4,6 +4,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { supabase } from '../../lib/supabase';
 import { queueOperation } from '../../lib/Offline/syncQueue';
 import { useMultipleRealtimeSubscriptions } from '../../hooks/useRealtimeSubscription';
+import { getDataLoadErrorMessage } from '../../lib/errorHandler';
 import {
   amount, buttonClass, formatDate, formatDateTime, inputClass, primaryButtonClass, startOfYearISO, todayISO, useAccounts
 } from './accountingUtils';
@@ -269,7 +270,7 @@ const JournalEntries = ({ canPost }) => {
     if (to) query = query.lte('entry_date', to);
     if (type) query = query.eq('entry_type', type);
     const { data, error: queryError } = await query;
-    setError(queryError ? queryError.message : '');
+    setError(queryError ? getDataLoadErrorMessage(queryError, 'journal entries') : '');
     setEntries(data || []);
     setLoading(false);
   }, [from, to, type]);

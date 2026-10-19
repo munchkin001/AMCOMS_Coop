@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { ChevronLeft, ChevronRight, Download, Printer, RefreshCw, Wallet } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useMultipleRealtimeSubscriptions } from '../../hooks/useRealtimeSubscription';
+import { getDataLoadErrorMessage } from '../../lib/errorHandler';
 import {
   PrintStyles, buttonClass, formatDate, inputClass, primaryButtonClass, startOfYearISO, todayISO, useAccounts
 } from './accountingUtils';
@@ -147,7 +148,7 @@ const LedgerView = () => {
       p_to: to || null
     });
     if (rpcError) {
-      setError(rpcError.message);
+      setError(getDataLoadErrorMessage(rpcError, 'ledger entries'));
     } else {
       setError('');
       setRows(data || []);

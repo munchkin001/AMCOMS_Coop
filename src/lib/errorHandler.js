@@ -46,6 +46,14 @@ const ERROR_MESSAGES = {
   'default': 'An error occurred. Please try again or contact support if the problem persists.'
 };
 
+export const getDataLoadErrorMessage = (error, resource = 'data') => {
+  console.error(`Unable to load ${resource}:`, error);
+  if (typeof navigator !== 'undefined' && !navigator.onLine) {
+    return `You're offline. Reconnect to load ${resource}.`;
+  }
+  return `We couldn't load ${resource}. Please try again.`;
+};
+
 /**
  * Parse and return user-friendly error message
  * @param {Error|Object|string} error - Error object or message

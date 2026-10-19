@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { ChevronDown, ChevronUp, Search } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useMultipleRealtimeSubscriptions } from '../../hooks/useRealtimeSubscription';
+import { getDataLoadErrorMessage } from '../../lib/errorHandler';
 
 const PAGE_SIZE = 50;
 
@@ -59,7 +60,7 @@ const MemberAccounts = () => {
     } catch (loadError) {
       if (currentRequest !== requestId.current) return;
       console.error('Unable to load treasurer member accounts:', loadError);
-      setError(`Unable to load member accounts: ${loadError.message}`);
+      setError(getDataLoadErrorMessage(loadError, 'member accounts'));
     } finally {
       if (currentRequest === requestId.current) setLoading(false);
     }

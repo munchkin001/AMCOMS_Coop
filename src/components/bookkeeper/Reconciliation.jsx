@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { supabase } from '../../lib/supabase';
 import { useMultipleRealtimeSubscriptions } from '../../hooks/useRealtimeSubscription';
+import { getDataLoadErrorMessage } from '../../lib/errorHandler';
 
 const CASH_ACCOUNTS = ['Cash on Hand', 'Cash in Bank'];
 const peso = (value) => `₱${Number(value || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -67,7 +68,7 @@ const Reconciliation = () => {
 
     const failed = [receiptsRes, disbursementsRes, journalRes, paymentsRes, loansRes].find((res) => res.error);
     if (failed) {
-      setError(failed.error.message);
+      setError(getDataLoadErrorMessage(failed.error, 'reconciliation data'));
       setLoading(false);
       return;
     }

@@ -3,6 +3,7 @@ import { Download, RotateCcw } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useMultipleRealtimeSubscriptions } from '../../hooks/useRealtimeSubscription';
 import { toDateString } from '../../lib/dashboardAccounting';
+import { getDataLoadErrorMessage } from '../../lib/errorHandler';
 
 const formatMoney = (value) => `₱${Number(value || 0).toLocaleString('en-PH', {
   minimumFractionDigits: 2,
@@ -143,7 +144,7 @@ const TransactionHistory = () => {
     } catch (loadError) {
       if (currentRequest !== requestId.current) return;
       console.error('Unable to load treasurer transaction history:', loadError);
-      setError(`Unable to load transaction history: ${loadError.message}`);
+      setError(getDataLoadErrorMessage(loadError, 'transaction history'));
     } finally {
       if (currentRequest === requestId.current) setLoading(false);
     }

@@ -4,6 +4,7 @@ import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import { useMultipleRealtimeSubscriptions } from '../../hooks/useRealtimeSubscription';
 import LoadingSpinner from '../common/LoadingSpinner';
+import { getDataLoadErrorMessage } from '../../lib/errorHandler';
 
 const today = () => new Date().toISOString().slice(0, 10);
 const formatMoney = (value) => `₱${Number(value || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })}`;
@@ -105,7 +106,7 @@ const LoanRequests = () => {
       setApprovedLoans(loanResult.data || []);
     } catch (loadError) {
       console.error('Unable to load loan requests:', loadError);
-      setError(`Loan requests could not be loaded: ${loadError.message}`);
+      setError(getDataLoadErrorMessage(loadError, 'loan requests'));
     } finally {
       setLoading(false);
     }

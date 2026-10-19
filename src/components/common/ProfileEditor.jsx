@@ -61,6 +61,7 @@ const ProfileEditor = ({ profileType = 'staff', roleLabel }) => {
   const [offlineSetup, setOfflineSetup] = useState({ busy: false, message: '', error: '' });
   const [offlinePin, setOfflinePin] = useState('');
   const [offlinePinConfirm, setOfflinePinConfirm] = useState('');
+  const [otherSessions, setOtherSessions] = useState({ busy: false, message: '', error: '' });
 
   useEffect(() => {
     let active = true;
@@ -276,7 +277,7 @@ const ProfileEditor = ({ profileType = 'staff', roleLabel }) => {
       setOfflinePinConfirm('');
       setOfflineSetup({
         busy: false,
-        message: "Offline PIN access is set up and will not expire automatically. It remains on this device until you remove it or clear this browser's site data.",
+        message: 'Offline sign-in is set up on this device.',
         error: ''
       });
     } catch (error) {
@@ -305,6 +306,36 @@ const ProfileEditor = ({ profileType = 'staff', roleLabel }) => {
         busy: false,
         message: '',
         error: error instanceof Error ? error.message : 'Offline PIN access could not be removed.'
+      });
+    }
+  };
+
+  const logoutOtherDevices = async () => {
+    if (offlineMode || !navigator.onLine || !user?.id) {
+      setOtherSessions({
+        busy: false,
+        message: '',
+        error: 'Reconnect and sign in online to log out other devices.'
+      });
+      return;
+    }
+    if (!window.confirm('Log out all other devices? This device will stay signed in.')) return;
+
+    setOtherSessions({ busy: true, message: '', error: '' });
+    try {
+      const { error } = await supabase.auth.signOut({ scope: 'others' });
+      if (error) throw error;
+      setOtherSessions({
+        busy: false,
+        message: 'Other devices have been logged out. This device remains signed in.',
+        error: ''
+      });
+    } catch (error) {
+      console.error('Unable to log out other devices:', error);
+      setOtherSessions({
+        busy: false,
+        message: '',
+        error: 'Other devices could not be logged out. Check your connection and try again.'
       });
     }
   };
@@ -491,13 +522,7 @@ const ProfileEditor = ({ profileType = 'staff', roleLabel }) => {
       </section>
 
       <section className="rounded-2xl border border-amber-200 bg-amber-50 p-5">
-        <h3 className="font-semibold text-amber-950">Offline sign-in on this device</h3>
-        <p className="mt-1 text-sm text-amber-900">
-          After signing in online, set a six-digit device PIN here in the same browser you will use offline. Your PIN is stored only as a salted password hash on this device.
-        </p>
-        <p className="mt-2 text-sm text-amber-900">
-          Offline PIN unlock only opens cached information and locally permitted features; it does not authenticate with Supabase. Changes are queued on this device and require online sign-in before the server can authorize and apply them. Access will not expire automatically; remove it before signing out on a shared or untrusted device. Five incorrect PIN attempts lock offline access for 15 minutes.
-        </p>
+        <h3 className="font-semibold text-amber-950">Set offline sign in on this device</h3>
         {!offlineMode && (
           <div className="mt-4 grid gap-3 sm:grid-cols-2">
             <label className="text-sm font-medium text-amber-950">
@@ -555,6 +580,21 @@ const ProfileEditor = ({ profileType = 'staff', roleLabel }) => {
         >
           Remove offline PIN access
         </button>
+        <div className="mt-4 border-t border-amber-200 pt-4">
+          {otherSessions.error && <p role="alert" className="mb-2 text-sm text-red-800">{otherSessions.error}</p>}
+          {otherSessions.message && <p role="status" className="mb-2 text-sm text-green-800">{otherSessions.message}</p>}
+          {offlineMode && !otherSessions.error && (
+            <p className="mb-2 text-sm text-amber-950">Reconnect and sign in online to log out other devices.</p>
+          )}
+          <button
+            type="button"
+            onClick={logoutOtherDevices}
+            disabled={otherSessions.busy || !user?.id}
+            className="rounded-lg border border-red-700 px-4 py-2 text-sm font-semibold text-red-800 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {otherSessions.busy ? 'Logging out other devices…' : 'Logout from all devices'}
+          </button>
+        </div>
       </section>
 
       <details className="group overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">

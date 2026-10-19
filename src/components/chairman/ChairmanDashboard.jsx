@@ -7,6 +7,7 @@ import DashboardMetricCard from '../common/DashboardMetricCard';
 import DiscrepancyPanel from '../common/DiscrepancyPanel';
 import { useMultipleRealtimeSubscriptions } from '../../hooks/useRealtimeSubscription';
 import { fetchAccountBalances, fetchMonthlyFinancialSummary, summarizeAccountBalances, toDateString } from '../../lib/dashboardAccounting';
+import { getDataLoadErrorMessage } from '../../lib/errorHandler';
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -244,7 +245,7 @@ const ChairmanDashboard = () => {
       setError('');
     } catch (error) {
       console.error('Error fetching dashboard data:', error);
-      setError(`Unable to load chairman data: ${error.message}`);
+      setError(getDataLoadErrorMessage(error, 'dashboard data'));
     } finally {
       setLoading(false);
     }

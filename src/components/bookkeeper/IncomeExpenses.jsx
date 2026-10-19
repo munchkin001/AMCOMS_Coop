@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useMultipleRealtimeSubscriptions } from '../../hooks/useRealtimeSubscription';
 import { fetchAccountBalances, toDateString } from '../../lib/dashboardAccounting';
+import { getDataLoadErrorMessage } from '../../lib/errorHandler';
 
 const getPeriodRange = (period, referenceDate) => {
   const selectedDate = new Date(`${referenceDate}T00:00:00`);
@@ -62,7 +63,7 @@ const IncomeExpenses = () => {
     } catch (loadError) {
       if (currentRequest !== requestId.current) return;
       console.error('Unable to load income and expense report:', loadError);
-      setError(`Unable to load financial data: ${loadError.message}`);
+      setError(getDataLoadErrorMessage(loadError, 'financial data'));
     } finally {
       if (currentRequest === requestId.current) setLoading(false);
     }

@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { supabase } from '../../lib/supabase';
 import { useMultipleRealtimeSubscriptions } from '../../hooks/useRealtimeSubscription';
+import { getDataLoadErrorMessage } from '../../lib/errorHandler';
 
 const ACTIVITIES = {
   purchase: { label: 'Purchase', direction: 1, badge: 'bg-green-100 text-green-800' },
@@ -76,7 +77,7 @@ const InventoryHistory = () => {
 
     const failure = movementResult.error || productResult.error;
     if (failure) {
-      setError(`Unable to load inventory tracking: ${failure.message}`);
+      setError(getDataLoadErrorMessage(failure, 'inventory history'));
     } else {
       setMovements(movementResult.data || []);
       setProducts(productResult.data || []);

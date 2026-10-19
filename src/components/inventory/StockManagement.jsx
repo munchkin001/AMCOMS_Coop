@@ -10,6 +10,7 @@ import {
   getQuantityOnHand,
   recordStockMovement
 } from '../../lib/inventoryService';
+import { getDataLoadErrorMessage } from '../../lib/errorHandler';
 
 const newForm = () => ({ productId: '', quantity: '', unitCost: '', date: toDateString(new Date()), reason: '', reference: '', remarks: '' });
 
@@ -50,11 +51,11 @@ const StockManagement = () => {
           setProducts(cachedProducts.data);
           setError('Using the saved product list. Stock availability will be verified when changes sync.');
         } else {
-          setError(`Unable to load products: ${loadError.message}`);
+          setError(getDataLoadErrorMessage(loadError, 'products'));
         }
       } catch (cacheError) {
         console.error('Unable to load cached inventory products:', cacheError);
-        setError(`Unable to load products: ${loadError.message}`);
+        setError(getDataLoadErrorMessage(loadError, 'products'));
       }
     } else {
       setProducts(data || []);

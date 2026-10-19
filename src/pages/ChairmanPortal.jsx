@@ -8,6 +8,7 @@ import PerformanceReport from '../components/chairman/PerformanceReport';
 import AuditLog from '../components/chairman/AuditLog';
 import Policies from '../components/chairman/Policies';
 import StaffProfile from '../staff/StaffProfile';
+import { getDataLoadErrorMessage } from '../lib/errorHandler';
 
 const ChairmanPortal = () => {
   const navigate = useNavigate();
@@ -38,7 +39,7 @@ const ChairmanPortal = () => {
 
     if (error) {
       console.error('Unable to load chairman notifications:', error);
-      setNotificationsError(`Unable to load notifications: ${error.message}`);
+      setNotificationsError(getDataLoadErrorMessage(error, 'notifications'));
     } else {
       setNotifications(data || []);
       setNotificationsError('');

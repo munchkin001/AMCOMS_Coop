@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { AlertTriangle, ArrowDownToLine, ArrowUpFromLine, Boxes, Factory, Package, PackageCheck } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useMultipleRealtimeSubscriptions } from '../../hooks/useRealtimeSubscription';
+import { getDataLoadErrorMessage } from '../../lib/errorHandler';
 import { useTimeOfDayGreeting } from '../../hooks/useTimeOfDayGreeting';
 import { toDateString } from '../../lib/dashboardAccounting';
 import DashboardMetricCard from '../common/DashboardMetricCard';
@@ -146,7 +147,7 @@ const InventoryDashboard = () => {
       setError('');
     } catch (error) {
       console.error('Error fetching dashboard data:', error);
-      setError(`Unable to load inventory data: ${error.message}`);
+      setError(getDataLoadErrorMessage(error, 'inventory data'));
     } finally {
       setLoading(false);
     }

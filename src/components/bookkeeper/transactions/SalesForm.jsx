@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { useAuth } from '../../../contexts/AuthContext';
 import { supabase } from '../../../lib/supabase';
 import offlineDb from '../../../lib/Offline/OfflineDb';
+import { getDataLoadErrorMessage } from '../../../lib/errorHandler';
 
 const today = () => new Date().toISOString().slice(0, 10);
 
@@ -89,7 +90,7 @@ const SalesForm = ({ onSave, onCancel }) => {
       if (!active) return;
       const failure = productResult.error || memberResult.error || accountResult.error || saleResult.error;
       if (failure) {
-        await loadCachedOptions(`Unable to refresh sales options: ${failure.message}`);
+        await loadCachedOptions(getDataLoadErrorMessage(failure, 'sales options'));
       }
       else {
         setProducts(productResult.data || []);
@@ -125,8 +126,7 @@ const SalesForm = ({ onSave, onCancel }) => {
     };
     loadOptions().catch((loadError) => {
       if (!active) return;
-      console.error('Unable to load sales options:', loadError);
-      setError(`Unable to load sales options: ${loadError.message}`);
+      setError(getDataLoadErrorMessage(loadError, 'sales options'));
       setLoading(false);
     });
     return () => { active = false; };

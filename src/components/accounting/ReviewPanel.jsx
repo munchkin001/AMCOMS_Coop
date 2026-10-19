@@ -3,6 +3,7 @@ import { supabase } from '../../lib/supabase';
 import { useMultipleRealtimeSubscriptions } from '../../hooks/useRealtimeSubscription';
 import DiscrepancyPanel from '../common/DiscrepancyPanel';
 import { formatDateTime } from './accountingUtils';
+import { getDataLoadErrorMessage } from '../../lib/errorHandler';
 
 const AuditTrail = () => {
   const [rows, setRows] = useState([]);
@@ -16,7 +17,7 @@ const AuditTrail = () => {
       .in('table_name', ['journal_entries', 'chart_of_accounts'])
       .order('created_at', { ascending: false })
       .limit(100);
-    setError(queryError ? queryError.message : '');
+    setError(queryError ? getDataLoadErrorMessage(queryError, 'audit history') : '');
     setRows(data || []);
     setLoading(false);
   }, []);

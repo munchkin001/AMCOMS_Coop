@@ -4,6 +4,7 @@ import { Link } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
 import { useMultipleRealtimeSubscriptions } from '../../hooks/useRealtimeSubscription';
 import { toDateString } from '../../lib/dashboardAccounting';
+import { getDataLoadErrorMessage } from '../../lib/errorHandler';
 
 const formatMoney = (value) => `₱${Number(value || 0).toLocaleString('en-PH', {
   minimumFractionDigits: 2,
@@ -73,7 +74,7 @@ const DailyCollection = () => {
     } catch (loadError) {
       if (currentRequest !== requestId.current) return;
       console.error('Unable to load daily collections:', loadError);
-      setError(`Unable to load collection data: ${loadError.message}`);
+      setError(getDataLoadErrorMessage(loadError, 'collection data'));
     } finally {
       if (currentRequest === requestId.current) setLoading(false);
     }

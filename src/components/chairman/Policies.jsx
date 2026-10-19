@@ -3,6 +3,7 @@ import { CheckCircle2, ClipboardList, Clock3, FileText, HandCoins, Package, Pigg
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import { useMultipleRealtimeSubscriptions } from '../../hooks/useRealtimeSubscription';
+import { getDataLoadErrorMessage } from '../../lib/errorHandler';
 
 const categoryIcons = {
   Loans: HandCoins,
@@ -56,7 +57,7 @@ const Policies = () => {
       setError('');
     } catch (loadError) {
       console.error('Error loading policies:', loadError);
-      setError(`Unable to load policies: ${loadError.message}`);
+      setError(getDataLoadErrorMessage(loadError, 'policies'));
     } finally {
       setLoading(false);
     }

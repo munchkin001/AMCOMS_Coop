@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { supabase } from '../../lib/supabase';
 import { useMultipleRealtimeSubscriptions } from '../../hooks/useRealtimeSubscription';
 import { fetchAccountBalances, summarizeAccountBalances, toDateString } from '../../lib/dashboardAccounting';
+import { getDataLoadErrorMessage } from '../../lib/errorHandler';
 
 const getPeriodRange = (period) => {
   const [yearText, periodType] = period.split('-');
@@ -142,7 +143,7 @@ const PerformanceReport = () => {
     } catch (loadError) {
       if (currentRequest !== requestId.current) return;
       console.error('Unable to load performance report:', loadError);
-      setError(`Unable to load report data: ${loadError.message}`);
+      setError(getDataLoadErrorMessage(loadError, 'report data'));
     }
   }, [range]);
 

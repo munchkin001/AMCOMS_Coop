@@ -4,6 +4,7 @@ import { supabase } from '../../lib/supabase';
 import { useMultipleRealtimeSubscriptions } from '../../hooks/useRealtimeSubscription';
 import { fetchActiveCategories } from '../../lib/categoryService';
 import { getProductImage, getQuantityOnHand, getStockStatus } from '../../lib/inventoryService';
+import { getDataLoadErrorMessage } from '../../lib/errorHandler';
 import AddProductModal, { EMPTY_PRODUCT_FORM, productToForm } from './AddProductModal';
 import RestockModal from './RestockModal';
 import OpeningInventoryCostModal from './OpeningInventoryCostModal';
@@ -70,7 +71,7 @@ const Products = () => {
 
     const failure = productResult.error || categoryResult.error;
     if (failure) {
-      setError(`Unable to load products: ${failure.message}`);
+      setError(getDataLoadErrorMessage(failure, 'products'));
     } else {
       setProducts(productResult.data || []);
       setCategories(categoryResult.data || []);

@@ -10,6 +10,7 @@ import Reports from '../components/manager/Reports';
 import Announcements from '../components/manager/Announcements';
 import SMSCenter from '../components/manager/SMSCenter';
 import StaffProfile from '../staff/StaffProfile';
+import { getDataLoadErrorMessage } from '../lib/errorHandler';
 
 const ManagerPortal = () => {
   const navigate = useNavigate();
@@ -43,7 +44,7 @@ const ManagerPortal = () => {
       setNotificationsError('');
     } catch (error) {
       console.error('Unable to load manager notifications:', error);
-      setNotificationsError(`Unable to load notifications: ${error.message}`);
+      setNotificationsError(getDataLoadErrorMessage(error, 'notifications'));
     } finally {
       setNotificationsLoading(false);
     }

@@ -5,6 +5,7 @@ import { supabase } from '../../lib/supabase';
 import offlineDb from '../../lib/Offline/OfflineDb';
 import { getActivityHistory, queueOperation } from '../../lib/Offline/syncQueue';
 import { useRealtimeSubscription } from '../../hooks/useRealtimeSubscription';
+import { getDataLoadErrorMessage } from '../../lib/errorHandler';
 
 const money = (amount) => `₱${Number(amount || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })}`;
 const statusText = (status) => status.replaceAll('_', ' ');
@@ -80,7 +81,7 @@ const LoanApplicationForm = () => {
       }
     } catch (loadError) {
       console.error('Unable to load loan application options:', loadError);
-      setError(`Loan application information could not be loaded: ${loadError.message}`);
+      setError(getDataLoadErrorMessage(loadError, 'loan application information'));
     } finally {
       setLoading(false);
     }

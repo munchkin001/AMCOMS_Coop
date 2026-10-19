@@ -5,6 +5,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { useMultipleRealtimeSubscriptions } from '../../hooks/useRealtimeSubscription';
 import offlineDb from '../../lib/Offline/OfflineDb';
 import DashboardMetricCard from '../common/DashboardMetricCard';
+import { getDataLoadErrorMessage } from '../../lib/errorHandler';
 
 const savingsTransactionTitle = (transaction) => {
   const account = transaction.savings_accounts?.account_type === 'time_deposit' ? 'Time deposit' : 'Savings';
@@ -253,11 +254,11 @@ const MemberDashboard = ({ onNavigate }) => {
           'We could not refresh your account right now, so this is the last summary saved on this device.'
         );
         if (!loaded) {
-          setError(`Unable to load your account data: ${error.message}`);
+          setError(getDataLoadErrorMessage(error, 'your account data'));
         }
       } catch (cacheError) {
         console.error('Unable to load cached member dashboard after refresh failed:', cacheError);
-        setError(`Unable to load your account data: ${error.message}`);
+        setError(getDataLoadErrorMessage(error, 'your account data'));
       }
     } finally {
       setLoading(false);

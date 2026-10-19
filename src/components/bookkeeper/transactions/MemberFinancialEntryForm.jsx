@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { supabase } from '../../../lib/supabase';
 import { useAuth } from '../../../contexts/AuthContext';
 import offlineDb from '../../../lib/Offline/OfflineDb';
+import { getDataLoadErrorMessage } from '../../../lib/errorHandler';
 
 const entryTypes = [
   { value: 'savings_deposit', label: 'Savings deposit', receipt: true, account: 'regular' },
@@ -105,14 +106,10 @@ const MemberFinancialEntryForm = ({
           const cached = user?.id ? await offlineDb.cachedData.get(cacheKey) : null;
           if (cached?.data) {
             setMembers(cached.data);
-            setMembersError('Supabase could not be reached. Showing member information saved on this device; server validation still applies at sync.');
+            setMembersError('Showing saved member information. Balances and eligibility will be checked when the entry syncs.');
             return;
           }
-          const isNetworkError = queryError instanceof TypeError
-            || /failed to fetch|network/i.test(queryError.message || '');
-          setMembersError(isNetworkError
-            ? 'Unable to reach Supabase. Check your connection and the staff deployment’s Supabase settings, then retry.'
-            : `Unable to load members: ${queryError.message}`);
+          setMembersError(getDataLoadErrorMessage(queryError, 'members'));
         } else {
           setMembers(data || []);
           if (user?.id) {
@@ -128,11 +125,9 @@ const MemberFinancialEntryForm = ({
         const cached = user?.id ? await offlineDb.cachedData.get(cacheKey) : null;
         if (cached?.data) {
           setMembers(cached.data);
-          setMembersError('Supabase could not be reached. Showing member information saved on this device; server validation still applies at sync.');
+          setMembersError('Showing saved member information. Balances and eligibility will be checked when the entry syncs.');
         } else {
-          setMembersError(loadError instanceof TypeError
-            ? 'Unable to reach Supabase. Check your connection and the staff deployment’s Supabase settings, then retry.'
-            : `Unable to load members: ${loadError.message}`);
+          setMembersError(getDataLoadErrorMessage(loadError, 'members'));
         }
       } finally {
         if (active) setMembersLoading(false);
@@ -249,7 +244,7 @@ const MemberFinancialEntryForm = ({
         setAccountId('');
         setLoanId(loanResult.data?.[0]?.id || '');
       } catch (loadError) {
-        if (active) setError(`Unable to load this member’s financial records: ${loadError.message}`);
+        if (active) setError(getDataLoadErrorMessage(loadError, 'member financial records'));
       } finally {
         if (active) setLoadingMemberData(false);
       }

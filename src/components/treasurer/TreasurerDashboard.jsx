@@ -15,6 +15,7 @@ import { useMultipleRealtimeSubscriptions } from '../../hooks/useRealtimeSubscri
 import { fetchAccountBalances, summarizeAccountBalances, toDateString } from '../../lib/dashboardAccounting';
 import DashboardMetricCard from '../common/DashboardMetricCard';
 import DiscrepancyPanel from '../common/DiscrepancyPanel';
+import { getDataLoadErrorMessage } from '../../lib/errorHandler';
 
 const EMPTY_DASHBOARD = {
   todayCollections: 0,
@@ -218,7 +219,7 @@ const TreasurerDashboard = () => {
     } catch (loadError) {
       if (currentRequest !== requestId.current) return;
       console.error('Error fetching dashboard data:', loadError);
-      setError(`Unable to load treasury data: ${loadError.message}`);
+      setError(getDataLoadErrorMessage(loadError, 'treasury data'));
     } finally {
       if (currentRequest === requestId.current) setLoading(false);
     }

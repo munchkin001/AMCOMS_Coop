@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Printer } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useMultipleRealtimeSubscriptions } from '../../hooks/useRealtimeSubscription';
+import { getDataLoadErrorMessage } from '../../lib/errorHandler';
 import {
   PrintStyles, accountTypeLabel, amount, buttonClass, formatDate, inputClass, primaryButtonClass, startOfYearISO, todayISO
 } from './accountingUtils';
@@ -13,7 +14,7 @@ const useBalances = (from, to) => {
 
   const load = useCallback(async () => {
     const { data, error: rpcError } = await supabase.rpc('get_account_balances', { p_from: from || null, p_to: to || null });
-    setError(rpcError ? rpcError.message : '');
+    setError(rpcError ? getDataLoadErrorMessage(rpcError, 'financial report') : '');
     setRows(data || []);
     setLoading(false);
   }, [from, to]);

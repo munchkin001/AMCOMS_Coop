@@ -7,6 +7,7 @@ import { useMultipleRealtimeSubscriptions } from '../../hooks/useRealtimeSubscri
 import { fetchAccountBalances, fetchMonthlyFinancialSummary, summarizeAccountBalances, toDateString } from '../../lib/dashboardAccounting';
 import DashboardMetricCard from '../common/DashboardMetricCard';
 import DiscrepancyPanel from '../common/DiscrepancyPanel';
+import { getDataLoadErrorMessage } from '../../lib/errorHandler';
 
 const ManagerDashboard = () => {
   const navigate = useNavigate();
@@ -116,7 +117,7 @@ const ManagerDashboard = () => {
       setError('');
     } catch (error) {
       console.error('Error fetching dashboard data:', error);
-      setError(`Unable to load management data: ${error.message}`);
+      setError(getDataLoadErrorMessage(error, 'management data'));
     } finally {
       setLoading(false);
     }

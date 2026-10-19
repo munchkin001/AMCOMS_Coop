@@ -4,6 +4,7 @@ import { supabase } from '../../lib/supabase';
 import { cancelPurchase, receivePurchase } from '../../lib/inventoryService';
 import NewPurchaseModal from './NewPurchaseModal';
 import { useMultipleRealtimeSubscriptions } from '../../hooks/useRealtimeSubscription';
+import { getDataLoadErrorMessage } from '../../lib/errorHandler';
 
 const STATUS_STYLES = {
   draft: 'bg-gray-100 text-gray-700',
@@ -68,7 +69,7 @@ const Purchases = () => {
     if (currentRequest !== requestId.current) return;
 
     if (loadError) {
-      setError(`Unable to load purchases: ${loadError.message}`);
+      setError(getDataLoadErrorMessage(loadError, 'purchases'));
     } else {
       setPurchases(data || []);
       setError('');

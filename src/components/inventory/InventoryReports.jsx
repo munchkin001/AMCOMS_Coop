@@ -4,6 +4,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { useMultipleRealtimeSubscriptions } from '../../hooks/useRealtimeSubscription';
 import { toDateString } from '../../lib/dashboardAccounting';
 import { downloadCsv, getQuantityOnHand, getStockStatus } from '../../lib/inventoryService';
+import { getDataLoadErrorMessage } from '../../lib/errorHandler';
 
 const REPORT_TYPES = {
   'stock-report': 'Inventory Stock Report',
@@ -98,7 +99,7 @@ const InventoryReports = () => {
     if (currentRequest !== requestId.current) return;
 
     const failure = productResult.error || productionResult.error || movementResult.error;
-    if (failure) setError(`Unable to load report data: ${failure.message}`);
+    if (failure) setError(getDataLoadErrorMessage(failure, 'inventory report'));
     else {
       setProducts(productResult.data || []);
       setProduction(productionResult.data || []);

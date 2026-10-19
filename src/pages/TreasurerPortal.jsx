@@ -9,6 +9,7 @@ import MemberAccounts from '../components/treasurer/MemberAccounts';
 import DailyCollection from '../components/treasurer/DailyCollection';
 import TransactionHistory from '../components/treasurer/TransactionHistory';
 import StaffProfile from '../staff/StaffProfile';
+import { getDataLoadErrorMessage } from '../lib/errorHandler';
 
 const TreasurerPortal = () => {
   const navigate = useNavigate();
@@ -42,7 +43,7 @@ const TreasurerPortal = () => {
       setNotificationsError('');
     } catch (error) {
       console.error('Unable to load treasurer notifications:', error);
-      setNotificationsError(`Unable to load notifications: ${error.message}`);
+      setNotificationsError(getDataLoadErrorMessage(error, 'notifications'));
     } finally {
       setNotificationsLoading(false);
     }

@@ -3,6 +3,7 @@ import { AlertTriangle, Building2, Clock3, Landmark, Scale, TrendingDown, Trendi
 import { supabase } from '../../lib/supabase';
 import { useMultipleRealtimeSubscriptions } from '../../hooks/useRealtimeSubscription';
 import { fetchAccountBalances, summarizeAccountBalances, toDateString } from '../../lib/dashboardAccounting';
+import { getDataLoadErrorMessage } from '../../lib/errorHandler';
 import { useTimeOfDayGreeting } from '../../hooks/useTimeOfDayGreeting';
 import DashboardMetricCard from '../common/DashboardMetricCard';
 import DiscrepancyPanel from '../common/DiscrepancyPanel';
@@ -91,7 +92,7 @@ const BookkeeperDashboard = ({ onSelectTransaction }) => {
       setError('');
     } catch (error) {
       console.error('Error fetching dashboard data:', error);
-      setError(`Unable to load bookkeeping data: ${error.message}`);
+      setError(getDataLoadErrorMessage(error, 'bookkeeping data'));
     } finally {
       setLoading(false);
     }

@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { useRealtimeSubscription } from '../../../hooks/useRealtimeSubscription';
 import { supabase } from '../../../lib/supabase';
 import { toDateString } from '../../../lib/dashboardAccounting';
+import { getDataLoadErrorMessage } from '../../../lib/errorHandler';
 
 const TransactionList = ({ onNewTransaction, onViewTransaction }) => {
   const [searchQuery, setSearchQuery] = useState('');
@@ -41,10 +42,10 @@ const TransactionList = ({ onNewTransaction, onViewTransaction }) => {
         ['sales', salesResult.error]
       ].filter(([, queryError]) => queryError);
       if (queryErrors.length > 0) {
-        throw new Error(queryErrors.map(([source, queryError]) => {
-          const code = queryError.code ? ` (${queryError.code})` : '';
-          return `${source}${code}: ${queryError.message}`;
-        }).join('; '));
+        queryErrors.forEach(([source, queryError]) => {
+          console.error(`Unable to load ${source}:`, queryError);
+        });
+        throw new Error('One or more transaction requests failed.');
       }
 
       const sales = (salesResult.data || []).map((sale) => {
@@ -130,12 +131,16 @@ const TransactionList = ({ onNewTransaction, onViewTransaction }) => {
 
       setTransactions([...receipts, ...disbursements, ...dividends, ...sales].sort((first, second) => new Date(second.date) - new Date(first.date)));
     } catch (fetchError) {
-      console.error('Unable to load transactions:', fetchError);
-      setError(`Transactions could not be loaded: ${fetchError.message || 'Unknown database error.'}`);
+      setError(getDataLoadErrorMessage(fetchError, 'transactions'));
     } finally {
       setLoading(false);
     }
   }, []);
+
+  const retryFetchTransactions = () => {
+    setLoading(true);
+    fetchTransactions();
+  };
 
   useEffect(() => {
     fetchTransactions();
@@ -255,7 +260,19 @@ const TransactionList = ({ onNewTransaction, onViewTransaction }) => {
         </div>
 
         {/* Transaction Table */}
-        {error && <p role="alert" className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{error}</p>}
+        {error && (
+          <div role="alert" className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
+            <span>{error}</span>
+            <button
+              type="button"
+              onClick={retryFetchTransactions}
+              disabled={loading}
+              className="font-semibold underline underline-offset-2 disabled:opacity-60"
+            >
+              {loading ? 'Retrying…' : 'Try again'}
+            </button>
+          </div>
+        )}
         <div className="overflow-x-auto -mx-4 lg:mx-0">
           <div className="inline-block min-w-full align-middle">
             <table className="min-w-full">
