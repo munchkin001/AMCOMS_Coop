@@ -15,6 +15,58 @@ const entryTypes = [
 ];
 
 const currentDate = () => new Date().toISOString().slice(0, 10);
+const formatCurrency = (value) => `₱${Number(value || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })}`;
+
+const getLoanInterestPerInstallment = (loan) => {
+  const installments = Math.max(Number(loan.installments || loan.term_months || 1), 1);
+  const regularInterest = Number((Number(loan.total_interest || 0) / installments).toFixed(2));
+  return regularInterest;
+};
+
+const getLoanScheduleSummary = (loan) => {
+  if (!loan) return null;
+  const installments = Math.max(Number(loan.installments || loan.term_months || 1), 1);
+  const totalInterest = Number(loan.total_interest || 0);
+  const regularInterest = getLoanInterestPerInstallment(loan);
+  const installmentAmount = Number(loan.installment_amount ?? loan.monthly_payment ?? 0);
+  const oldestUnpaid = (loan.schedule || []).find((installment) => {
+    const openBase = Math.max(Number(installment.amount_due) - Number(installment.amount_paid), 0);
+    const openPenalty = Math.max(
+      Number(installment.penalty_amount || 0) - Math.max(Number(installment.amount_paid) - Number(installment.amount_due), 0),
+      0
+    );
+    return openBase + openPenalty > 0;
+  });
+  const finalInterest = Number((totalInterest - regularInterest * (installments - 1)).toFixed(2));
+  const scheduledInterest = oldestUnpaid?.installment_number === installments ? finalInterest : regularInterest;
+  const scheduledAmount = oldestUnpaid ? Number(oldestUnpaid.amount_due) : installmentAmount;
+  const openBase = oldestUnpaid
+    ? Math.max(Number(oldestUnpaid.amount_due) - Number(oldestUnpaid.amount_paid), 0)
+    : 0;
+  const remainingInterest = oldestUnpaid && Number(oldestUnpaid.amount_due) > 0
+    ? Number((openBase * Math.min(scheduledInterest, Number(oldestUnpaid.amount_due)) / Number(oldestUnpaid.amount_due)).toFixed(2))
+    : 0;
+  const openPenalty = oldestUnpaid
+    ? Math.max(
+      Number(oldestUnpaid.penalty_amount || 0)
+        - Math.max(Number(oldestUnpaid.amount_paid) - Number(oldestUnpaid.amount_due), 0),
+      0
+    )
+    : 0;
+
+  return {
+    installments,
+    installmentAmount: scheduledAmount,
+    interestPerInstallment: scheduledInterest,
+    principalPerInstallment: Math.max(scheduledAmount - scheduledInterest, 0),
+    oldestUnpaid,
+    remainingPrincipalAndInterest: openBase,
+    remainingInterest,
+    remainingPrincipal: Math.max(openBase - remainingInterest, 0),
+    openPenalty,
+    remainingDue: openBase + openPenalty
+  };
+};
 
 const MemberFinancialEntryForm = ({
   onSave,
@@ -66,6 +118,7 @@ const MemberFinancialEntryForm = ({
     [accounts, selectedEntry]
   );
   const selectedLoan = loans.find((loan) => loan.id === loanId);
+  const selectedLoanSummary = getLoanScheduleSummary(selectedLoan);
   const capitalAmount = selectedMonths.length * 100;
   const dividendTotal = Number(dividendValues.dividend_amount || 0) + Number(dividendValues.patronage_amount || 0);
   const dividendAvailable = dividendTotal - Number(dividendValues.mortuary_deduction || 0);
@@ -196,7 +249,7 @@ const MemberFinancialEntryForm = ({
             .eq('status', 'active')
             .order('created_at'),
           supabase.from('loans')
-            .select('id, loan_number, balance, release_date, created_at')
+            .select('id, loan_number, balance, principal_amount, interest_rate, term_months, monthly_payment, total_interest, payment_frequency, installments, installment_amount, release_date, created_at')
             .eq('member_id', memberId)
             .eq('status', 'active')
             .gt('balance', 0)
@@ -210,9 +263,30 @@ const MemberFinancialEntryForm = ({
         if (loanResult.error) throw loanResult.error;
         if (contributionResult.error) throw contributionResult.error;
         if (!active) return;
+        const loanIds = (loanResult.data || []).map((loan) => loan.id);
+        let scheduleRows = [];
+        if (loanIds.length) {
+          const { data, error: scheduleError } = await supabase.from('loan_schedule')
+            .select('id, loan_id, installment_number, due_date, amount_due, amount_paid, penalty_amount, status')
+            .in('loan_id', loanIds)
+            .neq('status', 'paid')
+            .order('installment_number');
+          if (scheduleError) throw scheduleError;
+          scheduleRows = data || [];
+        }
+        const scheduleByLoanId = new Map();
+        scheduleRows.forEach((schedule) => {
+          const loanSchedule = scheduleByLoanId.get(schedule.loan_id) || [];
+          loanSchedule.push(schedule);
+          scheduleByLoanId.set(schedule.loan_id, loanSchedule);
+        });
+        const loansWithSchedule = (loanResult.data || []).map((loan) => ({
+          ...loan,
+          schedule: scheduleByLoanId.get(loan.id) || []
+        }));
         const records = {
           accounts: accountResult.data || [],
-          loans: loanResult.data || [],
+          loans: loansWithSchedule,
           contributions: contributionResult.data || [],
         };
         if (user?.id) {
@@ -238,7 +312,7 @@ const MemberFinancialEntryForm = ({
           }
         }
         setAccounts(accountResult.data || []);
-        setLoans(loanResult.data || []);
+        setLoans(loansWithSchedule);
         setUnpaidMonths(months);
         setSelectedMonths([]);
         setAccountId('');
@@ -562,6 +636,47 @@ const MemberFinancialEntryForm = ({
                 ? `Payment applies to ${selectedLoan.loan_number}. Principal, interest, and any scheduled penalties are allocated against its oldest unpaid installments.`
                 : 'This member has no active loan with an outstanding balance.'}
             </p>
+            {selectedLoan && selectedLoanSummary && (
+              <div className="space-y-2 rounded-md border border-blue-100 bg-white p-3 text-sm text-gray-800">
+                <div className="flex flex-wrap justify-between gap-x-4 gap-y-1">
+                  <span className="font-medium">
+                    {selectedLoan.payment_frequency === 'weekly' ? 'Weekly installment' : 'Monthly installment'}
+                  </span>
+                  <span className="font-semibold">{formatCurrency(selectedLoanSummary.installmentAmount)}</span>
+                </div>
+                <div className="flex flex-wrap justify-between gap-x-4 gap-y-1 text-xs text-gray-600">
+                  <span>
+                    Principal {formatCurrency(selectedLoanSummary.principalPerInstallment)}
+                    {' · '}Interest {formatCurrency(selectedLoanSummary.interestPerInstallment)}
+                    {' · '}{Number(selectedLoan.interest_rate || 0)}% annual
+                  </span>
+                  <span>
+                    {selectedLoan.term_months} months
+                    {' · '}{selectedLoanSummary.installments} {selectedLoan.payment_frequency || 'monthly'} installments
+                  </span>
+                </div>
+                {selectedLoanSummary.oldestUnpaid ? (
+                  <div className="border-t border-blue-100 pt-2">
+                    <div className="flex flex-wrap justify-between gap-x-4 gap-y-1">
+                      <span>
+                        Oldest unpaid installment #{selectedLoanSummary.oldestUnpaid.installment_number}
+                        {' · '}due {new Date(`${selectedLoanSummary.oldestUnpaid.due_date}T00:00:00`).toLocaleDateString('en-PH')}
+                      </span>
+                      <span className="font-semibold">{formatCurrency(selectedLoanSummary.remainingDue)}</span>
+                    </div>
+                    <p className="mt-1 text-xs text-gray-600">
+                      Remaining principal {formatCurrency(selectedLoanSummary.remainingPrincipal)}
+                      {' · '}interest {formatCurrency(selectedLoanSummary.remainingInterest)}
+                      {' · '}penalty {formatCurrency(selectedLoanSummary.openPenalty)}
+                    </p>
+                  </div>
+                ) : (
+                  <p className="border-t border-blue-100 pt-2 text-xs text-gray-600">
+                    No unpaid installment details are available{navigator.onLine && !offlineMode ? '.' : ' offline; reconnect to load the current schedule.'}
+                  </p>
+                )}
+              </div>
+            )}
           </div>
         )}
 
