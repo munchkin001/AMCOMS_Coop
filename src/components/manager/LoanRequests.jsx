@@ -74,43 +74,75 @@ const LoanRequests = () => {
   const { staff } = useAuth();
   const canReview = staff?.role === 'manager';
   const canRelease = staff?.role === 'bookkeeper';
+  const canViewQueue = ['manager', 'bookkeeper'].includes(staff?.role);
+  const [members, setMembers] = useState([]);
+  const [terms, setTerms] = useState([]);
   const [requests, setRequests] = useState([]);
   const [approvedLoans, setApprovedLoans] = useState([]);
+  const [selectedMember, setSelectedMember] = useState('');
+  const [loanType, setLoanType] = useState('');
+  const [amount, setAmount] = useState('');
+  const [purpose, setPurpose] = useState('');
+  const [selectedTerm, setSelectedTerm] = useState('');
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState(null);
+  const [savingApplication, setSavingApplication] = useState(false);
   const [error, setError] = useState('');
+  const [notice, setNotice] = useState('');
   const [decision, setDecision] = useState(null);
   const [notes, setNotes] = useState('');
 
   const load = useCallback(async () => {
     setError('');
     try {
-      const [requestResult, loanResult] = await Promise.all([
-        supabase
+      const requestQuery = canViewQueue
+        ? supabase
           .from('requests')
           .select('id, request_number, request_type, member_id, status, request_data, amount, created_at, member:members(first_name, middle_name, last_name, member_number)')
           .eq('request_type', 'loan_application')
           .in('status', ['pending', 'under_review'])
           .order('created_at', { ascending: true })
-          .limit(500),
+          .limit(500)
+        : Promise.resolve({ data: [], error: null });
+      const memberQuery = canRelease
+        ? supabase.from('members')
+          .select('id, first_name, middle_name, last_name, member_number')
+          .eq('membership_status', 'active')
+          .order('last_name')
+        : Promise.resolve({ data: [], error: null });
+      const termQuery = canRelease
+        ? supabase.from('loan_term_options')
+          .select('id, term_months, payment_frequency')
+          .eq('is_active', true)
+          .order('term_months')
+          .order('payment_frequency')
+        : Promise.resolve({ data: [], error: null });
+      const [requestResult, loanResult, memberResult, termResult] = await Promise.all([
+        requestQuery,
         supabase
           .from('loans')
           .select('id, loan_number, request_id, member_id, principal_amount, total_amount, term_months, payment_frequency, approval_date, status, member:members(first_name, middle_name, last_name, member_number)')
-          .eq('status', 'approved')
+          .in('status', ['approved', 'active'])
           .order('approval_date', { ascending: true })
-          .limit(500)
+          .limit(500),
+        memberQuery,
+        termQuery
       ]);
       if (requestResult.error) throw requestResult.error;
       if (loanResult.error) throw loanResult.error;
+      if (memberResult.error) throw memberResult.error;
+      if (termResult.error) throw termResult.error;
       setRequests(requestResult.data || []);
       setApprovedLoans(loanResult.data || []);
+      setMembers(memberResult.data || []);
+      setTerms(termResult.data || []);
     } catch (loadError) {
       console.error('Unable to load loan requests:', loadError);
       setError(getDataLoadErrorMessage(loadError, 'loan requests'));
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [canRelease, canViewQueue]);
 
   useEffect(() => {
     load();
@@ -162,14 +194,58 @@ const LoanRequests = () => {
     }
   };
 
+  const submitApplication = async (event) => {
+    event.preventDefault();
+    setError('');
+    setNotice('');
+    if (!selectedMember || !loanType.trim() || !purpose.trim() || !selectedTerm || !Number.isFinite(Number(amount)) || Number(amount) <= 0) {
+      setError('Complete all loan application fields with a valid amount.');
+      return;
+    }
+
+    const term = terms.find((option) => option.id === selectedTerm);
+    if (!term) {
+      setError('Select an available repayment term.');
+      return;
+    }
+
+    setSavingApplication(true);
+    try {
+      const { error: submitError } = await supabase.rpc('submit_loan_request_for_member', {
+        p_member_id: selectedMember,
+        p_amount: Number(amount),
+        p_loan_type: loanType.trim(),
+        p_purpose: purpose.trim(),
+        p_term_months: term.term_months,
+        p_frequency: term.payment_frequency
+      });
+      if (submitError) throw submitError;
+      setSelectedMember('');
+      setLoanType('');
+      setAmount('');
+      setPurpose('');
+      setSelectedTerm('');
+      setNotice('Loan application sent to the Manager for review.');
+      await load();
+    } catch (submitError) {
+      console.error('Unable to create loan application:', submitError);
+      const message = submitError.code === 'PGRST202'
+        ? 'Bookkeeper loan entry is not enabled on the server yet. Apply migration 20261019000003_bookkeeper_loan_application_entry.sql, then refresh this page.'
+        : submitError.message;
+      setError(message || 'The loan application could not be submitted.');
+    } finally {
+      setSavingApplication(false);
+    }
+  };
+
   if (loading) return <LoadingSpinner />;
 
   return (
     <div className="space-y-6">
       <header className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Loan Requests</h1>
-          <p className="mt-1 text-sm text-gray-600">Manager reviews applications; Bookkeeper records approved cash releases.</p>
+          <h1 className="text-2xl font-bold text-gray-900">{staff?.role === 'treasurer' ? 'Approved Loans' : 'Loan Requests'}</h1>
+          <p className="mt-1 text-sm text-gray-600">{staff?.role === 'treasurer' ? 'View approved and released loans.' : 'Bookkeeper enters applications; Manager reviews them; Bookkeeper records approved cash releases.'}</p>
         </div>
         <button type="button" onClick={load} className="inline-flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">
           <RefreshCw aria-hidden="true" size={16} /> Refresh
@@ -177,8 +253,47 @@ const LoanRequests = () => {
       </header>
 
       {error && <p role="alert" className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{error}</p>}
+      {notice && <p role="status" className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">{notice}</p>}
 
-      <section className="space-y-3">
+      {canRelease && (
+        <section className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
+          <h2 className="text-lg font-semibold text-gray-900">Enter a loan application</h2>
+          <p className="mt-1 text-sm text-gray-600">Choose a member and submit the application for Manager approval.</p>
+          <form onSubmit={submitApplication} className="mt-4 grid gap-4 sm:grid-cols-2">
+            <label className="text-sm font-medium text-gray-700">
+              Member *
+              <select required value={selectedMember} onChange={(event) => setSelectedMember(event.target.value)} className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2">
+                <option value="">Select a member</option>
+                {members.map((member) => <option key={member.id} value={member.id}>{fullName(member)} · {member.member_number}</option>)}
+              </select>
+            </label>
+            <label className="text-sm font-medium text-gray-700">
+              Loan type *
+              <input required maxLength={60} value={loanType} onChange={(event) => setLoanType(event.target.value)} className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2" />
+            </label>
+            <label className="text-sm font-medium text-gray-700">
+              Amount *
+              <input required type="number" min="0.01" step="0.01" value={amount} onChange={(event) => setAmount(event.target.value)} className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2" />
+            </label>
+            <label className="text-sm font-medium text-gray-700">
+              Repayment term *
+              <select required value={selectedTerm} onChange={(event) => setSelectedTerm(event.target.value)} className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2">
+                <option value="">Select a term</option>
+                {terms.map((term) => <option key={term.id} value={term.id}>{term.term_months} months · {term.payment_frequency}</option>)}
+              </select>
+            </label>
+            <label className="text-sm font-medium text-gray-700 sm:col-span-2">
+              Purpose *
+              <textarea required maxLength={500} value={purpose} onChange={(event) => setPurpose(event.target.value)} rows={3} className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2" />
+            </label>
+            <button type="submit" disabled={savingApplication || members.length === 0 || terms.length === 0} className="rounded-lg bg-blue-700 px-4 py-2 font-semibold text-white hover:bg-blue-800 disabled:opacity-50 sm:col-span-2">
+              {savingApplication ? 'Submitting...' : 'Send for Manager approval'}
+            </button>
+          </form>
+        </section>
+      )}
+
+      {canViewQueue && <section className="space-y-3">
         <div className="flex items-center gap-2">
           <Clock3 aria-hidden="true" className="text-amber-700" size={20} />
           <h2 className="text-lg font-semibold text-gray-900">Applications awaiting decision ({requests.length})</h2>
@@ -216,21 +331,21 @@ const LoanRequests = () => {
             </article>
           );
         })}
-      </section>
+      </section>}
 
       <section className="space-y-3">
         <div className="flex items-center gap-2">
           <Check aria-hidden="true" className="text-blue-700" size={20} />
-          <h2 className="text-lg font-semibold text-gray-900">Approved, awaiting cash release ({approvedLoans.length})</h2>
+          <h2 className="text-lg font-semibold text-gray-900">Approved loans ({approvedLoans.length})</h2>
         </div>
         {approvedLoans.length === 0 ? (
-          <p className="rounded-xl border border-gray-200 bg-white p-6 text-sm text-gray-600">No approved loans are waiting for disbursement.</p>
-        ) : approvedLoans.map((loan) => canRelease ? (
+          <p className="rounded-xl border border-gray-200 bg-white p-6 text-sm text-gray-600">No approved loans to show.</p>
+        ) : approvedLoans.map((loan) => canRelease && loan.status === 'approved' ? (
           <LoanReleaseCard key={loan.id} loan={loan} busy={busyId === loan.id} onRelease={releaseLoan} />
         ) : (
-          <article key={loan.id} className="rounded-xl border border-amber-200 bg-white p-5">
+          <article key={loan.id} className="rounded-xl border border-gray-200 bg-white p-5">
             <h3 className="font-semibold text-gray-900">{fullName(memberOf(loan))} · {loan.loan_number}</h3>
-            <p className="mt-1 text-sm text-gray-600">Approved principal {formatMoney(loan.principal_amount)}. Waiting for the Bookkeeper to record the cash release.</p>
+            <p className="mt-1 text-sm text-gray-600">{loan.status === 'active' ? 'Cash released' : 'Approved · awaiting Bookkeeper cash release'} · Principal {formatMoney(loan.principal_amount)} · Term {loan.term_months} months</p>
           </article>
         ))}
       </section>

@@ -1,5 +1,5 @@
 import React, { useCallback, useState, useEffect } from 'react';
-import { Building2, CalendarClock, HandCoins, Landmark, PiggyBank } from 'lucide-react';
+import { Building2, CalendarClock, ChartNoAxesCombined, HandCoins, Landmark, PiggyBank } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import { useMultipleRealtimeSubscriptions } from '../../hooks/useRealtimeSubscription';
@@ -29,6 +29,7 @@ const MemberDashboard = ({ onNavigate }) => {
     totalSavings: 0,
     totalTimeDeposit: 0,
     totalCapital: 0,
+    sharesOwned: 0,
     totalLoanBalance: 0,
     nextPaymentAmount: 0,
     nextPaymentDate: null,
@@ -80,7 +81,7 @@ const MemberDashboard = ({ onNavigate }) => {
       // Fetch member details
       const { data: memberInfo, error: memberError } = await supabase
         .from('members')
-        .select('id, member_number, first_name, middle_name, last_name, email, total_capital')
+        .select('id, member_number, first_name, middle_name, last_name, email, total_capital, shares_owned')
         .eq('id', memberId)
         .single();
 
@@ -230,6 +231,7 @@ const MemberDashboard = ({ onNavigate }) => {
         totalSavings,
         totalTimeDeposit,
         totalCapital: Number(memberInfo.total_capital || 0),
+        sharesOwned: Number(memberInfo.shares_owned || 0),
         totalLoanBalance,
         nextPaymentAmount,
         nextPaymentDate,
@@ -302,7 +304,7 @@ const MemberDashboard = ({ onNavigate }) => {
       <div>
         <h2 className="text-xl font-bold text-gray-900 sm:text-2xl">Hi, {memberData.firstName || 'Member'}!</h2>
         <p className="text-sm text-gray-600 mb-4">Here is a summary of your account.</p>
-        <div className="grid grid-cols-2 xl:grid-cols-5 gap-3 sm:gap-4">
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4 xl:grid-cols-6">
           <DashboardMetricCard
             label="Savings"
             value={loading ? '...' : `₱${memberData.totalSavings.toLocaleString('en-US', { minimumFractionDigits: 2 })}`}
@@ -310,8 +312,6 @@ const MemberDashboard = ({ onNavigate }) => {
             icon={PiggyBank}
             tone="green"
             solid
-            actionLabel="View account"
-            onAction={() => onNavigate?.('savings')}
           />
           <DashboardMetricCard
             label="Time Deposit"
@@ -329,6 +329,14 @@ const MemberDashboard = ({ onNavigate }) => {
             detail="Member share capital"
             icon={Building2}
             tone="blue"
+            solid
+          />
+          <DashboardMetricCard
+            label="Shares Owned"
+            value={loading ? '...' : Number(memberData.sharesOwned || 0).toLocaleString('en-US')}
+            detail="Member shares"
+            icon={ChartNoAxesCombined}
+            tone="teal"
             solid
           />
           <DashboardMetricCard

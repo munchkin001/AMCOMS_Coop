@@ -130,10 +130,10 @@ const MemberPortal = () => {
     <div className="space-y-4">
       <button
         type="button"
-        onClick={() => handleModuleChange('profile')}
+        onClick={() => handleModuleChange('dashboard')}
         className="inline-flex items-center gap-1 text-sm font-medium text-[#146344] md:hidden"
       >
-        <ArrowLeft aria-hidden="true" size={18} /> Back to profile
+        <ArrowLeft aria-hidden="true" size={18} /> Back to dashboard
       </button>
       {page}
     </div>

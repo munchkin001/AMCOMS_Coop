@@ -80,8 +80,13 @@ const recordAccountEvent = async (
 Deno.serve(async (request) => {
   const origin = request.headers.get('origin') || '';
   const configuredAppUrl = Deno.env.get('APP_URL')?.replace(/\/$/, '');
+  const configuredAppOrigins = Deno.env.get('APP_ALLOWED_ORIGINS')
+    ?.split(',')
+    .map((configuredOrigin) => configuredOrigin.trim().replace(/\/$/, '')) || [];
   const allowedOrigins = new Set([
     configuredAppUrl,
+    ...configuredAppOrigins,
+    'https://amci-staff.vercel.app',
     'http://localhost:5173',
     'http://127.0.0.1:5173'
   ].filter(Boolean));

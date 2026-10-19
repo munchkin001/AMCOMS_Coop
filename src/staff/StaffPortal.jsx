@@ -108,7 +108,7 @@ const StaffPortal = () => {
         <Route path="/loans" element={<Navigate to="/staff/dashboard" replace />} />
         <Route
           path="/loan-requests"
-          element={['manager', 'bookkeeper'].includes(staff.role) ? <LoanRequests /> : <Navigate to="/staff/dashboard" replace />}
+          element={['manager', 'bookkeeper', 'treasurer'].includes(staff.role) ? <LoanRequests /> : <Navigate to="/staff/dashboard" replace />}
         />
         <Route path="/savings" element={<MemberAccounts />} />
         <Route path="/inventory" element={<OperationsMonitoring />} />

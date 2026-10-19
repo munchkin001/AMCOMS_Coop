@@ -3,6 +3,7 @@ import { Calendar, TrendingUp, Clock, Banknote } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { supabase } from '../../lib/supabase';
 import { useMultipleRealtimeSubscriptions } from '../../hooks/useRealtimeSubscription';
+import { getDataLoadErrorMessage } from '../../lib/errorHandler';
 
 const peso = (value, decimals = 2) => `₱${Number(value || 0).toLocaleString('en-PH', { 
   minimumFractionDigits: decimals, 
@@ -18,6 +19,7 @@ const MSOTimeDeposit = () => {
     transactions: []
   });
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
 
   const load = useCallback(async () => {
     if (!staff?.member_id) {
@@ -29,10 +31,10 @@ const MSOTimeDeposit = () => {
       // Fetch time deposit accounts
       const { data: accounts, error: accountError } = await supabase
         .from('savings_accounts')
-        .select('id, account_number, balance, account_type, status, date_opened, interest_rate, term_months, maturity_date')
+        .select('id, account_number, balance, account_type, status, opening_date, interest_rate, maturity_date')
         .eq('member_id', staff.member_id)
         .eq('account_type', 'time_deposit')
-        .order('date_opened', { ascending: false });
+        .order('opening_date', { ascending: false });
 
       if (accountError) throw accountError;
 
@@ -73,8 +75,10 @@ const MSOTimeDeposit = () => {
         totalInterest,
         transactions: txList
       });
+      setError('');
     } catch (error) {
       console.error('Error loading time deposit data:', error);
+      setError(getDataLoadErrorMessage(error, 'time deposit details'));
     } finally {
       setLoading(false);
     }
@@ -102,6 +106,9 @@ const MSOTimeDeposit = () => {
   }
 
   if (timeDepositData.deposits.length === 0) {
+    if (error) {
+      return <p role="alert" className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{error}</p>;
+    }
     return (
       <div className="rounded-xl border-2 border-dashed border-gray-300 bg-gray-50 p-8 text-center">
         <Clock className="mx-auto h-16 w-16 text-gray-400" />
@@ -118,6 +125,7 @@ const MSOTimeDeposit = () => {
 
   return (
     <div className="space-y-6">
+      {error && <p role="alert" className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{error}</p>}
       {/* Summary Cards */}
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
         <div className="rounded-2xl bg-gradient-to-br from-purple-600 to-purple-800 p-6 text-white shadow-lg">
@@ -149,15 +157,31 @@ const MSOTimeDeposit = () => {
 
       {/* Active Deposits */}
       <div className="space-y-4">
-        <h3 className="text-lg font-semibold text-gray-900">Active Time Deposits</h3>
+        <h3 className="text-lg font-semibold text-gray-900">Time Deposit Accounts</h3>
         
         {timeDepositData.deposits.map((deposit) => {
-          const openDate = new Date(deposit.date_opened);
+          const openDate = deposit.opening_date ? new Date(`${deposit.opening_date}T00:00:00`) : null;
           const maturityDate = deposit.maturity_date ? new Date(deposit.maturity_date) : null;
           const today = new Date();
           const daysToMaturity = maturityDate ? Math.ceil((maturityDate - today) / (1000 * 60 * 60 * 24)) : null;
           const isMatured = daysToMaturity !== null && daysToMaturity <= 0;
-          const termYears = deposit.term_months ? (deposit.term_months / 12).toFixed(1) : '—';
+          const termMonths = openDate && maturityDate
+            ? (maturityDate.getFullYear() - openDate.getFullYear()) * 12
+              + maturityDate.getMonth() - openDate.getMonth()
+              - (maturityDate.getDate() < openDate.getDate() ? 1 : 0)
+            : null;
+          const termLabel = termMonths == null || termMonths <= 0
+            ? '—'
+            : termMonths % 12 === 0
+              ? `${termMonths / 12} ${termMonths === 12 ? 'year' : 'years'}`
+              : `${termMonths} months`;
+          const accountStatus = deposit.status === 'closed'
+            ? 'Closed'
+            : deposit.status === 'dormant'
+              ? 'Dormant'
+              : isMatured
+                ? 'Matured'
+                : 'Active';
 
           return (
             <div key={deposit.id} className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
@@ -166,15 +190,15 @@ const MSOTimeDeposit = () => {
                   <div>
                     <h4 className="text-base font-semibold text-gray-900">{deposit.account_number}</h4>
                     <p className="mt-1 text-sm text-gray-600">
-                      {deposit.status === 'active' ? 'Active Time Deposit' : 'Matured Time Deposit'}
+                      Time Deposit Account
                     </p>
                   </div>
                   <span className={`rounded-full px-3 py-1 text-xs font-medium ${
-                    isMatured 
+                    accountStatus === 'Matured' || accountStatus === 'Active'
                       ? 'bg-green-100 text-green-700' 
-                      : 'bg-blue-100 text-blue-700'
+                      : 'bg-gray-100 text-gray-700'
                   }`}>
-                    {isMatured ? 'Matured' : 'Active'}
+                    {accountStatus}
                   </span>
                 </div>
               </div>
@@ -194,7 +218,7 @@ const MSOTimeDeposit = () => {
                       <p className="text-xs font-medium">Term</p>
                     </div>
                     <p className="mt-1 text-sm font-semibold text-gray-900">
-                      {termYears} {termYears === '1.0' ? 'year' : 'years'}
+                      {termLabel}
                     </p>
                   </div>
 
@@ -214,7 +238,9 @@ const MSOTimeDeposit = () => {
                       <p className="text-xs font-medium">Opened</p>
                     </div>
                     <p className="mt-1 text-sm font-semibold text-gray-900">
-                      {openDate.toLocaleDateString('en-PH', { month: 'short', year: 'numeric' })}
+                      {openDate
+                        ? openDate.toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' })
+                        : '—'}
                     </p>
                   </div>
 
@@ -225,7 +251,7 @@ const MSOTimeDeposit = () => {
                     </div>
                     <p className="mt-1 text-sm font-semibold text-gray-900">
                       {maturityDate 
-                        ? maturityDate.toLocaleDateString('en-PH', { month: 'short', year: 'numeric' })
+                        ? maturityDate.toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' })
                         : '—'
                       }
                     </p>

@@ -3,7 +3,6 @@ import { TrendingUp, AlertCircle, CheckCircle, Clock, Award } from 'lucide-react
 import { useAuth } from '../../contexts/AuthContext';
 import { supabase } from '../../lib/supabase';
 import { useMultipleRealtimeSubscriptions } from '../../hooks/useRealtimeSubscription';
-import LoanApplicationForm from './LoanApplicationForm';
 
 const peso = (value) => `₱${Number(value || 0).toLocaleString('en-PH', { 
   minimumFractionDigits: 2, 
@@ -164,14 +163,13 @@ const MSOLoans = () => {
   if (!hasLoans) {
     return (
       <div className="space-y-6">
-        <LoanApplicationForm />
         <div className="rounded-xl border-2 border-dashed border-gray-300 bg-gray-50 p-8 text-center">
           <svg className="mx-auto h-16 w-16 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" />
           </svg>
           <h3 className="mt-4 text-lg font-semibold text-gray-900">No Active Loans</h3>
           <p className="mt-2 text-sm text-gray-600">
-            Your active loans will appear here after a Manager approves your application and the Bookkeeper records the cash release.
+            Your loan details will appear here after a Manager approves the application and the Bookkeeper records the cash release.
           </p>
         </div>
       </div>
@@ -192,7 +190,6 @@ const MSOLoans = () => {
 
   return (
     <div className="space-y-6">
-      <LoanApplicationForm />
       {/* Account Performance Card */}
       {(loanData.performance.onTimePayments > 0 || loanData.performance.latePayments > 0) && (
         <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-lg">
