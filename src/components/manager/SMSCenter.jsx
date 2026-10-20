@@ -19,30 +19,22 @@ const SMSCenter = () => {
   const [notice, setNotice] = useState('');
   const [creditBalance, setCreditBalance] = useState(null);
   const [accountName, setAccountName] = useState('');
+  const [balanceUpdatedAt, setBalanceUpdatedAt] = useState(null);
   const [balanceError, setBalanceError] = useState('');
   const [loadingBalance, setLoadingBalance] = useState(false);
-  const [balanceRefreshAllowed, setBalanceRefreshAllowed] = useState(true);
-  const balanceCooldownTimer = useRef(null);
-  const balanceRefreshAllowedRef = useRef(true);
   const balanceRequestInProgressRef = useRef(false);
 
   const loadCreditBalance = useCallback(async () => {
-    if (balanceRequestInProgressRef.current || !balanceRefreshAllowedRef.current) return;
+    if (balanceRequestInProgressRef.current) return;
     balanceRequestInProgressRef.current = true;
     setLoadingBalance(true);
     setBalanceError('');
-    balanceRefreshAllowedRef.current = false;
-    setBalanceRefreshAllowed(false);
-    balanceCooldownTimer.current = setTimeout(() => {
-      balanceRefreshAllowedRef.current = true;
-      setBalanceRefreshAllowed(true);
-    }, 30000);
 
     try {
-      const { data, error: balanceLoadError } = await supabase.functions.invoke('brevo-sms', {
+      const { data, error: balanceLoadError } = await supabase.functions.invoke('semaphore-sms', {
         body: { action: 'balance' }
       });
-      
+
       if (balanceLoadError) {
         let serverMessage;
         try {
@@ -52,18 +44,21 @@ const SMSCenter = () => {
         }
         throw new Error(serverMessage || balanceLoadError.message || 'SMS credits could not be loaded.');
       }
-      
-      // Ensure we set the balance even if it's 0
-      if (data && 'credit_balance' in data) {
-        const balance = Number(data.credit_balance);
+
+      const rawBalance = data?.credit_balance;
+      const balance = typeof rawBalance === 'number' || (typeof rawBalance === 'string' && rawBalance.trim() !== '')
+        ? Number(rawBalance)
+        : Number.NaN;
+      if (Number.isFinite(balance) && balance >= 0) {
         setCreditBalance(balance);
         setAccountName(data.account_name || '');
+        setBalanceUpdatedAt(new Date());
       } else {
         throw new Error('Invalid response from SMS service.');
       }
     } catch (balanceLoadError) {
+      console.error('Error loading SMS balance:', balanceLoadError);
       setBalanceError(balanceLoadError.message || 'SMS credits could not be loaded.');
-      setCreditBalance(null);
     } finally {
       balanceRequestInProgressRef.current = false;
       setLoadingBalance(false);
@@ -92,7 +87,18 @@ const SMSCenter = () => {
 
   useEffect(() => {
     loadCreditBalance();
-    return () => clearTimeout(balanceCooldownTimer.current);
+    const refreshWhenVisible = () => {
+      if (document.visibilityState === 'visible') loadCreditBalance();
+    };
+    const interval = setInterval(refreshWhenVisible, 30000);
+    window.addEventListener('focus', refreshWhenVisible);
+    document.addEventListener('visibilitychange', refreshWhenVisible);
+
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('focus', refreshWhenVisible);
+      document.removeEventListener('visibilitychange', refreshWhenVisible);
+    };
   }, [loadCreditBalance]);
 
   const handleSendSMS = async (event) => {
@@ -102,7 +108,7 @@ const SMSCenter = () => {
     setSending(true);
 
     try {
-      const { data, error: sendError } = await supabase.functions.invoke('brevo-sms', {
+      const { data, error: sendError } = await supabase.functions.invoke('semaphore-sms', {
         body: { action: 'send', phone, message }
       });
       if (sendError) {
@@ -114,11 +120,6 @@ const SMSCenter = () => {
         }
         throw new Error(messageFromServer || 'The SMS could not be sent. Please try again.');
       }
-      if (!data?.sent_count) {
-        throw new Error(data?.failed_count
-          ? 'Brevo could not accept the message. Verify your SMS sender ID and account setup.'
-          : 'No SMS recipients with valid mobile numbers were found.');
-      }
 
       setNotice(data?.failed_count
         ? `Sent ${data.sent_count} message(s); ${data.failed_count} failed.`
@@ -126,6 +127,7 @@ const SMSCenter = () => {
       setPhone('');
       setMessage('');
       await loadHistory();
+      await loadCreditBalance();
     } catch (sendError) {
       setError(sendError.message || 'The SMS could not be sent. Please try again.');
       await loadHistory();
@@ -148,15 +150,19 @@ const SMSCenter = () => {
       <dl className="grid gap-3 sm:grid-cols-3">
         <div className="flex items-center justify-between gap-3 rounded-lg border border-gray-200 bg-white p-4 sm:col-span-3">
           <div>
-            <dt className="text-sm text-gray-600">Brevo SMS credits remaining</dt>
+            <dt className="text-sm text-gray-600">SMS credits remaining</dt>
             <dd className="mt-1 text-2xl font-semibold text-gray-950">
               {loadingBalance && creditBalance === null ? 'Loading…' : creditBalance !== null ? creditBalance.toLocaleString() : 'Unavailable'}
             </dd>
             {accountName && <p className="mt-0.5 text-xs text-gray-500">{accountName}</p>}
             {balanceError && <p role="alert" className="mt-1 text-sm text-red-700">{balanceError}</p>}
-            <p className="mt-1 text-xs text-gray-500">Balance refresh is limited to once every 30 seconds.</p>
+            <p className="mt-1 text-xs text-gray-500">
+              {balanceUpdatedAt
+                ? `Updated ${balanceUpdatedAt.toLocaleTimeString()}. Refreshes every 30 seconds while this page is open.`
+                : 'Balance refreshes automatically every 30 seconds while this page is open.'}
+            </p>
           </div>
-          <button type="button" onClick={loadCreditBalance} disabled={loadingBalance || !balanceRefreshAllowed} aria-label="Refresh SMS credit balance" title="Refresh SMS credit balance" className="inline-flex size-10 shrink-0 items-center justify-center rounded-md border border-gray-300 text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50">
+          <button type="button" onClick={loadCreditBalance} disabled={loadingBalance} aria-label="Refresh SMS credit balance" title="Refresh SMS credit balance" className="inline-flex size-10 shrink-0 items-center justify-center rounded-md border border-gray-300 text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50">
             <RefreshCw size={17} aria-hidden="true" className={loadingBalance ? 'animate-spin' : ''} />
           </button>
         </div>
