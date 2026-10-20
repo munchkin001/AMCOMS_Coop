@@ -39,6 +39,11 @@ const normalizePhone = (value: string) => {
   return digits;
 };
 
+const hasInsufficientCreditError = (value: unknown) => {
+  const responseText = typeof value === 'string' ? value : JSON.stringify(value ?? '');
+  return /insufficient.{0,30}(credit|balance|fund)|(?:credit|balance|fund).{0,30}(insufficient|not enough|low)|not enough.{0,20}(credit|balance|fund)|low.{0,20}(credit|balance)/i.test(responseText);
+};
+
 const getRecipients = async (admin: ReturnType<typeof createClient>, groups: string[]) => {
   const allowedGroups = new Set(['allMembers', 'recentMembers', 'manager', 'treasurer', 'bookkeeper', 'inventoryStaff']);
   if (!groups.length || groups.some((group) => !allowedGroups.has(group))) {
@@ -248,11 +253,19 @@ Deno.serve(async (request: Request) => {
     }
 
     if (!providerResponse.ok || !Array.isArray(providerBody)) {
+      const insufficientCredits = providerResponse.status === 402 || hasInsufficientCreditError(providerBody);
       await admin.from('sms_logs').update({
         status: 'failed',
-        provider_response: { http_status: providerResponse.status }
+        provider_response: {
+          http_status: providerResponse.status,
+          error: insufficientCredits ? 'insufficient_sms_credits' : 'provider_rejected'
+        }
       }).in('id', logRows.map((row) => row.id));
-      return jsonResponse({ error: 'Semaphore rejected the SMS request. Check the server configuration and logs.' }, 502, origin);
+      return jsonResponse({
+        error: insufficientCredits
+          ? 'SMS credit is not enough. Please top up your Semaphore account and try again.'
+          : 'Semaphore rejected the SMS request. Check the server configuration and logs.'
+      }, insufficientCredits ? 402 : 502, origin);
     }
 
     const failedNumbers = new Set<string>();
@@ -281,6 +294,12 @@ Deno.serve(async (request: Request) => {
         provider_response: { http_status: providerResponse.status, messages: providerMetadata }
       }).in('id', failedLogIds);
       if (error) console.error('Unable to update failed SMS log status.');
+    }
+
+    if (acceptedLogIds.length === 0 && failedLogIds.length > 0 && hasInsufficientCreditError(providerBody)) {
+      return jsonResponse({
+        error: 'SMS credit is not enough. Please top up your Semaphore account and try again.'
+      }, 402, origin);
     }
 
     return jsonResponse({
