@@ -26,7 +26,13 @@ const emptyDay = () => ({
 const rowsFor = (d) => [
   { label: 'Cash received', books: d.receipts, ledger: d.ledgerDebits, tone: 'text-green-600' },
   { label: 'Cash disbursed', books: d.disbursements, ledger: d.ledgerCredits, tone: 'text-red-600' },
-  { label: 'Loan payments received', books: d.loanReceipts, ledger: d.loanPayments, tone: 'text-gray-900' },
+  {
+    label: 'Loan principal applied',
+    detail: 'Excludes interest and penalties',
+    books: d.loanReceipts,
+    ledger: d.loanPayments,
+    tone: 'text-gray-900'
+  },
   { label: 'Loans released', books: d.loansDisbursed, ledger: d.loansReleased, tone: 'text-gray-900' },
   { label: 'Entries recorded', books: d.receiptCount + d.disbursementCount, ledger: d.journalCount, count: true, tone: 'text-gray-900' }
 ];
@@ -60,8 +66,9 @@ const Reconciliation = () => {
         .is('reversed_by_entry_id', null)
         .neq('entry_type', 'reversing')
         .gte('entry_date', from).lte('entry_date', selectedDate),
-      supabase.from('loan_payments').select('id, payment_date, amount_paid, receipt_id')
-        .eq('status', 'recorded').gte('payment_date', from).lte('payment_date', selectedDate),
+      supabase.from('loan_payments').select('id, payment_date, principal_paid, receipt_id')
+        .eq('status', 'recorded').not('receipt_id', 'is', null)
+        .gte('payment_date', from).lte('payment_date', selectedDate),
       supabase.from('loans').select('id, release_date, principal_amount, status')
         .gte('release_date', from).lte('release_date', selectedDate).neq('status', 'rejected')
     ]);
@@ -110,7 +117,9 @@ const Reconciliation = () => {
       });
       if (!same(sum(lines, (line) => line.debit_amount), sum(lines, (line) => line.credit_amount))) d.unbalanced += 1;
     });
-    (paymentsRes.data || []).forEach((payment) => { day(payment.payment_date).loanPayments += Number(payment.amount_paid); });
+    (paymentsRes.data || []).forEach((payment) => {
+      day(payment.payment_date).loanPayments += Number(payment.principal_paid);
+    });
     (loansRes.data || []).forEach((loan) => { day(loan.release_date).loansReleased += Number(loan.principal_amount); });
 
     setDays(result);
@@ -219,7 +228,10 @@ const Reconciliation = () => {
                 <tbody>
                   {rows.map((row) => (
                     <tr key={row.label} className="border-b border-gray-200">
-                      <td className="px-4 py-3 text-sm font-medium text-gray-900">{row.label}</td>
+                      <td className="px-4 py-3 text-sm font-medium text-gray-900">
+                        {row.label}
+                        {row.detail && <span className="mt-0.5 block text-xs font-normal text-gray-500">{row.detail}</span>}
+                      </td>
                       <td className={`px-4 py-3 text-right text-sm font-semibold ${row.tone}`}>{row.count ? row.books : peso(row.books)}</td>
                       <td className={`px-4 py-3 text-right text-sm font-semibold ${row.tone}`}>{row.count ? row.ledger : peso(row.ledger)}</td>
                       <td className="px-4 py-3 text-right text-sm text-gray-700">
@@ -283,8 +295,10 @@ const Reconciliation = () => {
             <h4 className="mb-2 font-semibold text-blue-900">How this is reconciled</h4>
             <p className="text-sm text-blue-800">
               Recorded cash receipts and disbursements are compared with the cash accounts in the posted general ledger. Loan payments and
-              released loans are compared with the member loan records. Any record that was deleted, changed or posted incorrectly shows
-              as a difference immediately.
+              released loans are compared with the member loan records. The loan principal check compares only the amount credited to Loan
+              Receivable with the principal recorded against the member's loan. Interest and penalties are excluded from that check; they
+              remain part of the total cash receipt and are recorded to their own accounts. Any record that was deleted, changed or posted
+              incorrectly shows as a difference immediately.
             </p>
           </div>
         </>
