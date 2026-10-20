@@ -408,15 +408,27 @@ export const AuthProvider = ({ children }) => {
     };
   };
 
-  const updatePassword = async (newPassword) => {
+  const updatePassword = async (newPassword, username) => {
     try {
       setAuthError(null);
       if (staff?.role === 'member' && staff.must_change_password) {
         const { error } = await supabase.functions.invoke('member-account', {
-          body: { action: 'complete-password-setup', password: newPassword }
+          body: { action: 'complete-password-setup', password: newPassword, username }
         });
-        if (error) throw error;
-        setStaff((current) => current ? { ...current, must_change_password: false } : current);
+        if (error) {
+          let serverMessage;
+          try {
+            serverMessage = (await error.context?.clone?.().json())?.error;
+          } catch {
+            serverMessage = null;
+          }
+          throw new Error(serverMessage || error.message || 'Unable to complete account setup.');
+        }
+        setStaff((current) => current ? {
+          ...current,
+          username: username || current.username,
+          must_change_password: false
+        } : current);
         return { error: null, activated: true };
       }
 

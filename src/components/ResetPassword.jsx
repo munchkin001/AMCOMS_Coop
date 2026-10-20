@@ -6,6 +6,7 @@ import { supabase } from '../lib/supabase';
 const ResetPassword = () => {
   const navigate = useNavigate();
   const { updatePassword, staff, loading: authLoading } = useAuth();
+  const [username, setUsername] = useState(staff?.username || '');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -54,6 +55,14 @@ const ResetPassword = () => {
       return;
     }
 
+    if (staff?.role === 'member' && staff.must_change_password) {
+      const normalizedUsername = username.trim().toLowerCase();
+      if (!/^[a-z0-9._-]{3,30}$/.test(normalizedUsername)) {
+        setError('Username must be 3-30 characters and contain only letters, numbers, dots, underscores, or hyphens.');
+        return;
+      }
+    }
+
     const passwordError = validatePassword(newPassword);
     if (passwordError) {
       setError(passwordError);
@@ -68,7 +77,10 @@ const ResetPassword = () => {
     setLoading(true);
 
     try {
-      const { error: updateError, activated } = await updatePassword(newPassword);
+      const { error: updateError, activated } = await updatePassword(
+        newPassword,
+        staff?.role === 'member' && staff.must_change_password ? username.trim().toLowerCase() : undefined
+      );
 
       if (updateError) {
         throw updateError;
@@ -186,6 +198,31 @@ const ResetPassword = () => {
                 <div className="mb-5 rounded-lg border border-emerald-200 bg-emerald-50 p-4 text-center">
                   <p className="text-sm text-emerald-900">Member ID</p>
                   <p className="mt-1 text-lg font-semibold text-emerald-950">{staff.member_number}</p>
+                </div>
+              )}
+
+              {staff?.role === 'member' && staff.must_change_password && (
+                <div className="mb-5">
+                  <label htmlFor="memberUsername" className="mb-2 block text-sm font-semibold text-gray-700">
+                    Choose your username *
+                  </label>
+                  <input
+                    type="text"
+                    id="memberUsername"
+                    value={username}
+                    onChange={(event) => setUsername(event.target.value)}
+                    placeholder="Enter a username"
+                    autoComplete="username"
+                    minLength={3}
+                    maxLength={30}
+                    required
+                    disabled={loading}
+                    aria-describedby="memberUsernameHelp"
+                    className="w-full rounded-lg border-2 border-gray-200 px-4 py-3 transition-all focus:border-transparent focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                  <p id="memberUsernameHelp" className="mt-1.5 text-xs text-gray-500">
+                    Use 3-30 letters, numbers, dots, underscores, or hyphens. This will be your username for future sign-ins.
+                  </p>
                 </div>
               )}
 

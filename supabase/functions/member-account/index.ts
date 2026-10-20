@@ -136,8 +136,16 @@ Deno.serve(async (request) => {
       const validationMessage = passwordProblem(password);
       if (validationMessage) return jsonResponse({ error: validationMessage }, 400, origin);
 
+      let username: string | null = null;
       if (actor.role === 'member') {
         if (!actor.member_id) return jsonResponse({ error: 'The member account is not linked.' }, 403, origin);
+        username = String(payload?.username || '').trim().toLowerCase();
+        if (!/^[a-z0-9._-]{3,30}$/.test(username)) {
+          return jsonResponse({
+            error: 'Username must be 3-30 characters and contain only letters, numbers, dots, underscores, or hyphens.'
+          }, 400, origin);
+        }
+
         const { data: member, error: memberError } = await caller
           .from('members')
           .select('membership_status, archived_at')
@@ -147,12 +155,26 @@ Deno.serve(async (request) => {
         if (!member || member.membership_status !== 'active' || member.archived_at) {
           return jsonResponse({ error: 'An active membership is required.' }, 403, origin);
         }
+
+        const escapedUsername = username.replace(/[\\%_]/g, '\\$&');
+        const { data: matchingUsers, error: usernameLookupError } = await admin.from('staff')
+          .select('id')
+          .ilike('username', escapedUsername)
+          .neq('id', actor.id)
+          .limit(1);
+        if (usernameLookupError) throw usernameLookupError;
+        if (matchingUsers?.length) {
+          return jsonResponse({ error: 'This username is already taken. Please choose another.' }, 409, origin);
+        }
       }
 
       const { error: passwordError } = await admin.auth.admin.updateUserById(authData.user.id, { password });
       if (passwordError) throw passwordError;
       const { error: flagError } = await admin.from('staff')
-        .update({ must_change_password: false })
+        .update({
+          ...(username ? { username } : {}),
+          must_change_password: false
+        })
         .eq('id', actor.id)
         .eq('user_id', authData.user.id);
       if (flagError) throw flagError;
@@ -162,7 +184,7 @@ Deno.serve(async (request) => {
         actor.member_id || actor.id,
         actor.role === 'member' ? 'MEMBER_ACCOUNT_ACTIVATED' : 'STAFF_TEMPORARY_PASSWORD_CHANGED'
       );
-      return jsonResponse({ completed: true }, 200, origin);
+      return jsonResponse({ completed: true, ...(username ? { username } : {}) }, 200, origin);
     }
 
     if (!['bookkeeper', 'chairman'].includes(actor.role)) {
