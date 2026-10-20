@@ -378,48 +378,93 @@ const TreasurerDashboard = () => {
       </section>
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-        <section className="rounded-lg border border-gray-200 bg-white p-6 shadow">
-          <h3 className="mb-4 text-lg font-semibold text-gray-900">Account Balances</h3>
-          <div className="space-y-4">
-            <div className="rounded-lg border border-green-200 bg-green-50 p-4">
-              <p className="mb-1 text-sm text-gray-600">Savings and Time Deposit Balances</p>
-              <p className="text-2xl font-bold text-green-600">
-                {displayAmount(data.totalSavingsBalance + data.totalTimeDepositBalance)}
-              </p>
-            </div>
-            <div className="rounded-lg border border-blue-200 bg-blue-50 p-4">
-              <p className="mb-1 text-sm text-gray-600">Active Loan Balance</p>
-              <p className="text-2xl font-bold text-blue-600">{displayAmount(data.totalLoanBalance)}</p>
-            </div>
-            <div className="rounded-lg border border-purple-200 bg-purple-50 p-4">
-              <p className="mb-1 text-sm text-gray-600">Cash on Hand</p>
-              <p className="text-2xl font-bold text-purple-600">{displayAmount(data.cashOnHand)}</p>
-            </div>
+        <section className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm sm:p-6">
+          <div className="mb-5">
+            <h3 className="text-lg font-semibold text-gray-950">Account Balances</h3>
+            <p className="mt-1 text-sm text-gray-500">Current balances across key accounts</p>
+          </div>
+          <div className="space-y-3">
+            {[
+              {
+                label: 'Savings and time deposits',
+                detail: 'Member deposits',
+                amount: data.totalSavingsBalance + data.totalTimeDepositBalance,
+                icon: Landmark,
+                tone: 'bg-emerald-50 text-emerald-700'
+              },
+              {
+                label: 'Active loan balance',
+                detail: 'Outstanding loans',
+                amount: data.totalLoanBalance,
+                icon: HandCoins,
+                tone: 'bg-blue-50 text-blue-700'
+              },
+              {
+                label: 'Cash on hand',
+                detail: 'Current ledger balance',
+                amount: data.cashOnHand,
+                icon: Wallet,
+                tone: 'bg-violet-50 text-violet-700'
+              }
+            ].map((account) => {
+              const Icon = account.icon;
+              return (
+                <div key={account.label} className="flex items-center gap-3 rounded-lg border border-gray-100 bg-gray-50/70 p-4">
+                  <span className={`flex size-10 shrink-0 items-center justify-center rounded-lg ${account.tone}`}>
+                    <Icon aria-hidden="true" size={19} />
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-medium text-gray-900">{account.label}</p>
+                    <p className="mt-0.5 text-xs text-gray-500">{account.detail}</p>
+                  </div>
+                  <p className="text-right text-lg font-semibold tabular-nums text-gray-950 sm:text-xl">
+                    {displayAmount(account.amount)}
+                  </p>
+                </div>
+              );
+            })}
           </div>
         </section>
 
-        <section className="rounded-lg bg-gradient-to-r from-teal-600 to-teal-700 p-6 text-white shadow">
-          <h3 className="mb-4 text-lg font-semibold">Net Cash Flow (Today)</h3>
+        <section className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm sm:p-6">
+          <div className="mb-5 flex items-start justify-between gap-4">
+            <div>
+              <h3 className="text-lg font-semibold text-gray-950">Net Cash Flow</h3>
+              <p className="mt-1 text-sm text-gray-500">Cash movement recorded today</p>
+            </div>
+            <span className="shrink-0 rounded-full bg-teal-50 px-3 py-1 text-xs font-semibold text-teal-700">Today</span>
+          </div>
           {!hasData && loading ? (
-            <p>Loading cash-flow data…</p>
+            <p className="rounded-lg bg-gray-50 px-4 py-8 text-center text-sm text-gray-500">Loading cash-flow data…</p>
           ) : !hasData ? (
-            <p>Cash-flow data is unavailable.</p>
+            <p className="rounded-lg bg-gray-50 px-4 py-8 text-center text-sm text-gray-500">Cash-flow data is unavailable.</p>
           ) : (
-            <div className="space-y-6">
-              <div>
-                <p className="mb-2 text-sm text-teal-100">Cash Received</p>
-                <p className="text-3xl font-bold">{formatMoney(data.todayCollections)}</p>
-                <p className="mt-1 text-xs text-teal-200">{data.collectionCount} receipts</p>
+            <div className="space-y-4">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <div className="rounded-lg border border-emerald-100 bg-emerald-50/70 p-4">
+                  <div className="flex items-center gap-2 text-emerald-700">
+                    <ArrowDownLeft aria-hidden="true" size={17} />
+                    <p className="text-sm font-medium">Cash received</p>
+                  </div>
+                  <p className="mt-3 text-2xl font-semibold tabular-nums text-gray-950">{formatMoney(data.todayCollections)}</p>
+                  <p className="mt-1 text-xs text-gray-500">{data.collectionCount.toLocaleString()} receipts</p>
+                </div>
+                <div className="rounded-lg border border-rose-100 bg-rose-50/70 p-4">
+                  <div className="flex items-center gap-2 text-rose-700">
+                    <ArrowUpFromLine aria-hidden="true" size={17} />
+                    <p className="text-sm font-medium">Cash released</p>
+                  </div>
+                  <p className="mt-3 text-2xl font-semibold tabular-nums text-gray-950">{formatMoney(data.todayDisbursements)}</p>
+                  <p className="mt-1 text-xs text-gray-500">{data.disbursementCount.toLocaleString()} disbursements</p>
+                </div>
               </div>
-              <div>
-                <p className="mb-2 text-sm text-teal-100">Cash Released</p>
-                <p className="text-3xl font-bold">{formatMoney(data.todayDisbursements)}</p>
-                <p className="mt-1 text-xs text-teal-200">{data.disbursementCount} disbursements</p>
-              </div>
-              <div className="border-t border-teal-500 pt-4">
-                <p className="mb-2 text-sm text-teal-100">Net Flow</p>
-                <p className={`text-4xl font-bold ${totalCashFlow >= 0 ? 'text-yellow-300' : 'text-red-300'}`}>
-                  {totalCashFlow >= 0 ? '+' : ''}{formatMoney(totalCashFlow)}
+              <div className={`flex flex-wrap items-center justify-between gap-3 rounded-lg border p-4 ${totalCashFlow >= 0 ? 'border-teal-100 bg-teal-50' : 'border-amber-100 bg-amber-50'}`}>
+                <div>
+                  <p className="text-sm font-medium text-gray-700">Net flow</p>
+                  <p className="mt-1 text-xs text-gray-500">Received minus released</p>
+                </div>
+                <p className={`text-2xl font-bold tabular-nums sm:text-3xl ${totalCashFlow >= 0 ? 'text-teal-700' : 'text-amber-700'}`}>
+                  {totalCashFlow >= 0 ? '+' : '−'}{formatMoney(Math.abs(totalCashFlow))}
                 </p>
               </div>
             </div>
