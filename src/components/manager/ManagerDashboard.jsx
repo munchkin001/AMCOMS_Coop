@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Line } from 'react-chartjs-2';
-import { AlertTriangle, Banknote, ClipboardCheck, FileText, Gem, HandCoins, Landmark, Megaphone, Package, UserPlus, Users, Clock3 } from 'lucide-react';
+import { AlertTriangle, Banknote, ClipboardCheck, Gem, HandCoins, Landmark, Package, UserPlus, Users, Clock3 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useMultipleRealtimeSubscriptions } from '../../hooks/useRealtimeSubscription';
 import { fetchAccountBalances, fetchMonthlyFinancialSummary, summarizeAccountBalances, toDateString } from '../../lib/dashboardAccounting';
@@ -333,40 +333,6 @@ const ManagerDashboard = () => {
         </div>
       </div>
 
-      {/* Quick Actions */}
-      <div className="bg-gradient-to-r from-blue-600 to-blue-700 rounded-lg shadow p-6 text-white">
-        <h3 className="text-lg font-semibold mb-4">Quick Actions</h3>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <button 
-            onClick={() => navigate('/staff/loan-requests')}
-            className="bg-white bg-opacity-20 hover:bg-opacity-30 backdrop-blur-sm rounded-lg p-4 transition-all text-center cursor-pointer"
-          >
-            <ClipboardCheck aria-hidden="true" className="mx-auto mb-2 size-7" />
-            <span className="text-sm font-medium">Review Requests</span>
-          </button>
-          <button 
-            onClick={() => alert('Feature Coming Soon!\n\nTo add a new member, please use the Members section from the sidebar menu or contact the cooperative office.\n\nContact: +63 XXX XXX XXXX')}
-            className="bg-white bg-opacity-20 hover:bg-opacity-30 backdrop-blur-sm rounded-lg p-4 transition-all text-center cursor-pointer"
-          >
-            <UserPlus aria-hidden="true" className="mx-auto mb-2 size-7" />
-            <span className="text-sm font-medium">Add Member</span>
-          </button>
-          <button 
-            onClick={() => alert('Navigate to the Reports section using the sidebar menu to generate various management reports.')}
-            className="bg-white bg-opacity-20 hover:bg-opacity-30 backdrop-blur-sm rounded-lg p-4 transition-all text-center cursor-pointer"
-          >
-            <FileText aria-hidden="true" className="mx-auto mb-2 size-7" />
-            <span className="text-sm font-medium">Generate Report</span>
-          </button>
-          <button 
-            onClick={() => alert('Feature Coming Soon!\n\nAnnouncement system will be available in a future update. For now, please contact members directly or post announcements at the cooperative office.')}
-            className="bg-white bg-opacity-20 hover:bg-opacity-30 backdrop-blur-sm rounded-lg p-4 transition-all text-center cursor-pointer"
-          >
-            <Megaphone aria-hidden="true" className="mx-auto mb-2 size-7" />
-            <span className="text-sm font-medium">Send Announcement</span>
-          </button>
-        </div>
-      </div>
     </div>
   );
 };

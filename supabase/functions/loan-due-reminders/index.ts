@@ -31,9 +31,14 @@ Deno.serve(async (request) => {
   }
 
   const admin = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!);
-  const apiKey = Deno.env.get('SEMAPHORE_API_KEY');
-  const senderName = Deno.env.get('SEMAPHORE_SENDER_NAME') || 'AMCOMS';
-  if (!apiKey) return new Response(JSON.stringify({ error: 'SMS not configured' }), { status: 503 });
+  const apiKey = Deno.env.get('BREVO_API_KEY');
+  const senderName = Deno.env.get('BREVO_SMS_SENDER')?.trim() || '';
+  if (!apiKey || !senderName) {
+    return new Response(JSON.stringify({ error: 'Brevo SMS is not configured' }), { status: 503 });
+  }
+  if (!(/^\d{1,15}$/.test(senderName) || /^[a-zA-Z0-9]{1,11}$/.test(senderName))) {
+    return new Response(JSON.stringify({ error: 'Brevo SMS sender is invalid' }), { status: 503 });
+  }
 
   const { data: penalties } = await admin.rpc('apply_loan_penalties');
 
@@ -78,28 +83,46 @@ Deno.serve(async (request) => {
         message,
         notification_type: type,
         status: 'pending',
-        provider: 'semaphore',
+        provider: 'brevo',
         related_table: 'loan_schedule',
         related_id: row.id
       }).select('id').single();
       if (!log) continue;
 
       try {
-        const res = await fetch('https://api.semaphore.co/api/v4/messages', {
+        const res = await fetch('https://api.brevo.com/v3/transactionalSMS/send', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-          body: new URLSearchParams({ apikey: apiKey, number: phone, message, sendername: senderName }),
+          headers: {
+            'api-key': apiKey,
+            accept: 'application/json',
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            sender: senderName,
+            recipient: phone,
+            content: message,
+            type: 'transactional',
+            tag: 'amcoms_loan_due_reminder'
+          }),
           signal: AbortSignal.timeout(20000)
         });
         const body = await res.json().catch(() => null);
-        const ok = res.ok && Array.isArray(body) && !/fail|error|invalid/i.test(String(body[0]?.status || ''));
+        const ok = res.ok && body?.messageId != null;
         await admin.from('sms_logs').update({
           status: ok ? 'sent' : 'failed',
-          provider_response: { http_status: res.status }
+          provider_response: {
+            provider: 'brevo',
+            http_status: res.status,
+            message_id: body?.messageId ?? null,
+            error: ok ? null : body?.message ?? body?.code ?? null
+          }
         }).eq('id', log.id);
         ok ? sent++ : failed++;
       } catch {
-        await admin.from('sms_logs').update({ status: 'failed', provider_response: { error: 'request failed' } }).eq('id', log.id);
+        await admin.from('sms_logs').update({
+          status: 'failed',
+          provider_response: { provider: 'brevo', error: 'request failed' }
+        }).eq('id', log.id);
         failed++;
       }
     }

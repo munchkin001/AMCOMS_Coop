@@ -127,7 +127,7 @@ const Announcements = () => {
       try {
         const groups = Object.entries(recipients).filter(([, selected]) => selected).map(([group]) => group);
         if (groups.length === 0) throw new Error('Select at least one member or staff group to send SMS.');
-        const { data, error: smsError } = await supabase.functions.invoke('semaphore-sms', {
+        const { data, error: smsError } = await supabase.functions.invoke('brevo-sms', {
           body: { action: 'send-group', groups, message: `${subject.trim()}\n\n${message.trim()}` }
         });
         if (smsError) {
@@ -139,7 +139,11 @@ const Announcements = () => {
           }
           throw new Error(serverMessage || 'SMS delivery failed. The announcement was not published.');
         }
-        if (!data?.sent_count) throw new Error('No SMS recipients with valid mobile numbers were found.');
+        if (!data?.sent_count) {
+          throw new Error(data?.failed_count
+            ? 'Brevo could not accept the SMS messages. Verify your SMS sender ID and account setup; the announcement was not published.'
+            : 'No SMS recipients with valid mobile numbers were found.');
+        }
         const sentMessage = `${data.sent_count} SMS message(s) accepted${data.failed_count ? `; ${data.failed_count} failed` : ''}.`;
         if (data.failed_count) warning(sentMessage);
         else success(sentMessage);

@@ -4,7 +4,7 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
 const corsHeaders = {
-  'Access-Control-Allow-Headers': 'authorization, apikey, content-type, x-client-info',
+  'Access-Control-Allow-Headers': 'authorization, apikey, content-type, x-client-info, x-supabase-api-version',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
   Vary: 'Origin'
 };
@@ -38,6 +38,17 @@ const normalizePhone = (value: string) => {
   if (!/^639\d{9}$/.test(digits)) return null;
   return digits;
 };
+
+const parseResponse = async (response: Response): Promise<Record<string, unknown> | null> => {
+  try {
+    const body = await response.json();
+    return body && typeof body === 'object' && !Array.isArray(body) ? body : null;
+  } catch {
+    return null;
+  }
+};
+
+const isValidSender = (value: string) => /^\d{1,15}$/.test(value) || /^[a-zA-Z0-9]{1,11}$/.test(value);
 
 const getRecipients = async (admin: ReturnType<typeof createClient>, groups: string[]) => {
   const allowedGroups = new Set(['allMembers', 'recentMembers', 'manager', 'treasurer', 'bookkeeper', 'inventoryStaff']);
@@ -106,6 +117,7 @@ Deno.serve(async (request: Request) => {
   const configuredAppUrl = Deno.env.get('APP_URL')?.replace(/\/$/, '');
   const allowedOrigins = new Set([
     configuredAppUrl, 
+    'https://amci-staff.vercel.app',
     'http://localhost:5173', 
     'http://127.0.0.1:5173',
     'http://localhost:5174',
@@ -146,33 +158,32 @@ Deno.serve(async (request: Request) => {
 
     const payload = await request.json();
     if (payload?.action === 'balance') {
-      const apiKey = Deno.env.get('SEMAPHORE_API_KEY');
-      if (!apiKey) return jsonResponse({ error: 'Semaphore SMS is not configured on the server.' }, 503, origin);
+      const apiKey = Deno.env.get('BREVO_API_KEY');
+      if (!apiKey) return jsonResponse({ error: 'Brevo SMS is not configured on the server.' }, 503, origin);
 
       let accountResponse: Response;
       try {
-        const accountUrl = new URL('https://api.semaphore.co/api/v4/account');
-        accountUrl.searchParams.set('apikey', apiKey);
-        accountResponse = await fetch(accountUrl, { signal: AbortSignal.timeout(12000) });
+        accountResponse = await fetch('https://api.brevo.com/v3/account', {
+          headers: { 'api-key': apiKey, accept: 'application/json' },
+          signal: AbortSignal.timeout(12000)
+        });
       } catch {
-        return jsonResponse({ error: 'Semaphore account balance is temporarily unavailable.' }, 502, origin);
+        return jsonResponse({ error: 'Brevo account balance is temporarily unavailable.' }, 502, origin);
       }
 
-      let accountData: unknown;
-      try {
-        accountData = await accountResponse.json();
-      } catch {
-        accountData = null;
-      }
-      const account = Array.isArray(accountData) ? accountData[0] : accountData;
-      const creditBalance = Number(account?.credit_balance);
+      const account = await parseResponse(accountResponse);
+      const smsPlan = Array.isArray(account?.plan)
+        ? account.plan.find((plan: Record<string, unknown>) => plan?.type === 'sms')
+        : null;
+      const creditBalance = Number(smsPlan?.credits);
       if (!accountResponse.ok || !Number.isFinite(creditBalance)) {
-        return jsonResponse({ error: 'Semaphore did not return an account credit balance.' }, 502, origin);
+        return jsonResponse({
+          error: 'Brevo did not return SMS credits. Check that transactional SMS is enabled for your account.'
+        }, 502, origin);
       }
 
       return jsonResponse({
-        account_name: typeof account?.account_name === 'string' ? account.account_name : null,
-        status: typeof account?.status === 'string' ? account.status : null,
+        account_name: typeof account?.companyName === 'string' ? account.companyName : 'Brevo',
         credit_balance: creditBalance
       }, 200, origin);
     }
@@ -196,9 +207,14 @@ Deno.serve(async (request: Request) => {
     if (!recipients.length) return jsonResponse({ error: 'No active recipients have valid mobile numbers.' }, 400, origin);
     if (recipients.length > 1000) return jsonResponse({ error: 'A message can include at most 1,000 recipients.' }, 400, origin);
 
-    const apiKey = Deno.env.get('SEMAPHORE_API_KEY');
-    const senderName = Deno.env.get('SEMAPHORE_SENDER_NAME')?.trim() || 'AMCOMS';
-    if (!apiKey) return jsonResponse({ error: 'Semaphore SMS is not configured on the server.' }, 503, origin);
+    const apiKey = Deno.env.get('BREVO_API_KEY');
+    const senderName = Deno.env.get('BREVO_SMS_SENDER')?.trim() || '';
+    if (!apiKey || !senderName) {
+      return jsonResponse({ error: 'Configure BREVO_API_KEY and BREVO_SMS_SENDER in Supabase function secrets.' }, 503, origin);
+    }
+    if (!isValidSender(senderName)) {
+      return jsonResponse({ error: 'Brevo sender must be an approved name up to 11 letters/numbers or a number up to 15 digits.' }, 503, origin);
+    }
 
     const { data: logRows, error: logError } = await admin.from('sms_logs').insert(recipients.map((recipient) => ({
       recipient_name: recipient.name || null,
@@ -206,84 +222,88 @@ Deno.serve(async (request: Request) => {
       message,
       notification_type: payload.action === 'send-group' ? 'announcement' : 'manual',
       status: 'pending',
-      provider: 'semaphore'
+      provider: 'brevo'
     }))).select('id, phone_number');
     if (logError || !logRows?.length) {
       console.error('Unable to create SMS audit rows.');
       return jsonResponse({ error: 'SMS could not be recorded, so it was not sent.' }, 500, origin);
     }
 
-    let providerResponse: Response;
-    try {
-      const form = new URLSearchParams({
-        apikey: apiKey,
-        number: recipients.map((recipient) => recipient.phone).join(','),
-        message,
-        sendername: senderName
-      });
-      providerResponse = await fetch('https://api.semaphore.co/api/v4/messages', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: form,
-        signal: AbortSignal.timeout(20000)
-      });
-    } catch {
-      await admin.from('sms_logs').update({
-        status: 'failed',
-        provider_response: { error: 'Semaphore request failed before a response was received.' }
-      }).in('id', logRows.map((row) => row.id));
-      return jsonResponse({ error: 'Semaphore could not be reached. The message was not confirmed as sent.' }, 502, origin);
-    }
-
-    let providerBody: unknown;
-    try {
-      providerBody = await providerResponse.json();
-    } catch {
-      providerBody = null;
-    }
-
-    if (!providerResponse.ok || !Array.isArray(providerBody)) {
-      await admin.from('sms_logs').update({
-        status: 'failed',
-        provider_response: { http_status: providerResponse.status }
-      }).in('id', logRows.map((row) => row.id));
-      return jsonResponse({ error: 'Semaphore rejected the SMS request. Check the server configuration and logs.' }, 502, origin);
-    }
-
-    const failedNumbers = new Set<string>();
-    for (const result of providerBody) {
-      const normalized = normalizePhone(String(result?.recipient || ''));
-      if (normalized && /fail|error|invalid/i.test(String(result?.status || ''))) failedNumbers.add(normalized);
-    }
-    const acceptedLogIds = logRows.filter((row) => !failedNumbers.has(row.phone_number)).map((row) => row.id);
-    const failedLogIds = logRows.filter((row) => failedNumbers.has(row.phone_number)).map((row) => row.id);
-    const providerMetadata = providerBody.map((result) => ({
-      message_id: result?.message_id ?? null,
-      status: result?.status ?? null,
-      network: result?.network ?? null
+    const outcomes: Array<{ ok: boolean; logId: string; httpStatus?: number; messageId?: unknown; error?: string }> =
+      new Array(logRows.length);
+    let nextIndex = 0;
+    const workerCount = Math.min(5, logRows.length);
+    await Promise.all(Array.from({ length: workerCount }, async () => {
+      while (nextIndex < logRows.length) {
+        const index = nextIndex++;
+        const logRow = logRows[index];
+        const recipient = recipients.find((candidate) => candidate.phone === logRow.phone_number);
+        if (!recipient) {
+          outcomes[index] = { ok: false, logId: logRow.id, error: 'Unable to match the SMS audit record to its recipient.' };
+          continue;
+        }
+        try {
+          const providerResponse = await fetch('https://api.brevo.com/v3/transactionalSMS/send', {
+            method: 'POST',
+            headers: {
+              'api-key': apiKey,
+              accept: 'application/json',
+              'content-type': 'application/json'
+            },
+            body: JSON.stringify({
+              sender: senderName,
+              recipient: recipient.phone,
+              content: message,
+              type: 'transactional',
+              tag: payload.action === 'send-group' ? 'amcoms_announcement' : 'amcoms_manual'
+            }),
+            signal: AbortSignal.timeout(20000)
+          });
+          const providerBody = await parseResponse(providerResponse);
+          outcomes[index] = {
+            ok: providerResponse.ok,
+            logId: logRow.id,
+            httpStatus: providerResponse.status,
+            messageId: providerBody?.messageId,
+            error: providerResponse.ok
+              ? undefined
+              : String(providerBody?.message || providerBody?.code || 'Brevo rejected the SMS request.')
+          };
+        } catch {
+          outcomes[index] = {
+            ok: false,
+            logId: logRow.id,
+            error: 'Brevo request failed before a response was received.'
+          };
+        }
+      }
     }));
 
-    if (acceptedLogIds.length) {
+    for (const ok of [true, false]) {
+      const matchingOutcomes = outcomes.filter((outcome) => outcome.ok === ok);
+      if (!matchingOutcomes.length) continue;
       const { error } = await admin.from('sms_logs').update({
-        status: 'sent',
-        provider_response: { http_status: providerResponse.status, messages: providerMetadata }
-      }).in('id', acceptedLogIds);
-      if (error) console.error('Unable to update successful SMS log status.');
-    }
-    if (failedLogIds.length) {
-      const { error } = await admin.from('sms_logs').update({
-        status: 'failed',
-        provider_response: { http_status: providerResponse.status, messages: providerMetadata }
-      }).in('id', failedLogIds);
-      if (error) console.error('Unable to update failed SMS log status.');
+        status: ok ? 'sent' : 'failed',
+        provider_response: {
+          provider: 'brevo',
+          messages: matchingOutcomes.map(({ logId, httpStatus, messageId, error: providerError }) => ({
+            log_id: logId,
+            http_status: httpStatus ?? null,
+            message_id: messageId ?? null,
+            error: providerError ?? null
+          }))
+        }
+      }).in('id', matchingOutcomes.map((outcome) => outcome.logId));
+      if (error) console.error(`Unable to update ${ok ? 'successful' : 'failed'} Brevo SMS log status.`);
     }
 
+    const sentCount = outcomes.filter((outcome) => outcome.ok).length;
     return jsonResponse({
-      sent_count: acceptedLogIds.length,
-      failed_count: failedLogIds.length
+      sent_count: sentCount,
+      failed_count: outcomes.length - sentCount
     }, 200, origin);
   } catch (error) {
-    console.error('Semaphore SMS action failed.');
+    console.error('Brevo SMS action failed.');
     return jsonResponse({ error: error instanceof Error ? error.message : 'The SMS request could not be completed.' }, 400, origin);
   }
 });

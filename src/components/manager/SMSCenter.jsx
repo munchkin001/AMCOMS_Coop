@@ -39,11 +39,9 @@ const SMSCenter = () => {
     }, 30000);
 
     try {
-      const { data, error: balanceLoadError } = await supabase.functions.invoke('semaphore-sms', {
+      const { data, error: balanceLoadError } = await supabase.functions.invoke('brevo-sms', {
         body: { action: 'balance' }
       });
-      
-      console.log('Balance API Response:', { data, error: balanceLoadError });
       
       if (balanceLoadError) {
         let serverMessage;
@@ -58,15 +56,12 @@ const SMSCenter = () => {
       // Ensure we set the balance even if it's 0
       if (data && 'credit_balance' in data) {
         const balance = Number(data.credit_balance);
-        console.log('Setting balance:', balance);
         setCreditBalance(balance);
         setAccountName(data.account_name || '');
       } else {
-        console.error('Invalid response format:', data);
         throw new Error('Invalid response from SMS service.');
       }
     } catch (balanceLoadError) {
-      console.error('Error loading SMS balance:', balanceLoadError);
       setBalanceError(balanceLoadError.message || 'SMS credits could not be loaded.');
       setCreditBalance(null);
     } finally {
@@ -107,7 +102,7 @@ const SMSCenter = () => {
     setSending(true);
 
     try {
-      const { data, error: sendError } = await supabase.functions.invoke('semaphore-sms', {
+      const { data, error: sendError } = await supabase.functions.invoke('brevo-sms', {
         body: { action: 'send', phone, message }
       });
       if (sendError) {
@@ -118,6 +113,11 @@ const SMSCenter = () => {
           messageFromServer = null;
         }
         throw new Error(messageFromServer || 'The SMS could not be sent. Please try again.');
+      }
+      if (!data?.sent_count) {
+        throw new Error(data?.failed_count
+          ? 'Brevo could not accept the message. Verify your SMS sender ID and account setup.'
+          : 'No SMS recipients with valid mobile numbers were found.');
       }
 
       setNotice(data?.failed_count
@@ -148,7 +148,7 @@ const SMSCenter = () => {
       <dl className="grid gap-3 sm:grid-cols-3">
         <div className="flex items-center justify-between gap-3 rounded-lg border border-gray-200 bg-white p-4 sm:col-span-3">
           <div>
-            <dt className="text-sm text-gray-600">SMS credits remaining</dt>
+            <dt className="text-sm text-gray-600">Brevo SMS credits remaining</dt>
             <dd className="mt-1 text-2xl font-semibold text-gray-950">
               {loadingBalance && creditBalance === null ? 'Loading…' : creditBalance !== null ? creditBalance.toLocaleString() : 'Unavailable'}
             </dd>
