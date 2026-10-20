@@ -14,12 +14,16 @@ const SalesForm = ({ onSave, onCancel }) => {
   const [members, setMembers] = useState([]);
   const [revenueAccounts, setRevenueAccounts] = useState([]);
   const [outstandingSales, setOutstandingSales] = useState([]);
+  const [cancellableSales, setCancellableSales] = useState([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [customerMode, setCustomerMode] = useState('other');
   const [flow, setFlow] = useState('sale');
   const [collectionOrderId, setCollectionOrderId] = useState('');
+  const [cancellationOrderId, setCancellationOrderId] = useState('');
+  const [cancellationReason, setCancellationReason] = useState('');
+  const [returnQuantities, setReturnQuantities] = useState({});
   const [form, setForm] = useState({
     date: today(),
     reference: createReference(),
@@ -59,6 +63,7 @@ const SalesForm = ({ onSave, onCancel }) => {
         setMembers(options.members || []);
         setRevenueAccounts(options.revenueAccounts || []);
         setOutstandingSales(options.outstandingSales || []);
+        setCancellableSales([]);
         setCollectionOrderId(options.outstandingSales?.[0]?.id || '');
         setError(`${message} Showing the saved options; the server will validate stock, balances, and eligibility when this operation syncs.`);
         setLoading(false);
@@ -83,7 +88,7 @@ const SalesForm = ({ onSave, onCancel }) => {
           .eq('is_active', true)
           .order('account_name'),
         supabase.from('sales_orders')
-          .select('id, order_number, customer_name, net_amount, amount_paid, payment_status')
+          .select('id, order_number, customer_name, net_amount, amount_paid, payment_status, order_status, cash_receipt_id, sales_order_items(id, product_id, item_description, quantity, product:products(product_name))')
           .in('payment_status', ['pending', 'partial'])
           .order('order_date', { ascending: true })
       ]);
@@ -93,11 +98,60 @@ const SalesForm = ({ onSave, onCancel }) => {
         await loadCachedOptions(getDataLoadErrorMessage(failure, 'sales options'));
       }
       else {
+        const openSales = saleResult.data || [];
+        const eligibleForCancellation = openSales.filter((sale) =>
+          !sale.cash_receipt_id &&
+          sale.order_status !== 'cancelled' &&
+          Number(sale.amount_paid || 0) <= 0.01
+        );
+        const stockResult = eligibleForCancellation.length
+          ? await supabase.from('stock_movements')
+            .select('product_id, reference_number, quantity, movement_type')
+            .in('reference_number', eligibleForCancellation.map((sale) => sale.order_number))
+            .in('movement_type', ['sale', 'return'])
+          : { data: [], error: null };
+        if (!active) return;
+        if (stockResult.error) {
+          await loadCachedOptions(getDataLoadErrorMessage(stockResult.error, 'sale return quantities'));
+          return;
+        }
+        const movementsBySale = new Map();
+        for (const movement of stockResult.data || []) {
+          const key = `${movement.reference_number}:${movement.product_id}`;
+          const current = movementsBySale.get(key) || { sold: 0, returned: 0 };
+          if (movement.movement_type === 'sale') current.sold += Number(movement.quantity || 0);
+          if (movement.movement_type === 'return') current.returned += Number(movement.quantity || 0);
+          movementsBySale.set(key, current);
+        }
+        const salesWithReturnableItems = eligibleForCancellation.map((sale) => {
+          const itemMap = new Map();
+          for (const item of sale.sales_order_items || []) {
+            if (!item.product_id) continue;
+            if (!itemMap.has(item.product_id)) itemMap.set(item.product_id, {
+              product_id: item.product_id,
+              description: item.product?.product_name || item.item_description,
+            });
+          }
+          return {
+            ...sale,
+            returnableItems: [...itemMap.values()].map((item) => {
+              const quantities = movementsBySale.get(`${sale.order_number}:${item.product_id}`) || { sold: 0, returned: 0 };
+              return {
+                ...item,
+                sold: quantities.sold,
+                returned: quantities.returned,
+                remaining: Math.max(quantities.sold - quantities.returned, 0),
+              };
+            }),
+          };
+        });
         setProducts(productResult.data || []);
         setMembers(memberResult.data || []);
         setRevenueAccounts(accountResult.data || []);
-        setOutstandingSales((saleResult.data || []).filter((sale) => Number(sale.net_amount) > Number(sale.amount_paid || 0)));
-        setCollectionOrderId((saleResult.data || []).find((sale) => Number(sale.net_amount) > Number(sale.amount_paid || 0))?.id || '');
+        setOutstandingSales(openSales.filter((sale) => Number(sale.net_amount) > Number(sale.amount_paid || 0)));
+        setCollectionOrderId(openSales.find((sale) => Number(sale.net_amount) > Number(sale.amount_paid || 0))?.id || '');
+        setCancellableSales(salesWithReturnableItems);
+        setCancellationOrderId(salesWithReturnableItems[0]?.id || '');
         if ((accountResult.data || []).some((account) => account.account_name === 'Sales')) {
           setForm((current) => ({ ...current, revenueAccount: 'Sales' }));
         } else if (accountResult.data?.[0]) {
@@ -138,6 +192,41 @@ const SalesForm = ({ onSave, onCancel }) => {
     event.preventDefault();
     setError('');
     const amount = Number(form.amount);
+    if (flow === 'cancel') {
+      const sale = cancellableSales.find((item) => item.id === cancellationOrderId);
+      const returnedItems = (sale?.returnableItems || [])
+        .map((item) => ({ product_id: item.product_id, quantity: Number(returnQuantities[item.product_id] || 0) }))
+        .filter((item) => item.quantity > 0);
+      if (!navigator.onLine || offlineMode) {
+        setError('Reconnect before cancelling a sale. The server must validate the reversal and inventory return together.');
+        return;
+      }
+      if (!sale || !cancellationReason.trim()) {
+        setError('Select an unpaid credit sale and enter a cancellation reason.');
+        return;
+      }
+      if (returnedItems.some((item) =>
+        !Number.isInteger(item.quantity) ||
+        item.quantity > sale.returnableItems.find((candidate) => candidate.product_id === item.product_id)?.remaining
+      )) {
+        setError('Returned quantities must be whole numbers and cannot exceed the remaining quantity sold.');
+        return;
+      }
+      setSaving(true);
+      try {
+        await onSave({
+          action: 'cancel-credit-sale',
+          p_sales_order_id: sale.id,
+          p_reason: cancellationReason.trim(),
+          p_returned_items: returnedItems,
+        });
+      } catch (saveError) {
+        setError(saveError.message || 'The credit sale could not be cancelled.');
+      } finally {
+        setSaving(false);
+      }
+      return;
+    }
     if (flow === 'collection') {
       const sale = outstandingSales.find((item) => item.id === collectionOrderId);
       const outstanding = sale ? Number(sale.net_amount) - Number(sale.amount_paid || 0) : 0;
@@ -236,22 +325,63 @@ const SalesForm = ({ onSave, onCancel }) => {
               >
                 <option value="sale">Record a sale</option>
                 <option value="collection">Collect against a credit sale</option>
+                <option value="cancel">Cancel an unpaid credit sale</option>
               </select>
             </label>
-            <label className="text-sm font-medium text-gray-700">
-              {flow === 'sale' ? 'Sale date *' : 'Collection date *'}
-              <input type="date" value={form.date} onChange={(event) => setForm({ ...form, date: event.target.value })} required className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2" />
-            </label>
-            <label className="text-sm font-medium text-gray-700">
-              {flow === 'sale' ? 'Sale reference / invoice number *' : 'Collection reference *'}
-              <input value={form.reference} onChange={(event) => setForm({ ...form, reference: event.target.value })} required className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2" />
-              <span className="mt-1 block text-xs text-gray-500">
-                {flow === 'sale' && form.paymentType === 'credit'
-                  ? 'This identifies the sale record. An official receipt number is issued when payment is collected.'
-                  : 'This identifies the sale or collection record. The official receipt number is issued by the server after recording.'}
-              </span>
-            </label>
-            {flow === 'collection' ? (
+            {flow !== 'cancel' && (
+              <>
+                <label className="text-sm font-medium text-gray-700">
+                  {flow === 'sale' ? 'Sale date *' : 'Collection date *'}
+                  <input type="date" value={form.date} onChange={(event) => setForm({ ...form, date: event.target.value })} required className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2" />
+                </label>
+                <label className="text-sm font-medium text-gray-700">
+                  {flow === 'sale' ? 'Sale reference / invoice number *' : 'Collection reference *'}
+                  <input value={form.reference} onChange={(event) => setForm({ ...form, reference: event.target.value })} required className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2" />
+                  <span className="mt-1 block text-xs text-gray-500">
+                    {flow === 'sale' && form.paymentType === 'credit'
+                      ? 'This identifies the sale record. An official receipt number is issued when payment is collected.'
+                      : 'This identifies the sale or collection record. The official receipt number is issued by the server after recording.'}
+                  </span>
+                </label>
+              </>
+            )}
+            {flow === 'cancel' ? (
+              <>
+                <label className="text-sm font-medium text-gray-700 sm:col-span-2">
+                  Unpaid credit sale *
+                  <select value={cancellationOrderId} onChange={(event) => setCancellationOrderId(event.target.value)} required className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2">
+                    <option value="">Select an unpaid credit sale</option>
+                    {cancellableSales.map((sale) => (
+                      <option key={sale.id} value={sale.id}>{sale.order_number} — {sale.customer_name}</option>
+                    ))}
+                  </select>
+                  {cancellableSales.length === 0 && <span className="mt-1 block text-xs text-gray-500">No unpaid credit sales are currently eligible. Any collection receipt must be voided separately first.</span>}
+                </label>
+                {cancellableSales.find((sale) => sale.id === cancellationOrderId)?.returnableItems.map((item) => (
+                  <label key={item.product_id} className="text-sm font-medium text-gray-700">
+                    Returned quantity — {item.description}
+                    <span className="mt-1 block text-xs font-normal text-gray-500">
+                      {item.remaining} unit(s) remain eligible for return ({item.returned} already returned).
+                    </span>
+                    <input
+                      type="number"
+                      min="0"
+                      max={item.remaining}
+                      step="1"
+                      value={returnQuantities[item.product_id] || '0'}
+                      onChange={(event) => setReturnQuantities({ ...returnQuantities, [item.product_id]: event.target.value })}
+                      disabled={item.remaining === 0}
+                      className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2"
+                    />
+                  </label>
+                ))}
+                <label className="text-sm font-medium text-gray-700 sm:col-span-2">
+                  Cancellation reason *
+                  <textarea value={cancellationReason} onChange={(event) => setCancellationReason(event.target.value)} rows={3} required className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2" />
+                  <span className="mt-1 block text-xs font-normal text-gray-500">Any collected receipts must be voided or refunded separately. Enter only quantities physically returned; other stock will not be restored.</span>
+                </label>
+              </>
+            ) : flow === 'collection' ? (
               <>
                 <label className="text-sm font-medium text-gray-700 sm:col-span-2">
                   Outstanding credit sale *
@@ -373,7 +503,7 @@ const SalesForm = ({ onSave, onCancel }) => {
           {flow === 'sale' && form.productId && <p className="rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-900">If this product has inventory tracked, the system checks available stock and records the sale movement.</p>}
           <div className="flex justify-end gap-3">
             <button type="button" onClick={onCancel} disabled={saving} className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">Cancel</button>
-            <button type="submit" disabled={saving || loading || (flow === 'sale' && !revenueAccounts.length) || (flow === 'collection' && !outstandingSales.length)} className="rounded-lg bg-orange-600 px-5 py-2 text-sm font-medium text-white hover:bg-orange-700 disabled:opacity-60">{saving ? 'Recording…' : flow === 'sale' ? 'Record Sale' : 'Record Collection'}</button>
+            <button type="submit" disabled={saving || loading || (flow === 'sale' && !revenueAccounts.length) || (flow === 'collection' && !outstandingSales.length) || (flow === 'cancel' && (!cancellableSales.length || !navigator.onLine || offlineMode))} className="rounded-lg bg-orange-600 px-5 py-2 text-sm font-medium text-white hover:bg-orange-700 disabled:opacity-60">{saving ? 'Recording…' : flow === 'sale' ? 'Record Sale' : flow === 'collection' ? 'Record Collection' : 'Cancel Credit Sale'}</button>
           </div>
         </form>
       )}

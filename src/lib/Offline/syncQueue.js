@@ -30,6 +30,7 @@ export async function queueOperation({
   summary = null,
   details = null,
   dependsOn = [],
+  operationId: requestedOperationId = null,
 }) {
   const metadata = OPERATION_METADATA[type];
   if (!metadata) {
@@ -58,7 +59,13 @@ export async function queueOperation({
     throw new Error("Operation dependencies must be valid operation IDs.");
   }
 
-  const operationId = crypto.randomUUID();
+  const operationId = requestedOperationId || crypto.randomUUID();
+  if (
+    typeof operationId !== "string" ||
+    !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(operationId)
+  ) {
+    throw new Error("A valid persistent operation ID is required.");
+  }
   const createdAt = new Date().toISOString();
 
   await offlineDb.syncQueue.add({

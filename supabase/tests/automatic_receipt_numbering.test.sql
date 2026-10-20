@@ -17,9 +17,8 @@ SELECT public.next_cooperative_receipt_number();
 UPDATE receipt_numbering_test
 SET second_receipt = public.next_cooperative_receipt_number();
 
-SELECT like(
-  first_receipt,
-  'AMCOMS-' || to_char(clock_timestamp() AT TIME ZONE 'Asia/Manila', 'YYYY') || '-%',
+SELECT ok(
+  first_receipt LIKE 'AMCOMS-' || to_char(clock_timestamp() AT TIME ZONE 'Asia/Manila', 'YYYY') || '-%',
   'Receipt number uses the current cooperative calendar year'
 )
 FROM receipt_numbering_test;

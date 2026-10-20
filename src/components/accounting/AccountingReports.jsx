@@ -15,7 +15,7 @@ const useBalances = (from, to) => {
   const load = useCallback(async () => {
     const { data, error: rpcError } = await supabase.rpc('get_account_balances', { p_from: from || null, p_to: to || null });
     setError(rpcError ? getDataLoadErrorMessage(rpcError, 'financial report') : '');
-    setRows(data || []);
+    setRows(rpcError ? [] : data || []);
     setLoading(false);
   }, [from, to]);
 
@@ -83,7 +83,9 @@ export const TrialBalance = () => {
           <h2 className="text-base font-semibold text-gray-900">Trial Balance</h2>
           <p className="text-sm text-gray-600">{periodLabel}</p>
         </div>
-        {loading ? <p className="py-8 text-center text-sm text-gray-500">Loading...</p> : (
+        {loading ? <p className="py-8 text-center text-sm text-gray-500">Loading...</p> : error ? (
+          <p className="px-4 py-8 text-center text-sm text-gray-500">The report could not be calculated. Resolve the error above and try again.</p>
+        ) : (
           <table className="min-w-full text-sm">
             <thead className="bg-gray-50 text-left text-xs uppercase text-gray-500">
               <tr><th className="px-4 py-2">Code</th><th className="px-4 py-2">Account</th><th className="px-4 py-2 text-right">Debit</th><th className="px-4 py-2 text-right">Credit</th></tr>
@@ -176,7 +178,9 @@ export const FinancialStatements = () => {
         <button type="button" onClick={() => window.print()} className={buttonClass}><Printer className="size-4" aria-hidden="true" />Print</button>
       </div>
       {error && <p role="alert" className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{error}</p>}
-      {loading ? <p className="py-8 text-center text-sm text-gray-500">Loading...</p> : (
+      {loading ? <p className="py-8 text-center text-sm text-gray-500">Loading...</p> : error ? (
+        <p className="py-8 text-center text-sm text-gray-500">The report could not be calculated. Resolve the error above and try again.</p>
+      ) : (
         <div id="gl-print" className="grid gap-4 lg:grid-cols-2">
           <section className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
             <div className="border-b border-gray-200 px-4 py-4 text-center">

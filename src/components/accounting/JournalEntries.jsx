@@ -332,6 +332,7 @@ const JournalEntries = ({ canPost }) => {
                 <th className="px-3 py-2">Description</th>
                 <th className="px-3 py-2">Type</th>
                 <th className="px-3 py-2">Source</th>
+                <th className="px-3 py-2">Source reference</th>
                 <th className="px-3 py-2 text-right">Amount</th>
                 <th className="px-3 py-2">Status</th>
                 <th className="px-3 py-2">Posted by</th>
@@ -350,12 +351,16 @@ const JournalEntries = ({ canPost }) => {
                       <td className="px-3 py-2 text-gray-700">{entry.description}</td>
                       <td className="px-3 py-2 capitalize">{entry.entry_type}</td>
                       <td className="whitespace-nowrap px-3 py-2 text-gray-600">{entry.source_type}</td>
+                      <td className="whitespace-nowrap px-3 py-2 text-gray-600">
+                        {[entry.source_reference, entry.reference_number && entry.reference_number !== entry.source_reference ? entry.reference_number : null]
+                          .filter(Boolean).join(' · ') || '-'}
+                      </td>
                       <td className="whitespace-nowrap px-3 py-2 text-right">{amount(entry.total_debit)}</td>
                       <td className="px-3 py-2"><span className={`rounded px-2 py-0.5 text-xs font-semibold ${badge}`}>{label}</span></td>
                       <td className="px-3 py-2 text-gray-600">{entry.posted_by_name || ''}</td>
                     </tr>
                     {open && (
-                      <tr><td colSpan={9} className="p-0"><EntryDetail entry={entry} canPost={canPost} onReversed={load} /></td></tr>
+                      <tr><td colSpan={10} className="p-0"><EntryDetail entry={entry} canPost={canPost} onReversed={load} /></td></tr>
                     )}
                   </React.Fragment>
                 );

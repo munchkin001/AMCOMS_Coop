@@ -1,346 +1,303 @@
-import React, { useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { Download, Printer } from 'lucide-react';
+import { supabase } from '../../lib/supabase';
+import { getDataLoadErrorMessage } from '../../lib/errorHandler';
+import { useMultipleRealtimeSubscriptions } from '../../hooks/useRealtimeSubscription';
+
+const currentMonth = new Date().toISOString().slice(0, 7);
+const today = () => new Date().toISOString().slice(0, 10);
+const money = (value) => Number(value || 0).toLocaleString('en-PH', {
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2,
+});
+const csvCell = (value) => {
+  const text = String(value ?? '');
+  const safeText = /^[=+\-@]/.test(text) ? `'${text}` : text;
+  return `"${safeText.replaceAll('"', '""')}"`;
+};
+
+const getDateRange = (period, selectedDate) => {
+  if (period === 'daily') return { from: selectedDate, to: selectedDate };
+  const [year, month] = selectedDate.split('-').map(Number);
+  if (period === 'annual') return { from: `${year}-01-01`, to: `${year}-12-31` };
+  if (period === 'quarterly') {
+    const firstMonth = Math.floor((month - 1) / 3) * 3 + 1;
+    const lastMonth = firstMonth + 2;
+    return {
+      from: `${year}-${String(firstMonth).padStart(2, '0')}-01`,
+      to: new Date(Date.UTC(year, lastMonth, 0)).toISOString().slice(0, 10),
+    };
+  }
+  return {
+    from: `${year}-${String(month).padStart(2, '0')}-01`,
+    to: new Date(Date.UTC(year, month, 0)).toISOString().slice(0, 10),
+  };
+};
 
 const FinancialReports = () => {
   const [reportType, setReportType] = useState('financial-summary');
   const [period, setPeriod] = useState('monthly');
-  const [selectedMonth, setSelectedMonth] = useState('2026-06');
+  const [selectedDate, setSelectedDate] = useState(currentMonth);
   const [showPreview, setShowPreview] = useState(false);
+  const [requestVersion, setRequestVersion] = useState(0);
+  const [rows, setRows] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const range = useMemo(() => getDateRange(period, selectedDate), [period, selectedDate]);
+  const handlePeriodChange = (nextPeriod) => {
+    setPeriod(nextPeriod);
+    setSelectedDate((current) => {
+      if (nextPeriod === 'daily') return current.length === 10 ? current : today();
+      return current.slice(0, 7);
+    });
+    if (showPreview) {
+      setLoading(true);
+      setError('');
+      setRows([]);
+    }
+  };
+  const handleDateChange = (nextDate) => {
+    if (!nextDate) return;
+    setSelectedDate(nextDate);
+    if (showPreview) {
+      setLoading(true);
+      setError('');
+      setRows([]);
+    }
+  };
+  const refreshReport = useCallback(() => {
+    if (!showPreview) return;
+    setLoading(true);
+    setError('');
+    setRows([]);
+    setRequestVersion((version) => version + 1);
+  }, [showPreview]);
 
-  const reportData = {
-    period: 'June 2026',
-    totalIncome: 350000,
-    totalExpenses: 210000,
-    netIncome: 140000,
-    incomeBreakdown: [
-      { category: 'Product Sales', amount: 150000 },
-      { category: 'Loan Interest', amount: 45000 },
-      { category: 'Membership Fees', amount: 10000 },
-      { category: 'Other Income', amount: 5000 }
-    ],
-    expenseBreakdown: [
-      { category: 'Utilities', amount: 20000 },
-      { category: 'Transportation', amount: 12000 },
-      { category: 'Office Supplies', amount: 8000 },
-      { category: 'Maintenance', amount: 6000 },
-      { category: 'Other Expenses', amount: 4000 }
-    ]
+  useMultipleRealtimeSubscriptions([
+    { table: 'journal_entries', onUpdate: refreshReport },
+    { table: 'journal_entry_lines', onUpdate: refreshReport },
+  ], [refreshReport]);
+
+  useEffect(() => {
+    if (!showPreview) return undefined;
+    let active = true;
+    supabase.rpc('get_account_balances', { p_from: range.from, p_to: range.to })
+      .then(({ data, error: rpcError }) => {
+        if (!active) return;
+        if (rpcError) {
+          setError(getDataLoadErrorMessage(rpcError, 'financial report'));
+          setRows([]);
+        } else {
+          setRows(data || []);
+        }
+      })
+      .catch((loadError) => {
+        if (!active) return;
+        setError(getDataLoadErrorMessage(loadError, 'financial report'));
+        setRows([]);
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+    return () => { active = false; };
+  }, [range.from, range.to, requestVersion, showPreview]);
+
+  const report = useMemo(() => {
+    const income = rows
+      .filter((row) => row.account_type === 'revenue')
+      .map((row) => ({ ...row, amount: Number(row.period_credit) - Number(row.period_debit) }))
+      .filter((row) => row.amount !== 0);
+    const expenses = rows
+      .filter((row) => row.account_type === 'expense')
+      .map((row) => ({ ...row, amount: Number(row.period_debit) - Number(row.period_credit) }))
+      .filter((row) => row.amount !== 0);
+    const cashAccounts = rows
+      .filter((row) => row.account_type === 'asset'
+        && /cash|bank/i.test(row.account_name))
+      .map((row) => ({
+        ...row,
+        received: Number(row.period_debit),
+        released: Number(row.period_credit),
+        closing: Number(row.closing_balance),
+      }))
+      .filter((row) => row.received || row.released || row.closing);
+    const totalIncome = income.reduce((sum, row) => sum + row.amount, 0);
+    const totalExpenses = expenses.reduce((sum, row) => sum + row.amount, 0);
+    return {
+      income,
+      expenses,
+      cashAccounts,
+      totalIncome,
+      totalExpenses,
+      netIncome: totalIncome - totalExpenses,
+      cashReceived: cashAccounts.reduce((sum, row) => sum + row.received, 0),
+      cashReleased: cashAccounts.reduce((sum, row) => sum + row.released, 0),
+      cashBalance: cashAccounts.reduce((sum, row) => sum + row.closing, 0),
+    };
+  }, [rows]);
+
+  const reportTitle = {
+    'financial-summary': 'Financial Summary',
+    'income-report': 'Income Report',
+    'expense-report': 'Expense Report',
+    'cash-summary': 'Cash Summary',
+  }[reportType];
+
+  const downloadReport = () => {
+    const sections = reportType === 'income-report'
+      ? [['Income account', 'Amount'], ...report.income.map((row) => [row.account_name, row.amount])]
+      : reportType === 'expense-report'
+        ? [['Expense account', 'Amount'], ...report.expenses.map((row) => [row.account_name, row.amount])]
+        : reportType === 'cash-summary'
+          ? [['Cash account', 'Received', 'Released', 'Ending balance'],
+            ...report.cashAccounts.map((row) => [row.account_name, row.received, row.released, row.closing])]
+          : [['Category', 'Amount'],
+            ...report.income.map((row) => [`Income: ${row.account_name}`, row.amount]),
+            ...report.expenses.map((row) => [`Expense: ${row.account_name}`, row.amount]),
+            ['Net income', report.netIncome]];
+    const csv = [
+      ['AMCOMS', reportTitle, `${range.from} to ${range.to}`],
+      ...sections,
+    ].map((row) => row.map(csvCell).join(',')).join('\r\n');
+    const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `amcoms-${reportType}-${range.from}-to-${range.to}.csv`;
+    link.click();
+    window.setTimeout(() => URL.revokeObjectURL(url), 0);
   };
 
-  const handleGenerateReport = () => {
-    setShowPreview(true);
-  };
-
-  const handlePrint = () => {
-    window.print();
-  };
-
-  const handleDownload = () => {
-    alert('Report download functionality would be implemented here');
-  };
+  const breakdown = reportType === 'income-report' ? report.income
+    : reportType === 'expense-report' ? report.expenses
+      : [];
 
   return (
     <div className="space-y-6">
-      {/* Report Configuration */}
-      <div className="bg-white rounded-lg shadow p-6 border border-gray-200">
-        <h3 className="text-lg font-semibold text-gray-900 mb-4">Report Configuration</h3>
-        
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Report Type</label>
-            <select
-              value={reportType}
-              onChange={(e) => setReportType(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500"
-            >
+      <div className="rounded-lg border border-gray-200 bg-white p-6 shadow">
+        <h3 className="mb-4 text-lg font-semibold text-gray-900">Report Configuration</h3>
+        <div className="mb-4 grid grid-cols-1 gap-4 md:grid-cols-3">
+          <label className="text-sm font-medium text-gray-700">
+            Report Type
+            <select value={reportType} onChange={(event) => setReportType(event.target.value)} className="mt-2 w-full rounded-lg border border-gray-300 px-3 py-2">
               <option value="financial-summary">Financial Summary</option>
               <option value="income-report">Income Report</option>
               <option value="expense-report">Expense Report</option>
               <option value="cash-summary">Cash Summary</option>
             </select>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Period</label>
-            <select
-              value={period}
-              onChange={(e) => setPeriod(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500"
-            >
+          </label>
+          <label className="text-sm font-medium text-gray-700">
+            Period
+            <select value={period} onChange={(event) => handlePeriodChange(event.target.value)} className="mt-2 w-full rounded-lg border border-gray-300 px-3 py-2">
               <option value="daily">Daily</option>
               <option value="monthly">Monthly</option>
               <option value="quarterly">Quarterly</option>
               <option value="annual">Annual</option>
             </select>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Select Month</label>
+          </label>
+          <label className="text-sm font-medium text-gray-700">
+            {period === 'daily' ? 'Select Date' : 'Select Month'}
             <input
-              type="month"
-              value={selectedMonth}
-              onChange={(e) => setSelectedMonth(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500"
+              type={period === 'daily' ? 'date' : 'month'}
+              value={selectedDate}
+              max={period === 'daily' ? today() : currentMonth}
+                onChange={(event) => handleDateChange(event.target.value)}
+              className="mt-2 w-full rounded-lg border border-gray-300 px-3 py-2"
             />
-          </div>
+          </label>
         </div>
-
-        <button
-          onClick={handleGenerateReport}
-          className="w-full px-4 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors font-medium"
-        >
+        <button type="button" onClick={() => {
+          setLoading(true);
+          setError('');
+          setRows([]);
+          setShowPreview(true);
+          setRequestVersion((version) => version + 1);
+        }} className="w-full rounded-lg bg-purple-600 px-4 py-3 font-medium text-white hover:bg-purple-700">
           Generate Report
         </button>
       </div>
 
-      {/* Report Preview */}
-      {showPreview && (
-        <div className="bg-white rounded-lg shadow border border-gray-200 p-8">
-          {/* Report Header */}
-          <div className="text-center mb-8 pb-6 border-b-2 border-gray-300">
-            <h1 className="text-3xl font-bold text-gray-900 mb-2">AMCOMS</h1>
+      {error && <p role="alert" className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{error}</p>}
+      {showPreview && !error && (
+        <section className="rounded-lg border border-gray-200 bg-white p-6 shadow">
+          <header className="mb-6 border-b-2 border-gray-300 pb-6 text-center">
+            <h1 className="mb-2 text-3xl font-bold text-gray-900">AMCOMS</h1>
             <h2 className="text-xl font-semibold text-gray-700">AGAY-AYAN MULTI-PURPOSE COOPERATIVE</h2>
-            <div className="mt-4">
-              <h3 className="text-lg font-semibold text-purple-600">
-                {reportType === 'financial-summary' && 'MONTHLY FINANCIAL SUMMARY'}
-                {reportType === 'income-report' && 'INCOME REPORT'}
-                {reportType === 'expense-report' && 'EXPENSE REPORT'}
-                {reportType === 'cash-summary' && 'CASH SUMMARY'}
-              </h3>
-              <p className="text-sm text-gray-600 mt-1">{reportData.period}</p>
-            </div>
-          </div>
-
-          {/* Financial Summary Report */}
-          {reportType === 'financial-summary' && (
-            <div className="space-y-6">
-              <div className="grid grid-cols-2 gap-8">
-                <div>
-                  <h4 className="font-semibold text-gray-900 mb-3 text-lg">INCOME</h4>
-                  <div className="space-y-2">
-                    {reportData.incomeBreakdown.map((item, idx) => (
-                      <div key={idx} className="flex justify-between text-sm">
-                        <span className="text-gray-700">{item.category}</span>
-                        <span className="font-semibold text-gray-900">₱{item.amount.toLocaleString()}</span>
-                      </div>
-                    ))}
-                    <div className="pt-2 mt-2 border-t border-gray-300 flex justify-between font-bold">
-                      <span>Total Income:</span>
-                      <span className="text-green-600">₱{reportData.totalIncome.toLocaleString()}</span>
-                    </div>
-                  </div>
+            <h3 className="mt-4 text-lg font-semibold text-purple-600">{reportTitle.toUpperCase()}</h3>
+            <p className="mt-1 text-sm text-gray-600">{range.from} to {range.to}</p>
+          </header>
+          {loading ? <p className="py-8 text-center text-sm text-gray-500">Loading posted accounting data...</p> : (
+            <>
+              {reportType === 'financial-summary' && (
+                <div className="grid gap-6 md:grid-cols-2">
+                  <ReportRows title="Income" rows={report.income} total={report.totalIncome} color="green" />
+                  <ReportRows title="Expenses" rows={report.expenses} total={report.totalExpenses} color="red" />
+                  <p className="rounded-lg border-2 border-purple-300 bg-purple-50 p-4 text-lg font-bold md:col-span-2">
+                    Net {report.netIncome < 0 ? 'deficit' : 'surplus'}: ₱{money(Math.abs(report.netIncome))}
+                  </p>
                 </div>
-
-                <div>
-                  <h4 className="font-semibold text-gray-900 mb-3 text-lg">EXPENSES</h4>
-                  <div className="space-y-2">
-                    {reportData.expenseBreakdown.map((item, idx) => (
-                      <div key={idx} className="flex justify-between text-sm">
-                        <span className="text-gray-700">{item.category}</span>
-                        <span className="font-semibold text-gray-900">₱{item.amount.toLocaleString()}</span>
-                      </div>
-                    ))}
-                    <div className="pt-2 mt-2 border-t border-gray-300 flex justify-between font-bold">
-                      <span>Total Expenses:</span>
-                      <span className="text-red-600">₱{reportData.totalExpenses.toLocaleString()}</span>
-                    </div>
-                  </div>
+              )}
+              {(reportType === 'income-report' || reportType === 'expense-report') && (
+                <ReportRows title={reportTitle} rows={breakdown} total={breakdown.reduce((sum, row) => sum + row.amount, 0)} color={reportType === 'income-report' ? 'green' : 'red'} />
+              )}
+              {reportType === 'cash-summary' && (
+                <div className="overflow-x-auto">
+                  <table className="min-w-full text-sm">
+                    <thead className="bg-gray-50 text-left text-xs uppercase text-gray-500">
+                      <tr><th className="px-4 py-2">Cash / bank account</th><th className="px-4 py-2 text-right">Received</th><th className="px-4 py-2 text-right">Released</th><th className="px-4 py-2 text-right">Ending balance</th></tr>
+                    </thead>
+                    <tbody>
+                      {report.cashAccounts.map((row) => (
+                        <tr key={row.account_id} className="border-t border-gray-100">
+                          <td className="px-4 py-2">{row.account_name}</td>
+                          <td className="px-4 py-2 text-right">₱{money(row.received)}</td>
+                          <td className="px-4 py-2 text-right">₱{money(row.released)}</td>
+                          <td className="px-4 py-2 text-right">₱{money(row.closing)}</td>
+                        </tr>
+                      ))}
+                      {report.cashAccounts.length === 0 && <tr><td colSpan={4} className="px-4 py-8 text-center text-gray-500">No cash or bank accounts have posted activity in this report.</td></tr>}
+                    </tbody>
+                    <tfoot className="border-t-2 border-gray-300 bg-gray-50 font-semibold">
+                      <tr><td className="px-4 py-2">Total</td><td className="px-4 py-2 text-right">₱{money(report.cashReceived)}</td><td className="px-4 py-2 text-right">₱{money(report.cashReleased)}</td><td className="px-4 py-2 text-right">₱{money(report.cashBalance)}</td></tr>
+                    </tfoot>
+                  </table>
                 </div>
+              )}
+              <p className="mt-6 text-center text-xs text-gray-500">Amounts are calculated from posted journal entries for this period.</p>
+              <div className="mt-6 flex flex-wrap gap-3 border-t border-gray-200 pt-5">
+                <button type="button" onClick={() => window.print()} className="flex flex-1 items-center justify-center gap-2 rounded-lg bg-gray-600 px-4 py-3 font-medium text-white hover:bg-gray-700">
+                  <Printer className="size-5" aria-hidden="true" />Print
+                </button>
+                <button type="button" disabled={loading} onClick={downloadReport} className="flex flex-1 items-center justify-center gap-2 rounded-lg bg-purple-600 px-4 py-3 font-medium text-white hover:bg-purple-700 disabled:opacity-50">
+                  <Download className="size-5" aria-hidden="true" />Download CSV
+                </button>
               </div>
-
-              <div className="pt-6 mt-6 border-t-2 border-gray-400">
-                <div className="bg-purple-50 border-2 border-purple-300 rounded-lg p-4">
-                  <div className="flex justify-between items-center">
-                    <span className="text-lg font-bold text-gray-900">NET INCOME:</span>
-                    <span className="text-3xl font-bold text-purple-600">₱{reportData.netIncome.toLocaleString()}</span>
-                  </div>
-                </div>
-              </div>
-
-              <div className="pt-6 mt-6 text-center text-sm text-gray-600">
-                <p>Generated on {new Date().toLocaleString('en-US', { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</p>
-                <p className="mt-1">Prepared by: Bookkeeper</p>
-              </div>
-            </div>
+            </>
           )}
-
-          {/* Income Report */}
-          {reportType === 'income-report' && (
-            <div className="space-y-6">
-              <table className="w-full">
-                <thead className="bg-gray-50 border-b-2 border-gray-300">
-                  <tr>
-                    <th className="text-left py-3 px-4 font-semibold text-gray-700">Category</th>
-                    <th className="text-right py-3 px-4 font-semibold text-gray-700">Amount</th>
-                    <th className="text-right py-3 px-4 font-semibold text-gray-700">Percentage</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {reportData.incomeBreakdown.map((item, idx) => (
-                    <tr key={idx} className="border-b border-gray-200">
-                      <td className="py-3 px-4 text-gray-900">{item.category}</td>
-                      <td className="py-3 px-4 text-right font-semibold text-gray-900">₱{item.amount.toLocaleString()}</td>
-                      <td className="py-3 px-4 text-right text-gray-600">
-                        {((item.amount / reportData.totalIncome) * 100).toFixed(1)}%
-                      </td>
-                    </tr>
-                  ))}
-                  <tr className="bg-green-50 border-t-2 border-green-300 font-bold">
-                    <td className="py-3 px-4 text-gray-900">TOTAL INCOME</td>
-                    <td className="py-3 px-4 text-right text-green-600 text-lg">₱{reportData.totalIncome.toLocaleString()}</td>
-                    <td className="py-3 px-4 text-right text-gray-900">100%</td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-          )}
-
-          {/* Expense Report */}
-          {reportType === 'expense-report' && (
-            <div className="space-y-6">
-              <table className="w-full">
-                <thead className="bg-gray-50 border-b-2 border-gray-300">
-                  <tr>
-                    <th className="text-left py-3 px-4 font-semibold text-gray-700">Category</th>
-                    <th className="text-right py-3 px-4 font-semibold text-gray-700">Amount</th>
-                    <th className="text-right py-3 px-4 font-semibold text-gray-700">Percentage</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {reportData.expenseBreakdown.map((item, idx) => (
-                    <tr key={idx} className="border-b border-gray-200">
-                      <td className="py-3 px-4 text-gray-900">{item.category}</td>
-                      <td className="py-3 px-4 text-right font-semibold text-gray-900">₱{item.amount.toLocaleString()}</td>
-                      <td className="py-3 px-4 text-right text-gray-600">
-                        {((item.amount / reportData.totalExpenses) * 100).toFixed(1)}%
-                      </td>
-                    </tr>
-                  ))}
-                  <tr className="bg-red-50 border-t-2 border-red-300 font-bold">
-                    <td className="py-3 px-4 text-gray-900">TOTAL EXPENSES</td>
-                    <td className="py-3 px-4 text-right text-red-600 text-lg">₱{reportData.totalExpenses.toLocaleString()}</td>
-                    <td className="py-3 px-4 text-right text-gray-900">100%</td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-          )}
-
-          {/* Cash Summary */}
-          {reportType === 'cash-summary' && (
-            <div className="space-y-6">
-              <div className="space-y-4">
-                <div className="flex justify-between items-center py-3 border-b border-gray-200">
-                  <span className="text-gray-700 font-medium">Cash Received:</span>
-                  <span className="text-lg font-bold text-green-600">₱{reportData.totalIncome.toLocaleString()}</span>
-                </div>
-                <div className="flex justify-between items-center py-3 border-b border-gray-200">
-                  <span className="text-gray-700 font-medium">Cash Released:</span>
-                  <span className="text-lg font-bold text-red-600">₱{reportData.totalExpenses.toLocaleString()}</span>
-                </div>
-                <div className="flex justify-between items-center py-4 bg-purple-50 px-4 rounded-lg border-2 border-purple-300">
-                  <span className="text-gray-900 font-bold text-lg">Ending Balance:</span>
-                  <span className="text-2xl font-bold text-purple-600">₱{reportData.netIncome.toLocaleString()}</span>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Action Buttons */}
-          <div className="flex space-x-3 mt-8 pt-6 border-t border-gray-200">
-            <button
-              onClick={handlePrint}
-              className="flex-1 px-4 py-3 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors font-medium flex items-center justify-center space-x-2"
-            >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
-              </svg>
-              <span>Print</span>
-            </button>
-            <button
-              onClick={handleDownload}
-              className="flex-1 px-4 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors font-medium flex items-center justify-center space-x-2"
-            >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-              </svg>
-              <span>Download</span>
-            </button>
-          </div>
-        </div>
+        </section>
       )}
-
-      {/* Quick Report Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <button
-          onClick={() => { setReportType('financial-summary'); setShowPreview(false); }}
-          className={`p-6 rounded-lg border-2 transition-all text-left ${
-            reportType === 'financial-summary'
-              ? 'bg-purple-50 border-purple-500 shadow-lg'
-              : 'bg-white border-gray-200 hover:border-purple-300 hover:shadow'
-          }`}
-        >
-          <div className="flex items-center space-x-3 mb-2">
-            <svg className="w-8 h-8 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-            </svg>
-            <h3 className="font-semibold text-gray-900">Financial Summary</h3>
-          </div>
-          <p className="text-sm text-gray-600">Complete overview of income, expenses, and net income</p>
-        </button>
-
-        <button
-          onClick={() => { setReportType('income-report'); setShowPreview(false); }}
-          className={`p-6 rounded-lg border-2 transition-all text-left ${
-            reportType === 'income-report'
-              ? 'bg-green-50 border-green-500 shadow-lg'
-              : 'bg-white border-gray-200 hover:border-green-300 hover:shadow'
-          }`}
-        >
-          <div className="flex items-center space-x-3 mb-2">
-            <svg className="w-8 h-8 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
-            </svg>
-            <h3 className="font-semibold text-gray-900">Income Report</h3>
-          </div>
-          <p className="text-sm text-gray-600">Detailed breakdown of all income sources</p>
-        </button>
-
-        <button
-          onClick={() => { setReportType('expense-report'); setShowPreview(false); }}
-          className={`p-6 rounded-lg border-2 transition-all text-left ${
-            reportType === 'expense-report'
-              ? 'bg-red-50 border-red-500 shadow-lg'
-              : 'bg-white border-gray-200 hover:border-red-300 hover:shadow'
-          }`}
-        >
-          <div className="flex items-center space-x-3 mb-2">
-            <svg className="w-8 h-8 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 17h8m0 0V9m0 8l-8-8-4 4-6-6" />
-            </svg>
-            <h3 className="font-semibold text-gray-900">Expense Report</h3>
-          </div>
-          <p className="text-sm text-gray-600">Detailed breakdown of all expenses</p>
-        </button>
-
-        <button
-          onClick={() => { setReportType('cash-summary'); setShowPreview(false); }}
-          className={`p-6 rounded-lg border-2 transition-all text-left ${
-            reportType === 'cash-summary'
-              ? 'bg-blue-50 border-blue-500 shadow-lg'
-              : 'bg-white border-gray-200 hover:border-blue-300 hover:shadow'
-          }`}
-        >
-          <div className="flex items-center space-x-3 mb-2">
-            <svg className="w-8 h-8 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" />
-            </svg>
-            <h3 className="font-semibold text-gray-900">Cash Summary</h3>
-          </div>
-          <p className="text-sm text-gray-600">Cash received, released, and ending balance</p>
-        </button>
-      </div>
     </div>
   );
 };
+
+const ReportRows = ({ title, rows, total, color }) => (
+  <div className="overflow-hidden rounded-lg border border-gray-200">
+    <h4 className="border-b border-gray-200 px-4 py-3 text-lg font-semibold text-gray-900">{title}</h4>
+    <table className="min-w-full text-sm">
+      <tbody>
+        {rows.map((row) => (
+          <tr key={row.account_id} className="border-b border-gray-100">
+            <td className="px-4 py-2 text-gray-700">{row.account_name}</td>
+            <td className="px-4 py-2 text-right font-medium text-gray-900">₱{money(row.amount)}</td>
+          </tr>
+        ))}
+        {rows.length === 0 && <tr><td colSpan={2} className="px-4 py-6 text-center text-gray-500">No posted activity in this period.</td></tr>}
+        <tr className="border-t-2 border-gray-300 bg-gray-50 font-bold">
+          <td className="px-4 py-3">Total {title.toLowerCase()}</td>
+          <td className={`px-4 py-3 text-right ${color === 'green' ? 'text-green-700' : 'text-red-700'}`}>₱{money(total)}</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+);
 
 export default FinancialReports;

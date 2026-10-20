@@ -60,12 +60,12 @@ const PostingRules = () => {
   return (
     <div className="space-y-4">
       <div className="rounded-xl border border-gray-200 bg-white p-4 text-sm text-gray-600 shadow-sm">
-        How each transaction type is posted. The database applies these rules when a receipt or disbursement is saved, creating one balanced journal entry per document.
-        Expenses are posted as a debit to the chosen expense account and a credit to the cash account that paid.
+        This is a read-only reference for the configured account mappings. Transaction RPCs currently build and validate their journal lines directly; changing this reference table does not change how transactions are posted.
+        Each saved receipt or disbursement is still checked by the database posting workflow.
       </div>
       {error && <p role="alert" className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{error}</p>}
-      <Table title="Cash Receipts" rows={rows.filter((row) => row.document === 'receipt')} cashSide="Cash is always debited for money received. Receipts cannot credit expense accounts." />
-      <Table title="Cash Disbursements" rows={rows.filter((row) => row.document === 'disbursement')} cashSide="Cash is always credited for money paid. Disbursements cannot be charged to revenue or cash accounts." />
+      <Table title="Receipt Mapping Reference" rows={rows.filter((row) => row.document === 'receipt')} cashSide="Reference only: the transaction RPC validates and posts the actual receipt allocations." />
+      <Table title="Disbursement Mapping Reference" rows={rows.filter((row) => row.document === 'disbursement')} cashSide="Reference only: the transaction RPC validates and posts the actual disbursement allocations." />
     </div>
   );
 };

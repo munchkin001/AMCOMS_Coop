@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { supabase } from '../../lib/supabase';
@@ -21,17 +21,21 @@ const Transactions = ({ initialType = null, startNewTransaction = false }) => {
   const [selectedTransaction, setSelectedTransaction] = useState(null);
   const [actionError, setActionError] = useState('');
   const [actionNotice, setActionNotice] = useState('');
+  const operationId = useRef(crypto.randomUUID());
 
   const handleNewTransaction = () => {
+    operationId.current = crypto.randomUUID();
     setView('type-selector');
   };
 
   const handleSelectType = (type) => {
+    operationId.current = crypto.randomUUID();
     setSelectedType(type);
     setView('form');
   };
 
   const handleCancel = () => {
+    operationId.current = crypto.randomUUID();
     setView('list');
     setSelectedType(null);
     setSelectedTransaction(null);
@@ -45,6 +49,7 @@ const Transactions = ({ initialType = null, startNewTransaction = false }) => {
       actorRole: staff?.role,
       actorName: staff?.full_name,
       allowLocalQueue: true,
+      operationId: operationId.current,
       entityId,
       summary,
       details: { ...details, localRecordedAt: new Date().toISOString() },
@@ -57,8 +62,32 @@ const Transactions = ({ initialType = null, startNewTransaction = false }) => {
     setActionNotice('');
     const shouldQueue = !navigator.onLine || offlineMode;
     let issuedReceiptNumber = null;
+    const saveIdempotently = async (type, payload) => {
+      const { data: response, error } = await supabase.rpc('sync_offline_operation', {
+        p_operation_id: operationId.current,
+        p_operation_type: type,
+        p_payload: payload,
+      });
+      if (error) throw error;
+      if (!response?.accepted || response.operationId !== operationId.current || !('result' in response)) {
+        throw new Error('The server did not confirm this transaction. Retry without starting a new transaction.');
+      }
+      return response.result;
+    };
+
     if (selectedType === 'sales') {
-      if (shouldQueue) {
+      if (data.action === 'cancel-credit-sale') {
+        if (shouldQueue) throw new Error('Reconnect before cancelling a credit sale. Nothing was changed.');
+        const { data: result, error } = await supabase.rpc('cancel_credit_sale', {
+          p_sales_order_id: data.p_sales_order_id,
+          p_reason: data.p_reason,
+          p_returned_items: data.p_returned_items,
+        });
+        if (error) throw error;
+        setActionNotice(result?.already_cancelled
+          ? 'This credit sale was already cancelled; no additional reversal or inventory return was created.'
+          : `Credit sale ${result?.order_number || ''} was cancelled. Only confirmed returned quantities were restored.`);
+      } else if (shouldQueue) {
         const sale = data.p_sale;
         await queueOfflineOperation({
           type: 'cooperative_sale',
@@ -68,8 +97,7 @@ const Transactions = ({ initialType = null, startNewTransaction = false }) => {
           details: { amount: sale.amount, reference: sale.reference_number },
         });
       } else {
-        const { data: result, error } = await supabase.rpc('record_cooperative_sale', data);
-        if (error) throw error;
+        const result = await saveIdempotently('cooperative_sale', data);
         issuedReceiptNumber = result?.receipt_number || null;
       }
     } else if (['loan-payment', 'savings-deposit', 'other-transaction'].includes(selectedType)) {
@@ -106,10 +134,10 @@ const Transactions = ({ initialType = null, startNewTransaction = false }) => {
           },
         });
       } else {
-        const { data: result, error } = data.dividend
-          ? await supabase.rpc('record_member_dividend', { p_distribution: data.p_distribution })
-          : await supabase.rpc('record_member_financial_entry', data);
-        if (error) throw error;
+        const result = await saveIdempotently(
+          data.dividend ? 'member_dividend' : 'member_financial_entry',
+          data.dividend ? { p_distribution: data.p_distribution } : data
+        );
         issuedReceiptNumber = result?.receipt_number || null;
       }
     } else if (selectedType === 'cash-receipt' || data.type === 'cash-receipt') {
@@ -139,8 +167,7 @@ const Transactions = ({ initialType = null, startNewTransaction = false }) => {
           details: { amount: Number(data.amount) },
         });
       } else {
-        const { data: result, error } = await supabase.rpc('save_cash_receipt', payload);
-        if (error) throw error;
+        const result = await saveIdempotently('cash_receipt', payload);
         issuedReceiptNumber = result?.receipt_number || null;
       }
     } else if (selectedType === 'cash-disbursement' || data.type === 'cash-disbursement') {
@@ -171,8 +198,7 @@ const Transactions = ({ initialType = null, startNewTransaction = false }) => {
           details: { amount: Number(data.paymentAmount), reference: data.voucherNumber.trim() },
         });
       } else {
-        const { error } = await supabase.rpc('save_cash_disbursement', payload);
-        if (error) throw error;
+        await saveIdempotently('cash_disbursement', payload);
       }
     } else {
       throw new Error('Unsupported transaction type.');
@@ -185,6 +211,7 @@ const Transactions = ({ initialType = null, startNewTransaction = false }) => {
     }
 
     setView('list');
+    operationId.current = crypto.randomUUID();
     setSelectedType(null);
     setSelectedTransaction(null);
   };
@@ -195,6 +222,7 @@ const Transactions = ({ initialType = null, startNewTransaction = false }) => {
   };
 
   const handleEditTransaction = (transaction) => {
+    operationId.current = crypto.randomUUID();
     setSelectedTransaction(transaction);
     setSelectedType(transaction.type);
     setView('form');
