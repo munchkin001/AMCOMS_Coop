@@ -12,6 +12,7 @@ const fullName = (member) => [member?.first_name, member?.middle_name, member?.l
 const memberOf = (record) => (Array.isArray(record?.member) ? record.member[0] : record?.member);
 const requestData = (request) => request.request_data || {};
 const createVoucher = () => `LR-${today().replace(/-/g, '')}-${globalThis.crypto.randomUUID().slice(0, 8).toUpperCase()}`;
+const loanTypes = ['Regular', 'Agricultural', 'Emergency'];
 
 const LoanReleaseCard = ({ loan, onRelease, busy }) => {
   const [date, setDate] = useState(today());
@@ -269,7 +270,10 @@ const LoanRequests = () => {
             </label>
             <label className="text-sm font-medium text-gray-700">
               Loan type *
-              <input required maxLength={60} value={loanType} onChange={(event) => setLoanType(event.target.value)} className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2" />
+              <select required value={loanType} onChange={(event) => setLoanType(event.target.value)} className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2">
+                <option value="">Select a loan type</option>
+                {loanTypes.map((type) => <option key={type} value={type}>{type}</option>)}
+              </select>
             </label>
             <label className="text-sm font-medium text-gray-700">
               Amount *
