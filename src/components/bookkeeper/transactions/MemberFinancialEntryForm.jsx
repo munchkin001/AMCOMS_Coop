@@ -14,6 +14,13 @@ const entryTypes = [
   { value: 'dividend_distribution', label: 'Approved dividend distribution', receipt: false, dividend: true }
 ];
 
+const loanPaymentParticulars = [
+  'Loan installment payment',
+  'Partial loan payment',
+  'Past-due installment payment',
+  'Full loan settlement'
+];
+
 const currentDate = () => new Date().toISOString().slice(0, 10);
 const formatCurrency = (value) => `₱${Number(value || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })}`;
 
@@ -92,13 +99,14 @@ const MemberFinancialEntryForm = ({
   const [date, setDate] = useState(currentDate());
   const [reference, setReference] = useState('');
   const [amount, setAmount] = useState('');
-  const [paymentMethod, setPaymentMethod] = useState('cash');
   const [cashAccount, setCashAccount] = useState('Cash on Hand');
   const [accountId, setAccountId] = useState('');
   const [loanId, setLoanId] = useState('');
   const [maturityDate, setMaturityDate] = useState('');
   const [interestRate, setInterestRate] = useState('');
-  const [particulars, setParticulars] = useState('');
+  const [particulars, setParticulars] = useState(
+    initialEntryType === 'loan_payment' ? loanPaymentParticulars[0] : entryTypes.find((type) => type.value === initialEntryType)?.label || ''
+  );
   const [dividendValues, setDividendValues] = useState({
     dividend_amount: '',
     patronage_amount: '',
@@ -393,7 +401,7 @@ const MemberFinancialEntryForm = ({
       receipt_date: date,
 
       received_from: [selectedMember.first_name, selectedMember.middle_name, selectedMember.last_name].filter(Boolean).join(' '),
-      payment_method: paymentMethod,
+      payment_method: 'cash',
       status: 'recorded'
     } : null;
     const pDisbursement = selectedEntry.receipt ? null : {
@@ -501,7 +509,9 @@ const MemberFinancialEntryForm = ({
                   const nextType = entryTypes.find((type) => type.value === event.target.value);
                   setEntryType(event.target.value);
                   setAmount(event.target.value === 'capital_contribution' ? String(capitalAmount || '') : '');
-                  setParticulars(nextType?.label || '');
+                  setParticulars(event.target.value === 'loan_payment'
+                    ? loanPaymentParticulars[0]
+                    : nextType?.label || '');
                   setReference('');
                   setAccountId('');
                 }}
@@ -529,7 +539,18 @@ const MemberFinancialEntryForm = ({
           )}
           {!selectedEntry?.dividend && <label className="text-sm font-medium text-gray-700">
             Particulars *
-            <input value={particulars} onChange={(event) => setParticulars(event.target.value)} required className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2" />
+            {entryType === 'loan_payment' ? (
+              <>
+                <select value={particulars} onChange={(event) => setParticulars(event.target.value)} required className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2">
+                  {loanPaymentParticulars.map((particular) => <option key={particular}>{particular}</option>)}
+                </select>
+                <span className="mt-1 block text-xs font-normal text-gray-500">
+                  The loan schedule determines how the payment is allocated to principal, interest, and penalties.
+                </span>
+              </>
+            ) : (
+              <input value={particulars} onChange={(event) => setParticulars(event.target.value)} required className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2" />
+            )}
           </label>}
         </div>
 
@@ -587,12 +608,10 @@ const MemberFinancialEntryForm = ({
 
         {selectedEntry?.receipt && (
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <label className="text-sm font-medium text-gray-700">
-              Payment method
-              <select value={paymentMethod} onChange={(event) => setPaymentMethod(event.target.value)} className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2">
-                <option value="cash">Cash</option>
-              </select>
-            </label>
+            <div>
+              <span className="text-sm font-medium text-gray-700">Payment method</span>
+              <p className="mt-1 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-700">Cash</p>
+            </div>
             <label className="text-sm font-medium text-gray-700">
               Received into
               <select value={cashAccount} onChange={(event) => setCashAccount(event.target.value)} className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2">
