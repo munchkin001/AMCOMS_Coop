@@ -62,6 +62,7 @@ const Transactions = ({ initialType = null, startNewTransaction = false }) => {
     setActionNotice('');
     const shouldQueue = !navigator.onLine || offlineMode;
     let issuedReceiptNumber = null;
+    let issuedVoucherNumber = null;
     const saveIdempotently = async (type, payload) => {
       const { data: response, error } = await supabase.rpc('sync_offline_operation', {
         p_operation_id: operationId.current,
@@ -175,7 +176,6 @@ const Transactions = ({ initialType = null, startNewTransaction = false }) => {
       const payload = {
         p_disbursement: {
           disbursement_date: data.date,
-          voucher_number: data.voucherNumber.trim(),
           member_id: data.memberId,
           term_months: data.termMonths ? Number(data.termMonths) : null,
           payment_frequency: data.paymentFrequency,
@@ -195,11 +195,12 @@ const Transactions = ({ initialType = null, startNewTransaction = false }) => {
           type: 'cash_disbursement',
           payload,
           entityId: data.memberId || null,
-          summary: `Cash disbursement ${data.voucherNumber.trim()} queued`,
-          details: { amount: Number(data.paymentAmount), reference: data.voucherNumber.trim() },
+          summary: 'Cash disbursement queued for server-issued voucher number',
+          details: { amount: Number(data.paymentAmount) },
         });
       } else {
-        await saveIdempotently('cash_disbursement', payload);
+        const result = await saveIdempotently('cash_disbursement', payload);
+        issuedVoucherNumber = result?.voucher_number || null;
       }
     } else {
       throw new Error('Unsupported transaction type.');
@@ -207,8 +208,12 @@ const Transactions = ({ initialType = null, startNewTransaction = false }) => {
 
     if (issuedReceiptNumber) {
       setActionNotice(`Official receipt ${issuedReceiptNumber} was issued.`);
+    } else if (issuedVoucherNumber) {
+      setActionNotice(`Voucher number ${issuedVoucherNumber} was assigned.`);
     } else if (!shouldQueue && data.type === 'cash-receipt' && data.status === 'draft') {
       setActionNotice('Draft saved. An official receipt number will be issued when the receipt is recorded.');
+    } else if (!shouldQueue && data.type === 'cash-disbursement' && data.status === 'draft') {
+      setActionNotice('Draft saved. An official voucher number will be assigned when the disbursement is recorded.');
     }
 
     setView('list');

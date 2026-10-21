@@ -271,7 +271,7 @@ const CashReceiptForm = ({ onSave, onCancel, transaction = null }) => {
                 {receiptParticularsOptions.map((particular) => (
                   <option key={particular} value={particular}>{particular}</option>
                 ))}
-                <option value="custom">Other (enter manually)</option>
+                <option value="custom">Other</option>
               </select>
               {customParticularsMode && (
                 <input
