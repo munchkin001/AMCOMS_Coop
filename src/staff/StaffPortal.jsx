@@ -79,6 +79,7 @@ const StaffPortal = () => {
                 ? { initialTransactionType: type }
                 : { startNewTransaction: true }
             })}
+            onViewBooks={() => navigate('/staff/general-ledger')}
           />
         );
       case 'inventory':

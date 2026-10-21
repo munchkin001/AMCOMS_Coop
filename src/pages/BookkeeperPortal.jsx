@@ -35,10 +35,19 @@ const BookkeeperPortal = () => {
     setActiveModule('transactions');
   };
 
+  const handleViewBooks = () => {
+    handleModuleChange('books');
+  };
+
   const renderModule = () => {
     switch (activeModule) {
       case 'dashboard':
-        return <BookkeeperDashboard onSelectTransaction={handleQuickTransaction} />;
+        return (
+          <BookkeeperDashboard
+            onSelectTransaction={handleQuickTransaction}
+            onViewBooks={handleViewBooks}
+          />
+        );
       case 'transactions':
         return <Transactions initialType={initialTransactionType} startNewTransaction={startNewTransaction} />;
       case 'books':
