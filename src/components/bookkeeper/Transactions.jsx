@@ -154,7 +154,8 @@ const Transactions = ({ initialType = null, startNewTransaction = false }) => {
         p_allocations: data.accountDistribution.map((allocation) => ({
           account: allocation.account,
           amount: Number(allocation.amount),
-          side: allocation.side
+          side: allocation.side,
+          description: allocation.description?.trim() || null
         }))
       };
 

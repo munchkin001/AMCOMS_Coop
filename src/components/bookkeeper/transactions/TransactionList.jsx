@@ -92,7 +92,8 @@ const TransactionList = ({ onNewTransaction, onViewTransaction }) => {
         accountAllocations: (receipt.accountAllocations || []).map((line) => ({
           account: Array.isArray(line.account) ? line.account[0]?.account_name : line.account?.account_name,
           amount: Number(line.amount) || 0,
-          side: line.side
+          side: line.side,
+          description: line.description || ''
         }))
       }));
       const saleReceiptIds = new Set((salesResult.data || []).map((sale) => sale.cash_receipt_id).filter(Boolean));

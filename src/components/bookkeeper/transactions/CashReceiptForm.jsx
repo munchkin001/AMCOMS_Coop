@@ -102,6 +102,11 @@ const CashReceiptForm = ({ onSave, onCancel, transaction = null }) => {
       .filter((item) => item.account && Number(item.amount) > 0)
       .map((item) => ({ ...item, amount: Number(item.amount) }));
 
+    if (allocations.some((item) => item.account === 'Other Income' && !item.description?.trim())) {
+      setFormError('Enter details for each Other Income allocation.');
+      return;
+    }
+
     if (status === 'recorded') {
       const debitTotal = allocations.filter((item) => item.side === 'debit').reduce((sum, item) => sum + item.amount, 0);
       const creditTotal = allocations.filter((item) => item.side === 'credit').reduce((sum, item) => sum + item.amount, 0);
@@ -136,7 +141,9 @@ const CashReceiptForm = ({ onSave, onCancel, transaction = null }) => {
     updated[index] = {
       ...updated[index],
       [field]: value,
-      ...(field === 'account' ? { side: getDefaultSide(value) } : {})
+      ...(field === 'account'
+        ? { side: getDefaultSide(value), ...(value !== 'Other Income' ? { description: '' } : {}) }
+        : {})
     };
     setAccountDistribution(updated);
   };
@@ -310,11 +317,23 @@ const CashReceiptForm = ({ onSave, onCancel, transaction = null }) => {
                     type="button"
                     onClick={() => removeAccount(index)}
                     className="p-2 text-red-600 hover:text-red-700 hover:bg-red-50 rounded-lg"
+                    aria-label={`Remove account allocation ${index + 1}`}
                   >
                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                     </svg>
                   </button>
+                )}
+                {item.account === 'Other Income' && (
+                  <input
+                    type="text"
+                    value={item.description || ''}
+                    onChange={(e) => updateAccount(index, 'description', e.target.value)}
+                    placeholder="Describe the other income (e.g., rental income)"
+                    aria-label={`Other Income details for allocation ${index + 1}`}
+                    required={Number(item.amount) > 0}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm lg:text-base sm:col-span-3"
+                  />
                 )}
               </div>
             ))}
