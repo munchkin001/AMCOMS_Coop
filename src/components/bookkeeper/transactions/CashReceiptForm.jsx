@@ -4,6 +4,12 @@ import { supabase } from '../../../lib/supabase';
 import offlineDb from '../../../lib/Offline/OfflineDb';
 
 const getDefaultSide = (account) => ['Cash on Hand', 'Cash in Bank'].includes(account) ? 'debit' : 'credit';
+const receiptParticularsOptions = [
+  'Membership Fee',
+  'Interest Income',
+  'Service Fee Income',
+  'Other Income'
+];
 
 const CashReceiptForm = ({ onSave, onCancel, transaction = null }) => {
   const { user, offlineMode } = useAuth();
@@ -57,7 +63,6 @@ const CashReceiptForm = ({ onSave, onCancel, transaction = null }) => {
       });
     return () => { active = false; };
   }, [offlineMode, user?.id]);
-
   const memberName = (m) => [m.first_name, m.middle_name, m.last_name].filter(Boolean).join(' ');
 
   const [formData, setFormData] = useState(transaction ? {
@@ -75,6 +80,9 @@ const CashReceiptForm = ({ onSave, onCancel, transaction = null }) => {
     amount: '',
     paymentMethod: 'cash'
   });
+  const [customParticularsMode, setCustomParticularsMode] = useState(
+    Boolean(transaction?.particulars && !receiptParticularsOptions.includes(transaction.particulars))
+  );
 
   const [accountDistribution, setAccountDistribution] = useState(
     transaction && transaction.accountAllocations 
@@ -249,14 +257,33 @@ const CashReceiptForm = ({ onSave, onCancel, transaction = null }) => {
 
             <div className="md:col-span-2">
               <label className="block text-sm font-medium text-gray-700 mb-2">Particulars *</label>
-              <textarea
-                value={formData.particulars}
-                onChange={(e) => setFormData({ ...formData, particulars: e.target.value })}
-                placeholder="Description of receipt (e.g., Loan Payment, Sales, Membership Fee)"
-                rows="3"
+              <select
+                value={customParticularsMode ? 'custom' : formData.particulars}
+                onChange={(e) => {
+                  const isCustom = e.target.value === 'custom';
+                  setCustomParticularsMode(isCustom);
+                  setFormData({ ...formData, particulars: isCustom ? '' : e.target.value });
+                }}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm lg:text-base"
                 required
-              />
+              >
+                <option value="">Select particulars</option>
+                {receiptParticularsOptions.map((particular) => (
+                  <option key={particular} value={particular}>{particular}</option>
+                ))}
+                <option value="custom">Other (enter manually)</option>
+              </select>
+              {customParticularsMode && (
+                <input
+                  type="text"
+                  value={formData.particulars}
+                  onChange={(e) => setFormData({ ...formData, particulars: e.target.value })}
+                  placeholder="Enter receipt particulars"
+                  aria-label="Custom receipt particulars"
+                  className="mt-2 w-full px-3 py-2 border border-gray-300 rounded-lg text-sm lg:text-base"
+                  required
+                />
+              )}
             </div>
           </div>
         </div>
