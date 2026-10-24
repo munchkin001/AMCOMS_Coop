@@ -16,9 +16,7 @@ const money = (value) => `₱${(Number(value) || 0).toLocaleString('en-PH', { mi
 const fullName = (member) => [member.first_name, member.middle_name, member.last_name].filter(Boolean).join(' ');
 const memberNameCollator = new Intl.Collator(undefined, { sensitivity: 'base', numeric: true });
 const compareMembersByName = (left, right) =>
-  memberNameCollator.compare(left.last_name || '', right.last_name || '') ||
-  memberNameCollator.compare(left.first_name || '', right.first_name || '') ||
-  memberNameCollator.compare(left.middle_name || '', right.middle_name || '') ||
+  memberNameCollator.compare(fullName(left), fullName(right)) ||
   memberNameCollator.compare(left.member_number || '', right.member_number || '');
 const parseFamilyMembers = (value) => {
   if (Array.isArray(value)) return value;
@@ -115,12 +113,14 @@ const MemberManagement = ({ canManageMembers = true }) => {
         if (accountError) throw accountError;
         if (savingsResult.error) throw savingsResult.error;
         portalAccounts = new Map((accountRows || []).map((account) => [account.member_id, account]));
-        savingsAccounts = (savingsResult.data || []).reduce((accounts, account) => {
-          const memberAccounts = accounts.get(account.member_id) || [];
-          memberAccounts.push(account.account_number);
-          accounts.set(account.member_id, memberAccounts);
-          return accounts;
-        }, new Map());
+        savingsAccounts = (savingsResult.data || [])
+          .sort((left, right) => memberNameCollator.compare(left.account_number || '', right.account_number || ''))
+          .reduce((accounts, account) => {
+            const memberAccounts = accounts.get(account.member_id) || [];
+            memberAccounts.push(account.account_number);
+            accounts.set(account.member_id, memberAccounts);
+            return accounts;
+          }, new Map());
       }
 
       const archivedByIds = [...new Set((archiveResult.data || []).map((archive) => archive.archived_by).filter(Boolean))];
