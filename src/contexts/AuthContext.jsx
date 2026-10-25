@@ -6,6 +6,8 @@ import { useRealtimeSubscription } from '../hooks/useRealtimeSubscription';
 import offlineDb from '../lib/Offline/OfflineDb';
 
 const AuthContext = createContext({});
+const SESSION_IDLE_TIMEOUT_MS = 15 * 60 * 1000;
+const SESSION_ACTIVITY_THROTTLE_MS = 10 * 1000;
 
 export const useAuth = () => {
   const context = useContext(AuthContext);
@@ -378,6 +380,70 @@ export const AuthProvider = ({ children }) => {
       return { error };
     }
   };
+
+  useEffect(() => {
+    if (!user?.id) return undefined;
+
+    const activityKey = `amcoms:last-activity:${user.id}`;
+    let lastActivityAt = Date.now();
+    let lastActivityWriteAt = 0;
+    let signingOut = false;
+
+    const updateActivity = (timestamp = Date.now(), persist = true) => {
+      lastActivityAt = Math.max(lastActivityAt, timestamp);
+      if (!persist || timestamp - lastActivityWriteAt < SESSION_ACTIVITY_THROTTLE_MS) return;
+      lastActivityWriteAt = timestamp;
+      try {
+        window.localStorage.setItem(activityKey, String(timestamp));
+      } catch (error) {
+        console.error('Unable to synchronize session activity across tabs:', error);
+      }
+    };
+
+    updateActivity();
+
+    const handleActivity = () => updateActivity();
+    const handleStorage = (event) => {
+      if (event.key !== activityKey || !event.newValue) return;
+      const timestamp = Number(event.newValue);
+      if (Number.isFinite(timestamp)) updateActivity(timestamp, false);
+    };
+    const activityEvents = ['pointerdown', 'pointermove', 'keydown', 'touchstart', 'scroll', 'wheel'];
+    activityEvents.forEach((eventName) => {
+      window.addEventListener(eventName, handleActivity, { capture: true, passive: true });
+    });
+    window.addEventListener('storage', handleStorage);
+
+    const idleTimer = window.setInterval(async () => {
+      if (signingOut || Date.now() - lastActivityAt < SESSION_IDLE_TIMEOUT_MS) return;
+      signingOut = true;
+      console.info('Signing out after 15 minutes of inactivity.');
+
+      try {
+        if (!offlineMode) {
+          const { error } = await supabase.auth.signOut({ scope: 'local' });
+          if (error) console.error('Unable to clear the inactive local session:', error);
+        }
+      } catch (error) {
+        console.error('Unable to clear the inactive local session:', error);
+      } finally {
+        offlineModeRef.current = false;
+        setOfflineMode(false);
+        setSession(null);
+        setUser(null);
+        setStaff(null);
+        setAuthError(null);
+      }
+    }, 1000);
+
+    return () => {
+      window.clearInterval(idleTimer);
+      activityEvents.forEach((eventName) => {
+        window.removeEventListener(eventName, handleActivity, true);
+      });
+      window.removeEventListener('storage', handleStorage);
+    };
+  }, [user?.id, offlineMode]);
 
   const unlockOffline = ({ user: offlineUser, staff: offlineStaff }) => {
     const validRoles = ['chairman', 'manager', 'treasurer', 'bookkeeper', 'inventory', 'member'];
