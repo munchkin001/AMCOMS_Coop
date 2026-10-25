@@ -310,32 +310,32 @@ const ProfileEditor = ({ profileType = 'staff', roleLabel }) => {
     }
   };
 
-  const logoutOtherDevices = async () => {
+  const logoutAllDevices = async () => {
     if (offlineMode || !navigator.onLine || !user?.id) {
       setOtherSessions({
         busy: false,
         message: '',
-        error: 'Reconnect and sign in online to log out other devices.'
+        error: 'Reconnect and sign in online to log out all devices.'
       });
       return;
     }
-    if (!window.confirm('Log out all other devices? This device will stay signed in.')) return;
+    if (!window.confirm('Log out all devices, including this one? This device will be signed out immediately. Other devices may remain usable until their current access tokens expire.')) return;
 
     setOtherSessions({ busy: true, message: '', error: '' });
     try {
-      const { error } = await supabase.auth.signOut({ scope: 'others' });
+      const { error } = await supabase.auth.signOut({ scope: 'global' });
       if (error) throw error;
       setOtherSessions({
         busy: false,
-        message: 'Other devices have been logged out. This device remains signed in.',
+        message: 'All device sessions have been signed out.',
         error: ''
       });
     } catch (error) {
-      console.error('Unable to log out other devices:', error);
+      console.error('Unable to log out all devices:', error);
       setOtherSessions({
         busy: false,
         message: '',
-        error: 'Other devices could not be logged out. Check your connection and try again.'
+        error: 'All devices could not be logged out. Check your connection and try again.'
       });
     }
   };
@@ -557,42 +557,44 @@ const ProfileEditor = ({ profileType = 'staff', roleLabel }) => {
         )}
         {offlineSetup.error && <p role="alert" className="mt-3 text-sm text-red-800">{offlineSetup.error}</p>}
         {offlineSetup.message && <p role="status" className="mt-3 text-sm text-green-800">{offlineSetup.message}</p>}
-        {offlineMode ? (
-          <p className="mt-3 text-sm font-medium text-amber-950">You are currently using local offline access. Reconnect and sign in online before making server-side changes.</p>
-        ) : (
+        <div className="mt-4 flex flex-col items-start gap-3">
+          {offlineMode ? (
+            <p className="text-sm font-medium text-amber-950">You are currently using local offline access. Reconnect and sign in online before making server-side changes.</p>
+          ) : (
+            <button
+              type="button"
+              onClick={setupOfflineAccess}
+              disabled={offlineSetup.busy || !navigator.onLine || !user?.id || staff?.must_change_password || offlinePin.length !== 6 || offlinePinConfirm.length !== 6}
+              className="rounded-lg bg-amber-700 px-4 py-2 text-sm font-semibold text-white hover:bg-amber-800 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {offlineSetup.busy ? 'Setting up PIN access…' : 'Set up or update offline PIN'}
+            </button>
+          )}
+          {!navigator.onLine && !offlineMode && (
+            <p className="text-xs text-amber-900">Connect to the internet and sign in normally to set up this device.</p>
+          )}
           <button
             type="button"
-            onClick={setupOfflineAccess}
-            disabled={offlineSetup.busy || !navigator.onLine || !user?.id || staff?.must_change_password || offlinePin.length !== 6 || offlinePinConfirm.length !== 6}
-            className="mt-4 rounded-lg bg-amber-700 px-4 py-2 text-sm font-semibold text-white hover:bg-amber-800 disabled:cursor-not-allowed disabled:opacity-50"
+            onClick={removeOfflineAccessFromDevice}
+            disabled={offlineSetup.busy || !user?.id}
+            className="rounded-lg border border-amber-700 px-4 py-2 text-sm font-semibold text-amber-900 hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-50"
           >
-            {offlineSetup.busy ? 'Setting up PIN access…' : 'Set up or update offline PIN'}
+            Remove offline PIN access
           </button>
-        )}
-        {!navigator.onLine && !offlineMode && (
-          <p className="mt-2 text-xs text-amber-900">Connect to the internet and sign in normally to set up this device.</p>
-        )}
-        <button
-          type="button"
-          onClick={removeOfflineAccessFromDevice}
-          disabled={offlineSetup.busy || !user?.id}
-          className="mt-3 rounded-lg border border-amber-700 px-4 py-2 text-sm font-semibold text-amber-900 hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-50"
-        >
-          Remove offline PIN access
-        </button>
+        </div>
         <div className="mt-4 border-t border-amber-200 pt-4">
           {otherSessions.error && <p role="alert" className="mb-2 text-sm text-red-800">{otherSessions.error}</p>}
           {otherSessions.message && <p role="status" className="mb-2 text-sm text-green-800">{otherSessions.message}</p>}
           {offlineMode && !otherSessions.error && (
-            <p className="mb-2 text-sm text-amber-950">Reconnect and sign in online to log out other devices.</p>
+            <p className="mb-2 text-sm text-amber-950">Reconnect and sign in online to log out all devices.</p>
           )}
           <button
             type="button"
-            onClick={logoutOtherDevices}
+            onClick={logoutAllDevices}
             disabled={otherSessions.busy || !user?.id}
             className="rounded-lg border border-red-700 px-4 py-2 text-sm font-semibold text-red-800 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
           >
-            {otherSessions.busy ? 'Logging out other devices…' : 'Logout from all devices'}
+            {otherSessions.busy ? 'Logging out all devices…' : 'Logout from all devices'}
           </button>
         </div>
       </section>
