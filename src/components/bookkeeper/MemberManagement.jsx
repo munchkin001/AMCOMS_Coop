@@ -80,7 +80,7 @@ const MemberManagement = ({ canManageMembers = true }) => {
       const [activeResult, archiveResult] = await Promise.all([
         supabase
           .from('members')
-          .select('id, member_number, first_name, middle_name, last_name, email, phone, address, date_of_birth, gender, membership_type, membership_status, date_joined, shares_owned, total_capital, emergency_contact_name, emergency_contact_phone, family_members, rsbsa, tin, ncfrs, occupation, barangay, municipality, province')
+          .select('id, member_number, first_name, middle_name, last_name, email, phone, address, date_of_birth, gender, marital_status, membership_type, membership_status, date_joined, shares_owned, total_capital, emergency_contact_name, emergency_contact_phone, emergency_contact_relationship, additional_emergency_contacts, family_members, rsbsa, tin, ncfrs, occupation, barangay, municipality, province')
           .in('membership_status', ['active', 'suspended'])
           .order('last_name', { ascending: true })
           .order('first_name', { ascending: true })
@@ -207,7 +207,10 @@ const MemberManagement = ({ canManageMembers = true }) => {
       ...member,
       username: member.portal_account?.username || '',
       date_of_birth: member.date_of_birth || '',
-      date_joined: member.date_joined || ''
+      date_joined: member.date_joined || '',
+      additional_emergency_contacts: Array.isArray(member.additional_emergency_contacts)
+        ? member.additional_emergency_contacts
+        : []
     });
     setDuplicateMatches([]);
     setConfirmPossibleDuplicate(false);
@@ -334,15 +337,21 @@ const MemberManagement = ({ canManageMembers = true }) => {
           date_of_birth: form.date_of_birth,
           gender: form.gender,
           membership_type: form.membership_type,
+          marital_status: form.marital_status,
+          date_joined: form.date_joined,
+          shares_owned: form.shares_owned || '0',
+          total_capital: form.total_capital || '0',
           emergency_contact_name: form.emergency_contact_name,
           emergency_contact_phone: form.emergency_contact_phone,
+          emergency_contact_relationship: form.emergency_contact_relationship,
+          additional_emergency_contacts: form.additional_emergency_contacts,
           family_members: parseFamilyMembers(form.family_members),
           rsbsa: form.rsbsa,
           tin: form.tin,
           ncfrs: form.ncfrs,
           occupation: form.occupation
         };
-        const { error: updateError } = await supabase.rpc('bookkeeper_update_member', {
+        const { error: updateError } = await supabase.rpc('bookkeeper_update_member_with_details', {
           p_member_id: selectedMember.id,
           p_member: editableFields
         });
@@ -724,42 +733,115 @@ const MemberManagement = ({ canManageMembers = true }) => {
 
       {modal === 'edit' && selectedMember && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/55 p-4">
-          <section role="dialog" aria-modal="true" aria-labelledby="member-edit-title" className="max-h-[92vh] w-full max-w-3xl overflow-y-auto rounded-xl bg-white shadow-2xl">
+          <section role="dialog" aria-modal="true" aria-labelledby="member-edit-title" className="max-h-[92vh] w-full max-w-4xl overflow-y-auto rounded-xl bg-slate-50 shadow-2xl">
             <div className="sticky top-0 z-10 flex items-center justify-between border-b border-gray-200 bg-white px-5 py-4">
               <div><h2 id="member-edit-title" className="text-lg font-semibold text-gray-900">Edit Member</h2><p className="text-xs text-gray-500">{selectedMember.member_number}</p></div>
               <button type="button" onClick={() => setModal('')} aria-label="Close" className="rounded-lg p-2 text-gray-500 hover:bg-gray-100"><X size={20} /></button>
             </div>
-            <form onSubmit={handleSave} className="space-y-5 p-5">
+            <form onSubmit={handleSave} className="space-y-4 p-4 sm:p-5">
               {error && <p role="alert" className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">{error}</p>}
-              <div className="grid gap-4 sm:grid-cols-3">
-                <label className={labelClass}>Username
-                  <input
-                    name="username"
-                    type="text"
-                    autoComplete="username"
-                    pattern="[a-zA-Z0-9._-]{3,30}"
-                    title="Use 3-30 letters, numbers, dots, underscores, or hyphens."
-                    value={form.username || ''}
-                    onChange={updateField}
-                    disabled={!selectedMember.portal_account?.has_account}
-                    className={`${inputClass} mt-1 disabled:bg-gray-100`}
-                  />
-                </label>
-                <label className={labelClass}>Member type *
-                  <select name="membership_type" value={form.membership_type || 'regular'} onChange={updateField} required className={`${inputClass} mt-1`}>
-                    <option value="regular">Regular</option>
-                    <option value="associate">Associate</option>
-                  </select>
-                </label>
-                {['first_name', 'middle_name', 'last_name', 'date_of_birth', 'email', 'phone', 'occupation', 'emergency_contact_name', 'emergency_contact_phone', 'rsbsa', 'tin', 'ncfrs'].map((name) => (
-                  <label key={name} className={labelClass}>{name.replaceAll('_', ' ')}
-                    <input name={name} type={name === 'date_of_birth' ? 'date' : name === 'email' ? 'email' : name === 'emergency_contact_phone' || name === 'phone' ? 'tel' : 'text'} value={form[name] || ''} onChange={updateField} className={`${inputClass} mt-1`} />
+              <section className={sectionClass} aria-labelledby="member-edit-personal-info-title">
+                <div className="mb-4"><h3 id="member-edit-personal-info-title" className="text-sm font-semibold text-gray-900">Personal info</h3></div>
+                <div className={sectionGridClass}>
+                  <label className={labelClass}>Username
+                    <input
+                      name="username"
+                      type="text"
+                      autoComplete="username"
+                      pattern="[a-zA-Z0-9._-]{3,30}"
+                      title="Use 3-30 letters, numbers, dots, underscores, or hyphens."
+                      value={form.username || ''}
+                      onChange={updateField}
+                      disabled={!selectedMember.portal_account?.has_account}
+                      className={`${inputClass} mt-1 disabled:bg-gray-100`}
+                    />
                   </label>
-                ))}
-                <label className={`${labelClass} sm:col-span-3`}>Address
-                  <textarea name="address" value={form.address || ''} onChange={updateField} rows={2} className={`${inputClass} mt-1`} />
-                </label>
-              </div>
+                  {renderMemberField('first_name', 'First name', 'text', true)}
+                  {renderMemberField('middle_name', 'Middle name')}
+                  {renderMemberField('last_name', 'Last name', 'text', true)}
+                  {renderMemberField('gender', 'Gender', 'select')}
+                  {renderMemberField('date_of_birth', 'Date of birth', 'date')}
+                  {renderMemberField('marital_status', 'Marital status', 'select')}
+                  {renderMemberField('email', 'Email', 'email')}
+                  {renderMemberField('phone', 'Contact number', 'tel')}
+                  {renderMemberField('occupation', 'Occupation')}
+                  {renderMemberField('address', 'Address', 'text', true, 'sm:col-span-2 lg:col-span-3')}
+                </div>
+              </section>
+
+              <section className={sectionClass} aria-labelledby="member-edit-membership-title">
+                <div className="mb-4"><h3 id="member-edit-membership-title" className="text-sm font-semibold text-gray-900">Membership</h3></div>
+                <div className={sectionGridClass}>
+                  {renderMemberField('date_joined', 'Membership date', 'date', true)}
+                  {renderMemberField('membership_type', 'Member type', 'select', true)}
+                  {renderMemberField('shares_owned', 'Shares owned', 'number')}
+                  {renderMemberField('total_capital', 'Share capital', 'number')}
+                </div>
+              </section>
+
+              <section className={sectionClass} aria-labelledby="member-edit-ids-title">
+                <div className="mb-4"><h3 id="member-edit-ids-title" className="text-sm font-semibold text-gray-900">IDs</h3></div>
+                <div className={sectionGridClass}>
+                  {renderMemberField('rsbsa', 'RSBSA')}
+                  {renderMemberField('tin', 'TIN')}
+                  {renderMemberField('ncfrs', 'NCFRS')}
+                </div>
+              </section>
+
+              <section className={sectionClass} aria-labelledby="member-edit-other-title">
+                <div className="mb-4"><h3 id="member-edit-other-title" className="text-sm font-semibold text-gray-900">Others</h3></div>
+                <div className={sectionGridClass}>
+                  {renderMemberField('emergency_contact_name', 'Emergency contact name')}
+                  {renderMemberField('emergency_contact_phone', 'Emergency contact phone', 'tel')}
+                  {renderMemberField('emergency_contact_relationship', 'Relationship')}
+                </div>
+                <div className="mt-5 space-y-3">
+                  {form.additional_emergency_contacts.map((contact, index) => (
+                    <div key={index} className="rounded-lg border border-gray-200 bg-gray-50 p-3">
+                      <div className="mb-3 flex items-center justify-between">
+                        <h4 className="text-sm font-medium text-gray-800">Additional contact {index + 2}</h4>
+                        <button
+                          type="button"
+                          onClick={() => setForm((current) => ({
+                            ...current,
+                            additional_emergency_contacts: current.additional_emergency_contacts.filter((_, contactIndex) => contactIndex !== index)
+                          }))}
+                          aria-label={`Remove additional contact ${index + 2}`}
+                          className="rounded-md p-1.5 text-gray-500 hover:bg-red-50 hover:text-red-700"
+                        >
+                          <Trash2 size={16} aria-hidden="true" />
+                        </button>
+                      </div>
+                      <div className={sectionGridClass}>
+                        {[
+                          ['name', 'Contact name', 'text'],
+                          ['phone', 'Contact phone', 'tel'],
+                          ['relationship', 'Relationship', 'text']
+                        ].map(([field, label, type]) => (
+                          <label key={field} className={labelClass}>{label}
+                            <input
+                              type={type}
+                              value={contact[field] || ''}
+                              onChange={(event) => updateAdditionalContact(index, field, event.target.value)}
+                              className={`${inputClass} mt-1`}
+                            />
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                  <button
+                    type="button"
+                    onClick={() => setForm((current) => ({
+                      ...current,
+                      additional_emergency_contacts: [...current.additional_emergency_contacts, { name: '', phone: '', relationship: '' }]
+                    }))}
+                    className="inline-flex items-center gap-2 rounded-lg border border-blue-200 px-3 py-2 text-sm font-medium text-blue-800 hover:bg-blue-50"
+                  >
+                    <Plus size={16} aria-hidden="true" />Add another contact
+                  </button>
+                </div>
+              </section>
               <div className="flex justify-end gap-3 border-t border-gray-200 pt-4">
                 <button type="button" onClick={() => setModal('')} className="min-h-10 rounded-lg border border-gray-300 px-4 text-sm font-medium text-gray-700">Cancel</button>
                 <button type="submit" disabled={saving} className="min-h-10 rounded-lg bg-blue-700 px-4 text-sm font-semibold text-white disabled:opacity-60">{saving ? 'Saving...' : 'Save Changes'}</button>
