@@ -9,8 +9,7 @@ const emptyForm = {
   date_of_birth: '', gender: '', membership_type: 'regular', date_joined: new Date().toISOString().slice(0, 10),
   shares_owned: '0', total_capital: '0', emergency_contact_name: '', emergency_contact_phone: '',
   emergency_contact_relationship: '', additional_emergency_contacts: [], marital_status: '',
-  family_members: '[]', rsbsa: '', tin: '', ncfrs: '', occupation: '',
-  barangay: '', municipality: '', province: ''
+  family_members: '[]', rsbsa: '', tin: '', ncfrs: '', occupation: ''
 };
 
 const money = (value) => `₱${(Number(value) || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })}`;
@@ -341,10 +340,7 @@ const MemberManagement = ({ canManageMembers = true }) => {
           rsbsa: form.rsbsa,
           tin: form.tin,
           ncfrs: form.ncfrs,
-          occupation: form.occupation,
-          barangay: form.barangay,
-          municipality: form.municipality,
-          province: form.province
+          occupation: form.occupation
         };
         const { error: updateError } = await supabase.rpc('bookkeeper_update_member', {
           p_member_id: selectedMember.id,
@@ -630,9 +626,6 @@ const MemberManagement = ({ canManageMembers = true }) => {
                   {renderMemberField('phone', 'Contact number', 'tel')}
                   {renderMemberField('occupation', 'Occupation')}
                   {renderMemberField('address', 'Address', 'text', true, 'sm:col-span-2 lg:col-span-3')}
-                  {renderMemberField('barangay', 'Barangay')}
-                  {renderMemberField('municipality', 'Municipality / city')}
-                  {renderMemberField('province', 'Province')}
                 </div>
               </section>
 
@@ -760,7 +753,7 @@ const MemberManagement = ({ canManageMembers = true }) => {
                     <option value="associate">Associate</option>
                   </select>
                 </label>
-                {['first_name', 'middle_name', 'last_name', 'date_of_birth', 'email', 'phone', 'occupation', 'barangay', 'municipality', 'province', 'emergency_contact_name', 'emergency_contact_phone', 'rsbsa', 'tin', 'ncfrs'].map((name) => (
+                {['first_name', 'middle_name', 'last_name', 'date_of_birth', 'email', 'phone', 'occupation', 'emergency_contact_name', 'emergency_contact_phone', 'rsbsa', 'tin', 'ncfrs'].map((name) => (
                   <label key={name} className={labelClass}>{name.replaceAll('_', ' ')}
                     <input name={name} type={name === 'date_of_birth' ? 'date' : name === 'email' ? 'email' : name === 'emergency_contact_phone' || name === 'phone' ? 'tel' : 'text'} value={form[name] || ''} onChange={updateField} className={`${inputClass} mt-1`} />
                   </label>
