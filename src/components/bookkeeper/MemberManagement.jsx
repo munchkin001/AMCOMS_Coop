@@ -8,6 +8,7 @@ const emptyForm = {
   first_name: '', middle_name: '', last_name: '', email: '', phone: '', address: '',
   date_of_birth: '', gender: '', membership_type: 'regular', date_joined: new Date().toISOString().slice(0, 10),
   shares_owned: '0', total_capital: '0', emergency_contact_name: '', emergency_contact_phone: '',
+  emergency_contact_relationship: '', additional_emergency_contacts: [], marital_status: '',
   family_members: '[]', rsbsa: '', tin: '', ncfrs: '', occupation: '',
   barangay: '', municipality: '', province: ''
 };
@@ -292,7 +293,7 @@ const MemberManagement = ({ canManageMembers = true }) => {
           total_capital: form.total_capital || '0',
           family_members: parseFamilyMembers(form.family_members)
         };
-        const { data, error: createError } = await supabase.rpc('bookkeeper_create_member', {
+        const { data, error: createError } = await supabase.rpc('bookkeeper_create_member_with_details', {
           p_member: memberPayload,
           p_confirm_possible_duplicate: confirmPossibleDuplicate
         });
@@ -446,8 +447,51 @@ const MemberManagement = ({ canManageMembers = true }) => {
     setForm((current) => ({ ...current, [name]: value }));
   };
 
+  const updateAdditionalContact = (index, field, value) => {
+    setForm((current) => ({
+      ...current,
+      additional_emergency_contacts: current.additional_emergency_contacts.map((contact, contactIndex) => (
+        contactIndex === index ? { ...contact, [field]: value } : contact
+      ))
+    }));
+  };
+
+  const renderMemberField = (name, label, type = 'text', required = false, className = '') => (
+    <label key={name} className={`${labelClass} ${className}`}>
+      {label}{required && ' *'}
+      {name === 'address' ? (
+        <textarea name={name} value={form[name] || ''} onChange={updateField} required={required} rows={2} className={`${inputClass} mt-1`} />
+      ) : type === 'select' ? (
+        <select name={name} value={form[name] || ''} onChange={updateField} required={required} className={`${inputClass} mt-1`}>
+          {name === 'gender' ? (
+            <><option value="">Not specified</option><option value="male">Male</option><option value="female">Female</option><option value="other">Other</option></>
+          ) : name === 'marital_status' ? (
+            <><option value="">Not specified</option><option value="single">Single</option><option value="married">Married</option><option value="widowed">Widowed</option><option value="divorced">Divorced</option><option value="separated">Separated</option></>
+          ) : (
+            <><option value="regular">Regular</option><option value="associate">Associate</option></>
+          )}
+        </select>
+      ) : (
+        <input
+          name={name}
+          type={type}
+          pattern={name === 'email' ? '[^@ ]+@[^@ ]+[.][^@ ]+' : undefined}
+          title={name === 'email' ? 'Enter a valid email containing @, or leave this field blank.' : undefined}
+          min={type === 'number' ? '0' : undefined}
+          step={name === 'total_capital' ? '0.01' : undefined}
+          value={form[name] || ''}
+          onChange={updateField}
+          required={required}
+          className={`${inputClass} mt-1`}
+        />
+      )}
+    </label>
+  );
+
   const inputClass = 'w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-600/20';
   const labelClass = 'mb-1.5 block text-sm font-medium text-gray-700';
+  const sectionClass = 'rounded-xl border border-gray-200 bg-white p-4 sm:p-5';
+  const sectionGridClass = 'grid gap-4 sm:grid-cols-2 lg:grid-cols-3';
   const memberViews = [
     { id: 'all', label: 'All Members', count: activeMembers.length },
     { id: 'regular', label: 'Regular Members', count: activeMembers.filter((member) => member.membership_type === 'regular').length },
@@ -566,39 +610,106 @@ const MemberManagement = ({ canManageMembers = true }) => {
 
       {modal === 'add' && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/55 p-4">
-          <section role="dialog" aria-modal="true" aria-labelledby="member-form-title" className="max-h-[92vh] w-full max-w-3xl overflow-y-auto rounded-xl bg-white shadow-2xl">
+          <section role="dialog" aria-modal="true" aria-labelledby="member-form-title" className="max-h-[92vh] w-full max-w-4xl overflow-y-auto rounded-xl bg-slate-50 shadow-2xl">
             <div className="sticky top-0 z-10 flex items-center justify-between border-b border-gray-200 bg-white px-5 py-4">
-              <div><h2 id="member-form-title" className="text-lg font-semibold text-gray-900">Add Member</h2><p className="text-xs text-gray-500">Member number is generated when saved.</p></div>
+              <div><h2 id="member-form-title" className="text-lg font-semibold text-gray-900">Add Member</h2><p className="mt-0.5 text-sm text-gray-500">Enter member details by section. Member number is generated when saved.</p></div>
               <button type="button" onClick={() => setModal('')} aria-label="Close" className="rounded-lg p-2 text-gray-500 hover:bg-gray-100"><X size={20} /></button>
             </div>
-            <form onSubmit={handleSave} className="space-y-5 p-5">
+            <form onSubmit={handleSave} className="space-y-4 p-4 sm:p-5">
               {error && <p role="alert" className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">{error}</p>}
-              <div className="grid gap-4 sm:grid-cols-3">
-                {[
-                  ['first_name', 'First name', true], ['middle_name', 'Middle name', false], ['last_name', 'Last name', true],
-                  ['date_of_birth', 'Date of birth', false, 'date'], ['email', 'Email', false, 'email'], ['phone', 'Contact number', false, 'tel'],
-                  ['date_joined', 'Membership date', true, 'date'], ['gender', 'Gender', false, 'select'],
-                  ['shares_owned', 'Shares owned', false, 'number'], ['total_capital', 'Share capital', false, 'number'], ['occupation', 'Occupation', false],
-                  ['barangay', 'Barangay', false], ['municipality', 'Municipality / city', false], ['province', 'Province', false],
-                  ['emergency_contact_name', 'Emergency contact name', false], ['emergency_contact_phone', 'Emergency contact phone', false],
-                  ['rsbsa', 'RSBSA', false], ['tin', 'TIN', false], ['ncfrs', 'NCFRS', false]
-                ].map(([name, label, required, type = 'text']) => (
-                  <label key={name} className={labelClass}>{label}{required && ' *'}
-                    {type === 'select' ? <select name={name} value={form[name]} onChange={updateField} required={required} className={`${inputClass} mt-1`}>
-                      <option value="">Not specified</option><option value="male">Male</option><option value="female">Female</option><option value="other">Other</option>
-                    </select> : <input name={name} type={type} pattern={name === 'email' ? '[^@ ]+@[^@ ]+[.][^@ ]+' : undefined} title={name === 'email' ? 'Enter a valid email containing @, or leave this field blank.' : undefined} min={type === 'number' ? '0' : undefined} step={name === 'total_capital' ? '0.01' : undefined} value={form[name]} onChange={updateField} required={required} className={`${inputClass} mt-1`} />}
-                  </label>
-                ))}
-                <label className={labelClass}>Member type *
-                  <select name="membership_type" value={form.membership_type} onChange={updateField} required className={`${inputClass} mt-1`}>
-                    <option value="regular">Regular</option>
-                    <option value="associate">Associate</option>
-                  </select>
-                </label>
-                <label className={`${labelClass} sm:col-span-3`}>Address *
-                  <textarea name="address" value={form.address} onChange={updateField} required rows={2} className={`${inputClass} mt-1`} />
-                </label>
-              </div>
+              <section className={sectionClass} aria-labelledby="personal-info-title">
+                <div className="mb-4"><h3 id="personal-info-title" className="text-sm font-semibold text-gray-900">Personal info</h3><p className="mt-1 text-xs text-gray-500">Basic identity and contact details.</p></div>
+                <div className={sectionGridClass}>
+                  {renderMemberField('first_name', 'First name', 'text', true)}
+                  {renderMemberField('middle_name', 'Middle name')}
+                  {renderMemberField('last_name', 'Last name', 'text', true)}
+                  {renderMemberField('gender', 'Gender', 'select')}
+                  {renderMemberField('date_of_birth', 'Date of birth', 'date')}
+                  {renderMemberField('marital_status', 'Marital status', 'select')}
+                  {renderMemberField('email', 'Email', 'email')}
+                  {renderMemberField('phone', 'Contact number', 'tel')}
+                  {renderMemberField('occupation', 'Occupation')}
+                  {renderMemberField('address', 'Address', 'text', true, 'sm:col-span-2 lg:col-span-3')}
+                  {renderMemberField('barangay', 'Barangay')}
+                  {renderMemberField('municipality', 'Municipality / city')}
+                  {renderMemberField('province', 'Province')}
+                </div>
+              </section>
+
+              <section className={sectionClass} aria-labelledby="membership-info-title">
+                <div className="mb-4"><h3 id="membership-info-title" className="text-sm font-semibold text-gray-900">Membership</h3><p className="mt-1 text-xs text-gray-500">Membership dates, classification, and share ownership.</p></div>
+                <div className={sectionGridClass}>
+                  {renderMemberField('date_joined', 'Membership date', 'date', true)}
+                  {renderMemberField('membership_type', 'Member type', 'select', true)}
+                  {renderMemberField('shares_owned', 'Shares owned', 'number')}
+                  {renderMemberField('total_capital', 'Share capital', 'number')}
+                </div>
+              </section>
+
+              <section className={sectionClass} aria-labelledby="member-ids-title">
+                <div className="mb-4"><h3 id="member-ids-title" className="text-sm font-semibold text-gray-900">IDs</h3><p className="mt-1 text-xs text-gray-500">Provide the member’s identification numbers, if available.</p></div>
+                <div className={sectionGridClass}>
+                  {renderMemberField('rsbsa', 'RSBSA')}
+                  {renderMemberField('tin', 'TIN')}
+                  {renderMemberField('ncfrs', 'NCFRS')}
+                </div>
+              </section>
+
+              <section className={sectionClass} aria-labelledby="other-info-title">
+                <div className="mb-4"><h3 id="other-info-title" className="text-sm font-semibold text-gray-900">Others</h3><p className="mt-1 text-xs text-gray-500">Emergency contact details for reaching someone on the member’s behalf.</p></div>
+                <div className={sectionGridClass}>
+                  {renderMemberField('emergency_contact_name', 'Emergency contact name')}
+                  {renderMemberField('emergency_contact_phone', 'Emergency contact phone', 'tel')}
+                  {renderMemberField('emergency_contact_relationship', 'Relationship')}
+                </div>
+                <div className="mt-5 space-y-3">
+                  {form.additional_emergency_contacts.map((contact, index) => (
+                    <div key={index} className="rounded-lg border border-gray-200 bg-gray-50 p-3">
+                      <div className="mb-3 flex items-center justify-between">
+                        <h4 className="text-sm font-medium text-gray-800">Additional contact {index + 2}</h4>
+                        <button
+                          type="button"
+                          onClick={() => setForm((current) => ({
+                            ...current,
+                            additional_emergency_contacts: current.additional_emergency_contacts.filter((_, contactIndex) => contactIndex !== index)
+                          }))}
+                          aria-label={`Remove additional contact ${index + 2}`}
+                          className="rounded-md p-1.5 text-gray-500 hover:bg-red-50 hover:text-red-700"
+                        >
+                          <Trash2 size={16} aria-hidden="true" />
+                        </button>
+                      </div>
+                      <div className={sectionGridClass}>
+                        {[
+                          ['name', 'Contact name', 'text'],
+                          ['phone', 'Contact phone', 'tel'],
+                          ['relationship', 'Relationship', 'text']
+                        ].map(([field, label, type]) => (
+                          <label key={field} className={labelClass}>{label}
+                            <input
+                              type={type}
+                              value={contact[field] || ''}
+                              onChange={(event) => updateAdditionalContact(index, field, event.target.value)}
+                              className={`${inputClass} mt-1`}
+                            />
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                  <button
+                    type="button"
+                    onClick={() => setForm((current) => ({
+                      ...current,
+                      additional_emergency_contacts: [...current.additional_emergency_contacts, { name: '', phone: '', relationship: '' }]
+                    }))}
+                    className="inline-flex items-center gap-2 rounded-lg border border-blue-200 px-3 py-2 text-sm font-medium text-blue-800 hover:bg-blue-50"
+                  >
+                    <Plus size={16} aria-hidden="true" />Add another contact
+                  </button>
+                </div>
+              </section>
+
               <label className="flex items-start gap-2 rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm text-blue-950">
                 <input type="checkbox" checked={createPortalAccount} onChange={(event) => setCreatePortalAccount(event.target.checked)} className="mt-0.5 accent-blue-700" />
                 <span><span className="block font-medium">Create Member Portal account</span><span className="mt-0.5 block text-xs text-blue-800">The username defaults to the member number. A unique temporary password is generated and shown here; it is never emailed. The member must change the password on first sign-in. If no email is recorded, staff must handle password recovery.</span></span>
