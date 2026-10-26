@@ -233,18 +233,18 @@ const InventoryReports = () => {
             />
           </div>
         </div>
-        <div className="flex space-x-3">
-          <button type="button" onClick={() => window.print()} className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 font-medium">Print</button>
+        <div className="no-print flex space-x-3">
+          <button type="button" onClick={() => window.print()} disabled={loading || Boolean(error)} className="rounded-lg bg-[#183b34] px-4 py-2 font-medium text-white hover:bg-[#102e28] disabled:cursor-not-allowed disabled:opacity-50">Print</button>
           <button type="button" onClick={handleDownload} disabled={loading} className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 font-medium disabled:opacity-60">Download CSV</button>
         </div>
       </div>
 
-      <div className="bg-white rounded-lg border border-gray-200 p-8">
-        <div className="text-center mb-8">
-          <h2 className="text-2xl font-bold text-gray-900">AMCOMS</h2>
-          <p className="text-gray-600">AGAY-AYAN MULTI-PURPOSE COOPERATIVE</p>
-          <h3 className="text-lg font-semibold text-orange-600 mt-4 uppercase">{REPORT_TYPES[reportType]}</h3>
-          <p className="text-sm text-gray-600 mt-1">{periodLabel}</p>
+      <div className="amcoms-print-document rounded-lg border border-gray-200 bg-white p-8">
+        <div className="amcoms-document-header mb-8 border-b-4 pb-5 text-center">
+          <p className="text-xs font-semibold uppercase tracking-[0.16em]">Agay-ayan Multi-Purpose Cooperative</p>
+          <h2 className="mt-3 text-2xl font-bold text-gray-900">{REPORT_TYPES[reportType]}</h2>
+          <p className="mt-2 text-sm text-gray-700">Period covered: {periodLabel}</p>
+          <p className="mt-1 text-xs text-gray-500">Generated {new Date().toLocaleString('en-PH')}</p>
         </div>
 
         <div className="overflow-x-auto">
@@ -276,9 +276,9 @@ const InventoryReports = () => {
           </table>
         </div>
 
-        <div className="mt-8 text-center text-sm text-gray-600">
-          <p>Generated on {new Date().toLocaleString('en-US', { year: 'numeric', month: 'long', day: 'numeric', hour: 'numeric', minute: '2-digit' })}</p>
-          <p className="mt-1">Prepared by: {staff?.full_name || 'Inventory Staff'}</p>
+        <div className="document-signatures mt-8 grid grid-cols-2 gap-10 pt-8 text-center text-xs text-gray-700">
+          <div className="border-t border-gray-700 pt-2">Prepared by: {staff?.full_name || 'Inventory Staff'}</div>
+          <div className="border-t border-gray-700 pt-2">Reviewed by</div>
         </div>
       </div>
     </div>

@@ -135,7 +135,7 @@ const DailyCollection = () => {
 
   return (
     <div className="space-y-6">
-      <section className="flex flex-col gap-4 rounded-xl border border-gray-200 bg-white p-5 shadow-sm sm:flex-row sm:items-end sm:justify-between">
+      <section className="no-print flex flex-col gap-4 rounded-xl border border-gray-200 bg-white p-5 shadow-sm sm:flex-row sm:items-end sm:justify-between">
         <div>
           <h2 className="text-xl font-semibold text-gray-900">Daily Collections</h2>
         </div>
@@ -158,6 +158,7 @@ const DailyCollection = () => {
           <button
             type="button"
             onClick={() => window.print()}
+            disabled={loading || Boolean(error)}
             className="inline-flex items-center gap-2 rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
           >
             <Printer size={16} aria-hidden="true" />
@@ -177,6 +178,12 @@ const DailyCollection = () => {
 
       {error && <p role="alert" className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{error}</p>}
 
+      <div className="amcoms-print-document space-y-6">
+      <header className="amcoms-document-header border-b-4 pb-4 text-center">
+        <p className="text-xs font-semibold uppercase tracking-[0.16em]">Agay-ayan Multi-Purpose Cooperative</p>
+        <h2 className="mt-2 text-lg font-semibold text-gray-900">Daily Collection Report</h2>
+        <p className="text-sm text-gray-600">Date: {selectedDate}</p>
+      </header>
       <section className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
           <p className="text-sm font-medium text-gray-500">Total cash received</p>
@@ -260,6 +267,11 @@ const DailyCollection = () => {
           </table>
         </div>
       </section>
+      <footer className="document-signatures grid grid-cols-2 gap-10 pt-8 text-center text-xs text-gray-700">
+        <div className="border-t border-gray-700 pt-2">Prepared by</div>
+        <div className="border-t border-gray-700 pt-2">Reviewed by</div>
+      </footer>
+      </div>
     </div>
   );
 };

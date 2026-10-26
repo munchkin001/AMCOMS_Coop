@@ -173,7 +173,7 @@ const PerformanceReport = () => {
 
   return (
     <div className="space-y-6">
-      <div className="rounded-lg border border-gray-200 bg-white p-6 shadow">
+      <div className="no-print rounded-lg border border-gray-200 bg-white p-6 shadow">
         <h3 className="mb-4 text-lg font-semibold text-gray-900">Report Configuration</h3>
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
           <label className="block text-sm font-medium text-gray-700">
@@ -226,10 +226,11 @@ const PerformanceReport = () => {
       </div>
 
       {showPreview && (
-        <div className="rounded-lg border border-gray-200 bg-white p-8 shadow" id="report-content">
-          <header className="mb-8 border-b-2 border-gray-300 pb-6 text-center">
-            <h1 className="mb-2 text-3xl font-bold text-gray-900">AMCOMS Performance Report</h1>
-            <p className="text-lg text-gray-600">{range.label}</p>
+        <div className="amcoms-print-document rounded-lg border border-gray-200 bg-white p-8 shadow" id="report-content">
+          <header className="amcoms-document-header mb-8 border-b-4 pb-6 text-center">
+            <p className="text-xs font-semibold uppercase tracking-[0.16em]">Agay-ayan Multi-Purpose Cooperative</p>
+            <h1 className="mt-3 text-2xl font-bold text-gray-900">Performance Report</h1>
+            <p className="mt-2 text-sm text-gray-700">Period covered: {range.label}</p>
             <p className="mt-2 text-sm text-gray-500">Generated: {new Date().toLocaleDateString()}</p>
           </header>
 
@@ -318,7 +319,7 @@ const PerformanceReport = () => {
             </div>
           )}
 
-          <footer className="mt-12 grid grid-cols-2 gap-8">
+          <footer className="document-signatures mt-12 grid grid-cols-2 gap-8">
             <div className="mt-16 border-t-2 border-gray-300 pt-2 text-center">
               <p className="font-semibold text-gray-900">Chairman</p>
               <p className="text-sm text-gray-600">AMCOMS</p>

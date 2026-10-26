@@ -378,7 +378,7 @@ const Reports = () => {
             <button type="button" onClick={() => { setLoading(true); load(); }} className="inline-flex flex-1 items-center justify-center gap-2 rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">
               <RefreshCw size={16} /> Refresh
             </button>
-            <button type="button" onClick={() => window.print()} className="inline-flex flex-1 items-center justify-center gap-2 rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800">
+            <button type="button" onClick={() => window.print()} disabled={loading || Boolean(error)} className="inline-flex flex-1 items-center justify-center gap-2 rounded-lg bg-[#183b34] px-4 py-2 text-sm font-medium text-white hover:bg-[#102e28] disabled:cursor-not-allowed disabled:opacity-50">
               <Printer size={16} /> Print
             </button>
           </div>
@@ -387,9 +387,9 @@ const Reports = () => {
 
       {error && <p role="alert" className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{error}</p>}
 
-      <article id="report-print" className="mx-auto max-w-5xl rounded-xl border border-gray-200 bg-white p-5 shadow-sm sm:p-10">
-        <header className="border-b-4 border-double border-slate-800 pb-4 text-center">
-          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-600">Agay-ayan Multi-Purpose Cooperative</p>
+      <article id="report-print" className="amcoms-print-document mx-auto max-w-5xl rounded-xl border border-gray-200 bg-white p-5 shadow-sm sm:p-10">
+        <header className="amcoms-document-header border-b-4 border-double pb-4 text-center">
+          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[#183b34]">Agay-ayan Multi-Purpose Cooperative</p>
           <h1 className="mt-2 text-2xl font-bold text-slate-900">{meta.title}</h1>
           <p className="mt-3 text-sm font-medium text-slate-800">Period covered: {periodLabel}</p>
           <p className="text-xs text-slate-500">Generated {generatedAt.toLocaleString('en-PH')}</p>
@@ -399,7 +399,7 @@ const Reports = () => {
           {loading ? <p className="py-12 text-center text-sm text-slate-500">Generating report...</p> : renderBody()}
         </div>
 
-        <footer className="mt-16 grid grid-cols-2 gap-10 text-center text-xs text-slate-700">
+        <footer className="document-signatures mt-16 grid grid-cols-2 gap-10 text-center text-xs text-slate-700">
           <div><div className="border-t border-slate-800 pt-1">Prepared by</div></div>
           <div><div className="border-t border-slate-800 pt-1">Noted by (Manager)</div></div>
         </footer>

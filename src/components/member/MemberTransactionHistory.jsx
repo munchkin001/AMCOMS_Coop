@@ -3,6 +3,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { supabase } from '../../lib/supabase';
 import { useMultipleRealtimeSubscriptions } from '../../hooks/useRealtimeSubscription';
 import EmptyState from '../common/EmptyState';
+import PrintableReceipt from '../common/PrintableReceipt';
 
 const peso = (value) => `₱${Number(value || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 const fmtDate = (value) => new Date(value).toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' });
@@ -192,6 +193,19 @@ const MemberTransactionHistory = () => {
                     {t.signed && t.amount > 0 ? '+' : ''}{t.signed && t.amount < 0 ? '-' : ''}{peso(Math.abs(t.amount))}
                   </p>
                   <span className={`mt-1 inline-block rounded-full px-2 py-0.5 text-xs font-medium ${statusStyles[t.status]}`}>{t.status}</span>
+                  {t.receiptNumber && (
+                    <div className="mt-2">
+                      <PrintableReceipt
+                        receiptNumber={t.receiptNumber}
+                        date={t.rawDate}
+                        issuedTo={staff?.full_name}
+                        description={t.type}
+                        amount={t.amount}
+                        status={t.status}
+                        documentType="receipt"
+                      />
+                    </div>
+                  )}
                 </div>
               </li>
             ))}

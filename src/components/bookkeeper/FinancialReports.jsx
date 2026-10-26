@@ -211,18 +211,19 @@ const FinancialReports = () => {
           setRows([]);
           setShowPreview(true);
           setRequestVersion((version) => version + 1);
-        }} className="w-full rounded-lg bg-purple-600 px-4 py-3 font-medium text-white hover:bg-purple-700">
+        }} className="w-full rounded-lg bg-[#183b34] px-4 py-3 font-medium text-white hover:bg-[#102e28]">
           Generate Report
         </button>
       </div>
 
       {error && <p role="alert" className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{error}</p>}
       {showPreview && !error && (
-        <section className="rounded-lg border border-gray-200 bg-white p-6 shadow">
-          <header className="mb-6 border-b-2 border-gray-300 pb-6 text-center">
-            <h1 className="mb-2 text-3xl font-bold text-gray-900">AMCOMS</h1>
-            <h2 className="text-xl font-semibold text-gray-700">AGAY-AYAN MULTI-PURPOSE COOPERATIVE</h2>
-            <h3 className="mt-4 text-lg font-semibold text-purple-600">{reportTitle.toUpperCase()}</h3>
+        <section className="amcoms-print-document rounded-lg border border-gray-200 bg-white p-6 shadow">
+          <header className="amcoms-document-header mb-6 border-b-4 pb-5 text-center">
+            <p className="text-xs font-semibold uppercase tracking-[0.16em]">Agay-ayan Multi-Purpose Cooperative</p>
+            <h1 className="mt-3 text-2xl font-bold text-gray-900">{reportTitle}</h1>
+            <p className="mt-2 text-sm text-gray-700">Period covered: {range.from} to {range.to}</p>
+            <p className="mt-1 text-xs text-gray-500">Generated {new Date().toLocaleString('en-PH')}</p>
           </header>
           {loading ? <p className="py-8 text-center text-sm text-gray-500">Loading posted accounting data...</p> : (
             <>
@@ -230,7 +231,7 @@ const FinancialReports = () => {
                 <div className="grid gap-6 md:grid-cols-2">
                   <ReportRows title="Income" rows={report.income} total={report.totalIncome} color="green" />
                   <ReportRows title="Expenses" rows={report.expenses} total={report.totalExpenses} color="red" />
-                  <p className="rounded-lg border-2 border-purple-300 bg-purple-50 p-4 text-lg font-bold md:col-span-2">
+                  <p className="rounded-lg border border-[#c8d8d2] bg-[#eff5f2] p-4 text-lg font-bold text-[#183b34] md:col-span-2">
                     Net {report.netIncome < 0 ? 'deficit' : 'surplus'}: ₱{money(Math.abs(report.netIncome))}
                   </p>
                 </div>
@@ -261,11 +262,15 @@ const FinancialReports = () => {
                   </table>
                 </div>
               )}
-              <div className="mt-6 flex flex-wrap gap-3 border-t border-gray-200 pt-5">
-                <button type="button" onClick={() => window.print()} className="flex flex-1 items-center justify-center gap-2 rounded-lg bg-gray-600 px-4 py-3 font-medium text-white hover:bg-gray-700">
+              <footer className="document-signatures grid grid-cols-2 gap-10 pt-10 text-center text-xs text-gray-700">
+                <div className="border-t border-gray-700 pt-2">Prepared by</div>
+                <div className="border-t border-gray-700 pt-2">Reviewed and approved by</div>
+              </footer>
+              <div className="no-print mt-6 flex flex-wrap gap-3 border-t border-gray-200 pt-5">
+                <button type="button" onClick={() => window.print()} className="flex flex-1 items-center justify-center gap-2 rounded-lg bg-[#183b34] px-4 py-3 font-medium text-white hover:bg-[#102e28]">
                   <Printer className="size-5" aria-hidden="true" />Print
                 </button>
-                <button type="button" disabled={loading} onClick={downloadReport} className="flex flex-1 items-center justify-center gap-2 rounded-lg bg-purple-600 px-4 py-3 font-medium text-white hover:bg-purple-700 disabled:opacity-50">
+                <button type="button" disabled={loading} onClick={downloadReport} className="flex flex-1 items-center justify-center gap-2 rounded-lg border border-[#183b34] px-4 py-3 font-medium text-[#183b34] hover:bg-[#183b34]/5 disabled:opacity-50">
                   <Download className="size-5" aria-hidden="true" />Download CSV
                 </button>
               </div>
@@ -291,7 +296,7 @@ const ReportRows = ({ title, rows, total, color }) => (
         {rows.length === 0 && <tr><td colSpan={2} className="px-4 py-6 text-center text-gray-500">No posted activity in this period.</td></tr>}
         <tr className="border-t-2 border-gray-300 bg-gray-50 font-bold">
           <td className="px-4 py-3">Total {title.toLowerCase()}</td>
-          <td className={`px-4 py-3 text-right ${color === 'green' ? 'text-green-700' : 'text-red-700'}`}>₱{money(total)}</td>
+          <td className={`px-4 py-3 text-right ${color === 'green' ? 'text-[#183b34]' : 'text-[#8b3f36]'}`}>₱{money(total)}</td>
         </tr>
       </tbody>
     </table>

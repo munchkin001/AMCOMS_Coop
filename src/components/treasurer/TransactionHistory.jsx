@@ -4,6 +4,7 @@ import { supabase } from '../../lib/supabase';
 import { useMultipleRealtimeSubscriptions } from '../../hooks/useRealtimeSubscription';
 import { toDateString } from '../../lib/dashboardAccounting';
 import { getDataLoadErrorMessage } from '../../lib/errorHandler';
+import PrintableReceipt from '../common/PrintableReceipt';
 
 const formatMoney = (value) => `₱${Number(value || 0).toLocaleString('en-PH', {
   minimumFractionDigits: 2,
@@ -53,7 +54,7 @@ const TransactionHistory = () => {
 
     try {
       let receiptsQuery = supabase.from('cash_receipts')
-        .select('id, receipt_number, receipt_date, received_from, description, amount, created_at')
+        .select('id, receipt_number, receipt_date, received_from, description, amount, payment_method, created_at')
         .eq('status', 'recorded').order('receipt_date', { ascending: false }).limit(250);
       let disbursementsQuery = supabase.from('cash_disbursements')
         .select('id, voucher_number, disbursement_date, payee, description, amount, created_at')
@@ -129,6 +130,7 @@ const TransactionHistory = () => {
           direction: 'received',
           counterparty: receipt.received_from,
           description: receipt.description,
+          paymentMethod: receipt.payment_method,
           amount: Number(receipt.amount || 0)
         })),
         ...disbursements.map((disbursement) => ({
@@ -332,15 +334,16 @@ const TransactionHistory = () => {
                 <th scope="col" className="px-5 py-3">Counterparty</th>
                 <th scope="col" className="px-5 py-3">Direction</th>
                 <th scope="col" className="px-5 py-3 text-right">Amount</th>
+                <th scope="col" className="no-print px-5 py-3">Document</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
               {loading ? (
-                <tr><td colSpan="6" className="px-5 py-10 text-center text-gray-500">Loading transactions…</td></tr>
+                <tr><td colSpan="7" className="px-5 py-10 text-center text-gray-500">Loading transactions…</td></tr>
               ) : error ? (
-                <tr><td colSpan="6" className="px-5 py-10 text-center text-gray-500">Transaction records are unavailable.</td></tr>
+                <tr><td colSpan="7" className="px-5 py-10 text-center text-gray-500">Transaction records are unavailable.</td></tr>
               ) : filteredTransactions.length === 0 ? (
-                <tr><td colSpan="6" className="px-5 py-10 text-center text-gray-500">No recorded transactions match these filters.</td></tr>
+                <tr><td colSpan="7" className="px-5 py-10 text-center text-gray-500">No recorded transactions match these filters.</td></tr>
               ) : filteredTransactions.map((transaction) => (
                 <tr key={transaction.id} className="hover:bg-gray-50">
                   <td className="whitespace-nowrap px-5 py-3 text-gray-700">{transaction.date}</td>
@@ -355,6 +358,19 @@ const TransactionHistory = () => {
                     </span>
                   </td>
                   <td className="whitespace-nowrap px-5 py-3 text-right font-medium tabular-nums text-gray-900">{formatMoney(transaction.amount)}</td>
+                  <td className="no-print px-5 py-3">
+                    {transaction.direction === 'received' && (
+                      <PrintableReceipt
+                        receiptNumber={transaction.reference}
+                        date={transaction.date}
+                        issuedTo={transaction.counterparty}
+                        description={transaction.description || transaction.type}
+                        amount={transaction.amount}
+                        paymentMethod={transaction.paymentMethod}
+                        documentType="receipt"
+                      />
+                    )}
+                  </td>
                 </tr>
               ))}
             </tbody>

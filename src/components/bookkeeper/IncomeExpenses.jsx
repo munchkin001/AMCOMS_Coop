@@ -123,8 +123,8 @@ const IncomeExpenses = () => {
   };
 
   return (
-    <div className="space-y-6">
-      <div className="rounded-lg border border-gray-200 bg-white p-6 shadow">
+    <div className="amcoms-print-document space-y-6">
+      <div className="no-print rounded-lg border border-gray-200 bg-white p-6 shadow">
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
           <label className="block text-sm font-medium text-gray-700">
             Period
@@ -163,7 +163,14 @@ const IncomeExpenses = () => {
         <p className="mt-3 text-sm text-gray-500">Showing {range.label}</p>
       </div>
 
-      {error && <p role="alert" className="rounded bg-red-50 p-3 text-red-700">{error}</p>}
+      <header className="amcoms-document-header border-b-4 pb-5 text-center">
+        <p className="text-xs font-semibold uppercase tracking-[0.16em]">Agay-ayan Multi-Purpose Cooperative</p>
+        <h2 className="mt-3 text-2xl font-bold text-gray-900">Income and Expense Report</h2>
+        <p className="mt-2 text-sm text-gray-700">Period covered: {range.label}</p>
+        <p className="mt-1 text-xs text-gray-500">Generated {new Date().toLocaleString('en-PH')}</p>
+      </header>
+
+      {error && <p role="alert" className="no-print rounded bg-red-50 p-3 text-red-700">{error}</p>}
 
       <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
         <div className="rounded-lg border border-green-200 bg-green-50 p-6">
@@ -174,14 +181,14 @@ const IncomeExpenses = () => {
           <p className="mb-2 text-sm text-gray-600">Total Expenses</p>
           <p className="text-3xl font-bold text-red-600">{formatMoney(totalExpenses)}</p>
         </div>
-        <div className="rounded-lg border border-purple-200 bg-purple-50 p-6">
+        <div className="rounded-lg border border-[#c8d8d2] bg-[#eff5f2] p-6">
           <p className="mb-2 text-sm text-gray-600">Net Income</p>
-          <p className="text-3xl font-bold text-purple-600">{formatMoney(netIncome)}</p>
+          <p className="text-3xl font-bold text-[#183b34]">{formatMoney(netIncome)}</p>
         </div>
       </div>
 
       <div className="rounded-lg border border-gray-200 bg-white shadow">
-        <div className="flex border-b border-gray-200">
+        <div className="no-print flex border-b border-gray-200">
           <button
             onClick={() => setViewType('income')}
             className={`flex-1 px-6 py-4 font-medium transition-colors ${
@@ -248,20 +255,21 @@ const IncomeExpenses = () => {
             <p className="text-2xl font-bold text-red-600">{(totalExpenses / (total || 1) * 100).toFixed(1)}%</p>
           </div>
         </div>
-        <div className="mt-4 flex items-center justify-between rounded-lg border border-purple-200 bg-purple-50 p-4">
+        <div className="mt-4 flex items-center justify-between rounded-lg border border-[#c8d8d2] bg-[#eff5f2] p-4">
           <div>
             <p className="mb-1 text-sm text-gray-600">Net Income</p>
           </div>
-          <p className="text-3xl font-bold text-purple-600">{formatMoney(netIncome)}</p>
+          <p className="text-3xl font-bold text-[#183b34]">{formatMoney(netIncome)}</p>
         </div>
         <p className="mt-4 text-right text-xs text-gray-500">{currentShare.toFixed(1)}% of combined income and expenses</p>
       </div>
 
-      <div className="rounded-lg border border-gray-200 bg-white p-6 shadow">
+      <div className="no-print rounded-lg border border-gray-200 bg-white p-6 shadow">
         <h3 className="mb-4 text-lg font-semibold text-gray-900">Report Options</h3>
         <button
+          disabled={loading || Boolean(error)}
           onClick={() => window.print()}
-          className="rounded-lg bg-gray-600 px-4 py-2 font-medium text-white transition-colors hover:bg-gray-700"
+          className="rounded-lg bg-[#183b34] px-4 py-2 font-medium text-white transition-colors hover:bg-[#102e28] disabled:cursor-not-allowed disabled:opacity-50"
         >
           Print Report
         </button>

@@ -78,10 +78,11 @@ export const TrialBalance = () => {
         <button type="button" onClick={() => window.print()} className={primaryButtonClass}><Printer className="size-4" aria-hidden="true" />Print</button>
       </div>
       {error && <p role="alert" className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{error}</p>}
-      <div id="gl-print" className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
-        <div className="border-b border-gray-200 px-4 py-4 text-center">
-          <h2 className="text-base font-semibold text-gray-900">Trial Balance</h2>
-          <p className="text-sm text-gray-600">{periodLabel}</p>
+      <div id="gl-print" className="amcoms-print-document overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
+        <div className="amcoms-document-header border-b-4 px-4 py-4 text-center">
+          <p className="text-xs font-semibold uppercase tracking-[0.16em]">Agay-ayan Multi-Purpose Cooperative</p>
+          <h2 className="mt-2 text-base font-semibold text-gray-900">Trial Balance</h2>
+          <p className="text-sm text-gray-600">Period covered: {periodLabel}</p>
         </div>
         {loading ? <p className="py-8 text-center text-sm text-gray-500">Loading...</p> : error ? (
           <p className="px-4 py-8 text-center text-sm text-gray-500">The report could not be calculated. Resolve the error above and try again.</p>
@@ -109,6 +110,12 @@ export const TrialBalance = () => {
               </tr>
             </tfoot>
           </table>
+        )}
+        {!loading && !error && (
+          <footer className="document-signatures grid grid-cols-2 gap-10 px-4 pb-4 text-center text-xs text-gray-700">
+            <div className="border-t border-gray-700 pt-2">Prepared by</div>
+            <div className="border-t border-gray-700 pt-2">Reviewed and approved by</div>
+          </footer>
         )}
       </div>
     </div>
@@ -181,7 +188,13 @@ export const FinancialStatements = () => {
       {loading ? <p className="py-8 text-center text-sm text-gray-500">Loading...</p> : error ? (
         <p className="py-8 text-center text-sm text-gray-500">The report could not be calculated. Resolve the error above and try again.</p>
       ) : (
-        <div id="gl-print" className="grid gap-4 lg:grid-cols-2">
+        <div id="gl-print" className="amcoms-print-document grid gap-4 lg:grid-cols-2">
+          <header className="amcoms-document-header border-b-4 pb-4 text-center lg:col-span-2">
+            <p className="text-xs font-semibold uppercase tracking-[0.16em]">Agay-ayan Multi-Purpose Cooperative</p>
+            <h2 className="mt-2 text-lg font-semibold text-gray-900">Financial Statements</h2>
+            <p className="text-sm text-gray-600">{formatDate(from)} to {formatDate(to)}</p>
+            <p className="text-xs text-gray-500">Generated {new Date().toLocaleDateString('en-PH')}</p>
+          </header>
           <section className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
             <div className="border-b border-gray-200 px-4 py-4 text-center">
               <h2 className="text-base font-semibold text-gray-900">Statement of Income and Expenses</h2>
@@ -215,6 +228,10 @@ export const FinancialStatements = () => {
               </td></tr>
             </tbody></table>
           </section>
+          <footer className="document-signatures grid grid-cols-2 gap-10 pt-8 text-center text-xs text-gray-700 lg:col-span-2">
+            <div className="border-t border-gray-700 pt-2">Prepared by</div>
+            <div className="border-t border-gray-700 pt-2">Reviewed and approved by</div>
+          </footer>
         </div>
       )}
     </div>

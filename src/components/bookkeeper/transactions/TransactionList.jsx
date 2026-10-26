@@ -57,11 +57,15 @@ const TransactionList = ({ onNewTransaction, onViewTransaction }) => {
           date: sale.order_date,
           referenceNo: sale.order_number,
           repCvNumber: sale.order_number,
-          particulars: `${item?.item_description || product?.product_name || 'Sale'} × ${item?.quantity || 1} — ${sale.customer_name || 'Customer'}${sale.cash_receipt_id ? '' : ` · paid ₱${Number(sale.amount_paid || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })} of ₱${Number(sale.net_amount).toLocaleString('en-PH', { minimumFractionDigits: 2 })}`}`,
+          particulars: `${item?.item_description || product?.product_name || 'Sale'}${sale.cash_receipt_id ? '' : ` · paid ₱${Number(sale.amount_paid || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })} of ₱${Number(sale.net_amount).toLocaleString('en-PH', { minimumFractionDigits: 2 })}`}`,
+          lineDescription: item?.item_description || product?.product_name || 'Sale',
+          quantity: Number(item?.quantity) || 1,
           member: sale.customer_name,
           type: 'sale',
           transactionType: 'Sales',
           amount: Number(sale.total_amount) || 0,
+          invoiceTotal: Number(sale.net_amount) || Number(sale.total_amount) || 0,
+          amountPaid: Number(sale.amount_paid) || 0,
           status: sale.payment_status === 'cancelled'
             ? 'Voided'
             : ['pending', 'partial'].includes(sale.payment_status) ? 'Credit' : 'Recorded',

@@ -13,6 +13,7 @@ import {
   Clock,
   AlertCircle
 } from 'lucide-react';
+import PrintableReceipt from '../../common/PrintableReceipt';
 
 const TransactionDetail = ({ transaction, onBack, onEdit, onDelete }) => {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
@@ -122,6 +123,27 @@ const TransactionDetail = ({ transaction, onBack, onEdit, onDelete }) => {
             <span className="font-medium">Back to Transactions</span>
           </button>
 
+          <div className="flex flex-wrap items-center gap-2">
+          <PrintableReceipt
+            receiptNumber={transaction.receiptNumber || (
+              transaction.type === 'cash-receipt'
+                ? transaction.repCvNumber
+                : transaction.type === 'sale' ? transaction.referenceNo : null
+            )}
+            date={transaction.date}
+            issuedTo={transaction.member}
+            description={transaction.lineDescription || transaction.particulars}
+            amount={transaction.type === 'sale'
+              ? transaction.invoiceTotal || transaction.amount
+              : transaction.amount || transaction.paymentAmount}
+            amountPaid={transaction.type === 'sale' ? transaction.amountPaid : undefined}
+            quantity={transaction.quantity}
+            paymentMethod={transaction.paymentMethod}
+            status={transaction.status}
+            receivedBy={transaction.createdBy}
+            documentType={transaction.type === 'sale' ? 'invoice' : 'receipt'}
+            reference={transaction.type === 'sale' && transaction.receiptNumber ? transaction.referenceNo : undefined}
+          />
           {!transaction.readOnly && <div className="flex gap-2">
             {statusKey === 'draft' && transaction.type !== 'sale' && (
               <button
@@ -141,6 +163,7 @@ const TransactionDetail = ({ transaction, onBack, onEdit, onDelete }) => {
               <span>{transaction.type === 'cash-receipt' ? 'Void' : 'Delete'}</span>
             </button>}
           </div>}
+          </div>
         </div>
 
         <div className="flex items-center gap-4 mb-4">
