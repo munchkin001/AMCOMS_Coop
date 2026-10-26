@@ -202,11 +202,11 @@ const Login = ({ portalType }) => {
           <div className={`border-b-4 border-[#c49a45] bg-gradient-to-br ${portalConfig.gradient} px-8 py-10 text-center text-white sm:py-12`}>
             {/* Logo */}
             <div className="mb-4">
-              <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-full border border-[#e9c46a]/70 bg-white/10 p-2 shadow-[0_0_24px_rgba(233,196,106,0.18)]">
+              <div className="mx-auto flex h-20 w-20 items-center justify-center overflow-hidden rounded-full border border-[#e9c46a]/70 bg-white/10 shadow-[0_0_24px_rgba(233,196,106,0.18)]">
                 <img 
                   src="/LOGO.png" 
                   alt="Agay-ayan MPC Logo" 
-                  className="w-full h-full object-contain"
+                  className="h-full w-full object-cover"
                 />
               </div>
             </div>
