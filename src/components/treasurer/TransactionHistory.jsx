@@ -11,6 +11,15 @@ const formatMoney = (value) => `₱${Number(value || 0).toLocaleString('en-PH', 
 })}`;
 
 const csvCell = (value) => `"${String(value ?? '').replaceAll('"', '""')}"`;
+const transactionTypes = [
+  'Loan Payment',
+  'Other Disbursement',
+  'Other Receipt',
+  'Savings Deposit',
+  'Savings Withdrawal',
+  'Time Deposit',
+  'Time Deposit Withdrawal'
+];
 const initialEndDate = toDateString(new Date());
 const initialStart = new Date(`${initialEndDate}T00:00:00`);
 initialStart.setDate(initialStart.getDate() - 29);
@@ -178,7 +187,10 @@ const TransactionHistory = () => {
     return result;
   }, { received: 0, released: 0 });
   const netFlow = totals.received - totals.released;
-  const types = [...new Set(transactions.map((transaction) => transaction.type))].sort();
+  const types = [...new Set([
+    ...transactionTypes,
+    ...transactions.map((transaction) => transaction.type)
+  ])].sort();
 
   const exportCsv = () => {
     const rows = [
