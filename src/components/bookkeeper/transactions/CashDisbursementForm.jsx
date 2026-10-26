@@ -397,7 +397,6 @@ const CashDisbursementForm = ({ onSave, onCancel, transaction = null }) => {
                 </option>
               ))}
             </select>
-            <p className="mt-1 text-xs text-gray-500">The purchase number is added to the particulars. Once recorded, the purchase shows as Paid in the inventory portal.</p>
           </div>
         )}
         {/* Particulars */}

@@ -178,7 +178,6 @@ const Policies = () => {
       {error && <p role="alert" className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{error}</p>}
       <section className="flex flex-col gap-5 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:flex-row sm:items-center sm:justify-between sm:p-6">
         <div>
-          <p className="text-sm font-medium text-slate-600">Manage cooperative policies and governance documents</p>
           <p className="mt-2 inline-flex items-center gap-2 text-xs font-medium text-emerald-700">
             <span className="h-2 w-2 rounded-full bg-emerald-500" />
             Live updates enabled
@@ -243,7 +242,6 @@ const Policies = () => {
         <div className="flex items-center justify-between">
           <div>
             <h2 className="text-base font-semibold text-slate-900">Policy library</h2>
-            <p className="mt-1 text-sm text-slate-500">Policies are kept current across connected views.</p>
           </div>
         </div>
         {loading ? (
@@ -252,7 +250,6 @@ const Policies = () => {
           <div className="rounded-2xl border border-dashed border-slate-300 bg-white px-6 py-12 text-center">
             <FileText aria-hidden="true" className="mx-auto h-8 w-8 text-slate-400" />
             <p className="mt-3 text-sm font-semibold text-slate-900">No policies yet</p>
-            <p className="mt-1 text-sm text-slate-500">Create a policy to begin building your governance library.</p>
           </div>
         ) : policies.map((policy) => (
           <article key={policy.id} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition-shadow hover:shadow-md sm:p-6">
@@ -310,7 +307,6 @@ const Policies = () => {
               <div className="flex items-center justify-between">
                 <div>
                   <h3 className="text-lg font-semibold text-slate-900">{editingPolicyId ? 'Edit policy' : 'Create new policy'}</h3>
-                  <p className="mt-1 text-sm text-slate-500">Provide clear details for this governance document.</p>
                 </div>
                 <button
                   onClick={() => setShowCreateModal(false)}

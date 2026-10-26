@@ -500,7 +500,6 @@ const MemberManagement = ({ canManageMembers = true }) => {
       <header className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
         <div>
           <h1 className="text-2xl font-bold text-gray-950">Members</h1>
-          <p className="mt-1 text-sm text-gray-600">{canManageMembers ? 'View and maintain cooperative member records.' : 'View cooperative member records and account details.'}</p>
         </div>
         {canManageMembers && (
           <button type="button" onClick={startAdd} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg bg-blue-700 px-4 text-sm font-semibold text-white hover:bg-blue-800">
@@ -608,13 +607,13 @@ const MemberManagement = ({ canManageMembers = true }) => {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/55 p-4">
           <section role="dialog" aria-modal="true" aria-labelledby="member-form-title" className="max-h-[92vh] w-full max-w-4xl overflow-y-auto rounded-xl bg-slate-50 shadow-2xl">
             <div className="sticky top-0 z-10 flex items-center justify-between border-b border-gray-200 bg-white px-5 py-4">
-              <div><h2 id="member-form-title" className="text-lg font-semibold text-gray-900">Add Member</h2><p className="mt-0.5 text-sm text-gray-500">Enter member details by section. Member number is generated when saved.</p></div>
+              <div><h2 id="member-form-title" className="text-lg font-semibold text-gray-900">Add Member</h2></div>
               <button type="button" onClick={() => setModal('')} aria-label="Close" className="rounded-lg p-2 text-gray-500 hover:bg-gray-100"><X size={20} /></button>
             </div>
             <form onSubmit={handleSave} className="space-y-4 p-4 sm:p-5">
               {error && <p role="alert" className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">{error}</p>}
               <section className={sectionClass} aria-labelledby="personal-info-title">
-                <div className="mb-4"><h3 id="personal-info-title" className="text-sm font-semibold text-gray-900">Personal info</h3><p className="mt-1 text-xs text-gray-500">Basic identity and contact details.</p></div>
+                <div className="mb-4"><h3 id="personal-info-title" className="text-sm font-semibold text-gray-900">Personal info</h3></div>
                 <div className={sectionGridClass}>
                   {renderMemberField('first_name', 'First name', 'text', true)}
                   {renderMemberField('middle_name', 'Middle name')}
@@ -630,7 +629,7 @@ const MemberManagement = ({ canManageMembers = true }) => {
               </section>
 
               <section className={sectionClass} aria-labelledby="membership-info-title">
-                <div className="mb-4"><h3 id="membership-info-title" className="text-sm font-semibold text-gray-900">Membership</h3><p className="mt-1 text-xs text-gray-500">Membership dates, classification, and share ownership.</p></div>
+                <div className="mb-4"><h3 id="membership-info-title" className="text-sm font-semibold text-gray-900">Membership</h3></div>
                 <div className={sectionGridClass}>
                   {renderMemberField('date_joined', 'Membership date', 'date', true)}
                   {renderMemberField('membership_type', 'Member type', 'select', true)}
@@ -640,7 +639,7 @@ const MemberManagement = ({ canManageMembers = true }) => {
               </section>
 
               <section className={sectionClass} aria-labelledby="member-ids-title">
-                <div className="mb-4"><h3 id="member-ids-title" className="text-sm font-semibold text-gray-900">IDs</h3><p className="mt-1 text-xs text-gray-500">Provide the member’s identification numbers, if available.</p></div>
+                <div className="mb-4"><h3 id="member-ids-title" className="text-sm font-semibold text-gray-900">IDs</h3></div>
                 <div className={sectionGridClass}>
                   {renderMemberField('rsbsa', 'RSBSA')}
                   {renderMemberField('tin', 'TIN')}
@@ -649,7 +648,7 @@ const MemberManagement = ({ canManageMembers = true }) => {
               </section>
 
               <section className={sectionClass} aria-labelledby="other-info-title">
-                <div className="mb-4"><h3 id="other-info-title" className="text-sm font-semibold text-gray-900">Others</h3><p className="mt-1 text-xs text-gray-500">Emergency contact details for reaching someone on the member’s behalf.</p></div>
+                <div className="mb-4"><h3 id="other-info-title" className="text-sm font-semibold text-gray-900">Others</h3></div>
                 <div className={sectionGridClass}>
                   {renderMemberField('emergency_contact_name', 'Emergency contact name')}
                   {renderMemberField('emergency_contact_phone', 'Emergency contact phone', 'tel')}
@@ -705,7 +704,7 @@ const MemberManagement = ({ canManageMembers = true }) => {
 
               <label className="flex items-start gap-2 rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm text-blue-950">
                 <input type="checkbox" checked={createPortalAccount} onChange={(event) => setCreatePortalAccount(event.target.checked)} className="mt-0.5 accent-blue-700" />
-                <span><span className="block font-medium">Create Member Portal account</span><span className="mt-0.5 block text-xs text-blue-800">The username defaults to the member number. A unique temporary password is generated and shown here; it is never emailed. The member must change the password on first sign-in. If no email is recorded, staff must handle password recovery.</span></span>
+                <span className="font-medium">Create Member Portal account</span>
               </label>
               {duplicateMatches.length > 0 && (
                 <div className="space-y-3 rounded-lg border border-amber-300 bg-amber-50 p-4">
@@ -727,7 +726,7 @@ const MemberManagement = ({ canManageMembers = true }) => {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/55 p-4">
           <section role="dialog" aria-modal="true" aria-labelledby="member-edit-title" className="max-h-[92vh] w-full max-w-3xl overflow-y-auto rounded-xl bg-white shadow-2xl">
             <div className="sticky top-0 z-10 flex items-center justify-between border-b border-gray-200 bg-white px-5 py-4">
-              <div><h2 id="member-edit-title" className="text-lg font-semibold text-gray-900">Edit Member</h2><p className="text-xs text-gray-500">{selectedMember.member_number} · Financial history is not editable here.</p></div>
+              <div><h2 id="member-edit-title" className="text-lg font-semibold text-gray-900">Edit Member</h2><p className="text-xs text-gray-500">{selectedMember.member_number}</p></div>
               <button type="button" onClick={() => setModal('')} aria-label="Close" className="rounded-lg p-2 text-gray-500 hover:bg-gray-100"><X size={20} /></button>
             </div>
             <form onSubmit={handleSave} className="space-y-5 p-5">
@@ -745,7 +744,6 @@ const MemberManagement = ({ canManageMembers = true }) => {
                     disabled={!selectedMember.portal_account?.has_account}
                     className={`${inputClass} mt-1 disabled:bg-gray-100`}
                   />
-                  {!selectedMember.portal_account?.has_account && <span className="mt-1 block text-xs text-gray-500">Create a Member Portal account before setting its username.</span>}
                 </label>
                 <label className={labelClass}>Member type *
                   <select name="membership_type" value={form.membership_type || 'regular'} onChange={updateField} required className={`${inputClass} mt-1`}>
@@ -871,7 +869,6 @@ const MemberManagement = ({ canManageMembers = true }) => {
         </div>
       )}
 
-      {view === 'archived' && <p className="text-xs text-gray-500">Reactivate a member when they rejoin. Their financial history and permanent Member ID are preserved.</p>}
     </div>
   );
 };

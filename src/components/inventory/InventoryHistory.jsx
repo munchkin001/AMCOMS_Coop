@@ -177,7 +177,6 @@ const InventoryHistory = () => {
       <div className="bg-white rounded-lg border border-gray-200">
         <div className="p-6 border-b border-gray-200">
           <h3 className="text-lg font-semibold text-gray-900">Inventory Movement History</h3>
-          <p className="text-sm text-gray-600 mt-1">Complete record of all stock movements and activities, updated as they are recorded</p>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full">

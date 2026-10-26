@@ -78,7 +78,6 @@ const FinancialRecords = () => {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <p className="text-gray-600">Add, view, and manage financial records</p>
         </div>
         <button
           onClick={() => setShowAddModal(true)}

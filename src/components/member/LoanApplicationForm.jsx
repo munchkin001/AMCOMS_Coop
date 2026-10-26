@@ -170,7 +170,6 @@ const LoanApplicationForm = () => {
     <section className="space-y-4 rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
       <div>
         <h2 className="text-lg font-bold text-gray-900">Loan Applications</h2>
-        <p className="mt-1 text-sm text-gray-600">Submit a request for Manager review. If approved, the Bookkeeper records the cash release before repayment begins. Offline applications remain local and are not submitted for review until server-confirmed.</p>
       </div>
 
       {error && <p role="alert" className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">{error}</p>}
@@ -218,7 +217,6 @@ const LoanApplicationForm = () => {
               <p>Estimated interest <strong className="block">{money(quote.interest)}</strong></p>
               <p>Estimated total repayment <strong className="block">{money(quote.total)}</strong></p>
               <p>Estimated installment <strong className="block">{money(quote.installment)}</strong></p>
-              <p className="text-xs text-blue-800 sm:col-span-3">Estimate only; final terms are confirmed by the Manager under cooperative policy.</p>
             </div>
           )}
           {hasOpenApplication && <p className="text-sm text-amber-800 sm:col-span-2"><Clock3 aria-hidden="true" className="mr-1 inline" size={16} />You have an application awaiting review. You can submit another after a decision.</p>}

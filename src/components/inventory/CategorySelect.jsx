@@ -157,7 +157,6 @@ const CategorySelect = ({ id, value, categories, onChange, onCategoriesChanged, 
         </ul>
       )}
 
-      {!adding && selected?.description && <p className="mt-1 text-xs text-gray-500">{selected.description}</p>}
 
       {!adding && hasMissingDefaults && (
         <button type="button" onClick={addStandard} disabled={busy} className="mt-1 text-xs font-medium text-orange-600 hover:underline disabled:opacity-60">

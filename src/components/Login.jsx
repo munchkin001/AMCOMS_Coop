@@ -9,7 +9,6 @@ const Login = ({ portalType }) => {
   const isStaffPortal = portalType === 'staff';
   const portalConfig = {
     name: 'AMCOMS',
-    subtitle: isStaffPortal ? 'Staff Portal' : 'Member Portal',
     cooperative: 'Agay-ayan Multi-Purpose Cooperative',
     gradient: isStaffPortal
       ? 'from-blue-950 to-blue-800'
@@ -214,7 +213,6 @@ const Login = ({ portalType }) => {
 
             {/* System Name */}
             <h1 className="text-3xl font-bold mb-2">{portalConfig.name}</h1>
-            <p className="mb-1 text-sm font-medium text-[#f0d995]">{portalConfig.subtitle}</p>
             <p className="text-xs text-white/75">{portalConfig.cooperative}</p>
           </div>
 

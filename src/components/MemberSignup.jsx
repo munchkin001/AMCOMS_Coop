@@ -250,7 +250,6 @@ const MemberSignup = () => {
                 <img src="/LOGO.png" alt="Logo" className="w-16 h-16 object-contain" />
                 <div className="text-left">
                   <h1 className="text-2xl font-bold text-gray-900">AMCOMS</h1>
-                  <p className="text-sm text-gray-600">Member Portal</p>
                 </div>
               </div>
 
@@ -331,7 +330,6 @@ const MemberSignup = () => {
                     )}
                   </button>
                 </div>
-                <p className="text-xs text-gray-500 mt-1">At least 8 characters, including uppercase, lowercase, and a number</p>
               </div>
 
               <div>

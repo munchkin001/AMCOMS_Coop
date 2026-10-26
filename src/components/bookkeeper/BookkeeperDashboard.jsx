@@ -133,7 +133,6 @@ const BookkeeperDashboard = ({ onSelectTransaction, onViewBooks }) => {
       {/* Welcome Section */}
       <div>
         <h2 className="text-2xl font-bold text-gray-900">{greeting}, Bookkeeper</h2>
-        <p className="text-gray-600 mt-1">Here's the cooperative's bookkeeping activity for today.</p>
         
         {/* Date Selector */}
         <div className="flex items-center space-x-3 mt-4">

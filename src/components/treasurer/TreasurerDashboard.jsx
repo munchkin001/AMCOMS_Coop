@@ -381,7 +381,6 @@ const TreasurerDashboard = () => {
         <section className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm sm:p-6">
           <div className="mb-5">
             <h3 className="text-lg font-semibold text-gray-950">Account Balances</h3>
-            <p className="mt-1 text-sm text-gray-500">Current balances across key accounts</p>
           </div>
           <div className="space-y-3">
             {[
@@ -430,7 +429,6 @@ const TreasurerDashboard = () => {
           <div className="mb-5 flex items-start justify-between gap-4">
             <div>
               <h3 className="text-lg font-semibold text-gray-950">Net Cash Flow</h3>
-              <p className="mt-1 text-sm text-gray-500">Cash movement recorded today</p>
             </div>
             <span className="shrink-0 rounded-full bg-teal-50 px-3 py-1 text-xs font-semibold text-teal-700">Today</span>
           </div>
@@ -461,7 +459,6 @@ const TreasurerDashboard = () => {
               <div className={`flex flex-wrap items-center justify-between gap-3 rounded-lg border p-4 ${totalCashFlow >= 0 ? 'border-teal-100 bg-teal-50' : 'border-amber-100 bg-amber-50'}`}>
                 <div>
                   <p className="text-sm font-medium text-gray-700">Net flow</p>
-                  <p className="mt-1 text-xs text-gray-500">Received minus released</p>
                 </div>
                 <p className={`text-2xl font-bold tabular-nums sm:text-3xl ${totalCashFlow >= 0 ? 'text-teal-700' : 'text-amber-700'}`}>
                   {totalCashFlow >= 0 ? '+' : '−'}{formatMoney(Math.abs(totalCashFlow))}

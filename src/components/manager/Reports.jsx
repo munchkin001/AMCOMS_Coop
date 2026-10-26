@@ -348,7 +348,6 @@ const Reports = () => {
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <h2 className="text-lg font-semibold text-gray-900">Report Generator</h2>
-            <p className="mt-0.5 text-sm text-gray-500">Figures update automatically as records change.</p>
           </div>
           <span className="inline-flex items-center gap-2 text-xs text-gray-500">
             <span className="size-2 rounded-full bg-green-500" /> Live
@@ -392,7 +391,6 @@ const Reports = () => {
         <header className="border-b-4 border-double border-slate-800 pb-4 text-center">
           <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-600">Agay-ayan Multi-Purpose Cooperative</p>
           <h1 className="mt-2 text-2xl font-bold text-slate-900">{meta.title}</h1>
-          <p className="mt-1 text-sm text-slate-700">{meta.blurb}</p>
           <p className="mt-3 text-sm font-medium text-slate-800">Period covered: {periodLabel}</p>
           <p className="text-xs text-slate-500">Generated {generatedAt.toLocaleString('en-PH')}</p>
         </header>

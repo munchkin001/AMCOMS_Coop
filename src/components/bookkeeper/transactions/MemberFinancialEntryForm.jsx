@@ -453,7 +453,6 @@ const MemberFinancialEntryForm = ({
     <div className="mx-auto max-w-4xl space-y-5">
       <div>
         <h2 className="text-xl font-bold text-gray-900">{title}</h2>
-        <p className="mt-1 text-sm text-gray-600">Post cash-book and member-ledger updates together.</p>
       </div>
 
       {error && <p role="alert" className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{error}</p>}
@@ -722,7 +721,6 @@ const MemberFinancialEntryForm = ({
             <p className="mt-3 text-sm font-semibold text-emerald-900">
               Total: ₱{capitalAmount.toLocaleString('en-PH', { minimumFractionDigits: 2 })}
             </p>
-            <p className="mt-1 text-xs text-emerald-800">Only selected months are marked as paid; missed months remain due.</p>
           </div>
         )}
 
@@ -736,7 +734,6 @@ const MemberFinancialEntryForm = ({
               Annual interest rate (%) *
               <input type="number" min="0" step="0.01" value={interestRate} onChange={(event) => setInterestRate(event.target.value)} required className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2" />
             </label>
-            <p className="text-xs text-teal-900 sm:col-span-2">Each placement creates a separate time-deposit account so its maturity date and rate stay attached to the deposit.</p>
           </div>
         )}
 

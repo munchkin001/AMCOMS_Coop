@@ -152,7 +152,6 @@ const Purchases = () => {
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <p className="text-sm text-gray-600">Record raw materials and supplies bought from suppliers. These are separate from finished-product stock.</p>
         <button type="button" onClick={() => setShowForm(true)} className="rounded-lg bg-orange-600 px-4 py-2 text-sm font-medium text-white hover:bg-orange-700">
           New Purchase
         </button>
@@ -241,7 +240,6 @@ const Purchases = () => {
       <div className="rounded-lg border border-gray-200 bg-white">
         <div className="border-b border-gray-200 p-6">
           <h3 className="text-lg font-semibold text-gray-900">Purchase Orders</h3>
-          <p className="mt-1 text-sm text-gray-600">Orders placed with suppliers and their delivery and payment status</p>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full">

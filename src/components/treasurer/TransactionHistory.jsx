@@ -226,7 +226,6 @@ const TransactionHistory = () => {
       <section className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
         <div className="mb-5">
           <h2 className="text-xl font-semibold text-gray-900">Transaction History</h2>
-          <p className="mt-1 text-sm text-gray-500">Recorded cash receipts and disbursements, refreshed as records change.</p>
         </div>
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
           <label className="text-sm font-medium text-gray-700">

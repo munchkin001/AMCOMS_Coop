@@ -18,7 +18,6 @@ const tabs = [
 const GeneralLedger = () => {
   const { staff } = useAuth();
   const [active, setActive] = useState('ledger');
-  const canPost = ['bookkeeper', 'treasurer'].includes(staff?.role);
   const visibleTabs = tabs.filter((tab) => !tab.hideFor?.includes(staff?.role));
   const current = visibleTabs.some((tab) => tab.id === active) ? active : 'ledger';
 
@@ -26,11 +25,6 @@ const GeneralLedger = () => {
     <div className="space-y-6">
       <div className="no-print rounded-xl border border-gray-200 bg-white p-4 shadow-sm sm:p-6">
         <h2 className="text-xl font-semibold text-gray-900">General Ledger</h2>
-        <p className="mt-1 text-sm text-gray-600">
-          {canPost
-            ? 'Balances are computed from posted journal entries. Cash receipts and disbursements post here automatically; corrections are made with reversing or adjusting entries.'
-            : 'Read-only view of the cooperative\'s accounting records. Posted entries cannot be edited or deleted.'}
-        </p>
       </div>
 
       <div className="no-print overflow-x-auto rounded-xl border border-gray-200 bg-white">

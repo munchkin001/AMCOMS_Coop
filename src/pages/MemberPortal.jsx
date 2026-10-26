@@ -11,6 +11,7 @@ import MSOTimeDeposit from '../components/member/MSOTimeDeposit';
 import MSOLoans from '../components/member/MSOLoans';
 import MemberTransactionHistory from '../components/member/MemberTransactionHistory';
 import MemberAnnouncements from '../components/member/MemberAnnouncements';
+import PublishedPolicies from '../components/common/PublishedPolicies';
 
 const MemberPortal = () => {
   const navigate = useNavigate();
@@ -155,6 +156,8 @@ const MemberPortal = () => {
         return <MemberTransactionHistory />;
       case 'announcements':
         return <MemberAnnouncements />;
+      case 'policies':
+        return <PublishedPolicies />;
       default:
         return <MemberDashboard onNavigate={handleDashboardNavigate} />;
     }
@@ -176,6 +179,8 @@ const MemberPortal = () => {
         return 'Transactions';
       case 'announcements':
         return 'Announcements';
+      case 'policies':
+        return 'Policies';
       default:
         return 'Dashboard';
     }
@@ -193,7 +198,6 @@ const MemberPortal = () => {
         <div className="flex items-center justify-between border-b border-[#e9c46a]/25 p-6">
           <div>
             <h1 className="text-2xl font-bold text-white">AMCOMS</h1>
-            <p className="mt-1 text-sm text-[#e9c46a]">Member Portal</p>
           </div>
         </div>
 
@@ -239,6 +243,20 @@ const MemberPortal = () => {
             <div className="flex items-center space-x-3">
               <Bell size={18} />
               <span>Announcements</span>
+            </div>
+          </button>
+
+          <button
+            onClick={() => handleModuleChange('policies')}
+            className={`w-full rounded-lg px-4 py-3 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#e9c46a] ${
+              activeModule === 'policies'
+                ? 'bg-gradient-to-r from-[#e9c46a] to-[#d6ab4a] font-semibold text-[#0d3b2d] shadow-md'
+                : 'text-green-50/95 hover:bg-white/10 hover:text-[#f0d995]'
+            }`}
+          >
+            <div className="flex items-center space-x-3">
+              <FileText size={18} />
+              <span>Policies</span>
             </div>
           </button>
 
@@ -372,10 +390,11 @@ const MemberPortal = () => {
           {renderModule()}
         </div>
 
-        <nav aria-label="Member quick navigation" className="fixed inset-x-0 bottom-0 z-30 grid grid-cols-3 border-t border-gray-200 bg-white pb-[env(safe-area-inset-bottom)] shadow-[0_-2px_8px_rgba(0,0,0,0.05)] md:hidden">
+        <nav aria-label="Member quick navigation" className="fixed inset-x-0 bottom-0 z-30 grid grid-cols-4 border-t border-gray-200 bg-white pb-[env(safe-area-inset-bottom)] shadow-[0_-2px_8px_rgba(0,0,0,0.05)] md:hidden">
           {[
             { id: 'dashboard', label: 'Home', Icon: Home },
-            { id: 'transactions', label: 'Transactions', Icon: FileText },
+            { id: 'transactions', label: 'Transactions', Icon: Wallet },
+            { id: 'policies', label: 'Policies', Icon: FileText },
             { id: 'profile', label: 'Profile', Icon: UserRound }
           ].map(({ id, label, Icon }) => {
             const active = activeModule === id || (id === 'profile' && ['savings', 'time-deposit', 'loans'].includes(activeModule));

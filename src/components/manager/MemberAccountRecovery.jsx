@@ -94,7 +94,6 @@ const MemberAccountRecovery = () => {
     <div className="space-y-5">
       <header>
         <h1 className="text-2xl font-bold text-gray-950">Member Account Recovery</h1>
-        <p className="mt-1 text-sm text-gray-600">Initiate a secure password reset to the member’s registered email. Passwords are never visible here.</p>
       </header>
 
       <p className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950">

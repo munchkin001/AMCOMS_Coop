@@ -155,7 +155,6 @@ const Production = () => {
 
   return (
     <div className="space-y-6">
-      <p className="text-gray-600">Record and monitor coconut sugar production and other processing activities</p>
 
       <form onSubmit={handleSubmit} className="bg-white rounded-lg border border-gray-200 p-6">
         <h3 className="text-lg font-semibold text-gray-900 mb-4">New Production Record</h3>
@@ -178,7 +177,6 @@ const Production = () => {
           <div>
             <label htmlFor="production-unit-cost" className={labelClass}>Verified cost per finished unit (₱)</label>
             <input id="production-unit-cost" type="number" required min="0.01" step="0.01" value={form.unitCost} onChange={updateField('unitCost')} className={inputClass} />
-            <p className="mt-1 text-xs text-gray-500">Include the cooperative’s recorded materials, labor, and production costs for this batch.</p>
           </div>
           <div>
             <label htmlFor="production-material" className={labelClass}>Raw Material / Input</label>

@@ -68,7 +68,6 @@ const DiscrepancyPanel = () => {
       <div className="flex items-center justify-between gap-3 border-b border-gray-100 px-4 py-3">
         <div>
           <h3 className="text-base font-semibold text-gray-900">Data Discrepancies</h3>
-          <p className="text-xs text-gray-500">Checked live against recorded transactions, loans, savings, inventory and the journal.</p>
         </div>
         <span className={`rounded-full px-3 py-1 text-xs font-semibold ${total ? 'bg-red-100 text-red-800' : 'bg-green-100 text-green-800'}`}>
           {total ? `${total} open` : 'None found'}
@@ -97,7 +96,6 @@ const DiscrepancyPanel = () => {
                 {row.category}{row.reference ? ` - ${row.reference}` : ''}{row.member_id && members[row.member_id] ? ` - ${members[row.member_id]}` : ''}
               </p>
               <p className="text-sm text-red-700">{row.reason}</p>
-              <p className="text-xs text-gray-500">Clears automatically once the data is corrected.</p>
             </li>
           ))}
         </ul>

@@ -138,7 +138,6 @@ const DailyCollection = () => {
       <section className="flex flex-col gap-4 rounded-xl border border-gray-200 bg-white p-5 shadow-sm sm:flex-row sm:items-end sm:justify-between">
         <div>
           <h2 className="text-xl font-semibold text-gray-900">Daily Collections</h2>
-          <p className="mt-1 text-sm text-gray-500">Recorded cash receipts for the selected date.</p>
         </div>
         <div className="flex flex-wrap items-end gap-3">
           <Link
@@ -198,7 +197,6 @@ const DailyCollection = () => {
       <section className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
         <div className="mb-4">
           <h3 className="text-base font-semibold text-gray-900">Collection breakdown</h3>
-          <p className="mt-1 text-sm text-gray-500">Categories are matched to linked loan and savings transactions.</p>
         </div>
         {loading ? (
           <p className="py-8 text-center text-sm text-gray-500">Loading collection data…</p>

@@ -251,7 +251,6 @@ const IncomeExpenses = () => {
         <div className="mt-4 flex items-center justify-between rounded-lg border border-purple-200 bg-purple-50 p-4">
           <div>
             <p className="mb-1 text-sm text-gray-600">Net Income</p>
-            <p className="text-xs text-gray-500">Income less expenses for this period</p>
           </div>
           <p className="text-3xl font-bold text-purple-600">{formatMoney(netIncome)}</p>
         </div>

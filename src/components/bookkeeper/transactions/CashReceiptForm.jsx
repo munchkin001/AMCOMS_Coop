@@ -174,7 +174,6 @@ const CashReceiptForm = ({ onSave, onCancel, transaction = null }) => {
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-xl lg:text-2xl font-bold text-gray-900">Cash Receipt</h2>
-          <p className="text-sm lg:text-base text-gray-600 mt-1">Record money received by the cooperative</p>
         </div>
         <button
           onClick={onCancel}

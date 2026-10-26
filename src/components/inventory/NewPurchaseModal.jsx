@@ -145,7 +145,7 @@ const NewPurchaseModal = ({ onClose, onSaved }) => {
 
         <label className="mt-4 flex items-start gap-2 text-sm text-gray-700">
           <input type="checkbox" checked={form.receiveNow} onChange={(event) => setForm((current) => ({ ...current, receiveNow: event.target.checked }))} className="mt-0.5" />
-          <span>Items received now. Marks the order as received. This records materials and supplies bought; it does not change finished-product stock. Leave unchecked to record an order and receive it later.</span>
+          <span>Receive items now</span>
         </label>
 
         <div className="mt-6 flex justify-end gap-3">

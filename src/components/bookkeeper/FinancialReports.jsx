@@ -223,7 +223,6 @@ const FinancialReports = () => {
             <h1 className="mb-2 text-3xl font-bold text-gray-900">AMCOMS</h1>
             <h2 className="text-xl font-semibold text-gray-700">AGAY-AYAN MULTI-PURPOSE COOPERATIVE</h2>
             <h3 className="mt-4 text-lg font-semibold text-purple-600">{reportTitle.toUpperCase()}</h3>
-            <p className="mt-1 text-sm text-gray-600">{range.from} to {range.to}</p>
           </header>
           {loading ? <p className="py-8 text-center text-sm text-gray-500">Loading posted accounting data...</p> : (
             <>
@@ -262,7 +261,6 @@ const FinancialReports = () => {
                   </table>
                 </div>
               )}
-              <p className="mt-6 text-center text-xs text-gray-500">Amounts are calculated from posted journal entries for this period.</p>
               <div className="mt-6 flex flex-wrap gap-3 border-t border-gray-200 pt-5">
                 <button type="button" onClick={() => window.print()} className="flex flex-1 items-center justify-center gap-2 rounded-lg bg-gray-600 px-4 py-3 font-medium text-white hover:bg-gray-700">
                   <Printer className="size-5" aria-hidden="true" />Print

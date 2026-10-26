@@ -302,7 +302,6 @@ const SalesForm = ({ onSave, onCancel }) => {
     <div className="mx-auto max-w-4xl space-y-5">
       <div>
         <h2 className="text-xl font-bold text-gray-900">Sales</h2>
-        <p className="mt-1 text-sm text-gray-600">Record sales revenue and later credit collections without recording revenue twice.</p>
       </div>
       {error && <p role="alert" className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{error}</p>}
       {loading ? <p className="py-8 text-center text-gray-500">Loading sales options…</p> : (
@@ -500,7 +499,6 @@ const SalesForm = ({ onSave, onCancel }) => {
               </>
             )}
           </div>
-          {flow === 'sale' && form.productId && <p className="rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-900">If this product has inventory tracked, the system checks available stock and records the sale movement.</p>}
           <div className="flex justify-end gap-3">
             <button type="button" onClick={onCancel} disabled={saving} className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">Cancel</button>
             <button type="submit" disabled={saving || loading || (flow === 'sale' && !revenueAccounts.length) || (flow === 'collection' && !outstandingSales.length) || (flow === 'cancel' && (!cancellableSales.length || !navigator.onLine || offlineMode))} className="rounded-lg bg-orange-600 px-5 py-2 text-sm font-medium text-white hover:bg-orange-700 disabled:opacity-60">{saving ? 'Recording…' : flow === 'sale' ? 'Record Sale' : flow === 'collection' ? 'Record Collection' : 'Cancel Credit Sale'}</button>

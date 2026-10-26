@@ -147,7 +147,6 @@ const MSOTimeDeposit = () => {
             <div>
               <p className="text-sm font-medium text-emerald-100">Total Interest Earned</p>
               <p className="mt-2 text-3xl font-bold">{peso(timeDepositData.totalInterest)}</p>
-              <p className="mt-1 text-xs text-emerald-200">From all time deposits</p>
             </div>
             <div className="rounded-full bg-white/20 p-2 backdrop-blur-sm">
               <TrendingUp className="h-6 w-6" />

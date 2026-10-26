@@ -193,7 +193,6 @@ const Announcements = () => {
       {/* Header */}
       <div>
         <h3 className="text-2xl font-bold text-gray-900">Announcements</h3>
-        <p className="text-sm text-gray-600">Create and publish official cooperative announcements to members and staff</p>
       </div>
 
       {/* Main Layout */}

@@ -175,7 +175,6 @@ const MemberTransactionHistory = () => {
           <EmptyState
             icon={<span className="text-3xl">📄</span>}
             title="No Transactions Found"
-            description="Loans released, disbursements, savings and loan payments will appear here."
           />
         ) : (
           <ul className="divide-y divide-gray-100">

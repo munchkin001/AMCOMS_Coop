@@ -309,7 +309,6 @@ const MemberDashboard = ({ onNavigate }) => {
       {/* Greeting and account summary */}
       <div>
         <h2 className="text-xl font-bold text-gray-900 sm:text-2xl">Hi, {memberData.firstName || 'Member'}!</h2>
-        <p className="text-sm text-gray-600 mb-4">Here is a summary of your account.</p>
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4 xl:grid-cols-6">
           <DashboardMetricCard
             label="Savings"

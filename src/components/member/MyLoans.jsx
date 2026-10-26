@@ -50,7 +50,7 @@ const MyLoans = () => {
 
   if (loading) return <p className="py-6 text-center text-sm text-gray-500">Loading...</p>;
   if (!loans.length) {
-    return <p className="rounded-lg bg-gray-50 p-4 text-center text-sm text-gray-500">You have no active loans. Approved loan requests will appear here automatically.</p>;
+    return <p className="rounded-lg bg-gray-50 p-4 text-center text-sm text-gray-500">You have no active loans.</p>;
   }
 
   return (
@@ -115,7 +115,6 @@ const MyLoans = () => {
           </section>
         );
       })}
-      <p className="text-xs text-gray-500">Payments are made at the cooperative office. You will get SMS reminders 7, 3 and 1 day before each due date.</p>
     </div>
   );
 };

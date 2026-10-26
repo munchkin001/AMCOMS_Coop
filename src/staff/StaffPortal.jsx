@@ -4,6 +4,7 @@ import { useAuth } from '../contexts/AuthContext';
 import StaffLayout from './StaffLayout';
 import LoadingSpinner from '../components/common/LoadingSpinner';
 import StaffProfile from './StaffProfile';
+import PublishedPolicies from '../components/common/PublishedPolicies';
 
 // Dashboard Components
 import ChairmanDashboard from '../components/chairman/ChairmanDashboard';
@@ -100,7 +101,10 @@ const StaffPortal = () => {
         {/* Chairman Routes */}
         <Route path="/performance" element={<PerformanceReport />} />
         <Route path="/audit-log" element={<AuditLog />} />
-        <Route path="/policies" element={<Policies />} />
+        <Route
+          path="/policies"
+          element={staff.role === 'chairman' ? <Policies /> : <PublishedPolicies />}
+        />
 
         {/* Manager Routes */}
         <Route path="/members" element={staff.role === 'bookkeeper' ? <BookkeeperMemberManagement /> : <MemberManagement />} />

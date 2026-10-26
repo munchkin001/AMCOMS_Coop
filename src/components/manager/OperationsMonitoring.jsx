@@ -139,17 +139,14 @@ const OperationsMonitoring = () => {
             <div className="bg-white rounded-lg shadow p-6 border border-gray-200">
               <p className="text-sm font-medium text-gray-600 mb-2">Pending Loans</p>
               <p className="text-3xl font-bold text-yellow-600">{pendingLoans}</p>
-              <p className="text-xs text-gray-500 mt-1">Awaiting approval</p>
             </div>
             <div className="bg-white rounded-lg shadow p-6 border border-gray-200">
               <p className="text-sm font-medium text-gray-600 mb-2">Paid Loans</p>
               <p className="text-3xl font-bold text-green-600">{paidLoans}</p>
-              <p className="text-xs text-gray-500 mt-1">Fully paid</p>
             </div>
             <div className="bg-white rounded-lg shadow p-6 border border-gray-200">
               <p className="text-sm font-medium text-gray-600 mb-2">Overdue Loans</p>
               <p className="text-3xl font-bold text-red-600">{overdueLoanIds}</p>
-              <p className="text-xs text-gray-500 mt-1">Requires action</p>
             </div>
           </div>
 

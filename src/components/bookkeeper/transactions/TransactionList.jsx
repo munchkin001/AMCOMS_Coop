@@ -222,7 +222,6 @@ const TransactionList = ({ onNewTransaction, onViewTransaction }) => {
         <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 mb-6">
           <div>
             <h2 className="text-lg lg:text-xl font-semibold text-gray-900">Transaction List</h2>
-            <p className="text-xs lg:text-sm text-gray-600 mt-1">View and manage all transactions</p>
           </div>
           <button
             onClick={onNewTransaction}

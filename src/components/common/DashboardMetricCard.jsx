@@ -22,7 +22,7 @@ const solidTones = {
   teal: 'from-teal-500 to-teal-700'
 };
 
-const DashboardMetricCard = ({ label, value, detail, icon: Icon, tone = 'teal', actionLabel, onAction, onClick, solid = false }) => {
+const DashboardMetricCard = ({ label, value, icon: Icon, tone = 'teal', actionLabel, onAction, onClick, solid = false }) => {
   const toneClasses = tones[tone] || tones.teal;
   const Container = onClick ? 'button' : 'article';
   const interactionClasses = onClick
@@ -41,7 +41,6 @@ const DashboardMetricCard = ({ label, value, detail, icon: Icon, tone = 'teal', 
           <div className="min-w-0">
             <p className="text-xs font-semibold uppercase text-white/80">{label}</p>
             <p className="mt-2 break-words text-lg font-semibold tabular-nums sm:mt-3 sm:text-2xl">{value}</p>
-            {detail && <p className="mt-1 text-xs text-white/80">{detail}</p>}
             {onClick ? (
               <span className="mt-3 inline-flex items-center gap-1 text-xs font-semibold text-white">
                 {actionLabel || 'View details'}
@@ -73,7 +72,6 @@ const DashboardMetricCard = ({ label, value, detail, icon: Icon, tone = 'teal', 
         <div className="min-w-0">
           <p className="text-xs font-semibold uppercase text-slate-500">{label}</p>
           <p className="mt-3 break-words text-2xl font-semibold tabular-nums text-slate-950">{value}</p>
-          {detail && <p className="mt-1 text-xs text-slate-500">{detail}</p>}
           {onClick ? (
             <span className="mt-3 inline-flex items-center gap-1 text-xs font-semibold text-slate-700">
               {actionLabel || 'View details'}

@@ -90,7 +90,6 @@ const MemberAccounts = () => {
       <section className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
         <div>
           <h2 className="text-xl font-semibold text-gray-900">Member Accounts</h2>
-          <p className="mt-1 text-sm text-gray-500">Live savings, time deposit, and active loan balances by member.</p>
         </div>
         <label className="relative mt-5 block max-w-xl">
           <span className="sr-only">Search members</span>

@@ -22,7 +22,6 @@ const Books = () => {
         <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
           <div>
             <h2 className="text-xl lg:text-2xl font-semibold text-gray-900">Books</h2>
-            <p className="text-sm lg:text-base text-gray-600 mt-1">View the cooperative's digital accounting records</p>
           </div>
           <div className="flex flex-col sm:flex-row gap-3">
             <select

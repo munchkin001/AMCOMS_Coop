@@ -232,7 +232,6 @@ const StockManagement = () => {
                 onChange={updateField('unitCost')}
                 className={inputClass}
               />
-              <p className="mt-1 text-xs text-gray-500">Use the invoice cost for purchases or the recorded production cost per finished unit.</p>
             </div>
           )}
           {requiresReference && (

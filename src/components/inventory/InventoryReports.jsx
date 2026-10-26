@@ -237,7 +237,6 @@ const InventoryReports = () => {
           <button type="button" onClick={() => window.print()} className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 font-medium">Print</button>
           <button type="button" onClick={handleDownload} disabled={loading} className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 font-medium disabled:opacity-60">Download CSV</button>
         </div>
-        <p className="mt-3 text-sm text-gray-500">The report updates automatically as inventory changes are recorded.</p>
       </div>
 
       <div className="bg-white rounded-lg border border-gray-200 p-8">

@@ -64,7 +64,6 @@ const MemberLogin = () => {
               <img src="/LOGO.png" alt="Logo" className="w-16 h-16 object-contain" />
               <div className="text-left">
                 <h1 className="text-2xl font-bold text-gray-900">AMCOMS</h1>
-                <p className="text-sm text-gray-600">Member Portal</p>
               </div>
             </div>
             

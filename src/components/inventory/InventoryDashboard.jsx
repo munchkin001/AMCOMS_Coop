@@ -195,7 +195,6 @@ const InventoryDashboard = () => {
       {/* Greeting */}
       <div>
         <h2 className="text-2xl font-bold text-gray-900">{greeting}, Inventory Staff</h2>
-        <p className="text-gray-600 mt-1">Here's today's inventory status and activities</p>
       </div>
 
       {/* Summary Cards */}
@@ -249,7 +248,6 @@ const InventoryDashboard = () => {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
               </svg>
               <p className="text-sm">No products in inventory</p>
-              <p className="text-xs mt-1">Add products to get started</p>
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -304,7 +302,6 @@ const InventoryDashboard = () => {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
               </svg>
               <p className="text-sm">No recent activities</p>
-              <p className="text-xs mt-1">Stock movements will appear here</p>
             </div>
           ) : (
             <table className="w-full">

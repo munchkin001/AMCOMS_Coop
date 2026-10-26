@@ -35,7 +35,6 @@ const AuditTrail = () => {
     <section className="rounded-xl border border-gray-200 bg-white shadow-sm">
       <header className="border-b border-gray-200 px-4 py-3">
         <h3 className="text-sm font-semibold text-gray-900">Ledger audit trail</h3>
-        <p className="text-xs text-gray-500">Every creation, posting and reversal of a journal entry is recorded with the staff member and time.</p>
       </header>
       {error && <p role="alert" className="px-4 py-3 text-sm text-red-700">{error}</p>}
       {loading ? <p className="py-8 text-center text-sm text-gray-500">Loading...</p> : (

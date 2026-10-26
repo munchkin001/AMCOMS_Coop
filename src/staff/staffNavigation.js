@@ -123,6 +123,13 @@ const staffNavigationConfig = {
       icon: MessageSquareText,
       path: '/staff/sms',
       component: 'SMSCenter'
+    },
+    {
+      id: 'policies',
+      name: 'Policies',
+      icon: FileText,
+      path: '/staff/policies',
+      component: 'PublishedPolicies'
     }
   ],
 
@@ -168,6 +175,13 @@ const staffNavigationConfig = {
       icon: '📑',
       path: '/staff/reports',
       component: 'TreasurerReports'
+    },
+    {
+      id: 'policies',
+      name: 'Policies',
+      icon: FileText,
+      path: '/staff/policies',
+      component: 'PublishedPolicies'
     }
   ],
 
@@ -220,6 +234,13 @@ const staffNavigationConfig = {
       icon: '📑',
       path: '/staff/reports',
       component: 'FinancialReports'
+    },
+    {
+      id: 'policies',
+      name: 'Policies',
+      icon: FileText,
+      path: '/staff/policies',
+      component: 'PublishedPolicies'
     }
   ],
 
@@ -272,6 +293,13 @@ const staffNavigationConfig = {
       icon: '📑',
       path: '/staff/reports',
       component: 'InventoryReports'
+    },
+    {
+      id: 'policies',
+      name: 'Policies',
+      icon: FileText,
+      path: '/staff/policies',
+      component: 'PublishedPolicies'
     }
   ]
 };

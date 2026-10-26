@@ -48,7 +48,6 @@ const MemberAnnouncements = () => {
             </svg>
           )}
           title="No Announcements"
-          description="Announcements published by the cooperative will appear here."
         />
       </div>
     );

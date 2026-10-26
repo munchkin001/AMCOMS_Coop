@@ -132,7 +132,6 @@ const Products = () => {
       )}
 
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <p className="text-gray-600">Register products, then record restocks to add stock</p>
         <div className="flex items-center gap-3">
           <input
             type="search"

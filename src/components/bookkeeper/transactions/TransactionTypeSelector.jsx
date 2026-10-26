@@ -52,7 +52,6 @@ const TransactionTypeSelector = ({ onSelectType, onCancel }) => {
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-xl lg:text-2xl font-bold text-gray-900">New Transaction</h2>
-          <p className="text-sm lg:text-base text-gray-600 mt-1">What type of transaction would you like to record?</p>
         </div>
         <button
           onClick={onCancel}

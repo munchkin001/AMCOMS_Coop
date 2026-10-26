@@ -453,7 +453,6 @@ const ChairmanDashboard = () => {
         {/* Year-to-Year Comparison */}
         <div className="bg-white rounded-lg shadow p-6 border border-gray-200">
           <h3 className="text-lg font-semibold text-gray-900 mb-4">Year-to-Year Comparison</h3>
-          <p className="mb-4 text-xs text-gray-500">Year to date through {new Date().toLocaleDateString('en-PH', { month: 'short', day: 'numeric' })}</p>
           <div className="space-y-4">
             {[
               { label: 'Income', current: yearlyFinancialSummary.currentIncome, previous: yearlyFinancialSummary.previousIncome, color: 'text-green-600' },
@@ -493,7 +492,6 @@ const ChairmanDashboard = () => {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
               </svg>
               <p className="text-sm">No policies published yet</p>
-              <p className="text-xs mt-1">Create policies in the Policies module</p>
             </div>
           ) : (
             <div className="space-y-3">

@@ -246,7 +246,6 @@ const LoanRequests = () => {
       <header className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">{staff?.role === 'treasurer' ? 'Approved Loans' : 'Loan Requests'}</h1>
-          <p className="mt-1 text-sm text-gray-600">{staff?.role === 'treasurer' ? 'View approved and released loans.' : 'Bookkeeper enters applications; Manager reviews them; Bookkeeper records approved cash releases.'}</p>
         </div>
         <button type="button" onClick={load} className="inline-flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">
           <RefreshCw aria-hidden="true" size={16} /> Refresh
@@ -259,7 +258,6 @@ const LoanRequests = () => {
       {canRelease && (
         <section className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
           <h2 className="text-lg font-semibold text-gray-900">Enter a loan application</h2>
-          <p className="mt-1 text-sm text-gray-600">Choose a member and submit the application for Manager approval.</p>
           <form onSubmit={submitApplication} className="mt-4 grid gap-4 sm:grid-cols-2">
             <label className="text-sm font-medium text-gray-700">
               Member *
@@ -329,9 +327,7 @@ const LoanRequests = () => {
                   <button type="button" disabled={!!busyId} onClick={() => { setNotes(''); setDecision({ ...request, status: 'approved' }); }} className="rounded-lg bg-emerald-700 px-4 py-2 font-semibold text-white hover:bg-emerald-800 disabled:opacity-50">Approve application</button>
                   <button type="button" disabled={!!busyId} onClick={() => { setNotes(''); setDecision({ ...request, status: 'rejected' }); }} className="rounded-lg border border-red-300 px-4 py-2 font-semibold text-red-700 hover:bg-red-50 disabled:opacity-50">Reject application</button>
                 </div>
-              ) : (
-                <p className="mt-4 border-t border-gray-100 pt-4 text-sm text-gray-600">A Manager must approve or reject this application.</p>
-              )}
+              ) : null}
             </article>
           );
         })}

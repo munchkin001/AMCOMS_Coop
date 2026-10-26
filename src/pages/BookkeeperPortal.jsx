@@ -127,7 +127,6 @@ const BookkeeperPortal = () => {
         <div className="p-6 border-b border-gray-200 flex items-center justify-between">
           <div>
             <h1 className="text-2xl font-bold text-gray-900">AMCOMS</h1>
-            <p className="text-purple-600 text-sm mt-1">Bookkeeper Portal</p>
           </div>
           <button
             onClick={() => setIsMobileMenuOpen(false)}

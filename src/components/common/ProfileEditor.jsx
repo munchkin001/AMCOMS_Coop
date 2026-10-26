@@ -467,7 +467,7 @@ const ProfileEditor = ({ profileType = 'staff', roleLabel }) => {
               </div>
               <div>
                 <label htmlFor="profile-emergency-relationship" className={labelClass}>Relationship</label>
-                <input id="profile-emergency-relationship" name="emergency_contact_relationship" maxLength={80} value={profile.emergency_contact_relationship} onChange={handleProfileChange} className={fieldClass} placeholder="e.g. Parent, spouse, sibling" />
+                <input id="profile-emergency-relationship" name="emergency_contact_relationship" maxLength={80} value={profile.emergency_contact_relationship} onChange={handleProfileChange} className={fieldClass} />
               </div>
             </div>
             {profileType === 'member' && (
@@ -489,7 +489,7 @@ const ProfileEditor = ({ profileType = 'staff', roleLabel }) => {
                       </div>
                       <div className="sm:col-span-2">
                         <label className={labelClass}>Relationship</label>
-                        <input maxLength={80} value={contact.relationship || ''} onChange={(e) => updateExtraContact(index, 'relationship', e.target.value)} className={fieldClass} placeholder="e.g. Parent, spouse, sibling" />
+                        <input maxLength={80} value={contact.relationship || ''} onChange={(e) => updateExtraContact(index, 'relationship', e.target.value)} className={fieldClass} />
                       </div>
                     </div>
                   </div>

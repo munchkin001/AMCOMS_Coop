@@ -19,7 +19,6 @@ const SMSCenter = () => {
   const [notice, setNotice] = useState('');
   const [creditBalance, setCreditBalance] = useState(null);
   const [accountName, setAccountName] = useState('');
-  const [balanceUpdatedAt, setBalanceUpdatedAt] = useState(null);
   const [balanceError, setBalanceError] = useState('');
   const [loadingBalance, setLoadingBalance] = useState(false);
   const balanceRequestInProgressRef = useRef(false);
@@ -52,7 +51,6 @@ const SMSCenter = () => {
       if (Number.isFinite(balance) && balance >= 0) {
         setCreditBalance(balance);
         setAccountName(data.account_name || '');
-        setBalanceUpdatedAt(new Date());
       } else {
         throw new Error('Invalid response from SMS service.');
       }
@@ -144,7 +142,6 @@ const SMSCenter = () => {
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-gray-950">SMS Center</h1>
-        <p className="mt-1 text-sm text-gray-600">Send a message to a member using their registered mobile number.</p>
       </div>
 
       <dl className="grid gap-3 sm:grid-cols-3">
@@ -156,11 +153,6 @@ const SMSCenter = () => {
             </dd>
             {accountName && <p className="mt-0.5 text-xs text-gray-500">{accountName}</p>}
             {balanceError && <p role="alert" className="mt-1 text-sm text-red-700">{balanceError}</p>}
-            <p className="mt-1 text-xs text-gray-500">
-              {balanceUpdatedAt
-                ? `Updated ${balanceUpdatedAt.toLocaleTimeString()}. Refreshes every 30 seconds while this page is open.`
-                : 'Balance refreshes automatically every 30 seconds while this page is open.'}
-            </p>
           </div>
           <button type="button" onClick={loadCreditBalance} disabled={loadingBalance} aria-label="Refresh SMS credit balance" title="Refresh SMS credit balance" className="inline-flex size-10 shrink-0 items-center justify-center rounded-md border border-gray-300 text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50">
             <RefreshCw size={17} aria-hidden="true" className={loadingBalance ? 'animate-spin' : ''} />
