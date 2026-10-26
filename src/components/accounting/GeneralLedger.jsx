@@ -18,6 +18,7 @@ const tabs = [
 const GeneralLedger = () => {
   const { staff } = useAuth();
   const [active, setActive] = useState('ledger');
+  const canPost = ['bookkeeper', 'treasurer'].includes(staff?.role);
   const visibleTabs = tabs.filter((tab) => !tab.hideFor?.includes(staff?.role));
   const current = visibleTabs.some((tab) => tab.id === active) ? active : 'ledger';
 
