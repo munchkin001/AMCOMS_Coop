@@ -133,6 +133,7 @@ const AccountSection = ({ group, from, onSelectEntry }) => {
 const EntryDetails = ({ line, onClose }) => {
   const [entry, setEntry] = useState(null);
   const [lines, setLines] = useState([]);
+  const [accountHolder, setAccountHolder] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
@@ -155,11 +156,54 @@ const EntryDetails = ({ line, onClose }) => {
       if (!active) return;
       const failure = entryResult.error || linesResult.error;
       if (failure) {
-        console.error('Unable to load ledger transaction details:', failure);
-        setError(getDataLoadErrorMessage(failure, 'transaction details'));
-      } else if (!entryResult.data) {
+        throw failure;
+      }
+      if (!entryResult.data) {
         setError('The original journal entry could not be found.');
       } else {
+        const journal = entryResult.data;
+        const relatedEntryIds = [journal.id, journal.reverses_entry_id].filter(Boolean);
+        const memberFields = 'member:members(id, member_number, first_name, middle_name, last_name)';
+        const [receiptResult, disbursementResult, dividendResult, saleResult] = await Promise.all([
+          supabase.from('cash_receipts')
+            .select(`received_from, ${memberFields}`)
+            .in('journal_entry_id', relatedEntryIds)
+            .maybeSingle(),
+          supabase.from('cash_disbursements')
+            .select(`payee, ${memberFields}`)
+            .in('journal_entry_id', relatedEntryIds)
+            .maybeSingle(),
+          supabase.from('member_dividend_distributions')
+            .select(memberFields)
+            .in('journal_entry_id', relatedEntryIds)
+            .maybeSingle(),
+          journal.source_reference
+            ? supabase.from('sales_orders')
+              .select(`customer_name, ${memberFields}`)
+              .eq('order_number', journal.source_reference)
+              .maybeSingle()
+            : Promise.resolve({ data: null, error: null }),
+        ]);
+        const relatedFailure = receiptResult.error || disbursementResult.error || dividendResult.error || saleResult.error;
+        if (relatedFailure) throw relatedFailure;
+
+        const member = receiptResult.data?.member
+          || disbursementResult.data?.member
+          || dividendResult.data?.member
+          || saleResult.data?.member;
+        const memberName = member
+          ? [member.first_name, member.middle_name, member.last_name].filter(Boolean).join(' ')
+          : null;
+        const otherParty = receiptResult.data?.received_from
+          || disbursementResult.data?.payee
+          || saleResult.data?.customer_name
+          || null;
+
+        setAccountHolder({
+          name: memberName || otherParty || 'No member or account holder linked',
+          memberNumber: member?.member_number || null,
+          isMember: Boolean(member),
+        });
         setEntry(entryResult.data);
         setLines(linesResult.data || []);
       }
@@ -195,68 +239,119 @@ const EntryDetails = ({ line, onClose }) => {
         role="dialog"
         aria-modal="true"
         aria-labelledby="ledger-entry-details-title"
-        className="max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-xl bg-white p-5 shadow-xl"
+      className="max-h-[90vh] w-full max-w-4xl overflow-y-auto rounded-2xl bg-slate-50 shadow-2xl"
       >
-        <div className="mb-4 flex items-start justify-between gap-4">
-          <div>
-            <h2 id="ledger-entry-details-title" className="text-lg font-bold text-gray-900">Transaction Details</h2>
-            <p className="mt-1 text-sm text-gray-600">Reference: {line.reference_number || line.entry_number}</p>
-          </div>
-          <button type="button" onClick={onClose} className="rounded-lg px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-100">
-            Close
-          </button>
+      <div className="flex items-start justify-between gap-4 rounded-t-2xl bg-gradient-to-r from-slate-950 via-blue-950 to-blue-900 px-6 py-5 text-white">
+        <div className="min-w-0">
+          <p className="text-xs font-bold uppercase tracking-[0.18em] text-blue-200">Transaction Details</p>
+          <h2 id="ledger-entry-details-title" className="mt-1 break-all text-2xl font-extrabold tracking-tight text-white">
+            {entry?.entry_number || line.entry_number}
+          </h2>
+          <p className="mt-1 text-sm text-blue-100">Reference No. <span className="font-semibold text-white">{line.reference_number || line.entry_number}</span></p>
         </div>
+        <button type="button" onClick={onClose} className="shrink-0 rounded-lg border border-white/25 px-3 py-1.5 text-sm font-semibold text-white transition-colors hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white">
+          Close
+        </button>
+      </div>
 
-        {loading && <p className="py-8 text-center text-sm text-gray-500">Loading transaction details...</p>}
+      <div className="space-y-5 p-5 sm:p-6">
+        {loading && <p className="rounded-lg bg-white py-8 text-center text-sm font-medium text-slate-600">Loading transaction details...</p>}
         {error && <p role="alert" className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{error}</p>}
         {!loading && !error && entry && (
           <div className="space-y-5">
-            <dl className="grid gap-x-6 gap-y-3 rounded-lg bg-gray-50 p-4 text-sm sm:grid-cols-2">
-              <div><dt className="font-semibold text-gray-600">Entry number</dt><dd className="mt-0.5 text-gray-900">{entry.entry_number}</dd></div>
-              <div><dt className="font-semibold text-gray-600">Date</dt><dd className="mt-0.5 text-gray-900">{formatDate(entry.entry_date)}</dd></div>
-              <div><dt className="font-semibold text-gray-600">Reference number</dt><dd className="mt-0.5 text-gray-900">{entry.reference_number || '—'}</dd></div>
-              <div><dt className="font-semibold text-gray-600">Entry type / status</dt><dd className="mt-0.5 capitalize text-gray-900">{entry.entry_type} / {entry.status}</dd></div>
-              <div className="sm:col-span-2"><dt className="font-semibold text-gray-600">Description</dt><dd className="mt-0.5 whitespace-pre-wrap text-gray-900">{entry.description || '—'}</dd></div>
-              <div><dt className="font-semibold text-gray-600">Created by</dt><dd className="mt-0.5 text-gray-900">{entry.created_by_name || 'System'}{entry.created_at ? ` · ${formatDateTime(entry.created_at)}` : ''}</dd></div>
-              <div><dt className="font-semibold text-gray-600">Posted by</dt><dd className="mt-0.5 text-gray-900">{entry.posted_by_name || '—'}{entry.posted_at ? ` · ${formatDateTime(entry.posted_at)}` : ''}</dd></div>
+            <section className="flex flex-wrap items-center justify-between gap-4 rounded-xl border border-emerald-200 bg-gradient-to-r from-emerald-50 to-white p-4 shadow-sm">
+              <div>
+                <p className="text-xs font-bold uppercase tracking-wider text-emerald-800">
+                  {accountHolder?.isMember ? 'Member account' : 'Account / customer'}
+                </p>
+                <p className="mt-1 text-xl font-extrabold text-slate-900">{accountHolder?.name || 'No member or account holder linked'}</p>
+                {accountHolder?.memberNumber && <p className="mt-1 text-sm font-semibold text-emerald-800">Member No. {accountHolder.memberNumber}</p>}
+              </div>
+              <div className="rounded-lg border border-blue-100 bg-white px-4 py-2 text-right shadow-sm">
+                <p className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Entry number</p>
+                <p className="mt-0.5 text-lg font-extrabold text-blue-950">{entry.entry_number}</p>
+              </div>
+            </section>
+
+            <dl className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              <div className="rounded-lg border border-blue-100 bg-white p-3">
+                <dt className="text-xs font-bold uppercase tracking-wide text-slate-500">Date</dt>
+                <dd className="mt-1 font-semibold text-slate-900">{formatDate(entry.entry_date)}</dd>
+              </div>
+              <div className="rounded-lg border border-violet-100 bg-violet-50/60 p-3">
+                <dt className="text-xs font-bold uppercase tracking-wide text-violet-700">Reference number</dt>
+                <dd className="mt-1 font-semibold text-violet-950">{entry.reference_number || '—'}</dd>
+              </div>
+              <div className="rounded-lg border border-amber-100 bg-amber-50/70 p-3">
+                <dt className="text-xs font-bold uppercase tracking-wide text-amber-800">Entry type / status</dt>
+                <dd className="mt-1 font-semibold capitalize text-amber-950">{entry.entry_type} / {entry.status}</dd>
+              </div>
+              <div className="rounded-lg border border-slate-200 bg-white p-3 sm:col-span-2 lg:col-span-3">
+                <dt className="text-xs font-bold uppercase tracking-wide text-slate-500">Description</dt>
+                <dd className="mt-1 whitespace-pre-wrap font-medium text-slate-900">{entry.description || '—'}</dd>
+              </div>
+              <div className="rounded-lg border border-slate-200 bg-white p-3">
+                <dt className="text-xs font-bold uppercase tracking-wide text-slate-500">Created by</dt>
+                <dd className="mt-1 font-medium text-slate-900">{entry.created_by_name || 'System'}</dd>
+                {entry.created_at && <dd className="mt-0.5 text-xs text-slate-500">{formatDateTime(entry.created_at)}</dd>}
+              </div>
+              <div className="rounded-lg border border-slate-200 bg-white p-3">
+                <dt className="text-xs font-bold uppercase tracking-wide text-slate-500">Posted by</dt>
+                <dd className="mt-1 font-medium text-slate-900">{entry.posted_by_name || '—'}</dd>
+                {entry.posted_at && <dd className="mt-0.5 text-xs text-slate-500">{formatDateTime(entry.posted_at)}</dd>}
+              </div>
               {entry.reversal_reason && (
-                <div className="sm:col-span-2"><dt className="font-semibold text-gray-600">Reversal reason</dt><dd className="mt-0.5 text-gray-900">{entry.reversal_reason}</dd></div>
+                <div className="rounded-lg border border-rose-200 bg-rose-50 p-3 sm:col-span-2 lg:col-span-3">
+                  <dt className="text-xs font-bold uppercase tracking-wide text-rose-800">Reversal reason</dt>
+                  <dd className="mt-1 font-medium text-rose-950">{entry.reversal_reason}</dd>
+                </div>
               )}
             </dl>
 
-            <div>
-              <h3 className="mb-2 font-semibold text-gray-900">Entered account lines</h3>
+            <section className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+              <div className="flex flex-wrap items-end justify-between gap-3 border-b border-slate-200 bg-slate-100 px-4 py-3">
+                <div>
+                  <h3 className="font-extrabold text-slate-900">Entered account lines</h3>
+                  <p className="mt-0.5 text-xs text-slate-600">Account allocation and memo recorded for this entry</p>
+                </div>
+                <div className="flex gap-2 text-xs font-bold">
+                  <span className="rounded-md bg-green-100 px-2.5 py-1 text-green-800">Debits {money(lines.reduce((total, item) => total + Number(item.debit_amount || 0), 0))}</span>
+                  <span className="rounded-md bg-rose-100 px-2.5 py-1 text-rose-800">Credits {money(lines.reduce((total, item) => total + Number(item.credit_amount || 0), 0))}</span>
+                </div>
+              </div>
               {lines.length === 0 ? (
-                <p className="text-sm text-gray-500">No journal lines were found for this entry.</p>
+                <p className="p-4 text-sm text-slate-500">No journal lines were found for this entry.</p>
               ) : (
-                <div className="overflow-x-auto rounded-lg border border-gray-200">
+                <div className="overflow-x-auto">
                   <table className="min-w-full text-sm">
-                    <thead className="bg-gray-50 text-left text-xs font-semibold uppercase text-gray-600">
+                    <thead className="bg-white text-left text-[11px] font-extrabold uppercase tracking-wider text-slate-500">
                       <tr>
-                        <th className="px-3 py-2">Account</th>
-                        <th className="px-3 py-2">Memo</th>
-                        <th className="px-3 py-2 text-right">Debit</th>
-                        <th className="px-3 py-2 text-right">Credit</th>
+                        <th className="px-4 py-3">Account</th>
+                        <th className="px-4 py-3">Memo</th>
+                        <th className="px-4 py-3 text-right">Debit</th>
+                        <th className="px-4 py-3 text-right">Credit</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-gray-100">
+                    <tbody className="divide-y divide-slate-100">
                       {lines.map((entryLine) => (
-                        <tr key={entryLine.id}>
-                          <td className="px-3 py-2 text-gray-900">
-                            {entryLine.account?.account_code ? `${entryLine.account.account_code} · ` : ''}{entryLine.account?.account_name || 'Unknown account'}
+                        <tr key={entryLine.id} className="transition-colors odd:bg-white even:bg-slate-50/70 hover:bg-blue-50/60">
+                          <td className="px-4 py-3 font-semibold text-slate-900">
+                            {entryLine.account?.account_code && <span className="mr-1 text-blue-800">{entryLine.account.account_code}</span>}
+                            {entryLine.account?.account_name || 'Unknown account'}
                           </td>
-                          <td className="px-3 py-2 text-gray-700">{entryLine.description || '—'}</td>
-                          <td className="whitespace-nowrap px-3 py-2 text-right">{money(entryLine.debit_amount)}</td>
-                          <td className="whitespace-nowrap px-3 py-2 text-right">{money(entryLine.credit_amount)}</td>
+                          <td className="px-4 py-3 text-slate-700">{entryLine.description || '—'}</td>
+                          <td className="whitespace-nowrap px-4 py-3 text-right font-bold text-green-700">{money(entryLine.debit_amount)}</td>
+                          <td className="whitespace-nowrap px-4 py-3 text-right font-bold text-rose-700">{money(entryLine.credit_amount)}</td>
                         </tr>
                       ))}
                     </tbody>
                   </table>
                 </div>
               )}
-            </div>
+            </section>
           </div>
-        )}
+          )}
+      </div>
       </section>
     </div>,
     document.body
