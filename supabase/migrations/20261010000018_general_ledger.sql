@@ -35,7 +35,15 @@ SET search_path TO 'public', 'pg_temp'
 AS $$
 BEGIN
   IF TG_OP = 'DELETE' THEN
-    IF OLD.status <> 'draft' THEN
+    IF OLD.status <> 'draft'
+       AND NOT (
+         pg_has_role(
+           session_user,
+           (SELECT relowner FROM pg_class WHERE oid = 'public.journal_entries'::regclass),
+           'MEMBER'
+         )
+         OR COALESCE((SELECT rolsuper FROM pg_roles WHERE rolname = session_user), false)
+       ) THEN
       RAISE EXCEPTION 'Posted journal entries cannot be deleted. Post a reversing entry instead.';
     END IF;
     RETURN OLD;
@@ -85,6 +93,18 @@ AS $$
 DECLARE
   v_entry RECORD;
 BEGIN
+  IF TG_OP = 'DELETE'
+     AND (
+       pg_has_role(
+         session_user,
+         (SELECT relowner FROM pg_class WHERE oid = 'public.journal_entry_lines'::regclass),
+         'MEMBER'
+       )
+       OR COALESCE((SELECT rolsuper FROM pg_roles WHERE rolname = session_user), false)
+     ) THEN
+    RETURN OLD;
+  END IF;
+
   SELECT status, created_at INTO v_entry
   FROM public.journal_entries
   WHERE id = CASE WHEN TG_OP = 'INSERT' THEN NEW.journal_entry_id ELSE OLD.journal_entry_id END;
