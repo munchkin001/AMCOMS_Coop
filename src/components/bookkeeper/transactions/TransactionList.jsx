@@ -19,19 +19,19 @@ const TransactionList = ({ onNewTransaction, onViewTransaction }) => {
       const results = await Promise.all([
         supabase
           .from('cash_receipts')
-          .select('id, receipt_date, receipt_number, received_from, member_id, amount, payment_method, description, status, void_reason, voided_at, journal_entry_id, accountAllocations:cash_receipt_lines(amount, side, description, account:chart_of_accounts(account_name))')
+          .select('id, created_at, receipt_date, receipt_number, received_from, member_id, amount, payment_method, description, status, void_reason, voided_at, journal_entry_id, accountAllocations:cash_receipt_lines(amount, side, description, account:chart_of_accounts(account_name))')
           .order('receipt_date', { ascending: false }),
         supabase
           .from('cash_disbursements')
-          .select('id, disbursement_date, voucher_number, payee, amount, payment_method, description, journal_entry_id, status, accountAllocations:cash_disbursement_lines(amount, description, account:chart_of_accounts(account_name))')
+          .select('id, created_at, disbursement_date, voucher_number, payee, amount, payment_method, description, journal_entry_id, status, accountAllocations:cash_disbursement_lines(amount, description, account:chart_of_accounts(account_name))')
           .order('disbursement_date', { ascending: false }),
         supabase
           .from('member_dividend_distributions')
-          .select('id, member_id, reference_number, distribution_date, dividend_amount, patronage_amount, mortuary_deduction, retention_amount, savings_amount, loan_payment_amount, member:members(first_name, middle_name, last_name)')
+          .select('id, created_at, member_id, reference_number, distribution_date, dividend_amount, patronage_amount, mortuary_deduction, retention_amount, savings_amount, loan_payment_amount, member:members(first_name, middle_name, last_name)')
           .order('distribution_date', { ascending: false }),
         supabase
           .from('sales_orders')
-          .select('id, order_date, order_number, customer_name, total_amount, net_amount, amount_paid, payment_status, cash_receipt_id, cash_receipt:cash_receipts(receipt_number, status), notes, sales_order_items(item_description, quantity, product:products(product_name))')
+          .select('id, created_at, order_date, order_number, customer_name, total_amount, net_amount, amount_paid, payment_status, cash_receipt_id, cash_receipt:cash_receipts(receipt_number, status), notes, sales_order_items(item_description, quantity, product:products(product_name))')
           .order('order_date', { ascending: false })
       ]);
       const [receiptsResult, disbursementsResult, dividendsResult, salesResult] = results;
@@ -55,6 +55,7 @@ const TransactionList = ({ onNewTransaction, onViewTransaction }) => {
         const linkedReceipt = Array.isArray(sale.cash_receipt) ? sale.cash_receipt[0] : sale.cash_receipt;
         return {
           id: sale.id,
+          createdAt: sale.created_at,
           date: sale.order_date,
           referenceNo: sale.order_number,
           repCvNumber: sale.order_number,
@@ -79,6 +80,7 @@ const TransactionList = ({ onNewTransaction, onViewTransaction }) => {
 
       const receipts = (receiptsResult.data || []).map((receipt) => ({
         id: receipt.id,
+        createdAt: receipt.created_at,
         date: receipt.receipt_date,
         referenceNo: receipt.receipt_number,
         repCvNumber: receipt.receipt_number,
@@ -106,6 +108,7 @@ const TransactionList = ({ onNewTransaction, onViewTransaction }) => {
 
       const disbursements = (disbursementsResult.data || []).map((disbursement) => ({
         id: disbursement.id,
+        createdAt: disbursement.created_at,
         date: disbursement.disbursement_date,
         referenceNo: disbursement.voucher_number,
         repCvNumber: disbursement.voucher_number,
@@ -130,6 +133,7 @@ const TransactionList = ({ onNewTransaction, onViewTransaction }) => {
         const name = [member?.first_name, member?.middle_name, member?.last_name].filter(Boolean).join(' ');
         return {
           id: distribution.id,
+          createdAt: distribution.created_at,
           date: distribution.distribution_date,
           referenceNo: distribution.reference_number,
           repCvNumber: distribution.reference_number,
@@ -143,7 +147,21 @@ const TransactionList = ({ onNewTransaction, onViewTransaction }) => {
         };
       });
 
-      setTransactions([...visibleReceipts, ...disbursements, ...dividends, ...sales].sort((first, second) => new Date(second.date) - new Date(first.date)));
+      setTransactions([...visibleReceipts, ...disbursements, ...dividends, ...sales].sort((first, second) => {
+        const dateOrder = String(second.date).localeCompare(String(first.date));
+        if (dateOrder) return dateOrder;
+
+        const firstCreatedAt = Date.parse(first.createdAt || '');
+        const secondCreatedAt = Date.parse(second.createdAt || '');
+        if (Number.isFinite(firstCreatedAt) && Number.isFinite(secondCreatedAt) && firstCreatedAt !== secondCreatedAt) {
+          return secondCreatedAt - firstCreatedAt;
+        }
+
+        return String(second.referenceNo || '').localeCompare(String(first.referenceNo || ''), undefined, {
+          numeric: true,
+          sensitivity: 'base'
+        });
+      }));
     } catch (fetchError) {
       setError(getDataLoadErrorMessage(fetchError, 'transactions'));
     } finally {
