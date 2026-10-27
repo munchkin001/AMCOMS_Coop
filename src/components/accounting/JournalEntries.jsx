@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { ChevronDown, ChevronRight, Plus, Trash2, Undo2 } from 'lucide-react';
+import { AlertCircle, BookOpen, CheckCircle2, ChevronDown, ChevronRight, Plus, Trash2, Undo2 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { supabase } from '../../lib/supabase';
 import { queueOperation } from '../../lib/Offline/syncQueue';
@@ -94,62 +94,142 @@ const EntryForm = ({ accounts, onPosted, onCancel }) => {
   };
 
   return (
-    <form onSubmit={submit} className="space-y-4 rounded-xl border border-gray-200 bg-white p-4 shadow-sm sm:p-6">
-      <h3 className="text-base font-semibold text-gray-900">New journal entry</h3>
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <label className="text-sm font-medium text-gray-700">Entry type
-          <select value={entry.entry_type} onChange={(e) => setEntry({ ...entry, entry_type: e.target.value })} className={`${inputClass} mt-1`}>
-            <option value="general">General journal entry</option>
-            <option value="adjusting">Adjusting entry</option>
-          </select>
-        </label>
-        <label className="text-sm font-medium text-gray-700">Date
-          <input type="date" value={entry.entry_date} max={todayISO()} onChange={(e) => setEntry({ ...entry, entry_date: e.target.value })} className={`${inputClass} mt-1`} required />
-        </label>
-        <label className="text-sm font-medium text-gray-700">Reference (optional)
-          <input value={entry.reference_number} onChange={(e) => setEntry({ ...entry, reference_number: e.target.value })} className={`${inputClass} mt-1`} />
-        </label>
-        <label className="text-sm font-medium text-gray-700 sm:col-span-2 lg:col-span-4">Description
-          <input value={entry.description} onChange={(e) => setEntry({ ...entry, description: e.target.value })} className={`${inputClass} mt-1`} placeholder="Explain why this entry is being made" required />
-        </label>
+    <form onSubmit={submit} className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-lg shadow-slate-900/5">
+      <div className="flex items-center gap-4 bg-gradient-to-r from-slate-950 via-blue-950 to-blue-900 px-5 py-5 text-white sm:px-7">
+        <div className="flex size-12 shrink-0 items-center justify-center rounded-xl border border-white/15 bg-white/10 text-amber-300 shadow-inner">
+          <BookOpen className="size-6" aria-hidden="true" />
+        </div>
+        <div>
+          <p className="text-xs font-bold uppercase tracking-[0.18em] text-blue-200">Accounting · General Ledger</p>
+          <h3 className="mt-1 text-lg font-extrabold tracking-tight sm:text-xl">New journal entry</h3>
+          <p className="mt-0.5 text-sm text-blue-100">Record balanced debits and credits in the ledger.</p>
+        </div>
       </div>
 
-      <div className="space-y-2">
-        {lines.map((line, index) => (
-          <div key={index} className="grid gap-2 sm:grid-cols-[2fr_1fr_1fr_2fr_auto]">
-            <select aria-label={`Account for line ${index + 1}`} value={line.account_id} onChange={(e) => updateLine(index, { account_id: e.target.value })} className={inputClass}>
-              <option value="">Select account</option>
-              {accounts.filter((account) => account.is_active).map((account) => (
-                <option key={account.id} value={account.id}>{account.account_name}</option>
-              ))}
-            </select>
-            <input aria-label={`Debit for line ${index + 1}`} type="number" min="0" step="0.01" placeholder="Debit" value={line.debit_amount}
-              onWheel={(e) => e.currentTarget.blur()}
-              onChange={(e) => updateLine(index, { debit_amount: e.target.value, credit_amount: e.target.value ? '' : line.credit_amount })} className={inputClass} />
-            <input aria-label={`Credit for line ${index + 1}`} type="number" min="0" step="0.01" placeholder="Credit" value={line.credit_amount}
-              onWheel={(e) => e.currentTarget.blur()}
-              onChange={(e) => updateLine(index, { credit_amount: e.target.value, debit_amount: e.target.value ? '' : line.debit_amount })} className={inputClass} />
-            <input aria-label={`Memo for line ${index + 1}`} placeholder="Line memo (optional)" value={line.description} onChange={(e) => updateLine(index, { description: e.target.value })} className={inputClass} />
-            <button type="button" aria-label={`Remove line ${index + 1}`} disabled={lines.length <= 2} onClick={() => setLines((current) => current.filter((_, i) => i !== index))} className={buttonClass}>
-              <Trash2 className="size-4" aria-hidden="true" />
-            </button>
+      <div className="space-y-6 p-4 sm:p-6 lg:p-7">
+        <section className="rounded-xl border border-slate-200 bg-slate-50/80 p-4 sm:p-5">
+          <div className="mb-4 flex items-center gap-2 border-b border-slate-200 pb-3">
+            <span className="flex size-6 items-center justify-center rounded-full bg-blue-100 text-xs font-extrabold text-blue-800">1</span>
+            <h4 className="text-sm font-extrabold uppercase tracking-wide text-slate-800">Entry information</h4>
           </div>
-        ))}
-        <button type="button" onClick={() => setLines((current) => [...current, emptyLine()])} className={buttonClass}><Plus className="size-4" aria-hidden="true" />Add line</button>
-      </div>
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <label className="text-sm font-semibold text-slate-700">Entry type
+              <select value={entry.entry_type} onChange={(e) => setEntry({ ...entry, entry_type: e.target.value })} className={`${inputClass} mt-1.5 border-slate-300 bg-white font-medium`}>
+                <option value="general">General journal entry</option>
+                <option value="adjusting">Adjusting entry</option>
+              </select>
+            </label>
+            <label className="text-sm font-semibold text-slate-700">Date
+              <input type="date" value={entry.entry_date} max={todayISO()} onChange={(e) => setEntry({ ...entry, entry_date: e.target.value })} className={`${inputClass} mt-1.5 border-slate-300 bg-white font-medium`} required />
+            </label>
+            <label className="text-sm font-semibold text-slate-700">Reference <span className="font-normal text-slate-500">(optional)</span>
+              <input value={entry.reference_number} onChange={(e) => setEntry({ ...entry, reference_number: e.target.value })} className={`${inputClass} mt-1.5 border-slate-300 bg-white`} placeholder="e.g. receipt or voucher no." />
+            </label>
+            <label className="text-sm font-semibold text-slate-700 sm:col-span-2 lg:col-span-4">Description
+              <input value={entry.description} onChange={(e) => setEntry({ ...entry, description: e.target.value })} className={`${inputClass} mt-1.5 border-slate-300 bg-white`} placeholder="Explain why this entry is being made" required />
+            </label>
+          </div>
+        </section>
 
-      <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg bg-gray-50 px-4 py-3 text-sm">
-        <span>Debits: <strong>{amount(totals.debit) || '0.00'}</strong></span>
-        <span>Credits: <strong>{amount(totals.credit) || '0.00'}</strong></span>
-        <span className={difference === 0 && totals.debit > 0 ? 'font-semibold text-green-700' : 'font-semibold text-red-700'}>
-          {difference === 0 && totals.debit > 0 ? 'Balanced' : `Out of balance by ${Math.abs(difference).toFixed(2)}`}
-        </span>
-      </div>
+        <section>
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <span className="flex size-6 items-center justify-center rounded-full bg-violet-100 text-xs font-extrabold text-violet-800">2</span>
+              <div>
+                <h4 className="text-sm font-extrabold uppercase tracking-wide text-slate-800">Journal lines</h4>
+                <p className="text-xs text-slate-500">Each line must be entered as either a debit or a credit.</p>
+              </div>
+            </div>
+            <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-600">{lines.length} lines</span>
+          </div>
 
-      {error && <p role="alert" className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{error}</p>}
-      <div className="flex justify-end gap-2">
-        <button type="button" onClick={onCancel} className={buttonClass}>Cancel</button>
-        <button type="submit" disabled={saving} className={primaryButtonClass}>{saving ? 'Posting...' : 'Post entry'}</button>
+          <div className="space-y-3">
+            {lines.map((line, index) => (
+              <div key={index} className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm transition-colors hover:border-blue-200 sm:p-4">
+                <div className="mb-3 flex items-center justify-between">
+                  <span className="inline-flex items-center gap-2 text-xs font-extrabold uppercase tracking-wide text-slate-600">
+                    <span className="flex size-6 items-center justify-center rounded-lg bg-blue-50 text-blue-800">{index + 1}</span>
+                    Entry line
+                  </span>
+                  <button type="button" aria-label={`Remove line ${index + 1}`} title="Remove line" disabled={lines.length <= 2} onClick={() => setLines((current) => current.filter((_, i) => i !== index))} className="inline-flex size-9 items-center justify-center rounded-lg border border-slate-200 text-slate-500 transition-colors hover:border-red-200 hover:bg-red-50 hover:text-red-700 disabled:cursor-not-allowed disabled:opacity-40">
+                    <Trash2 className="size-4" aria-hidden="true" />
+                  </button>
+                </div>
+                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-12">
+                  <label className="text-xs font-bold uppercase tracking-wide text-slate-600 sm:col-span-2 lg:col-span-4">Account
+                    <select aria-label={`Account for line ${index + 1}`} value={line.account_id} onChange={(e) => updateLine(index, { account_id: e.target.value })} className={`${inputClass} mt-1.5 border-slate-300 bg-white text-sm font-medium normal-case tracking-normal`}>
+                      <option value="">Select account</option>
+                      {accounts.filter((account) => account.is_active).map((account) => (
+                        <option key={account.id} value={account.id}>{account.account_name}</option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="text-xs font-bold uppercase tracking-wide text-blue-800 sm:col-span-1 lg:col-span-2">Debit
+                    <input aria-label={`Debit for line ${index + 1}`} type="number" min="0" step="0.01" placeholder="0.00" value={line.debit_amount}
+                      onWheel={(e) => e.currentTarget.blur()}
+                      onChange={(e) => updateLine(index, { debit_amount: e.target.value, credit_amount: e.target.value ? '' : line.credit_amount })} className={`${inputClass} mt-1.5 border-blue-200 bg-blue-50/50 text-right font-semibold text-blue-950 placeholder:text-blue-300 focus:border-blue-600 focus:ring-blue-600/20`} />
+                  </label>
+                  <label className="text-xs font-bold uppercase tracking-wide text-emerald-800 sm:col-span-1 lg:col-span-2">Credit
+                    <input aria-label={`Credit for line ${index + 1}`} type="number" min="0" step="0.01" placeholder="0.00" value={line.credit_amount}
+                      onWheel={(e) => e.currentTarget.blur()}
+                      onChange={(e) => updateLine(index, { credit_amount: e.target.value, debit_amount: e.target.value ? '' : line.debit_amount })} className={`${inputClass} mt-1.5 border-emerald-200 bg-emerald-50/50 text-right font-semibold text-emerald-950 placeholder:text-emerald-300 focus:border-emerald-600 focus:ring-emerald-600/20`} />
+                  </label>
+                  <label className="text-xs font-bold uppercase tracking-wide text-slate-600 sm:col-span-2 lg:col-span-4">Line memo <span className="font-normal normal-case tracking-normal text-slate-400">(optional)</span>
+                    <input aria-label={`Memo for line ${index + 1}`} placeholder="Add a note for this line" value={line.description} onChange={(e) => updateLine(index, { description: e.target.value })} className={`${inputClass} mt-1.5 border-slate-300 bg-white text-sm font-normal normal-case tracking-normal`} />
+                  </label>
+                </div>
+              </div>
+            ))}
+          </div>
+          <button type="button" onClick={() => setLines((current) => [...current, emptyLine()])} className="mt-3 inline-flex items-center gap-2 rounded-lg border border-dashed border-blue-300 bg-blue-50/60 px-4 py-2.5 text-sm font-bold text-blue-800 transition-colors hover:border-blue-500 hover:bg-blue-100">
+            <Plus className="size-4" aria-hidden="true" />Add journal line
+          </button>
+        </section>
+
+        <section aria-live="polite" className={`rounded-xl border p-4 shadow-sm ${
+          difference === 0 && totals.debit > 0
+            ? 'border-emerald-200 bg-gradient-to-r from-emerald-50 to-white'
+            : 'border-amber-200 bg-gradient-to-r from-amber-50 to-white'
+        }`}>
+          <div className="mb-3 flex items-center gap-2">
+            {difference === 0 && totals.debit > 0
+              ? <CheckCircle2 className="size-5 text-emerald-700" aria-hidden="true" />
+              : <AlertCircle className="size-5 text-amber-700" aria-hidden="true" />}
+            <h4 className={`text-sm font-extrabold uppercase tracking-wide ${
+              difference === 0 && totals.debit > 0 ? 'text-emerald-900' : 'text-amber-900'
+            }`}>Balance check</h4>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-3">
+            <div className="rounded-lg border border-blue-100 bg-white px-4 py-3">
+              <p className="text-xs font-bold uppercase tracking-wide text-blue-700">Total debits</p>
+              <p className="mt-1 text-lg font-extrabold tabular-nums text-blue-950">{amount(totals.debit) || '0.00'}</p>
+            </div>
+            <div className="rounded-lg border border-emerald-100 bg-white px-4 py-3">
+              <p className="text-xs font-bold uppercase tracking-wide text-emerald-700">Total credits</p>
+              <p className="mt-1 text-lg font-extrabold tabular-nums text-emerald-950">{amount(totals.credit) || '0.00'}</p>
+            </div>
+            <div className={`rounded-lg border px-4 py-3 ${
+              difference === 0 && totals.debit > 0 ? 'border-emerald-200 bg-emerald-100/70' : 'border-amber-200 bg-amber-100/70'
+            }`}>
+              <p className={`text-xs font-bold uppercase tracking-wide ${
+                difference === 0 && totals.debit > 0 ? 'text-emerald-800' : 'text-amber-800'
+              }`}>Status</p>
+              <p className={`mt-1 text-sm font-extrabold ${
+                difference === 0 && totals.debit > 0 ? 'text-emerald-950' : 'text-amber-950'
+              }`}>
+                {difference === 0 && totals.debit > 0 ? 'Balanced' : `Out of balance by ${Math.abs(difference).toFixed(2)}`}
+              </p>
+            </div>
+          </div>
+        </section>
+
+        {error && <p role="alert" className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-800">{error}</p>}
+        <div className="flex flex-col-reverse justify-end gap-3 border-t border-slate-200 pt-5 sm:flex-row">
+          <button type="button" onClick={onCancel} className={`${buttonClass} min-h-11 border-slate-300 px-5`}>Cancel</button>
+          <button type="submit" disabled={saving} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-gradient-to-r from-blue-950 to-blue-800 px-6 py-2 text-sm font-extrabold text-white shadow-md shadow-blue-950/15 transition hover:from-blue-900 hover:to-blue-700 disabled:cursor-not-allowed disabled:opacity-50">
+            {saving ? 'Posting...' : 'Post journal entry'}
+          </button>
+        </div>
       </div>
     </form>
   );
