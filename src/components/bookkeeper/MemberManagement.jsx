@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Archive, Eye, KeyRound, Pencil, Plus, RotateCcw, Search, Trash2, X } from 'lucide-react';
+import { Archive, Eye, KeyRound, Pencil, Plus, RotateCcw, Search, Trash2, Users, X } from 'lucide-react';
 import { useRealtimeSubscription } from '../../hooks/useRealtimeSubscription';
 import { supabase } from '../../lib/supabase';
 import { getAppUrl } from '../../lib/appUrl';
@@ -505,36 +505,50 @@ const MemberManagement = ({ canManageMembers = true }) => {
   ];
 
   return (
-    <div className="space-y-5">
-      <header className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-950">Members</h1>
+    <div className="space-y-6">
+      <header className="flex flex-col justify-between gap-4 overflow-hidden rounded-2xl border border-blue-900/10 bg-gradient-to-r from-slate-950 via-blue-950 to-blue-900 p-5 text-white shadow-lg shadow-blue-950/10 sm:flex-row sm:items-center sm:p-6">
+        <div className="flex items-center gap-4">
+          <div className="flex size-12 shrink-0 items-center justify-center rounded-xl border border-white/15 bg-white/10 text-blue-100">
+            <Users size={24} aria-hidden="true" />
+          </div>
+          <div>
+            <p className="text-xs font-bold uppercase tracking-[0.18em] text-blue-200">Member directory</p>
+            <h1 className="mt-1 text-2xl font-extrabold tracking-tight">Members</h1>
+            <p className="mt-1 text-sm text-blue-100">Manage member profiles, membership status, and portal access.</p>
+          </div>
         </div>
+        <div className="flex items-center gap-3">
+          <div className="hidden rounded-xl border border-white/15 bg-white/10 px-4 py-2 text-right sm:block">
+            <p className="text-xs font-semibold text-blue-200">Active directory</p>
+            <p className="text-xl font-extrabold tabular-nums">{activeMembers.length.toLocaleString()}</p>
+          </div>
         {canManageMembers && (
-          <button type="button" onClick={startAdd} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg bg-blue-700 px-4 text-sm font-semibold text-white hover:bg-blue-800">
+          <button type="button" onClick={startAdd} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-white px-4 text-sm font-extrabold text-blue-950 shadow-sm transition hover:bg-blue-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-blue-900">
             <Plus size={18} aria-hidden="true" />Add Member
           </button>
         )}
+        </div>
       </header>
 
-      <div className="flex flex-col gap-3 border-b border-gray-200 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex gap-5 overflow-x-auto" aria-label="Member type">
+      <div className="flex flex-col gap-3 rounded-xl border border-slate-200 bg-white p-2 shadow-sm sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex gap-1 overflow-x-auto" aria-label="Member type">
           {memberViews.map(({ id, label, count }) => (
             <button
               key={id}
               type="button"
               aria-pressed={view === id}
               onClick={() => { setView(id); setStatusFilter('all'); }}
-              className={`whitespace-nowrap border-b-2 px-1 py-3 text-sm font-medium ${view === id ? 'border-blue-700 text-blue-700' : 'border-transparent text-gray-500 hover:text-gray-800'}`}
+              className={`inline-flex items-center gap-2 whitespace-nowrap rounded-lg px-3 py-2.5 text-sm font-bold transition-colors ${view === id ? 'bg-blue-950 text-white shadow-sm' : 'text-slate-600 hover:bg-slate-100 hover:text-slate-950'}`}
             >
-              {label} <span className="ml-1 text-xs">{count}</span>
+              {label}
+              <span className={`rounded-full px-2 py-0.5 text-xs tabular-nums ${view === id ? 'bg-white/15 text-white' : 'bg-slate-100 text-slate-600'}`}>{count}</span>
             </button>
           ))}
         </div>
         {view !== 'archived' && (
-          <label className="flex items-center gap-2 pb-2 text-sm text-gray-600 sm:pb-0">
+          <label className="flex shrink-0 items-center gap-2 px-2 text-xs font-bold uppercase tracking-wide text-slate-500">
             Status
-            <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm">
+            <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold normal-case tracking-normal text-slate-800 focus:border-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-600/20">
               <option value="all">All active statuses</option>
               <option value="active">Active</option>
               <option value="suspended">Suspended</option>
@@ -543,47 +557,49 @@ const MemberManagement = ({ canManageMembers = true }) => {
         )}
       </div>
 
-      <div className="flex items-center gap-3 rounded-lg border border-gray-200 bg-white p-3">
-        <Search size={18} className="shrink-0 text-gray-400" aria-hidden="true" />
-        <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search name, member ID, contact, or email" className="min-w-0 flex-1 border-0 bg-transparent text-sm outline-none focus:ring-0" />
-      </div>
+      <label className="flex items-center gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-sm transition focus-within:border-blue-400 focus-within:ring-2 focus-within:ring-blue-600/15">
+        <Search size={19} className="shrink-0 text-blue-700" aria-hidden="true" />
+        <span className="sr-only">Search members</span>
+        <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search name, member ID, contact, or email" className="min-w-0 flex-1 border-0 bg-transparent text-sm font-medium text-slate-800 outline-none placeholder:font-normal placeholder:text-slate-400 focus:ring-0" />
+        <span className="hidden rounded-md bg-slate-100 px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-slate-500 sm:inline">Search</span>
+      </label>
 
       {error && <p role="alert" className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{error}</p>}
       {portalNotice && <p role="status" className="whitespace-pre-line rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">{portalNotice}</p>}
       {loading ? <div className="rounded-lg border border-gray-200 bg-white p-8 text-center text-sm text-gray-500">Loading members...</div> : (
-        <div className="overflow-hidden rounded-lg border border-gray-200 bg-white">
+        <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
           <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50">
+            <table className="min-w-[1120px] divide-y divide-slate-200">
+              <thead className="bg-slate-100">
                 <tr>
-                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase text-gray-500">Member</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase text-gray-500">Username</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase text-gray-500">Membership Type</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase text-gray-500">Savings account no.</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase text-gray-500">Contact</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase text-gray-500">Address</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase text-gray-500">Membership Date</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase text-gray-500">Status</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase text-gray-500">Account</th>
-                  {view === 'archived' && <th className="px-4 py-3 text-left text-xs font-semibold uppercase text-gray-500">Archived</th>}
-                  <th className="px-4 py-3 text-right text-xs font-semibold uppercase text-gray-500">{canManageMembers ? 'Actions' : 'Details'}</th>
+                  <th className="px-4 py-3.5 text-left text-[11px] font-extrabold uppercase tracking-wider text-slate-600">Member</th>
+                  <th className="px-4 py-3.5 text-left text-[11px] font-extrabold uppercase tracking-wider text-slate-600">Username</th>
+                  <th className="px-4 py-3.5 text-left text-[11px] font-extrabold uppercase tracking-wider text-slate-600">Membership Type</th>
+                  <th className="px-4 py-3.5 text-left text-[11px] font-extrabold uppercase tracking-wider text-slate-600">Savings account no.</th>
+                  <th className="px-4 py-3.5 text-left text-[11px] font-extrabold uppercase tracking-wider text-slate-600">Contact</th>
+                  <th className="px-4 py-3.5 text-left text-[11px] font-extrabold uppercase tracking-wider text-slate-600">Address</th>
+                  <th className="px-4 py-3.5 text-left text-[11px] font-extrabold uppercase tracking-wider text-slate-600">Membership Date</th>
+                  <th className="px-4 py-3.5 text-left text-[11px] font-extrabold uppercase tracking-wider text-slate-600">Status</th>
+                  <th className="px-4 py-3.5 text-left text-[11px] font-extrabold uppercase tracking-wider text-slate-600">Account</th>
+                  {view === 'archived' && <th className="px-4 py-3.5 text-left text-[11px] font-extrabold uppercase tracking-wider text-slate-600">Archived</th>}
+                  <th className="px-4 py-3.5 text-right text-[11px] font-extrabold uppercase tracking-wider text-slate-600">{canManageMembers ? 'Actions' : 'Details'}</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-100">
+              <tbody className="divide-y divide-slate-100">
                 {filteredMembers.map((member) => (
-                  <tr key={member.id} className="align-top hover:bg-gray-50/70">
-                    <td className="px-4 py-3">
-                      <p className="text-sm font-semibold text-gray-900">{fullName(member)}</p>
-                      <p className="mt-0.5 text-xs text-gray-500">{member.member_number}</p>
+                  <tr key={member.id} className="align-top transition-colors odd:bg-white even:bg-slate-50/40 hover:bg-blue-50/70">
+                    <td className="px-4 py-3.5">
+                      <p className="text-sm font-bold text-slate-950">{fullName(member)}</p>
+                      <p className="mt-1 inline-flex rounded-md bg-blue-50 px-1.5 py-0.5 text-[11px] font-bold tracking-wide text-blue-800">{member.member_number}</p>
                     </td>
-                    <td className="px-4 py-3 text-sm text-gray-700">{member.portal_account?.username || '—'}</td>
-                    <td className="px-4 py-3 text-sm capitalize text-gray-700">{member.membership_type || '—'}</td>
-                    <td className="px-4 py-3 text-sm text-gray-700">{member.savings_account_numbers?.length ? member.savings_account_numbers.join(', ') : '—'}</td>
-                    <td className="px-4 py-3 text-sm text-gray-700">{member.phone || '—'}<br /><span className="text-xs text-gray-500">{member.email || 'No email'}</span></td>
-                    <td className="max-w-xs px-4 py-3 text-sm text-gray-700">{member.address || '—'}</td>
-                    <td className="whitespace-nowrap px-4 py-3 text-sm text-gray-700">{member.date_joined || '—'}</td>
-                    <td className="px-4 py-3"><span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-medium ${isArchived(member) ? 'bg-gray-100 text-gray-700' : member.membership_status === 'suspended' ? 'bg-amber-100 text-amber-800' : 'bg-emerald-100 text-emerald-800'}`}>{isArchived(member) ? 'Archived' : member.membership_status}</span></td>
-                    <td className="px-4 py-3 text-sm text-gray-700">{accountStatus(member)}</td>
+                    <td className="px-4 py-3.5 text-sm font-medium text-slate-700">{member.portal_account?.username || <span className="text-slate-400">—</span>}</td>
+                    <td className="px-4 py-3.5"><span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-bold capitalize ${member.membership_type === 'regular' ? 'bg-indigo-50 text-indigo-800 ring-1 ring-inset ring-indigo-200' : 'bg-cyan-50 text-cyan-800 ring-1 ring-inset ring-cyan-200'}`}>{member.membership_type || '—'}</span></td>
+                    <td className="px-4 py-3.5 text-sm font-semibold tabular-nums text-slate-700">{member.savings_account_numbers?.length ? member.savings_account_numbers.join(', ') : <span className="font-normal text-slate-400">—</span>}</td>
+                    <td className="px-4 py-3.5 text-sm text-slate-800">{member.phone || <span className="text-slate-400">—</span>}<br /><span className="text-xs text-slate-500">{member.email || 'No email'}</span></td>
+                    <td className="max-w-xs px-4 py-3.5 text-sm text-slate-700">{member.address || <span className="text-slate-400">—</span>}</td>
+                    <td className="whitespace-nowrap px-4 py-3.5 text-sm font-medium tabular-nums text-slate-700">{member.date_joined || <span className="text-slate-400">—</span>}</td>
+                    <td className="px-4 py-3.5"><span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-bold capitalize ring-1 ring-inset ${isArchived(member) ? 'bg-slate-100 text-slate-700 ring-slate-200' : member.membership_status === 'suspended' ? 'bg-amber-50 text-amber-800 ring-amber-200' : 'bg-emerald-50 text-emerald-800 ring-emerald-200'}`}>{isArchived(member) ? 'Archived' : member.membership_status}</span></td>
+                    <td className="px-4 py-3.5 text-sm font-semibold text-slate-700">{accountStatus(member)}</td>
                     {view === 'archived' && <td className="px-4 py-3 text-xs text-gray-600">{member.archived_at ? new Date(member.archived_at).toLocaleDateString() : 'Inactive'}<br />{member.archived_by_name || (member.archived_by ? 'Staff' : '')}<br />{member.archive_reason || ''}</td>}
                     <td className="px-4 py-3">
                       <div className="flex justify-end gap-1">

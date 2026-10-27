@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
+import { ArrowDownToLine, ArrowUpFromLine, CalendarDays, FileClock, Plus, Search } from 'lucide-react';
 import { useRealtimeSubscription } from '../../../hooks/useRealtimeSubscription';
 import { supabase } from '../../../lib/supabase';
 import { toDateString } from '../../../lib/dashboardAccounting';
@@ -203,57 +204,68 @@ const TransactionList = ({ onNewTransaction, onViewTransaction }) => {
     <div className="space-y-6">
       {/* Summary Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="bg-white rounded-lg border border-gray-200 p-4 lg:p-6">
-          <p className="text-xs lg:text-sm text-gray-600 mb-1">Today's Transactions</p>
-          <p className="text-2xl lg:text-3xl font-bold text-gray-900">{loading ? '...' : todayTransactions}</p>
+        <div className="relative overflow-hidden rounded-xl border border-blue-200 bg-gradient-to-br from-blue-50 to-white p-4 shadow-sm lg:p-5">
+          <div className="flex items-start justify-between gap-3">
+            <div><p className="text-xs font-extrabold uppercase tracking-wider text-blue-800">Today's Transactions</p><p className="mt-3 text-3xl font-extrabold tabular-nums text-blue-950">{loading ? '...' : todayTransactions}</p><p className="mt-1 text-xs font-medium text-blue-700">Activity for selected day</p></div>
+            <span className="grid size-11 place-items-center rounded-xl bg-blue-700 text-white shadow-sm"><CalendarDays size={21} aria-hidden="true" /></span>
+          </div>
         </div>
-        <div className="bg-white rounded-lg border border-gray-200 p-4 lg:p-6">
-          <p className="text-xs lg:text-sm text-gray-600 mb-1">Total Receipts</p>
-          <p className="text-2xl lg:text-3xl font-bold text-green-600">{loading ? '...' : `₱${totalReceipts.toLocaleString('en-PH', { minimumFractionDigits: 2 })}`}</p>
+        <div className="relative overflow-hidden rounded-xl border border-emerald-200 bg-gradient-to-br from-emerald-50 to-white p-4 shadow-sm lg:p-5">
+          <div className="flex items-start justify-between gap-3">
+            <div><p className="text-xs font-extrabold uppercase tracking-wider text-emerald-800">Total Receipts</p><p className="mt-3 text-2xl font-extrabold tabular-nums text-emerald-700 lg:text-3xl">{loading ? '...' : `₱${totalReceipts.toLocaleString('en-PH', { minimumFractionDigits: 2 })}`}</p><p className="mt-1 text-xs font-medium text-emerald-700">Recorded incoming funds</p></div>
+            <span className="grid size-11 place-items-center rounded-xl bg-emerald-600 text-white shadow-sm"><ArrowDownToLine size={21} aria-hidden="true" /></span>
+          </div>
         </div>
-        <div className="bg-white rounded-lg border border-gray-200 p-4 lg:p-6">
-          <p className="text-xs lg:text-sm text-gray-600 mb-1">Total Disbursements</p>
-          <p className="text-2xl lg:text-3xl font-bold text-red-600">{loading ? '...' : `₱${totalDisbursements.toLocaleString('en-PH', { minimumFractionDigits: 2 })}`}</p>
+        <div className="relative overflow-hidden rounded-xl border border-rose-200 bg-gradient-to-br from-rose-50 to-white p-4 shadow-sm lg:p-5">
+          <div className="flex items-start justify-between gap-3">
+            <div><p className="text-xs font-extrabold uppercase tracking-wider text-rose-800">Total Disbursements</p><p className="mt-3 text-2xl font-extrabold tabular-nums text-rose-700 lg:text-3xl">{loading ? '...' : `₱${totalDisbursements.toLocaleString('en-PH', { minimumFractionDigits: 2 })}`}</p><p className="mt-1 text-xs font-medium text-rose-700">Recorded outgoing funds</p></div>
+            <span className="grid size-11 place-items-center rounded-xl bg-rose-600 text-white shadow-sm"><ArrowUpFromLine size={21} aria-hidden="true" /></span>
+          </div>
         </div>
-        <div className="bg-white rounded-lg border border-gray-200 p-4 lg:p-6">
-          <p className="text-xs lg:text-sm text-gray-600 mb-1">Draft Transactions</p>
-          <p className="text-2xl lg:text-3xl font-bold text-gray-600">{loading ? '...' : draftCount}</p>
+        <div className="relative overflow-hidden rounded-xl border border-amber-200 bg-gradient-to-br from-amber-50 to-white p-4 shadow-sm lg:p-5">
+          <div className="flex items-start justify-between gap-3">
+            <div><p className="text-xs font-extrabold uppercase tracking-wider text-amber-800">Draft Transactions</p><p className="mt-3 text-3xl font-extrabold tabular-nums text-amber-950">{loading ? '...' : draftCount}</p><p className="mt-1 text-xs font-medium text-amber-800">Awaiting completion</p></div>
+            <span className="grid size-11 place-items-center rounded-xl bg-amber-500 text-white shadow-sm"><FileClock size={21} aria-hidden="true" /></span>
+          </div>
         </div>
       </div>
 
       {/* Actions and Filters */}
-      <div className="bg-white rounded-lg border border-gray-200 p-4 lg:p-6">
-        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 mb-6">
+      <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+        <div className="flex flex-col gap-4 border-b border-slate-200 bg-gradient-to-r from-slate-50 to-white p-4 sm:flex-row sm:items-center sm:justify-between lg:p-6">
           <div>
-            <h2 className="text-lg lg:text-xl font-semibold text-gray-900">Transaction List</h2>
+            <p className="text-xs font-extrabold uppercase tracking-[0.16em] text-blue-700">Bookkeeping activity</p>
+            <h2 className="mt-1 text-xl font-extrabold tracking-tight text-slate-950 lg:text-2xl">Transaction List</h2>
+            <p className="mt-1 text-sm text-slate-600">Search, filter, and review receipts, disbursements, sales, and dividends.</p>
           </div>
           <button
             onClick={onNewTransaction}
-            className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 font-medium text-sm lg:text-base flex items-center justify-center gap-2"
+            className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-gradient-to-r from-violet-700 to-purple-600 px-5 py-2 text-sm font-extrabold text-white shadow-md shadow-purple-900/15 transition hover:from-violet-800 hover:to-purple-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-600 focus-visible:ring-offset-2 lg:text-base"
           >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-            </svg>
+            <Plus className="size-5" aria-hidden="true" />
             New Transaction
           </button>
         </div>
 
         {/* Search and Filters */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-6">
-          <div className="lg:col-span-2">
+        <div className="grid grid-cols-1 gap-3 border-b border-slate-100 bg-white p-4 sm:grid-cols-2 lg:grid-cols-[minmax(0,2fr)_1fr_1fr] lg:p-5">
+          <label className="flex min-w-0 items-center gap-3 rounded-lg border border-slate-300 px-3 py-2 transition focus-within:border-purple-500 focus-within:ring-2 focus-within:ring-purple-600/15 sm:col-span-2 lg:col-span-1">
+            <Search className="size-4 shrink-0 text-purple-700" aria-hidden="true" />
+            <span className="sr-only">Search transactions</span>
             <input
               type="text"
               placeholder="Search transaction number, member, description..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg text-sm lg:text-base focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+              className="w-full min-w-0 border-0 bg-transparent text-sm text-slate-800 outline-none placeholder:text-slate-400 focus:ring-0 lg:text-base"
             />
-          </div>
-          <div className="flex gap-2">
+          </label>
+          <>
             <select
+              aria-label="Filter by transaction type"
               value={filterType}
               onChange={(e) => setFilterType(e.target.value)}
-              className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm lg:text-base"
+              className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm font-semibold text-slate-800 focus:border-purple-500 focus:outline-none focus:ring-2 focus:ring-purple-600/15 lg:text-base"
             >
               <option value="all">All Types</option>
               <option value="Receipt">Receipt</option>
@@ -262,9 +274,10 @@ const TransactionList = ({ onNewTransaction, onViewTransaction }) => {
               <option value="Dividend">Dividend</option>
             </select>
             <select
+              aria-label="Filter by transaction status"
               value={filterStatus}
               onChange={(e) => setFilterStatus(e.target.value)}
-              className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm lg:text-base"
+              className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm font-semibold text-slate-800 focus:border-purple-500 focus:outline-none focus:ring-2 focus:ring-purple-600/15 lg:text-base"
             >
               <option value="all">All Status</option>
               <option value="Draft">Draft</option>
@@ -272,7 +285,7 @@ const TransactionList = ({ onNewTransaction, onViewTransaction }) => {
               <option value="Credit">Credit</option>
               <option value="Voided">Voided</option>
             </select>
-          </div>
+          </>
         </div>
 
         {/* Transaction Table */}
@@ -289,40 +302,49 @@ const TransactionList = ({ onNewTransaction, onViewTransaction }) => {
             </button>
           </div>
         )}
-        <div className="overflow-x-auto -mx-4 lg:mx-0">
+        <div className="overflow-x-auto">
           <div className="inline-block min-w-full align-middle">
-            <table className="min-w-full">
-              <thead className="bg-gray-50">
+            <table className="min-w-[900px] w-full">
+              <thead className="bg-slate-100">
                 <tr>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Date</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Reference No.</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Particulars</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Type</th>
-                  <th className="px-4 py-3 text-right text-xs font-semibold text-gray-700 uppercase tracking-wider">Amount</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Status</th>
+                  <th className="px-5 py-3.5 text-left text-[11px] font-extrabold uppercase tracking-wider text-slate-600">Date</th>
+                  <th className="px-5 py-3.5 text-left text-[11px] font-extrabold uppercase tracking-wider text-slate-600">Reference No.</th>
+                  <th className="px-5 py-3.5 text-left text-[11px] font-extrabold uppercase tracking-wider text-slate-600">Particulars</th>
+                  <th className="px-5 py-3.5 text-left text-[11px] font-extrabold uppercase tracking-wider text-slate-600">Type</th>
+                  <th className="px-5 py-3.5 text-right text-[11px] font-extrabold uppercase tracking-wider text-slate-600">Amount</th>
+                  <th className="px-5 py-3.5 text-left text-[11px] font-extrabold uppercase tracking-wider text-slate-600">Status</th>
                 </tr>
               </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
+              <tbody className="divide-y divide-slate-100">
                 {filteredTransactions.map((txn) => (
                   <tr 
                     key={txn.id} 
                     onClick={txn.readOnly ? undefined : () => onViewTransaction(txn)}
-                    className={txn.readOnly ? 'bg-indigo-50/40' : 'hover:bg-gray-50 cursor-pointer'}
+                    className={`transition-colors ${txn.readOnly ? 'bg-indigo-50/40' : 'cursor-pointer hover:bg-violet-50/60'} even:bg-slate-50/30`}
                   >
-                    <td className="px-4 py-3 text-sm text-gray-900 whitespace-nowrap">{new Date(`${txn.date}T00:00:00`).toLocaleDateString('en-PH')}</td>
-                    <td className="px-4 py-3 text-sm font-medium text-purple-600 whitespace-nowrap">
-                      {txn.referenceNo}
+                    <td className="whitespace-nowrap px-5 py-4 text-sm font-medium tabular-nums text-slate-700">{new Date(`${txn.date}T00:00:00`).toLocaleDateString('en-PH')}</td>
+                    <td className="whitespace-nowrap px-5 py-4 text-sm font-extrabold text-violet-800">
+                      <span className="rounded-md bg-violet-50 px-2 py-1 ring-1 ring-inset ring-violet-100">{txn.referenceNo}</span>
                       {txn.receiptNumber && txn.receiptNumber !== txn.referenceNo && (
-                        <span className="mt-1 block text-xs font-normal text-green-800">OR {txn.receiptNumber}</span>
+                        <span className="mt-1.5 block text-xs font-bold text-emerald-700">Official receipt · {txn.receiptNumber}</span>
                       )}
                     </td>
-                    <td className="px-4 py-3 text-sm text-gray-900">{txn.particulars}</td>
-                    <td className="px-4 py-3 text-sm text-gray-900 whitespace-nowrap">{txn.transactionType}</td>
-                    <td className="px-4 py-3 text-sm text-gray-900 text-right whitespace-nowrap font-medium">
+                    <td className="max-w-md px-5 py-4 text-sm font-semibold text-slate-900">{txn.particulars}</td>
+                    <td className="whitespace-nowrap px-5 py-4">
+                      <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-bold ${
+                        txn.transactionType === 'Receipt' ? 'bg-emerald-50 text-emerald-800 ring-1 ring-inset ring-emerald-200'
+                          : txn.transactionType === 'Disbursement' ? 'bg-rose-50 text-rose-800 ring-1 ring-inset ring-rose-200'
+                            : txn.transactionType === 'Sales' ? 'bg-blue-50 text-blue-800 ring-1 ring-inset ring-blue-200'
+                              : 'bg-violet-50 text-violet-800 ring-1 ring-inset ring-violet-200'
+                      }`}>{txn.transactionType}</span>
+                    </td>
+                    <td className={`whitespace-nowrap px-5 py-4 text-right text-sm font-extrabold tabular-nums ${
+                      txn.transactionType === 'Disbursement' ? 'text-rose-700' : 'text-emerald-700'
+                    }`}>
                       ₱{txn.amount.toLocaleString('en-US', { minimumFractionDigits: 2 })}
                     </td>
-                    <td className="px-4 py-3 whitespace-nowrap">
-                      <span className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${getStatusColor(txn.status)}`}>
+                    <td className="whitespace-nowrap px-5 py-4">
+                      <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-bold ring-1 ring-inset ring-current/10 ${getStatusColor(txn.status)}`}>
                         {txn.status}
                       </span>
                     </td>
