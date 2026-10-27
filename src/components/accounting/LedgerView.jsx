@@ -1,10 +1,11 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { ChevronLeft, ChevronRight, Download, Printer, RefreshCw, Wallet } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useMultipleRealtimeSubscriptions } from '../../hooks/useRealtimeSubscription';
 import { getDataLoadErrorMessage } from '../../lib/errorHandler';
 import {
-  PrintStyles, buttonClass, formatDate, inputClass, startOfYearISO, todayISO, useAccounts
+  PrintStyles, buttonClass, formatDate, formatDateTime, inputClass, startOfYearISO, todayISO, useAccounts
 } from './accountingUtils';
 
 const PAGE_SIZE = 10;
@@ -32,7 +33,7 @@ const SummaryStat = ({ label, value, tone = 'text-gray-900', accent = false }) =
   </div>
 );
 
-const AccountSection = ({ group }) => {
+const AccountSection = ({ group, from, onSelectEntry }) => {
   const [page, setPage] = useState(1);
   const movement = group.lines.filter((line) => !line.is_opening);
   const opening = group.lines.find((line) => line.is_opening);
@@ -87,7 +88,17 @@ const AccountSection = ({ group }) => {
                   <td className="whitespace-nowrap px-4 py-3 text-gray-700">{line.is_opening ? shortDate(from) : shortDate(line.entry_date)}</td>
                   <td className="px-4 py-3 text-gray-800">{line.is_opening ? 'Opening Balance' : line.description}</td>
                   <td className="whitespace-nowrap px-4 py-3 font-medium text-gray-700">
-                    {line.is_opening ? <Dash /> : (line.reference_number || line.entry_number)}
+                    {line.is_opening ? <Dash /> : (
+                      <button
+                        type="button"
+                        aria-label={`View transaction details for ${line.reference_number || line.entry_number}`}
+                        title="View transaction details"
+                        onClick={() => onSelectEntry(line)}
+                        className="cursor-pointer rounded-sm text-blue-700 underline decoration-blue-300 underline-offset-2 hover:text-blue-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600"
+                      >
+                        {line.reference_number || line.entry_number}
+                      </button>
+                    )}
                     {line.is_reversed && <span className="ml-2 rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold uppercase text-amber-800">Reversed</span>}
                     {line.is_reversal && <span className="ml-2 rounded bg-slate-200 px-1.5 py-0.5 text-[10px] font-semibold uppercase text-slate-700">Reversal</span>}
                   </td>
@@ -119,6 +130,139 @@ const AccountSection = ({ group }) => {
   );
 };
 
+const EntryDetails = ({ line, onClose }) => {
+  const [entry, setEntry] = useState(null);
+  const [lines, setLines] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    let active = true;
+    const loadDetails = async () => {
+      setLoading(true);
+      setError('');
+      const [entryResult, linesResult] = await Promise.all([
+        supabase.from('journal_entry_register')
+          .select('*')
+          .eq('id', line.entry_id)
+          .maybeSingle(),
+        supabase.from('journal_entry_lines')
+          .select('id, debit_amount, credit_amount, description, account:chart_of_accounts(account_code, account_name)')
+          .eq('journal_entry_id', line.entry_id)
+          .order('id'),
+      ]);
+
+      if (!active) return;
+      const failure = entryResult.error || linesResult.error;
+      if (failure) {
+        console.error('Unable to load ledger transaction details:', failure);
+        setError(getDataLoadErrorMessage(failure, 'transaction details'));
+      } else if (!entryResult.data) {
+        setError('The original journal entry could not be found.');
+      } else {
+        setEntry(entryResult.data);
+        setLines(linesResult.data || []);
+      }
+      setLoading(false);
+    };
+
+    loadDetails().catch((loadError) => {
+      if (!active) return;
+      console.error('Unable to load ledger transaction details:', loadError);
+      setError(getDataLoadErrorMessage(loadError, 'transaction details'));
+      setLoading(false);
+    });
+
+    return () => { active = false; };
+  }, [line.entry_id]);
+
+  useEffect(() => {
+    const closeOnEscape = (event) => {
+      if (event.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', closeOnEscape);
+    return () => window.removeEventListener('keydown', closeOnEscape);
+  }, [onClose]);
+
+  return createPortal(
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+      onMouseDown={(event) => {
+        if (event.target === event.currentTarget) onClose();
+      }}
+    >
+      <section
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="ledger-entry-details-title"
+        className="max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-xl bg-white p-5 shadow-xl"
+      >
+        <div className="mb-4 flex items-start justify-between gap-4">
+          <div>
+            <h2 id="ledger-entry-details-title" className="text-lg font-bold text-gray-900">Transaction Details</h2>
+            <p className="mt-1 text-sm text-gray-600">Reference: {line.reference_number || line.entry_number}</p>
+          </div>
+          <button type="button" onClick={onClose} className="rounded-lg px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-100">
+            Close
+          </button>
+        </div>
+
+        {loading && <p className="py-8 text-center text-sm text-gray-500">Loading transaction details...</p>}
+        {error && <p role="alert" className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{error}</p>}
+        {!loading && !error && entry && (
+          <div className="space-y-5">
+            <dl className="grid gap-x-6 gap-y-3 rounded-lg bg-gray-50 p-4 text-sm sm:grid-cols-2">
+              <div><dt className="font-semibold text-gray-600">Entry number</dt><dd className="mt-0.5 text-gray-900">{entry.entry_number}</dd></div>
+              <div><dt className="font-semibold text-gray-600">Date</dt><dd className="mt-0.5 text-gray-900">{formatDate(entry.entry_date)}</dd></div>
+              <div><dt className="font-semibold text-gray-600">Reference number</dt><dd className="mt-0.5 text-gray-900">{entry.reference_number || '—'}</dd></div>
+              <div><dt className="font-semibold text-gray-600">Entry type / status</dt><dd className="mt-0.5 capitalize text-gray-900">{entry.entry_type} / {entry.status}</dd></div>
+              <div className="sm:col-span-2"><dt className="font-semibold text-gray-600">Description</dt><dd className="mt-0.5 whitespace-pre-wrap text-gray-900">{entry.description || '—'}</dd></div>
+              <div><dt className="font-semibold text-gray-600">Created by</dt><dd className="mt-0.5 text-gray-900">{entry.created_by_name || 'System'}{entry.created_at ? ` · ${formatDateTime(entry.created_at)}` : ''}</dd></div>
+              <div><dt className="font-semibold text-gray-600">Posted by</dt><dd className="mt-0.5 text-gray-900">{entry.posted_by_name || '—'}{entry.posted_at ? ` · ${formatDateTime(entry.posted_at)}` : ''}</dd></div>
+              {entry.reversal_reason && (
+                <div className="sm:col-span-2"><dt className="font-semibold text-gray-600">Reversal reason</dt><dd className="mt-0.5 text-gray-900">{entry.reversal_reason}</dd></div>
+              )}
+            </dl>
+
+            <div>
+              <h3 className="mb-2 font-semibold text-gray-900">Entered account lines</h3>
+              {lines.length === 0 ? (
+                <p className="text-sm text-gray-500">No journal lines were found for this entry.</p>
+              ) : (
+                <div className="overflow-x-auto rounded-lg border border-gray-200">
+                  <table className="min-w-full text-sm">
+                    <thead className="bg-gray-50 text-left text-xs font-semibold uppercase text-gray-600">
+                      <tr>
+                        <th className="px-3 py-2">Account</th>
+                        <th className="px-3 py-2">Memo</th>
+                        <th className="px-3 py-2 text-right">Debit</th>
+                        <th className="px-3 py-2 text-right">Credit</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100">
+                      {lines.map((entryLine) => (
+                        <tr key={entryLine.id}>
+                          <td className="px-3 py-2 text-gray-900">
+                            {entryLine.account?.account_code ? `${entryLine.account.account_code} · ` : ''}{entryLine.account?.account_name || 'Unknown account'}
+                          </td>
+                          <td className="px-3 py-2 text-gray-700">{entryLine.description || '—'}</td>
+                          <td className="whitespace-nowrap px-3 py-2 text-right">{money(entryLine.debit_amount)}</td>
+                          <td className="whitespace-nowrap px-3 py-2 text-right">{money(entryLine.credit_amount)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+      </section>
+    </div>,
+    document.body
+  );
+};
+
 const LedgerView = () => {
   const accounts = useAccounts();
   const [accountId, setAccountId] = useState('');
@@ -127,6 +271,7 @@ const LedgerView = () => {
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [selectedEntry, setSelectedEntry] = useState(null);
 
   useEffect(() => {
     if (!accountId && accounts.length) {
@@ -245,8 +390,9 @@ const LedgerView = () => {
           </div>
         )}
 
-        {groups.map((group) => <AccountSection key={group.id} group={group} />)}
+        {groups.map((group) => <AccountSection key={group.id} group={group} from={from} onSelectEntry={setSelectedEntry} />)}
       </div>
+      {selectedEntry && <EntryDetails line={selectedEntry} onClose={() => setSelectedEntry(null)} />}
     </div>
   );
 };
