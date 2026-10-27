@@ -70,7 +70,7 @@ export default function OfflineSyncStatus() {
               : "No changes waiting to sync"}
         </span>
         <span className="text-xs">
-          {counts.pending} pending · {counts.syncing} syncing · {counts.synced} synced · {counts.failed} failed
+          {counts.pending} pending · {counts.syncing} syncing · {counts.failed} failed
         </span>
         {latestSyncResult && (
           <span className="text-xs">

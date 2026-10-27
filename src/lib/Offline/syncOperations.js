@@ -4,6 +4,135 @@ import { notifyQueueUpdated, pruneSyncedHistory } from "./syncQueue";
 
 let activeSync = null;
 
+async function refreshSalesOptions(userId) {
+  const [productResult, memberResult, accountResult, saleResult] = await Promise.all([
+    supabase.from("products")
+      .select("id, product_name, product_code, unit_of_measure")
+      .eq("is_active", true)
+      .order("product_name"),
+    supabase.from("members")
+      .select("id, member_number, first_name, middle_name, last_name")
+      .eq("membership_status", "active")
+      .is("archived_at", null)
+      .order("last_name"),
+    supabase.from("chart_of_accounts")
+      .select("account_name")
+      .eq("account_type", "revenue")
+      .eq("is_active", true)
+      .order("account_name"),
+    supabase.from("sales_orders")
+      .select("id, order_number, customer_name, net_amount, amount_paid, payment_status, order_status, cash_receipt_id, sales_order_items(id, product_id, item_description, quantity, product:products(product_name))")
+      .in("payment_status", ["pending", "partial"])
+      .order("order_date", { ascending: true }),
+  ]);
+  const failure = productResult.error || memberResult.error || accountResult.error || saleResult.error;
+  if (failure) throw failure;
+
+  await offlineDb.cachedData.put({
+    key: `sales-options:${userId}`,
+    data: {
+      products: productResult.data || [],
+      members: memberResult.data || [],
+      revenueAccounts: accountResult.data || [],
+      outstandingSales: (saleResult.data || []).filter(
+        (sale) => Number(sale.net_amount) > Number(sale.amount_paid || 0)
+      ),
+    },
+    updatedAt: new Date().toISOString(),
+  });
+}
+
+async function refreshLoanApplications(userId) {
+  const [termsResult, applicationsResult] = await Promise.all([
+    supabase.from("loan_term_options")
+      .select("id, term_months, payment_frequency, annual_rate, penalty_rate")
+      .eq("is_active", true)
+      .order("term_months")
+      .order("payment_frequency"),
+    supabase.from("requests")
+      .select("id, request_number, status, amount, request_data, created_at, review_notes, approval_notes")
+      .eq("request_type", "loan_application")
+      .order("created_at", { ascending: false })
+      .limit(100),
+  ]);
+  const failure = termsResult.error || applicationsResult.error;
+  if (failure) throw failure;
+
+  await offlineDb.cachedData.put({
+    key: `loan-applications:${userId}`,
+    data: {
+      terms: termsResult.data || [],
+      applications: applicationsResult.data || [],
+    },
+    updatedAt: new Date().toISOString(),
+  });
+}
+
+async function refreshFinancialMemberRecords(userId) {
+  const cachePrefix = `financial-member-records:${userId}:`;
+  const cachedRecords = await offlineDb.cachedData
+    .where("key")
+    .startsWith(cachePrefix)
+    .toArray();
+
+  for (const cachedRecord of cachedRecords) {
+    const memberId = cachedRecord.key.slice(cachePrefix.length);
+    if (!memberId) continue;
+
+    const [accountResult, loanResult, contributionResult] = await Promise.all([
+      supabase.from("savings_accounts")
+        .select("id, account_number, account_type, balance, maturity_date, interest_rate")
+        .eq("member_id", memberId)
+        .eq("status", "active")
+        .order("created_at"),
+      supabase.from("loans")
+        .select("id, loan_number, balance, principal_amount, interest_rate, term_months, monthly_payment, total_interest, payment_frequency, installments, installment_amount, release_date, created_at")
+        .eq("member_id", memberId)
+        .eq("status", "active")
+        .gt("balance", 0)
+        .order("release_date", { ascending: true, nullsFirst: false })
+        .order("created_at"),
+      supabase.from("member_capital_contributions")
+        .select("due_month")
+        .eq("member_id", memberId)
+        .eq("status", "recorded"),
+    ]);
+    const failure = accountResult.error || loanResult.error || contributionResult.error;
+    if (failure) throw failure;
+
+    const loanIds = (loanResult.data || []).map((loan) => loan.id);
+    let scheduleRows = [];
+    if (loanIds.length > 0) {
+      const { data, error } = await supabase.from("loan_schedule")
+        .select("id, loan_id, installment_number, due_date, amount_due, amount_paid, penalty_amount, status")
+        .in("loan_id", loanIds)
+        .neq("status", "paid")
+        .order("installment_number");
+      if (error) throw error;
+      scheduleRows = data || [];
+    }
+
+    const scheduleByLoanId = new Map();
+    scheduleRows.forEach((schedule) => {
+      const loanSchedule = scheduleByLoanId.get(schedule.loan_id) || [];
+      loanSchedule.push(schedule);
+      scheduleByLoanId.set(schedule.loan_id, loanSchedule);
+    });
+    await offlineDb.cachedData.put({
+      key: cachedRecord.key,
+      data: {
+        accounts: accountResult.data || [],
+        loans: (loanResult.data || []).map((loan) => ({
+          ...loan,
+          schedule: scheduleByLoanId.get(loan.id) || [],
+        })),
+        contributions: contributionResult.data || [],
+      },
+      updatedAt: new Date().toISOString(),
+    });
+  }
+}
+
 export function syncPendingOperations() {
   if (activeSync) return activeSync;
 
@@ -146,12 +275,9 @@ async function runSync() {
   }
   if (memberFinanceSynced) {
     try {
-      await offlineDb.cachedData
-        .where("key")
-        .startsWith(`financial-member-records:${session.user.id}:`)
-        .delete();
+      await refreshFinancialMemberRecords(session.user.id);
     } catch (error) {
-      console.error("A financial transaction synced, but saved financial details could not be invalidated:", error);
+      console.error("A financial transaction synced, but saved financial details could not be refreshed:", error);
       refreshErrors.push("Saved member balances could not be refreshed; reopen the form online to reload them.");
     }
   }
@@ -179,19 +305,23 @@ async function runSync() {
   }
   if (salesSynced) {
     try {
-      await offlineDb.cachedData.delete(`sales-options:${session.user.id}`);
+      await refreshSalesOptions(session.user.id);
     } catch (error) {
-      console.error("Sales synced, but the saved sales options could not be invalidated:", error);
+      console.error("Sales synced, but the saved sales options could not be refreshed:", error);
       refreshErrors.push("Sales synced, but saved sale balances could not be refreshed.");
     }
   }
   if (loanApplicationSynced) {
     try {
-      await offlineDb.cachedData.delete(`loan-applications:${session.user.id}`);
+      await refreshLoanApplications(session.user.id);
     } catch (error) {
-      console.error("Loan application synced, but cached applications could not be invalidated:", error);
+      console.error("Loan application synced, but cached applications could not be refreshed:", error);
       refreshErrors.push("Loan applications synced, but the saved application list could not be refreshed.");
     }
+  }
+
+  if (syncedCount > 0 && typeof window !== "undefined") {
+    window.dispatchEvent(new Event("amcoms-offline-sync-complete"));
   }
 
   return { syncedCount, failedCount, refreshErrors, skipped: false };

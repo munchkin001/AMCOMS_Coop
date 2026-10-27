@@ -1,18 +1,23 @@
-import React, { useState, useEffect } from 'react';
+import React, { useCallback, useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Line } from 'react-chartjs-2';
 import { AlertTriangle, Banknote, ClipboardCheck, Gem, HandCoins, Landmark, Package, UserPlus, Users, Clock3 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
+import { useAuth } from '../../contexts/AuthContext';
 import { useMultipleRealtimeSubscriptions } from '../../hooks/useRealtimeSubscription';
 import { fetchAccountBalances, fetchMonthlyFinancialSummary, summarizeAccountBalances, toDateString } from '../../lib/dashboardAccounting';
+import offlineDb from '../../lib/Offline/OfflineDb';
 import DashboardMetricCard from '../common/DashboardMetricCard';
 import DiscrepancyPanel from '../common/DiscrepancyPanel';
 import { getDataLoadErrorMessage } from '../../lib/errorHandler';
 
 const ManagerDashboard = () => {
   const navigate = useNavigate();
+  const { user, offlineMode } = useAuth();
+  const userId = user?.id;
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [offlineNotice, setOfflineNotice] = useState('');
   const [dashboardData, setDashboardData] = useState({
     pendingRequests: 0,
     activeLoans: 0,
@@ -33,13 +38,34 @@ const ManagerDashboard = () => {
     monthlyExpenses: []
   });
 
-  useEffect(() => {
-    fetchDashboardData();
-  }, []);
+  const fetchDashboardData = useCallback(async () => {
+    const cacheKey = userId ? `manager-dashboard:${userId}` : null;
+    const loadCachedDashboard = async () => {
+      if (!cacheKey) return false;
+      const cached = await offlineDb.cachedData.get(cacheKey);
+      if (!cached?.data) return false;
+      setDashboardData(cached.data);
+      setOfflineNotice('Showing the last dashboard summary saved on this device.');
+      setError('');
+      return true;
+    };
 
-  const fetchDashboardData = async () => {
+    if (offlineMode || !navigator.onLine) {
+      try {
+        const loaded = await loadCachedDashboard();
+        if (!loaded) setError('No manager dashboard summary is saved on this device. Reconnect and open the dashboard to save one for offline viewing.');
+      } catch (cacheError) {
+        console.error('Unable to load cached manager dashboard:', cacheError);
+        setError('The saved manager dashboard could not be opened. Reconnect to load current data.');
+      } finally {
+        setLoading(false);
+      }
+      return;
+    }
+
     try {
       setLoading(true);
+      setOfflineNotice('');
       const today = toDateString(new Date());
       const tomorrow = new Date();
       tomorrow.setDate(tomorrow.getDate() + 1);
@@ -95,7 +121,7 @@ const ManagerDashboard = () => {
       ).length;
       const financialSummary = summarizeAccountBalances(accountRows);
 
-      setDashboardData({
+      const nextDashboardData = {
         pendingRequests: pendingRequestsResult.count || 0,
         activeLoans: activeLoansResult.count || 0,
         activeSavings: activeSavingsResult.count || 0,
@@ -113,15 +139,49 @@ const ManagerDashboard = () => {
         cashOnHand: financialSummary.cashOnHand,
         monthlyIncome: monthlyFinancials.income,
         monthlyExpenses: monthlyFinancials.expenses
-      });
+      };
+      setDashboardData(nextDashboardData);
       setError('');
+      if (cacheKey) {
+        try {
+          await offlineDb.cachedData.put({
+            key: cacheKey,
+            data: nextDashboardData,
+            updatedAt: new Date().toISOString(),
+          });
+        } catch (cacheError) {
+          console.error('Unable to cache manager dashboard:', cacheError);
+          setOfflineNotice('Current data is loaded, but could not be saved for offline viewing.');
+        }
+      }
     } catch (error) {
       console.error('Error fetching dashboard data:', error);
-      setError(getDataLoadErrorMessage(error, 'management data'));
+      try {
+        const loaded = await loadCachedDashboard();
+        if (!loaded) setError(getDataLoadErrorMessage(error, 'management data'));
+      } catch (cacheError) {
+        console.error('Unable to load cached manager dashboard after a data refresh failed:', cacheError);
+        setError(getDataLoadErrorMessage(error, 'management data'));
+      }
     } finally {
       setLoading(false);
     }
-  };
+  }, [offlineMode, userId]);
+
+  useEffect(() => {
+    fetchDashboardData();
+    const handleOnline = () => fetchDashboardData();
+    const handleOffline = () => fetchDashboardData();
+    const handleSyncComplete = () => fetchDashboardData();
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+    window.addEventListener('amcoms-offline-sync-complete', handleSyncComplete);
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+      window.removeEventListener('amcoms-offline-sync-complete', handleSyncComplete);
+    };
+  }, [fetchDashboardData]);
 
   useMultipleRealtimeSubscriptions([
     'loans',
@@ -134,7 +194,7 @@ const ManagerDashboard = () => {
     'journal_entries',
     'journal_entry_lines',
     'chart_of_accounts'
-  ].map((table) => ({ table, onUpdate: fetchDashboardData })), []);
+  ].map((table) => ({ table, onUpdate: fetchDashboardData })), [fetchDashboardData]);
 
   // Summary cards data
   const summaryCards = [
@@ -209,6 +269,7 @@ const ManagerDashboard = () => {
   return (
     <div className="space-y-6">
       {error && <p role="alert" className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{error}</p>}
+      {offlineNotice && <p role="status" className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">{offlineNotice}</p>}
       <DiscrepancyPanel />
       {/* Summary Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
@@ -270,12 +331,6 @@ const ManagerDashboard = () => {
               </div>
             ))}
           </div>
-          <button 
-            onClick={() => alert('Navigate to the Activities section using the sidebar menu to view all activities.')}
-            className="w-full mt-4 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium cursor-pointer"
-          >
-            View All Activities
-          </button>
         </div>
       </div>
 
