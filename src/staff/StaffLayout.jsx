@@ -66,7 +66,7 @@ const StaffLayout = ({ children }) => {
   };
 
   return (
-    <div className="flex h-screen bg-gray-50">
+    <div className="amcoms-portal-shell flex h-screen">
       {/* Mobile Overlay */}
       {isMobileMenuOpen && (
         <div 
@@ -177,7 +177,7 @@ const StaffLayout = ({ children }) => {
       {/* Main Content */}
       <div className="flex-1 flex flex-col overflow-hidden">
         {/* Top Navigation Bar */}
-        <div className="bg-white border-b border-gray-200 px-4 lg:px-8 py-4">
+        <div className="sticky top-0 z-30 border-b border-slate-200 bg-white/95 px-4 py-4 shadow-sm backdrop-blur lg:px-8">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-4">
               {/* Hamburger Menu Button */}
@@ -280,7 +280,7 @@ const StaffLayout = ({ children }) => {
         </div>
 
         {/* Page Content */}
-        <div className="flex-1 overflow-auto p-4 lg:p-8">
+        <div className="amcoms-portal-content flex-1 overflow-auto p-4 lg:p-8">
           {children}
         </div>
       </div>

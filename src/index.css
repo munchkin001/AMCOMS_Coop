@@ -2,6 +2,112 @@
 @tailwind components;
 @tailwind utilities;
 
+:root {
+  color-scheme: light;
+  --amcoms-ink: #10233f;
+  --amcoms-primary: #173a69;
+  --amcoms-accent: #d7ad52;
+  --amcoms-canvas: #f3f6fa;
+  --amcoms-border: #dce4ee;
+  --amcoms-muted: #64748b;
+}
+
+html {
+  min-width: 320px;
+  background: var(--amcoms-canvas);
+}
+
+body {
+  min-width: 320px;
+  min-height: 100vh;
+  background: var(--amcoms-canvas);
+  color: var(--amcoms-ink);
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-feature-settings: "cv11", "ss01";
+  text-rendering: optimizeLegibility;
+}
+
+#root {
+  min-height: 100vh;
+}
+
+button:not(:disabled) {
+  cursor: pointer;
+}
+
+button:disabled {
+  cursor: not-allowed;
+}
+
+input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
+select,
+textarea {
+  border-radius: 0.65rem;
+  border-color: var(--amcoms-border);
+  color: var(--amcoms-ink);
+  transition: border-color 150ms ease, box-shadow 150ms ease, background-color 150ms ease;
+}
+
+input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):focus,
+select:focus,
+textarea:focus {
+  border-color: #3b6ea8;
+  outline: none;
+  box-shadow: 0 0 0 3px rgb(59 110 168 / 16%);
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: #94a3b8;
+}
+
+input[type="checkbox"],
+input[type="radio"] {
+  accent-color: var(--amcoms-primary);
+}
+
+.amcoms-portal-shell {
+  background: var(--amcoms-canvas);
+  color: var(--amcoms-ink);
+}
+
+.amcoms-portal-content {
+  background:
+    radial-gradient(ellipse at top right, rgb(220 232 246 / 28%), transparent 34rem),
+    var(--amcoms-canvas);
+}
+
+#root .amcoms-portal-content :is(div, section, article)[class~="bg-white"][class~="border"] {
+  border-color: var(--amcoms-border);
+  border-radius: 1rem;
+  box-shadow: 0 1px 2px rgb(16 35 63 / 4%), 0 8px 22px rgb(16 35 63 / 3%);
+}
+
+#root .amcoms-portal-content table {
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+#root .amcoms-portal-content thead {
+  background-color: #edf2f8;
+}
+
+#root .amcoms-portal-content thead th {
+  color: #475569;
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.055em;
+  text-transform: uppercase;
+}
+
+#root .amcoms-portal-content tbody tr {
+  transition: background-color 150ms ease;
+}
+
+#root .amcoms-portal-content tbody tr:hover {
+  background-color: #f4f8fd;
+}
+
 /* Custom animations */
 @keyframes slide-up {
   from {

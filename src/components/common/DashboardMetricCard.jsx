@@ -66,12 +66,12 @@ const DashboardMetricCard = ({ label, value, icon: Icon, tone = 'teal', actionLa
       type={onClick ? 'button' : undefined}
       onClick={onClick}
       aria-label={onClick ? `View ${label.toLowerCase()} details` : undefined}
-      className={`${interactionClasses} min-w-0 rounded-lg border border-slate-200 border-t-2 bg-white p-4 shadow-sm transition-shadow hover:shadow-md ${toneClasses.accent}`}
+      className={`${interactionClasses} min-w-0 rounded-xl border border-slate-200 border-t-4 bg-white p-4 shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md ${toneClasses.accent}`}
     >
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <p className="text-xs font-semibold uppercase text-slate-500">{label}</p>
-          <p className="mt-3 break-words text-2xl font-semibold tabular-nums text-slate-950">{value}</p>
+          <p className="mt-3 break-words text-2xl font-extrabold tabular-nums tracking-tight text-slate-950">{value}</p>
           {onClick ? (
             <span className="mt-3 inline-flex items-center gap-1 text-xs font-semibold text-slate-700">
               {actionLabel || 'View details'}
@@ -84,7 +84,7 @@ const DashboardMetricCard = ({ label, value, icon: Icon, tone = 'teal', actionLa
             </button>
           ) : null}
         </div>
-        <span className={`grid size-10 shrink-0 place-items-center rounded-md ${toneClasses.iconBg} ${toneClasses.iconText}`}>
+        <span className={`grid size-11 shrink-0 place-items-center rounded-xl ${toneClasses.iconBg} ${toneClasses.iconText}`}>
           {Icon && <Icon aria-hidden="true" className="size-5" />}
         </span>
       </div>
