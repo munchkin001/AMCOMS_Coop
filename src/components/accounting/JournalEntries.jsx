@@ -328,9 +328,10 @@ const statusBadge = (entry) => {
 };
 
 const JournalEntries = ({ canPost }) => {
-  const { user, offlineMode } = useAuth();
+  const { user, staff, offlineMode } = useAuth();
   const accounts = useAccounts(user?.id, offlineMode);
   const [entries, setEntries] = useState([]);
+  const [draftEntries, setDraftEntries] = useState([]);
   const [from, setFrom] = useState(startOfYearISO());
   const [to, setTo] = useState(todayISO());
   const [type, setType] = useState('');
@@ -338,7 +339,10 @@ const JournalEntries = ({ canPost }) => {
   const [showForm, setShowForm] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [draftError, setDraftError] = useState('');
+  const [deletingDraftId, setDeletingDraftId] = useState('');
   const [notice, setNotice] = useState('');
+  const isManager = staff?.role === 'manager';
 
   const load = useCallback(async () => {
     let query = supabase.from('journal_entry_register').select('*')
@@ -355,15 +359,99 @@ const JournalEntries = ({ canPost }) => {
     setLoading(false);
   }, [from, to, type]);
 
+  const loadDrafts = useCallback(async () => {
+    if (!isManager) return;
+    const { data, error: queryError } = await supabase.from('journal_entries')
+      .select('id, entry_number, entry_date, description, reference_number, entry_type, created_at')
+      .eq('status', 'draft')
+      .order('created_at', { ascending: false });
+    setDraftError(queryError ? getDataLoadErrorMessage(queryError, 'draft journal entries') : '');
+    setDraftEntries(data || []);
+  }, [isManager]);
+
+  const deleteDraft = async (entry) => {
+    const reason = window.prompt(`Why are you deleting draft ${entry.entry_number}?`);
+    if (reason === null) return;
+    if (!reason.trim()) {
+      setDraftError('Enter a reason to delete this draft.');
+      return;
+    }
+    if (!window.confirm(`Permanently delete draft ${entry.entry_number} and its journal lines? This action will be recorded in the audit log.`)) return;
+
+    setDeletingDraftId(entry.id);
+    setDraftError('');
+    try {
+      const { error: deleteError } = await supabase.rpc('manager_delete_draft_journal_entry', {
+        p_entry_id: entry.id,
+        p_reason: reason.trim()
+      });
+      if (deleteError) throw deleteError;
+      setNotice(`Draft ${entry.entry_number} was deleted. Its journal lines were removed; posted ledger balances were not affected.`);
+      await Promise.all([loadDrafts(), load()]);
+    } catch (deleteError) {
+      setDraftError(getDataLoadErrorMessage(deleteError, 'draft journal entry'));
+    } finally {
+      setDeletingDraftId('');
+    }
+  };
+
   useEffect(() => { setLoading(true); load(); }, [load]);
+  useEffect(() => { loadDrafts(); }, [loadDrafts]);
 
   useMultipleRealtimeSubscriptions([
-    { table: 'journal_entries', onUpdate: load },
-    { table: 'journal_entry_lines', onUpdate: load }
-  ], [load]);
+    { table: 'journal_entries', onUpdate: () => { load(); loadDrafts(); } },
+    { table: 'journal_entry_lines', onUpdate: () => { load(); loadDrafts(); } }
+  ], [load, loadDrafts]);
 
   return (
     <div className="space-y-4">
+      {isManager && (
+        <section className="space-y-3 rounded-xl border border-amber-200 bg-white p-4 shadow-sm">
+          <div>
+            <h3 className="font-semibold text-slate-900">Draft journal entries</h3>
+            <p className="mt-1 text-sm text-slate-600">Managers can permanently delete drafts. Posted entries are not deletable here and do not appear in this list.</p>
+          </div>
+          {draftError && <p role="alert" className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">{draftError}</p>}
+          {draftEntries.length === 0 && !draftError ? (
+            <p className="text-sm text-slate-500">No draft journal entries.</p>
+          ) : draftEntries.length > 0 && (
+            <div className="overflow-x-auto">
+              <table className="min-w-full text-sm">
+                <thead className="bg-slate-100 text-left text-xs uppercase text-slate-600">
+                  <tr>
+                    <th className="px-3 py-2">Date</th>
+                    <th className="px-3 py-2">Entry no.</th>
+                    <th className="px-3 py-2">Description</th>
+                    <th className="px-3 py-2">Reference</th>
+                    <th className="px-3 py-2 text-right">Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {draftEntries.map((entry) => (
+                    <tr key={entry.id} className="border-t border-slate-100">
+                      <td className="whitespace-nowrap px-3 py-2">{formatDate(entry.entry_date)}</td>
+                      <td className="whitespace-nowrap px-3 py-2 font-semibold">{entry.entry_number}</td>
+                      <td className="px-3 py-2">{entry.description}</td>
+                      <td className="px-3 py-2">{entry.reference_number || '-'}</td>
+                      <td className="px-3 py-2 text-right">
+                        <button
+                          type="button"
+                          onClick={() => deleteDraft(entry)}
+                          disabled={Boolean(deletingDraftId)}
+                          className="inline-flex items-center gap-1 rounded-lg border border-red-200 px-3 py-1.5 font-semibold text-red-700 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                          <Trash2 className="size-4" aria-hidden="true" />
+                          {deletingDraftId === entry.id ? 'Deleting...' : 'Delete draft'}
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </section>
+      )}
       {canPost && !showForm && (
         <div className="flex justify-end">
           <button type="button" onClick={() => setShowForm(true)} className={primaryButtonClass}><Plus className="size-4" aria-hidden="true" />New journal entry</button>
