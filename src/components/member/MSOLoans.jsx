@@ -226,7 +226,7 @@ const MSOLoans = () => {
               <p className="mt-1 text-xs text-gray-600">Overdue</p>
             </div>
             <div className="text-center">
-              <p className="text-2xl font-bold text-blue-600">{peso(loanData.performance.totalPaid, 0)}</p>
+              <p className="text-2xl font-bold text-green-700">{peso(loanData.performance.totalPaid, 0)}</p>
               <p className="mt-1 text-xs text-gray-600">Total Paid</p>
             </div>
           </div>
@@ -448,8 +448,8 @@ const MSOLoans = () => {
       )}
 
       {/* Info Footer */}
-      <div className="rounded-lg border border-blue-200 bg-blue-50 p-4">
-        <p className="text-sm text-blue-900">
+      <div className="rounded-lg border border-green-200 bg-green-50 p-4">
+        <p className="text-sm text-green-900">
           <span className="font-semibold">Payment Reminder:</span> Payments are made at the cooperative office. 
           You will receive SMS reminders before each due date. Please ensure timely payments to avoid penalties.
         </p>

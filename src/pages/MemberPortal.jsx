@@ -132,7 +132,7 @@ const MemberPortal = () => {
       <button
         type="button"
         onClick={() => handleModuleChange('dashboard')}
-        className="inline-flex items-center gap-1 text-sm font-semibold text-blue-900 md:hidden"
+        className="inline-flex items-center gap-1 text-sm font-semibold text-[#146344] md:hidden"
       >
         <ArrowLeft aria-hidden="true" size={18} /> Back to dashboard
       </button>
@@ -187,11 +187,11 @@ const MemberPortal = () => {
   };
 
   return (
-    <div className="amcoms-portal-shell flex h-screen">
+    <div className="amcoms-portal-shell amcoms-member-portal flex h-screen">
       {/* Sidebar */}
       <div id="member-sidebar" className={`
         hidden md:flex md:static inset-y-0 left-0 z-50
-        w-64 shrink-0 flex-col border-r border-[#e9c46a]/30 bg-gradient-to-b from-blue-950 via-blue-900 to-slate-950 shadow-xl
+        w-64 shrink-0 flex-col border-r border-[#e9c46a]/30 bg-gradient-to-b from-[#0d3b2d] via-[#146344] to-[#174f39] shadow-xl
         transition-[margin] duration-300 ease-in-out
         ${isDesktopSidebarOpen ? 'md:ml-0' : 'md:-ml-64'}
       `}>
@@ -207,8 +207,8 @@ const MemberPortal = () => {
             onClick={() => handleModuleChange('dashboard')}
             className={`w-full rounded-lg px-4 py-3 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#e9c46a] ${
               activeModule === 'dashboard' 
-                ? 'bg-gradient-to-r from-[#e9c46a] to-[#d6ab4a] font-semibold text-blue-950 shadow-md'
-                : 'text-blue-50/95 hover:bg-white/10 hover:text-[#f0d995]'
+                ? 'bg-gradient-to-r from-[#e9c46a] to-[#d6ab4a] font-semibold text-[#0d3b2d] shadow-md'
+                : 'text-green-50/95 hover:bg-white/10 hover:text-[#f0d995]'
             }`}
           >
             <div className="flex items-center space-x-3">
@@ -222,8 +222,8 @@ const MemberPortal = () => {
             onClick={() => handleModuleChange('transactions')}
             className={`w-full rounded-lg px-4 py-3 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#e9c46a] ${
               activeModule === 'transactions' 
-                ? 'bg-gradient-to-r from-[#e9c46a] to-[#d6ab4a] font-semibold text-blue-950 shadow-md'
-                : 'text-blue-50/95 hover:bg-white/10 hover:text-[#f0d995]'
+                ? 'bg-gradient-to-r from-[#e9c46a] to-[#d6ab4a] font-semibold text-[#0d3b2d] shadow-md'
+                : 'text-green-50/95 hover:bg-white/10 hover:text-[#f0d995]'
             }`}
           >
             <div className="flex items-center space-x-3">
@@ -236,8 +236,8 @@ const MemberPortal = () => {
             onClick={() => handleModuleChange('announcements')}
             className={`w-full rounded-lg px-4 py-3 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#e9c46a] ${
               activeModule === 'announcements'
-                ? 'bg-gradient-to-r from-[#e9c46a] to-[#d6ab4a] font-semibold text-blue-950 shadow-md'
-                : 'text-blue-50/95 hover:bg-white/10 hover:text-[#f0d995]'
+                ? 'bg-gradient-to-r from-[#e9c46a] to-[#d6ab4a] font-semibold text-[#0d3b2d] shadow-md'
+                : 'text-green-50/95 hover:bg-white/10 hover:text-[#f0d995]'
             }`}
           >
             <div className="flex items-center space-x-3">
@@ -250,8 +250,8 @@ const MemberPortal = () => {
             onClick={() => handleModuleChange('policies')}
             className={`w-full rounded-lg px-4 py-3 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#e9c46a] ${
               activeModule === 'policies'
-                ? 'bg-gradient-to-r from-[#e9c46a] to-[#d6ab4a] font-semibold text-blue-950 shadow-md'
-                : 'text-blue-50/95 hover:bg-white/10 hover:text-[#f0d995]'
+                ? 'bg-gradient-to-r from-[#e9c46a] to-[#d6ab4a] font-semibold text-[#0d3b2d] shadow-md'
+                : 'text-green-50/95 hover:bg-white/10 hover:text-[#f0d995]'
             }`}
           >
             <div className="flex items-center space-x-3">
@@ -265,8 +265,8 @@ const MemberPortal = () => {
             aria-current={activeModule === 'profile' ? 'page' : undefined}
             className={`w-full rounded-lg px-4 py-3 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#e9c46a] ${
               activeModule === 'profile'
-                ? 'bg-gradient-to-r from-[#e9c46a] to-[#d6ab4a] font-semibold text-blue-950 shadow-md'
-                : 'text-blue-50/95 hover:bg-white/10 hover:text-[#f0d995]'
+                ? 'bg-gradient-to-r from-[#e9c46a] to-[#d6ab4a] font-semibold text-[#0d3b2d] shadow-md'
+                : 'text-green-50/95 hover:bg-white/10 hover:text-[#f0d995]'
             }`}
           >
             <div className="flex items-center space-x-3">
@@ -404,7 +404,7 @@ const MemberPortal = () => {
                 type="button"
                 onClick={() => handleModuleChange(id)}
                 aria-current={active ? 'page' : undefined}
-                className={`flex min-h-14 flex-col items-center justify-center gap-0.5 text-xs font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-blue-900 ${active ? 'text-blue-950' : 'text-gray-500'}`}
+                className={`flex min-h-14 flex-col items-center justify-center gap-0.5 text-xs font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#146344] ${active ? 'text-[#146344]' : 'text-gray-500'}`}
               >
                 <Icon aria-hidden="true" size={22} strokeWidth={active ? 2.4 : 1.8} />
                 {label}
@@ -416,7 +416,7 @@ const MemberPortal = () => {
 
       {showLogoutModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/55 p-4">
-          <div className="w-full max-w-md rounded-xl border border-[#e9c46a]/50 bg-gradient-to-br from-blue-950 via-blue-900 to-slate-950 text-white shadow-2xl">
+          <div className="w-full max-w-md rounded-xl border border-[#e9c46a]/50 bg-gradient-to-br from-[#0d3b2d] via-[#146344] to-[#174f39] text-white shadow-2xl">
             <div className="p-6">
               <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full border border-[#e9c46a]/50 bg-white/10 text-[#f0d995]">
                 <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -424,7 +424,7 @@ const MemberPortal = () => {
                 </svg>
               </div>
               <h3 className="mb-2 text-center text-xl font-bold text-white">Confirm Logout</h3>
-              <p className="mb-6 text-center text-blue-50/85">
+              <p className="mb-6 text-center text-green-50/85">
                 Are you sure you want to logout from the Member Portal?
               </p>
               <div className="flex space-x-3">
@@ -436,7 +436,7 @@ const MemberPortal = () => {
                 </button>
                 <button
                   onClick={confirmLogout}
-                  className="min-h-11 flex-1 rounded-lg bg-gradient-to-r from-[#e9c46a] to-[#d6ab4a] px-4 py-2 font-semibold text-blue-950 transition hover:brightness-105 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#e9c46a] focus-visible:ring-offset-2 focus-visible:ring-offset-blue-950"
+                  className="min-h-11 flex-1 rounded-lg bg-gradient-to-r from-[#e9c46a] to-[#d6ab4a] px-4 py-2 font-semibold text-[#0d3b2d] transition hover:brightness-105 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#e9c46a] focus-visible:ring-offset-2 focus-visible:ring-offset-[#0d3b2d]"
                 >
                   Logout
                 </button>

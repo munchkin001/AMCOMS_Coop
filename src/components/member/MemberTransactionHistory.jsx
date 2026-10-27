@@ -12,7 +12,7 @@ const officialReceiptNumber = (value) => /^AMCOMS-\d{4}-\d{6}$/.test(value || ''
 const statusStyles = {
   Recorded: 'bg-green-100 text-green-800',
   Discrepancy: 'bg-red-100 text-red-800',
-  Completed: 'bg-blue-100 text-blue-800',
+  Completed: 'bg-green-100 text-green-800',
   Voided: 'bg-gray-100 text-gray-700'
 };
 

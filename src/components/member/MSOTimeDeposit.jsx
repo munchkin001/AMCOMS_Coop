@@ -260,14 +260,8 @@ const MSOTimeDeposit = () => {
 
                 {/* Maturity Info */}
                 {daysToMaturity !== null && (
-                  <div className={`mt-4 rounded-lg p-3 ${
-                    isMatured 
-                      ? 'bg-green-50 border border-green-200' 
-                      : 'bg-blue-50 border border-blue-200'
-                  }`}>
-                    <p className={`text-sm font-medium ${
-                      isMatured ? 'text-green-900' : 'text-blue-900'
-                    }`}>
+                  <div className="mt-4 rounded-lg border border-green-200 bg-green-50 p-3">
+                    <p className="text-sm font-medium text-green-900">
                       {isMatured 
                         ? 'This time deposit has matured and is ready for withdrawal or renewal.' 
                         : `Matures in ${daysToMaturity} ${daysToMaturity === 1 ? 'day' : 'days'}`

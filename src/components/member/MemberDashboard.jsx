@@ -426,10 +426,10 @@ const MemberDashboard = ({ onNavigate }) => {
               </div>
             ) : (
               memberData.announcements.map((announcement) => (
-                <div key={announcement.id} className="p-4 bg-blue-50 rounded-lg border border-blue-200 hover:bg-blue-100 transition-colors cursor-pointer">
+                <div key={announcement.id} className="p-4 bg-green-50 rounded-lg border border-green-200 hover:bg-green-100 transition-colors cursor-pointer">
                   <div className="flex items-start space-x-3">
-                    <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center flex-shrink-0">
-                      <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center flex-shrink-0">
+                      <svg className="w-5 h-5 text-green-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5.882V19.24a1.76 1.76 0 01-3.417.592l-2.147-6.15M18 13a3 3 0 100-6M5.436 13.683A4.001 4.001 0 017 6h1.832c4.1 0 7.625-1.234 9.168-3v14c-1.543-1.766-5.067-3-9.168-3H7a3.988 3.988 0 01-1.564-.317z" />
                       </svg>
                     </div>
@@ -516,7 +516,7 @@ const MemberDashboard = ({ onNavigate }) => {
                       <span className={`px-3 py-1 rounded-full text-xs font-medium ${
                         transaction.status === 'Discrepancy' ? 'bg-red-100 text-red-800'
                           : transaction.status === 'Voided' ? 'bg-gray-100 text-gray-700'
-                            : 'bg-blue-100 text-blue-800'
+                            : 'bg-green-100 text-green-800'
                       }`}>
                         {transaction.status}
                       </span>

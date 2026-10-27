@@ -185,7 +185,7 @@ const LoanApplicationForm = () => {
                 <p className="mt-1 text-xs text-gray-600">{application.request_data?.loan_type || 'Loan'} · {new Date(application.created_at).toLocaleDateString('en-PH')}</p>
                 {(application.review_notes || application.approval_notes) && <p className="mt-2 text-sm text-gray-700">{application.approval_notes || application.review_notes}</p>}
               </div>
-              <span className="rounded-full bg-blue-100 px-3 py-1 text-xs font-semibold capitalize text-blue-900">{statusText(application.status)}</span>
+              <span className="rounded-full bg-green-100 px-3 py-1 text-xs font-semibold capitalize text-green-900">{statusText(application.status)}</span>
             </article>
           ))}
         </div>
@@ -213,14 +213,14 @@ const LoanApplicationForm = () => {
           </label>
           {terms.length === 0 && <p role="alert" className="text-sm text-amber-800 sm:col-span-2">No loan terms are currently available. Please contact the cooperative office.</p>}
           {quote && (
-            <div className="grid gap-3 rounded-lg bg-blue-50 p-3 text-sm text-blue-950 sm:col-span-2 sm:grid-cols-3">
+            <div className="grid gap-3 rounded-lg bg-green-50 p-3 text-sm text-green-950 sm:col-span-2 sm:grid-cols-3">
               <p>Estimated interest <strong className="block">{money(quote.interest)}</strong></p>
               <p>Estimated total repayment <strong className="block">{money(quote.total)}</strong></p>
               <p>Estimated installment <strong className="block">{money(quote.installment)}</strong></p>
             </div>
           )}
           {hasOpenApplication && <p className="text-sm text-amber-800 sm:col-span-2"><Clock3 aria-hidden="true" className="mr-1 inline" size={16} />You have an application awaiting review. You can submit another after a decision.</p>}
-          <button type="submit" disabled={saving || hasOpenApplication || terms.length === 0} className="inline-flex items-center justify-center gap-2 rounded-lg bg-blue-700 px-4 py-2 font-semibold text-white hover:bg-blue-800 disabled:cursor-not-allowed disabled:opacity-50 sm:col-span-2">
+          <button type="submit" disabled={saving || hasOpenApplication || terms.length === 0} className="inline-flex items-center justify-center gap-2 rounded-lg bg-green-700 px-4 py-2 font-semibold text-white hover:bg-green-800 disabled:cursor-not-allowed disabled:opacity-50 sm:col-span-2">
             <Send aria-hidden="true" size={16} />
             {saving ? 'Submitting...' : 'Submit loan application'}
           </button>

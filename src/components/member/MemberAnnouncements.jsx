@@ -6,7 +6,7 @@ import EmptyState from '../common/EmptyState';
 const priorityStyles = {
   urgent: 'bg-red-100 text-red-800',
   high: 'bg-orange-100 text-orange-800',
-  normal: 'bg-blue-100 text-blue-800',
+  normal: 'bg-green-100 text-green-800',
   low: 'bg-gray-100 text-gray-700'
 };
 

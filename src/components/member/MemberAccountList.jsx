@@ -86,9 +86,9 @@ const AccountList = ({ kind }) => {
             <p className="text-sm text-gray-700">Total Withdrawals</p>
             <p className="mt-1 text-xl font-bold text-red-600 sm:text-2xl">{peso(totalWithdrawals)}</p>
           </div>
-          <div className="rounded-lg border border-blue-200 bg-blue-50 p-4">
+          <div className="rounded-lg border border-green-200 bg-green-50 p-4">
             <p className="text-sm text-gray-700">Current Balance</p>
-            <p className="mt-1 text-xl font-bold text-blue-600 sm:text-2xl">{peso(balance)}</p>
+            <p className="mt-1 text-xl font-bold text-green-700 sm:text-2xl">{peso(balance)}</p>
           </div>
         </div>
       </section>
