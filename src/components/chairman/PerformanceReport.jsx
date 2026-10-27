@@ -210,7 +210,7 @@ const PerformanceReport = () => {
             onClick={() => {
               handleGenerateReport();
             }}
-            className="rounded-lg bg-green-600 px-6 py-2 font-medium text-white hover:bg-green-700"
+            className="rounded-lg bg-[#173a69] px-6 py-2 font-medium text-white transition-colors hover:bg-[#102d54] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#173a69] focus-visible:ring-offset-2"
           >
             Generate Report
           </button>
