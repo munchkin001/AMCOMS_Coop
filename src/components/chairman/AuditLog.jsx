@@ -41,33 +41,6 @@ const formatDateKeyInManila = (date) => {
   return `${values.year}-${values.month}-${values.day}`;
 };
 
-const describeDevice = (userAgent) => {
-  if (!userAgent) return 'Device not reported';
-  const operatingSystem = /Android/i.test(userAgent)
-    ? 'Android'
-    : /iPhone|iPad|iPod/i.test(userAgent)
-      ? 'iOS'
-      : /Windows NT/i.test(userAgent)
-        ? 'Windows'
-        : /Macintosh|Mac OS X/i.test(userAgent)
-          ? 'macOS'
-          : /Linux/i.test(userAgent)
-            ? 'Linux'
-            : 'Other device';
-  const browser = /Edg\//i.test(userAgent)
-    ? 'Edge'
-    : /OPR\//i.test(userAgent)
-      ? 'Opera'
-      : /Firefox\//i.test(userAgent)
-        ? 'Firefox'
-        : /Chrome\//i.test(userAgent)
-          ? 'Chrome'
-          : /Safari\//i.test(userAgent)
-            ? 'Safari'
-            : 'Browser';
-  return `${operatingSystem} · ${browser}`;
-};
-
 const AuditLog = () => {
   const [filters, setFilters] = useState({
     user: '',
@@ -77,16 +50,12 @@ const AuditLog = () => {
     action: ''
   });
   const [auditLogs, setAuditLogs] = useState([]);
-  const [memberAuditLogs, setMemberAuditLogs] = useState([]);
-  const [activityAudience, setActivityAudience] = useState('staff');
   const [view, setView] = useState('current');
   const [currentMonthKey, setCurrentMonthKey] = useState(getCurrentMonthKey);
   const [archiveMonths, setArchiveMonths] = useState([]);
   const [selectedArchiveMonth, setSelectedArchiveMonth] = useState('');
   const [loading, setLoading] = useState(true);
-  const [memberLoading, setMemberLoading] = useState(false);
   const [loadError, setLoadError] = useState('');
-  const [memberLoadError, setMemberLoadError] = useState('');
   const [archiveLoadError, setArchiveLoadError] = useState('');
   const latestRequestRef = useRef(0);
 
@@ -148,26 +117,6 @@ const AuditLog = () => {
     }
   }, [view, currentMonthKey, selectedArchiveMonth]);
 
-  const fetchMemberAuditLogs = useCallback(async () => {
-    setMemberLoading(true);
-    try {
-      const { data, error } = await supabase
-        .from('member_audit_logs')
-        .select('id, action, table_name, record_id, created_at, user_agent, member:staff!member_audit_logs_member_id_fkey(full_name, role)')
-        .order('created_at', { ascending: false })
-        .limit(500);
-      if (error) throw error;
-      setMemberAuditLogs(data || []);
-      setMemberLoadError('');
-    } catch (error) {
-      console.error('Error fetching member audit logs:', error);
-      setMemberAuditLogs([]);
-      setMemberLoadError('Member activity could not be loaded. Please try again.');
-    } finally {
-      setMemberLoading(false);
-    }
-  }, []);
-
   const fetchArchiveMonths = useCallback(async () => {
     try {
       const { data, error } = await supabase.rpc('get_audit_log_archive_months');
@@ -185,10 +134,6 @@ const AuditLog = () => {
   useEffect(() => {
     fetchAuditLogs();
   }, [fetchAuditLogs]);
-
-  useEffect(() => {
-    if (activityAudience === 'members') fetchMemberAuditLogs();
-  }, [activityAudience, fetchMemberAuditLogs]);
 
   useEffect(() => {
     const refreshVisibleLog = () => {
@@ -237,14 +182,6 @@ const AuditLog = () => {
     }
     fetchArchiveMonths();
   }, null, [fetchArchiveMonths, fetchAuditLogs]);
-
-  useRealtimeSubscription(
-    'member_audit_logs',
-    fetchMemberAuditLogs,
-    null,
-    [fetchMemberAuditLogs],
-    activityAudience === 'members'
-  );
 
   const handleFilterChange = (field, value) => {
     setFilters((current) => ({ ...current, [field]: value }));
@@ -302,13 +239,10 @@ const AuditLog = () => {
     system_settings: 'system setting',
   };
 
-  const getActorName = (log) => log.member?.full_name || log.staff?.full_name || 'Historical activity';
+  const getActorName = (log) => log.staff?.full_name || 'Historical activity';
   const getActivityLabel = (log) => {
     if (log.table_name === 'authentication') {
-      if (log.action === 'Signed in' || log.action === 'Signed out') return log.action;
-      if (log.action === 'PASSWORD_CHANGED') return 'Password changed';
-      if (log.action === 'PASSWORD_RESET_COMPLETED') return 'Password reset completed';
-      return 'Account activity';
+      return log.action === 'Signed in' ? 'Signed in' : 'Signed out';
     }
 
     const actionVerb = log.action?.startsWith('Created ')
@@ -319,8 +253,7 @@ const AuditLog = () => {
     return `${actionVerb} ${tableLabels[log.table_name] || 'system entry'}`;
   };
 
-  const sourceLogs = activityAudience === 'staff' ? auditLogs : memberAuditLogs;
-  const filteredLogs = sourceLogs.filter((log) => {
+  const filteredLogs = auditLogs.filter((log) => {
     const actorName = getActorName(log);
     const eventDate = formatDateKeyInManila(log.created_at);
     return (!filters.user || actorName.toLowerCase().includes(filters.user.toLowerCase()))
@@ -336,15 +269,13 @@ const AuditLog = () => {
 
   const handleExport = () => {
     const rows = [
-      activityAudience === 'staff'
-        ? ['Date and time', 'Staff', 'Role', 'Activity', 'Area']
-        : ['Date and time', 'Member', 'Activity', 'Area', 'Device'],
+      ['Date and time', 'Staff', 'Role', 'Activity', 'Area'],
       ...filteredLogs.map((log) => [
         new Date(log.created_at).toLocaleString(),
         getActorName(log),
-        ...(activityAudience === 'staff'
-          ? [log.staff?.role || '', getActivityLabel(log), getModule(log.table_name)]
-          : [getActivityLabel(log), getModule(log.table_name), log.user_agent || 'Device not reported']),
+        log.staff?.role || '',
+        getActivityLabel(log),
+        getModule(log.table_name),
       ]),
     ];
     const csv = rows.map((row) => row.map((value) => `"${String(value ?? '').replaceAll('"', '""')}"`).join(',')).join('\r\n');
@@ -352,9 +283,7 @@ const AuditLog = () => {
     const link = document.createElement('a');
     link.href = url;
     const monthKey = view === 'current' ? currentMonthKey : selectedArchiveMonth;
-    link.download = activityAudience === 'staff'
-      ? `staff-activity-${monthKey}.csv`
-      : 'member-activity.csv';
+    link.download = `staff-activity-${monthKey}.csv`;
     link.click();
     URL.revokeObjectURL(url);
   };
@@ -382,25 +311,7 @@ const AuditLog = () => {
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-4 rounded-lg border border-gray-200 bg-white p-4 shadow-sm sm:flex-row sm:items-center sm:justify-between">
-        <div className="inline-flex w-fit rounded-lg bg-gray-100 p-1" aria-label="Audit log audience">
-          <button
-            type="button"
-            onClick={() => setActivityAudience('staff')}
-            aria-pressed={activityAudience === 'staff'}
-            className={`min-h-11 rounded-md px-4 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-700 focus-visible:ring-offset-2 ${activityAudience === 'staff' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-600 hover:text-gray-900'}`}
-          >
-            Staff Activity
-          </button>
-          <button
-            type="button"
-            onClick={() => setActivityAudience('members')}
-            aria-pressed={activityAudience === 'members'}
-            className={`min-h-11 rounded-md px-4 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-700 focus-visible:ring-offset-2 ${activityAudience === 'members' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-600 hover:text-gray-900'}`}
-          >
-            Member Activity
-          </button>
-        </div>
-        {activityAudience === 'staff' && <div className="inline-flex w-fit rounded-lg bg-gray-100 p-1" aria-label="Staff audit log period">
+        <div className="inline-flex w-fit rounded-lg bg-gray-100 p-1" aria-label="Staff audit log period">
           <button
             type="button"
             onClick={() => {
@@ -429,8 +340,8 @@ const AuditLog = () => {
             <Archive aria-hidden="true" className="size-4" />
             Archived Logs
           </button>
-        </div>}
-        {activityAudience === 'staff' && view === 'archive' && (
+        </div>
+        {view === 'archive' && (
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
             <label htmlFor="archive-month" className="text-sm font-medium text-gray-700">Archive month</label>
             <select
@@ -452,18 +363,16 @@ const AuditLog = () => {
 
       {/* Filters */}
       <div className="bg-white rounded-lg shadow p-6 border border-gray-200">
-        <h3 className="text-lg font-semibold text-gray-900 mb-4">
-          Filter {activityAudience === 'staff' ? `${displayedMonth} Staff Activity` : 'Member Activity'}
-        </h3>
+        <h3 className="text-lg font-semibold text-gray-900 mb-4">Filter {displayedMonth} Staff Activity</h3>
         
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 mb-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">{activityAudience === 'staff' ? 'Staff' : 'Member'}</label>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Staff</label>
             <input
               type="text"
               value={filters.user}
               onChange={(e) => handleFilterChange('user', e.target.value)}
-              placeholder={activityAudience === 'staff' ? 'Search staff' : 'Search member'}
+              placeholder="Search staff"
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
             />
           </div>
@@ -479,7 +388,7 @@ const AuditLog = () => {
               <option value="Loans">Loans</option>
               <option value="Financial">Financial</option>
               <option value="Inventory">Inventory</option>
-              {activityAudience === 'staff' && <option value="Members">Members</option>}
+              <option value="Members">Members</option>
               <option value="Account access">Account access</option>
               <option value="Messages">Messages</option>
               <option value="Requests">Requests</option>
@@ -539,21 +448,20 @@ const AuditLog = () => {
         </div>
       </div>
 
-      {activityAudience === 'staff' && loadError && <p role="alert" className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-800">{loadError}</p>}
-      {activityAudience === 'members' && memberLoadError && <p role="alert" className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-800">{memberLoadError}</p>}
-      {activityAudience === 'staff' && archiveLoadError && view === 'archive' && <p role="alert" className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-800">{archiveLoadError}</p>}
+      {loadError && <p role="alert" className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-800">{loadError}</p>}
+      {archiveLoadError && view === 'archive' && <p role="alert" className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-800">{archiveLoadError}</p>}
 
       {/* Results Summary */}
       <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
         <p className="text-sm text-blue-900">
-          {activityAudience === 'staff' ? displayedMonth : 'Member history'}: showing <span className="font-semibold">{filteredLogs.length}</span> of <span className="font-semibold">{sourceLogs.length}</span> {activityAudience === 'staff' ? 'staff activity entries' : 'member activity entries'}
+          {displayedMonth}: showing <span className="font-semibold">{filteredLogs.length}</span> of <span className="font-semibold">{auditLogs.length}</span> staff activity entries
         </p>
       </div>
 
       {/* Audit Log Table */}
       <div className="bg-white rounded-lg shadow border border-gray-200 overflow-hidden">
         <div className="overflow-x-auto">
-          {(activityAudience === 'staff' ? loading : memberLoading) ? (
+          {loading ? (
             <div className="p-12 text-center text-gray-500">
               <p className="text-sm">Loading activity...</p>
             </div>
@@ -562,17 +470,16 @@ const AuditLog = () => {
               <svg className="w-16 h-16 mx-auto mb-3 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
               </svg>
-              <p className="text-sm font-medium">{sourceLogs.length ? 'No entries match these filters' : activityAudience === 'members' ? 'No member activity has been recorded yet' : view === 'archive' ? 'No archived staff activity for this month' : 'No staff activity this month'}</p>
+              <p className="text-sm font-medium">{auditLogs.length ? 'No entries match these filters' : view === 'archive' ? 'No archived staff activity for this month' : 'No staff activity this month'}</p>
             </div>
           ) : (
             <table className="w-full">
               <thead className="bg-gray-50">
                 <tr>
                   <th className="text-left py-3 px-4 font-semibold text-gray-700 text-sm">Date & Time</th>
-                  <th className="text-left py-3 px-4 font-semibold text-gray-700 text-sm">{activityAudience === 'staff' ? 'Staff' : 'Member'}</th>
+                  <th className="text-left py-3 px-4 font-semibold text-gray-700 text-sm">Staff</th>
                   <th className="text-left py-3 px-4 font-semibold text-gray-700 text-sm">Activity</th>
                   <th className="text-left py-3 px-4 font-semibold text-gray-700 text-sm">Area</th>
-                  {activityAudience === 'members' && <th className="text-left py-3 px-4 font-semibold text-gray-700 text-sm">Device / Browser</th>}
                 </tr>
               </thead>
               <tbody>
@@ -581,21 +488,13 @@ const AuditLog = () => {
                     <td className="whitespace-nowrap py-3 px-4 text-sm text-gray-900">
                       {new Date(log.created_at).toLocaleString()}
                     </td>
-                    <td className="py-3 px-4 text-sm text-gray-900 font-medium">
-                      {getActorName(log)}
-                    </td>
+                    <td className="py-3 px-4 text-sm text-gray-900 font-medium">{getActorName(log)}</td>
                     <td className="py-3 px-4 text-sm text-gray-700">{getActivityLabel(log)}</td>
                     <td className="py-3 px-4">
                       <span className={`inline-block px-3 py-1 rounded-full text-xs font-medium ${getModuleColor(getModule(log.table_name))}`}>
                         {getModule(log.table_name)}
                       </span>
                     </td>
-                    {activityAudience === 'members' && (
-                      <td className="max-w-sm px-4 py-3 text-sm text-gray-700" title={log.user_agent || ''}>
-                        {describeDevice(log.user_agent)}
-                        {log.user_agent && <span className="mt-1 block truncate text-xs text-gray-500">{log.user_agent}</span>}
-                      </td>
-                    )}
                   </tr>
                 ))}
               </tbody>

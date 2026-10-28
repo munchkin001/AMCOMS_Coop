@@ -36,11 +36,6 @@ CREATE POLICY "Members can view own audit logs"
   ON public.member_audit_logs FOR SELECT
   USING (auth_user_id = auth.uid());
 
-DROP POLICY IF EXISTS "Chairman and manager can view member audit logs" ON public.member_audit_logs;
-CREATE POLICY "Chairman and manager can view member audit logs"
-  ON public.member_audit_logs FOR SELECT
-  USING (public.has_any_role(ARRAY['chairman', 'manager']));
-
 REVOKE INSERT, UPDATE, DELETE ON public.member_audit_logs FROM PUBLIC, anon, authenticated;
 REVOKE ALL ON public.member_audit_logs FROM PUBLIC, anon;
 GRANT SELECT ON public.member_audit_logs TO authenticated;

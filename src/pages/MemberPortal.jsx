@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Bell, ChevronDown, FileText, HandCoins, Home, Landmark, Menu, PiggyBank, UserRound, Wallet } from 'lucide-react';
+import { Activity, ArrowLeft, Bell, ChevronDown, FileText, HandCoins, Home, Landmark, Menu, PiggyBank, UserRound, Wallet } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useRealtimeSubscription } from '../hooks/useRealtimeSubscription';
 import { supabase } from '../lib/supabase';
@@ -11,6 +11,7 @@ import MSOTimeDeposit from '../components/member/MSOTimeDeposit';
 import MSOLoans from '../components/member/MSOLoans';
 import MemberTransactionHistory from '../components/member/MemberTransactionHistory';
 import MemberAnnouncements from '../components/member/MemberAnnouncements';
+import MemberAuditLog from '../components/member/MemberAuditLog';
 import PublishedPolicies from '../components/common/PublishedPolicies';
 
 const MemberPortal = () => {
@@ -156,6 +157,8 @@ const MemberPortal = () => {
         return <MemberTransactionHistory />;
       case 'announcements':
         return <MemberAnnouncements />;
+      case 'activity':
+        return <MemberAuditLog />;
       case 'policies':
         return <PublishedPolicies />;
       default:
@@ -179,6 +182,8 @@ const MemberPortal = () => {
         return 'Transactions';
       case 'announcements':
         return 'Announcements';
+      case 'activity':
+        return 'Account Activity';
       case 'policies':
         return 'Policies';
       default:
@@ -243,6 +248,21 @@ const MemberPortal = () => {
             <div className="flex items-center space-x-3">
               <Bell size={18} />
               <span>Announcements</span>
+            </div>
+          </button>
+
+          <button
+            onClick={() => handleModuleChange('activity')}
+            aria-current={activeModule === 'activity' ? 'page' : undefined}
+            className={`w-full rounded-lg px-4 py-3 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#e9c46a] ${
+              activeModule === 'activity'
+                ? 'bg-gradient-to-r from-[#e9c46a] to-[#d6ab4a] font-semibold text-[#0d3b2d] shadow-md'
+                : 'text-green-50/95 hover:bg-white/10 hover:text-[#f0d995]'
+            }`}
+          >
+            <div className="flex items-center space-x-3">
+              <Activity size={18} />
+              <span>Account Activity</span>
             </div>
           </button>
 
@@ -390,10 +410,11 @@ const MemberPortal = () => {
           {renderModule()}
         </div>
 
-        <nav aria-label="Member quick navigation" className="fixed inset-x-0 bottom-0 z-30 grid grid-cols-4 border-t border-gray-200 bg-white pb-[env(safe-area-inset-bottom)] shadow-[0_-2px_8px_rgba(0,0,0,0.05)] md:hidden">
+        <nav aria-label="Member quick navigation" className="fixed inset-x-0 bottom-0 z-30 grid grid-cols-5 border-t border-gray-200 bg-white pb-[env(safe-area-inset-bottom)] shadow-[0_-2px_8px_rgba(0,0,0,0.05)] md:hidden">
           {[
             { id: 'dashboard', label: 'Home', Icon: Home },
             { id: 'transactions', label: 'Transactions', Icon: Wallet },
+            { id: 'activity', label: 'Activity', Icon: Activity },
             { id: 'policies', label: 'Policies', Icon: FileText },
             { id: 'profile', label: 'Profile', Icon: UserRound }
           ].map(({ id, label, Icon }) => {
