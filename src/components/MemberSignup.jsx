@@ -72,8 +72,8 @@ const MemberSignup = () => {
       return;
     }
 
-    if (formData.password.length < 8 || !/[A-Z]/.test(formData.password) || !/[a-z]/.test(formData.password) || !/[0-9]/.test(formData.password)) {
-      setError('Use at least 8 characters with an uppercase letter, a lowercase letter, and a number.');
+    if (formData.password.length < 8 || !/[A-Z]/.test(formData.password) || !/[a-z]/.test(formData.password) || !/[0-9]/.test(formData.password) || !/[^A-Za-z0-9]/.test(formData.password)) {
+      setError('Use at least 8 characters with an uppercase letter, a lowercase letter, a number, and a special character or symbol.');
       return;
     }
 
@@ -310,7 +310,7 @@ const MemberSignup = () => {
                     value={formData.password}
                     onChange={handleChange}
                     className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all pr-12"
-                    minLength="6"
+                    minLength="8"
                     required
                   />
                   <button

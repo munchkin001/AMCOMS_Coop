@@ -4,9 +4,10 @@ const generateTempPassword = () => {
   const upper = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
   const lower = 'abcdefghijkmnpqrstuvwxyz';
   const digits = '23456789';
-  const all = upper + lower + digits;
+  const symbols = '!@#$%&*+-_=.?';
+  const all = upper + lower + digits + symbols;
   const pick = (set: string) => set[crypto.getRandomValues(new Uint32Array(1))[0] % set.length];
-  const chars = [pick(upper), pick(lower), pick(digits)];
+  const chars = [pick(upper), pick(lower), pick(digits), pick(symbols)];
   while (chars.length < 12) chars.push(pick(all));
   for (let i = chars.length - 1; i > 0; i -= 1) {
     const j = crypto.getRandomValues(new Uint32Array(1))[0] % (i + 1);
@@ -31,6 +32,7 @@ const passwordProblem = (password: string) => {
   if (!/[A-Z]/.test(password)) return 'Include at least one uppercase letter.';
   if (!/[a-z]/.test(password)) return 'Include at least one lowercase letter.';
   if (!/[0-9]/.test(password)) return 'Include at least one number.';
+  if (!/[^A-Za-z0-9]/.test(password)) return 'Include at least one special character or symbol.';
   return null;
 };
 

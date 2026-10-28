@@ -266,7 +266,17 @@ export const AuthProvider = ({ children }) => {
   const login = async (identifier, password) => {
     try {
       setAuthError(null);
-      
+      offlineModeRef.current = false;
+      setOfflineMode(false);
+
+      // Password resets can leave a revoked session in storage. Remove it locally
+      // before the public username lookup so requests do not reuse its stale JWT.
+      const { error: sessionError } = await supabase.auth.signOut({ scope: 'local' });
+      if (sessionError) throw sessionError;
+      setSession(null);
+      setUser(null);
+      setStaff(null);
+
       const { data: staffData, error: lookupError } = await findStaffByLoginIdentifier(identifier);
 
       if (lookupError) {

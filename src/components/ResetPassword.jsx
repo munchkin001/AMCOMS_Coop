@@ -42,6 +42,9 @@ const ResetPassword = () => {
     if (!/[0-9]/.test(password)) {
       return 'Password must contain at least one number';
     }
+    if (!/[^A-Za-z0-9]/.test(password)) {
+      return 'Password must contain at least one special character or symbol';
+    }
     return null;
   };
 
@@ -233,6 +236,7 @@ const ResetPassword = () => {
                   <li>• At least 8 characters long</li>
                   <li>• Contains uppercase and lowercase letters</li>
                   <li>• Contains at least one number</li>
+                  <li>• Contains at least one special character or symbol</li>
                 </ul>
               </div>
 
