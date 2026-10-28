@@ -45,7 +45,8 @@ const AccountSection = ({ group, from, onSelectEntry }) => {
   const pageCount = Math.max(1, Math.ceil(group.lines.length / PAGE_SIZE));
   const current = Math.min(page, pageCount);
   const start = (current - 1) * PAGE_SIZE;
-  const visible = group.lines.slice(start, start + PAGE_SIZE);
+  const newestFirst = [...group.lines].reverse();
+  const visible = newestFirst.slice(start, start + PAGE_SIZE);
 
   return (
     <section className="space-y-4">
@@ -84,20 +85,29 @@ const AccountSection = ({ group, from, onSelectEntry }) => {
             </thead>
             <tbody className="divide-y divide-gray-100">
               {visible.map((line, index) => (
-                <tr key={line.line_id || `opening-${index}`} className={line.is_opening ? 'bg-gray-50/70' : ''}>
+                <tr
+                  key={line.line_id || `opening-${index}`}
+                  onClick={line.is_opening ? undefined : () => onSelectEntry(line)}
+                  onKeyDown={line.is_opening ? undefined : (event) => {
+                    if (event.key === 'Enter' || event.key === ' ') {
+                      event.preventDefault();
+                      onSelectEntry(line);
+                    }
+                  }}
+                  tabIndex={line.is_opening ? undefined : 0}
+                  aria-label={line.is_opening ? undefined : `View transaction details for ${line.reference_number || line.entry_number}`}
+                  title={line.is_opening ? undefined : 'View transaction details'}
+                  className={line.is_opening
+                    ? 'bg-gray-50/70'
+                    : 'cursor-pointer transition-colors hover:bg-blue-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-blue-600'}
+                >
                   <td className="whitespace-nowrap px-4 py-3 text-gray-700">{line.is_opening ? shortDate(from) : shortDate(line.entry_date)}</td>
                   <td className="px-4 py-3 text-gray-800">{line.is_opening ? 'Opening Balance' : line.description}</td>
                   <td className="whitespace-nowrap px-4 py-3 font-medium text-gray-700">
                     {line.is_opening ? <Dash /> : (
-                      <button
-                        type="button"
-                        aria-label={`View transaction details for ${line.reference_number || line.entry_number}`}
-                        title="View transaction details"
-                        onClick={() => onSelectEntry(line)}
-                        className="cursor-pointer rounded-sm text-blue-700 underline decoration-blue-300 underline-offset-2 hover:text-blue-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600"
-                      >
+                      <span className="text-blue-700">
                         {line.reference_number || line.entry_number}
-                      </button>
+                      </span>
                     )}
                     {line.is_reversed && <span className="ml-2 rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold uppercase text-amber-800">Reversed</span>}
                     {line.is_reversal && <span className="ml-2 rounded bg-slate-200 px-1.5 py-0.5 text-[10px] font-semibold uppercase text-slate-700">Reversal</span>}
