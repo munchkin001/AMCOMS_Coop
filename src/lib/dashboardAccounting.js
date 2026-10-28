@@ -10,49 +10,55 @@ export const fetchAccountBalances = async (from = null, to = null) => {
   return data || [];
 };
 
-export const summarizeAccountBalances = (accounts) => accounts.reduce((summary, account) => {
-  const closingBalance = Number(account.closing_balance) || 0;
-  const accountName = account.account_name?.toLowerCase() || '';
+export const summarizeAccountBalances = (accounts) => {
+  const summary = accounts.reduce((totals, account) => {
+    const closingBalance = Number(account.closing_balance) || 0;
+    const accountName = account.account_name?.toLowerCase() || '';
 
-  if (account.account_type === 'asset') {
-    summary.totalAssets += closingBalance;
-    if (accountName.includes('cash') && !accountName.includes('bank')) {
-      summary.cashOnHand += closingBalance;
+    if (account.account_type === 'asset') {
+      totals.totalAssets += closingBalance;
+      if (accountName.includes('cash') && !accountName.includes('bank')) {
+        totals.cashOnHand += closingBalance;
+      }
+      if (accountName.includes('bank')) {
+        totals.cashInBank += closingBalance;
+      }
+    } else if (account.account_type === 'liability') {
+      totals.totalLiabilities += closingBalance;
+    } else if (account.account_type === 'equity') {
+      totals.totalEquity += closingBalance;
     }
-    if (accountName.includes('bank')) {
-      summary.cashInBank += closingBalance;
-    }
-  } else if (account.account_type === 'liability') {
-    summary.totalLiabilities += closingBalance;
-  } else if (account.account_type === 'equity') {
-    summary.totalEquity += closingBalance;
-  }
 
-  summary.totalIncome += account.account_type === 'revenue'
-    ? (Number(account.total_credit) || 0) - (Number(account.total_debit) || 0)
-    : 0;
-  summary.totalExpenses += account.account_type === 'expense'
-    ? (Number(account.total_debit) || 0) - (Number(account.total_credit) || 0)
-    : 0;
-  summary.periodIncome += account.account_type === 'revenue'
-    ? (Number(account.period_credit) || 0) - (Number(account.period_debit) || 0)
-    : 0;
-  summary.periodExpenses += account.account_type === 'expense'
-    ? (Number(account.period_debit) || 0) - (Number(account.period_credit) || 0)
-    : 0;
+    totals.totalIncome += account.account_type === 'revenue'
+      ? (Number(account.total_credit) || 0) - (Number(account.total_debit) || 0)
+      : 0;
+    totals.totalExpenses += account.account_type === 'expense'
+      ? (Number(account.total_debit) || 0) - (Number(account.total_credit) || 0)
+      : 0;
+    totals.periodIncome += account.account_type === 'revenue'
+      ? (Number(account.period_credit) || 0) - (Number(account.period_debit) || 0)
+      : 0;
+    totals.periodExpenses += account.account_type === 'expense'
+      ? (Number(account.period_debit) || 0) - (Number(account.period_credit) || 0)
+      : 0;
 
+    return totals;
+  }, {
+    totalAssets: 0,
+    totalLiabilities: 0,
+    totalEquity: 0,
+    totalIncome: 0,
+    totalExpenses: 0,
+    periodIncome: 0,
+    periodExpenses: 0,
+    cashOnHand: 0,
+    cashInBank: 0
+  });
+
+  // Net income remains part of equity until it is closed to retained earnings.
+  summary.totalEquity += summary.totalIncome - summary.totalExpenses;
   return summary;
-}, {
-  totalAssets: 0,
-  totalLiabilities: 0,
-  totalEquity: 0,
-  totalIncome: 0,
-  totalExpenses: 0,
-  periodIncome: 0,
-  periodExpenses: 0,
-  cashOnHand: 0,
-  cashInBank: 0
-});
+};
 
 export const toDateString = (date) => {
   const year = date.getFullYear();
