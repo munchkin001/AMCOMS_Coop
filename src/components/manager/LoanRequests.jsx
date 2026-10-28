@@ -7,6 +7,7 @@ import LoadingSpinner from '../common/LoadingSpinner';
 import { getDataLoadErrorMessage } from '../../lib/errorHandler';
 import { queueOperation, getOperation } from '../../lib/Offline/syncQueue';
 import { syncPendingOperations } from '../../lib/Offline/syncOperations';
+import offlineDb from '../../lib/Offline/OfflineDb';
 
 const today = () => new Date().toISOString().slice(0, 10);
 const formatMoney = (value) => `₱${Number(value || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })}`;
@@ -78,6 +79,7 @@ const LoanRequests = () => {
   const canReview = staff?.role === 'manager';
   const canRelease = staff?.role === 'bookkeeper';
   const canViewQueue = ['manager', 'bookkeeper'].includes(staff?.role);
+  const userId = user?.id;
   const [members, setMembers] = useState([]);
   const [terms, setTerms] = useState([]);
   const [requests, setRequests] = useState([]);
@@ -110,11 +112,39 @@ const LoanRequests = () => {
           .order('created_at', { ascending: true })
           .limit(500)
         : Promise.resolve({ data: [], error: null });
+      const memberCacheKey = userId ? `cashbook-members:${userId}` : null;
       const memberQuery = canRelease
-        ? supabase.from('members')
-          .select('id, first_name, middle_name, last_name, member_number')
-          .eq('membership_status', 'active')
-          .order('last_name')
+        ? (async () => {
+          if (!navigator.onLine || offlineMode) {
+            const cached = memberCacheKey
+              ? await offlineDb.cachedData.get(memberCacheKey)
+              : null;
+            return { data: cached?.data || [], error: null };
+          }
+
+          const result = await supabase.from('members')
+            .select('id, first_name, middle_name, last_name, member_number')
+            .eq('membership_status', 'active')
+            .is('archived_at', null)
+            .order('last_name');
+          if (!result.error) {
+            if (memberCacheKey) {
+              await offlineDb.cachedData.put({
+                key: memberCacheKey,
+                data: result.data || [],
+                updatedAt: new Date().toISOString(),
+              });
+            }
+            return result;
+          }
+
+          const cached = memberCacheKey
+            ? await offlineDb.cachedData.get(memberCacheKey)
+            : null;
+          return cached?.data
+            ? { data: cached.data, error: null }
+            : result;
+        })()
         : Promise.resolve({ data: [], error: null });
       const termQuery = canRelease
         ? supabase.from('loan_term_options')
@@ -134,13 +164,13 @@ const LoanRequests = () => {
         memberQuery,
         termQuery
       ]);
+      setMembers(memberResult.data || []);
       if (requestResult.error) throw requestResult.error;
       if (loanResult.error) throw loanResult.error;
       if (memberResult.error) throw memberResult.error;
       if (termResult.error) throw termResult.error;
       setRequests(requestResult.data || []);
       setApprovedLoans(loanResult.data || []);
-      setMembers(memberResult.data || []);
       setTerms(termResult.data || []);
     } catch (loadError) {
       console.error('Unable to load loan requests:', loadError);
@@ -148,7 +178,7 @@ const LoanRequests = () => {
     } finally {
       setLoading(false);
     }
-  }, [canRelease, canViewQueue]);
+  }, [canRelease, canViewQueue, offlineMode, userId]);
 
   useEffect(() => {
     load();
@@ -346,7 +376,7 @@ const LoanRequests = () => {
               ) : (
                 <select required value={selectedMember} onChange={(event) => setSelectedMember(event.target.value)} className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2">
                   <option value="">Select a member</option>
-                  {members.map((member) => <option key={member.id} value={member.id}>{fullName(member)} · {member.member_number}</option>)}
+                  {members.map((member) => <option key={member.id} value={member.id}>{fullName(member)}{member.member_number ? ` (${member.member_number})` : ''}</option>)}
                 </select>
               )}
             </label>
