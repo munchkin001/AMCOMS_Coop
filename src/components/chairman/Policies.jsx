@@ -14,6 +14,17 @@ const categoryIcons = {
   General: ClipboardList
 };
 
+const policyColumns = 'id, name, category, content, status, published_at, published_by, updated_at';
+const audiencePolicyColumns = `id, name, category, content, target_audience, status, published_at, published_by, updated_at`;
+
+const isMissingAudienceColumn = (error) => (
+  ['42703', 'PGRST204'].includes(error?.code)
+  || (
+    /target_audience/i.test(error?.message || '')
+    && /(column|schema cache|field)/i.test(error?.message || '')
+  )
+);
+
 const Policies = () => {
   const { staff } = useAuth();
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -25,6 +36,7 @@ const Policies = () => {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  const [audienceColumnAvailable, setAudienceColumnAvailable] = useState(true);
   const [policies, setPolicies] = useState([]);
   const [policyAudience, setPolicyAudience] = useState('staff');
   const [policyForm, setPolicyForm] = useState({
@@ -46,12 +58,26 @@ const Policies = () => {
 
   const loadPolicies = useCallback(async () => {
     try {
-      const { data, error: loadError } = await supabase
+      let { data, error: loadError } = await supabase
         .from('policies')
-        .select('id, name, category, content, target_audience, status, published_at, published_by, updated_at')
+        .select(audiencePolicyColumns)
         .order('updated_at', { ascending: false });
+
+      if (isMissingAudienceColumn(loadError)) {
+        setAudienceColumnAvailable(false);
+        ({ data, error: loadError } = await supabase
+          .from('policies')
+          .select(policyColumns)
+          .order('updated_at', { ascending: false }));
+      } else if (!loadError) {
+        setAudienceColumnAvailable(true);
+      }
+
       if (loadError) throw loadError;
-      const refreshedPolicies = (data || []).map(formatPolicy);
+      const refreshedPolicies = (data || []).map((policy) => formatPolicy({
+        ...policy,
+        target_audience: policy.target_audience || 'staff'
+      }));
       setPolicies(refreshedPolicies);
       setSelectedPolicy((current) => current
         ? refreshedPolicies.find((policy) => policy.id === current.id) || null
@@ -87,20 +113,20 @@ const Policies = () => {
         name: policyForm.name.trim(),
         category: policyForm.category,
         content: policyForm.content.trim(),
-        target_audience: policyForm.target_audience,
         status: policyForm.status,
         published_at: isPublished ? new Date().toISOString() : null,
         published_by: isPublished ? staff?.full_name || null : null
       };
+      if (audienceColumnAvailable) payload.target_audience = policyForm.target_audience;
       const query = editingPolicyId
         ? supabase.from('policies').update(payload).eq('id', editingPolicyId)
         : supabase.from('policies').insert(payload);
       const { data, error: saveError } = await query
-        .select('id, name, category, content, target_audience, status, published_at, published_by, updated_at')
+        .select(audienceColumnAvailable ? audiencePolicyColumns : policyColumns)
         .single();
       if (saveError) throw saveError;
 
-      const savedPolicy = formatPolicy(data);
+      const savedPolicy = formatPolicy({ ...data, target_audience: data.target_audience || 'staff' });
       setPolicies((current) => [
         savedPolicy,
         ...current.filter((policy) => policy.id !== savedPolicy.id)
@@ -131,7 +157,7 @@ const Policies = () => {
         published_by: staff?.full_name || null
       })
       .eq('id', policyToPublish)
-      .select('id, name, category, content, target_audience, status, published_at, published_by, updated_at')
+      .select(audienceColumnAvailable ? audiencePolicyColumns : policyColumns)
       .single();
 
     if (publishError) {
@@ -140,7 +166,7 @@ const Policies = () => {
       return;
     }
 
-    const publishedPolicy = formatPolicy(data);
+    const publishedPolicy = formatPolicy({ ...data, target_audience: data.target_audience || 'staff' });
     setPolicies((current) => current.map((policy) =>
       policy.id === publishedPolicy.id ? publishedPolicy : policy
     ));
@@ -182,6 +208,11 @@ const Policies = () => {
   return (
     <div className="space-y-6 pb-8">
       {error && <p role="alert" className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{error}</p>}
+      {!audienceColumnAvailable && (
+        <p role="status" className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+          Policies loaded using the existing database schema. Apply migration <code>20261028000004_separate_policy_audiences.sql</code> to enable member policies; existing policies are treated as staff policies until then.
+        </p>
+      )}
       <section className="flex flex-col gap-5 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:flex-row sm:items-center sm:justify-between sm:p-6">
         <div>
           <p className="mt-2 inline-flex items-center gap-2 text-xs font-medium text-emerald-700">
@@ -191,7 +222,13 @@ const Policies = () => {
         </div>
         <button
           onClick={() => {
-            setPolicyForm({ name: '', category: '', content: '', target_audience: policyAudience, status: 'draft' });
+            setPolicyForm({
+              name: '',
+              category: '',
+              content: '',
+              target_audience: audienceColumnAvailable ? policyAudience : 'staff',
+              status: 'draft'
+            });
             setEditingPolicyId(null);
             setShowCreateModal(true);
           }}
@@ -362,12 +399,17 @@ const Policies = () => {
                 <select
                   value={policyForm.target_audience}
                   onChange={(e) => setPolicyForm({ ...policyForm, target_audience: e.target.value })}
+                  disabled={!audienceColumnAvailable}
                   className="w-full rounded-lg border border-slate-300 bg-white px-3.5 py-2.5 text-sm text-slate-900 focus:border-emerald-600 focus:outline-none focus:ring-2 focus:ring-emerald-600/20"
                 >
                   <option value="staff">Staff only</option>
                   <option value="member">Members</option>
                 </select>
-                <p className="mt-1 text-xs text-slate-500">Published policies are shown only in the selected audience’s portal.</p>
+                <p className="mt-1 text-xs text-slate-500">
+                  {audienceColumnAvailable
+                    ? 'Published policies are shown only in the selected audience’s portal.'
+                    : 'Only staff policies can be created until the audience migration is applied.'}
+                </p>
               </div>
 
               <div>
