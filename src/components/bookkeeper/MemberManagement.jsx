@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Archive, Eye, KeyRound, Pencil, Plus, RotateCcw, Search, Trash2, Users, X } from 'lucide-react';
+import { Archive, Eye, KeyRound, Pencil, Plus, RotateCcw, Search, Trash2, Users } from 'lucide-react';
 import { useRealtimeSubscription } from '../../hooks/useRealtimeSubscription';
 import { supabase } from '../../lib/supabase';
 import { getAppUrl } from '../../lib/appUrl';
@@ -633,7 +633,6 @@ const MemberManagement = ({ canManageMembers = true }) => {
           <section role="dialog" aria-modal="true" aria-labelledby="member-form-title" className="max-h-[92vh] w-full max-w-4xl overflow-y-auto rounded-xl bg-slate-50 shadow-2xl">
             <div className="sticky top-0 z-10 flex items-center justify-between border-b border-gray-200 bg-white px-5 py-4">
               <div><h2 id="member-form-title" className="text-lg font-semibold text-gray-900">Add Member</h2></div>
-              <button type="button" onClick={() => setModal('')} aria-label="Close" className="rounded-lg p-2 text-gray-500 hover:bg-gray-100"><X size={20} /></button>
             </div>
             <form onSubmit={handleSave} className="space-y-4 p-4 sm:p-5">
               {error && <p role="alert" className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">{error}</p>}
@@ -752,7 +751,6 @@ const MemberManagement = ({ canManageMembers = true }) => {
           <section role="dialog" aria-modal="true" aria-labelledby="member-edit-title" className="max-h-[92vh] w-full max-w-4xl overflow-y-auto rounded-xl bg-slate-50 shadow-2xl">
             <div className="sticky top-0 z-10 flex items-center justify-between border-b border-gray-200 bg-white px-5 py-4">
               <div><h2 id="member-edit-title" className="text-lg font-semibold text-gray-900">Edit Member</h2><p className="text-xs text-gray-500">{selectedMember.member_number}</p></div>
-              <button type="button" onClick={() => setModal('')} aria-label="Close" className="rounded-lg p-2 text-gray-500 hover:bg-gray-100"><X size={20} /></button>
             </div>
             <form onSubmit={handleSave} className="space-y-4 p-4 sm:p-5">
               {error && <p role="alert" className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">{error}</p>}
@@ -870,7 +868,7 @@ const MemberManagement = ({ canManageMembers = true }) => {
       {modal === 'view' && selectedMember && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/55 p-4">
           <section role="dialog" aria-modal="true" aria-labelledby="member-view-title" className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-xl bg-white shadow-2xl">
-            <div className="flex items-center justify-between border-b border-gray-200 px-5 py-4"><div><h2 id="member-view-title" className="text-lg font-semibold text-gray-900">{fullName(selectedMember)}</h2><p className="text-xs text-gray-500">{selectedMember.member_number}</p></div><button type="button" onClick={() => setModal('')} aria-label="Close" className="rounded-lg p-2 text-gray-500 hover:bg-gray-100"><X size={20} /></button></div>
+            <div className="border-b border-gray-200 px-5 py-4"><h2 id="member-view-title" className="text-lg font-semibold text-gray-900">{fullName(selectedMember)}</h2><p className="text-xs text-gray-500">{selectedMember.member_number}</p></div>
             <div className="grid gap-4 p-5 sm:grid-cols-2">
               {Object.entries({ 'Membership type': selectedMember.membership_type, Email: selectedMember.email, Contact: selectedMember.phone, Address: selectedMember.address, 'Date of birth': selectedMember.date_of_birth, 'Membership date': selectedMember.date_joined, Status: isArchived(selectedMember) ? 'Archived' : selectedMember.membership_status, 'Share capital': money(selectedMember.total_capital), 'Shares owned': selectedMember.shares_owned, 'Emergency contact': selectedMember.emergency_contact_name, 'Emergency phone': selectedMember.emergency_contact_phone }).map(([label, value]) => <div key={label}><p className="text-xs font-medium uppercase text-gray-500">{label}</p><p className="mt-1 text-sm capitalize text-gray-900">{value || '—'}</p></div>)}
               {isArchived(selectedMember) && <div className="sm:col-span-2"><p className="text-xs font-medium uppercase text-gray-500">Archive details</p><p className="mt-1 text-sm text-gray-900">{selectedMember.archive_reason || 'No reason recorded'} · {selectedMember.archived_at ? new Date(selectedMember.archived_at).toLocaleString() : 'Archived as inactive'}</p></div>}
@@ -948,7 +946,6 @@ const MemberManagement = ({ canManageMembers = true }) => {
           <section role="dialog" aria-modal="true" aria-labelledby="delete-account-title" className="w-full max-w-md rounded-xl bg-white shadow-2xl">
             <div className="flex items-center justify-between border-b border-gray-200 px-5 py-4">
               <h2 id="delete-account-title" className="text-lg font-semibold text-gray-900">Delete Portal Account</h2>
-              <button type="button" onClick={() => setDeleteConfirmMember(null)} aria-label="Close" className="rounded-lg p-2 text-gray-500 hover:bg-gray-100"><X size={20} /></button>
             </div>
             <div className="space-y-4 p-5">
               <p className="text-sm text-gray-700">You are about to permanently delete the Member Portal account for <strong>{deleteConfirmMember.member_number} — {fullName(deleteConfirmMember)}</strong>.</p>

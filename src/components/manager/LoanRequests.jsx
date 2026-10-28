@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Check, Clock3, RefreshCw, X } from 'lucide-react';
+import { Check, Clock3, RefreshCw } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import { useMultipleRealtimeSubscriptions } from '../../hooks/useRealtimeSubscription';
@@ -355,7 +355,6 @@ const LoanRequests = () => {
           <div className="w-full max-w-lg rounded-xl bg-white p-6 shadow-xl">
             <div className="flex items-center justify-between gap-3">
               <h2 id="loan-review-title" className="text-xl font-bold text-gray-900">{decision.status === 'approved' ? 'Approve loan application' : 'Reject loan application'}</h2>
-              <button type="button" onClick={() => setDecision(null)} disabled={!!busyId} aria-label="Close" className="rounded p-1 text-gray-500 hover:bg-gray-100"><X aria-hidden="true" size={20} /></button>
             </div>
             <p className="mt-2 text-sm text-gray-600">{fullName(memberOf(decision))} · {formatMoney(decision.amount)}</p>
             {decision.status === 'approved' && <p className="mt-3 rounded-lg bg-amber-50 p-3 text-sm text-amber-900">Approval creates an approved loan record only. The loan becomes active and its repayment schedule starts only after the Bookkeeper records the actual cash release.</p>}

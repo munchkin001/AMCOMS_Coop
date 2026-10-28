@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Plus, Trash2, X } from 'lucide-react';
+import { Plus, Trash2 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { createPurchase } from '../../lib/inventoryService';
 import { toDateString } from '../../lib/dashboardAccounting';
@@ -88,7 +88,6 @@ const NewPurchaseModal = ({ onClose, onSaved }) => {
       <form onSubmit={handleSubmit} noValidate className="my-8 w-full max-w-3xl rounded-lg bg-white p-6 shadow-xl">
         <div className="mb-4 flex items-center justify-between">
           <h3 id="purchase-title" className="text-lg font-semibold text-gray-900">New Purchase</h3>
-          <button type="button" onClick={onClose} aria-label="Close" className="text-gray-500 hover:text-gray-800"><X size={20} /></button>
         </div>
         {formError && <p role="alert" className="mb-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">{formError}</p>}
 

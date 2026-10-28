@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { CheckCircle2, ClipboardList, Clock3, FileText, HandCoins, Package, PiggyBank, Plus, Trash2, Users, WalletCards, X } from 'lucide-react';
+import { CheckCircle2, ClipboardList, Clock3, FileText, HandCoins, Package, PiggyBank, Plus, Trash2, Users, WalletCards } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import { useMultipleRealtimeSubscriptions } from '../../hooks/useRealtimeSubscription';
@@ -412,18 +412,7 @@ const Policies = () => {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4 backdrop-blur-sm" onClick={() => setShowCreateModal(false)}>
           <div className="max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-2xl bg-white shadow-2xl" onClick={(e) => e.stopPropagation()}>
             <div className="border-b border-slate-200 px-6 py-5">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h3 className="text-lg font-semibold text-slate-900">{editingPolicyId ? 'Edit policy' : 'Create new policy'}</h3>
-                </div>
-                <button
-                  onClick={() => setShowCreateModal(false)}
-                  aria-label="Close policy form"
-                  className="rounded-lg p-2 text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-800"
-                >
-                  <X aria-hidden="true" className="h-5 w-5" />
-                </button>
-              </div>
+              <h3 className="text-lg font-semibold text-slate-900">{editingPolicyId ? 'Edit policy' : 'Create new policy'}</h3>
             </div>
 
             <div className="space-y-5 px-6 py-5">
@@ -534,21 +523,12 @@ const Policies = () => {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4 backdrop-blur-sm" onClick={() => setShowViewModal(false)}>
           <div className="max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-2xl bg-white shadow-2xl" onClick={(e) => e.stopPropagation()}>
             <div className="border-b border-slate-200 px-6 py-5">
-              <div className="flex items-center justify-between gap-4">
-                <div className="flex min-w-0 items-center gap-3">
-                  <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-slate-700">{getCategoryIcon(selectedPolicy.category, 'h-5 w-5')}</span>
-                  <div>
-                    <h3 className="text-lg font-semibold text-slate-900">{selectedPolicy.name}</h3>
-                    <p className="mt-1 text-sm text-slate-500">{selectedPolicy.category}</p>
-                  </div>
+              <div className="flex min-w-0 items-center gap-3">
+                <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-slate-700">{getCategoryIcon(selectedPolicy.category, 'h-5 w-5')}</span>
+                <div>
+                  <h3 className="text-lg font-semibold text-slate-900">{selectedPolicy.name}</h3>
+                  <p className="mt-1 text-sm text-slate-500">{selectedPolicy.category}</p>
                 </div>
-                <button
-                  onClick={() => setShowViewModal(false)}
-                  aria-label="Close policy details"
-                  className="rounded-lg p-2 text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-800"
-                >
-                  <X aria-hidden="true" className="h-5 w-5" />
-                </button>
               </div>
             </div>
 

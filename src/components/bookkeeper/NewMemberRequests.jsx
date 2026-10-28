@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { CheckCircle2, Clock3, UserPlus, XCircle, X } from 'lucide-react';
+import { CheckCircle2, Clock3, UserPlus, XCircle } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useRealtimeSubscription } from '../../hooks/useRealtimeSubscription';
 import LoadingSpinner from '../common/LoadingSpinner';
@@ -207,9 +207,6 @@ const NewMemberRequests = () => {
           <div className="w-full max-w-lg rounded-lg bg-white p-6 shadow-xl">
             <div className="mb-4 flex items-center justify-between">
               <h3 id="review-title" className="text-xl font-bold text-gray-900">{approving ? 'Approve' : 'Reject'} request</h3>
-              <button type="button" onClick={closeReview} aria-label="Close" className="text-gray-400 hover:text-gray-600">
-                <X aria-hidden="true" size={22} />
-              </button>
             </div>
 
             <p className="mb-3 text-gray-600">

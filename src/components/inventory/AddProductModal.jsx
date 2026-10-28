@@ -1,5 +1,4 @@
 import React, { useState } from 'react';
-import { X } from 'lucide-react';
 import CategorySelect from './CategorySelect';
 import { createProduct } from '../../lib/inventoryService';
 import { supabase } from '../../lib/supabase';
@@ -120,7 +119,6 @@ const AddProductModal = ({ product = null, initialForm, categories, onClose, onS
       <form onSubmit={handleSubmit} noValidate className="max-h-[90vh] w-full max-w-xl overflow-y-auto rounded-lg bg-white p-6 shadow-xl">
         <div className="mb-4 flex items-center justify-between">
           <h3 id="product-form-title" className="text-lg font-semibold text-gray-900">{isEditing ? 'Edit Product' : 'Add New Product'}</h3>
-          <button type="button" onClick={onClose} aria-label="Close" className="text-gray-500 hover:text-gray-800"><X size={20} /></button>
         </div>
         {!isEditing && (
           <p className="mb-4 rounded-lg bg-gray-50 px-3 py-2 text-xs text-gray-600">

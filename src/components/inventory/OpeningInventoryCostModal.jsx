@@ -1,5 +1,4 @@
 import { useState } from 'react';
-import { X } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { toDateString } from '../../lib/dashboardAccounting';
 
@@ -41,7 +40,6 @@ const OpeningInventoryCostModal = ({ product, unvaluedQuantity, onClose, onSaved
             <h3 id="opening-cost-title" className="text-lg font-semibold text-gray-900">Value Existing Stock</h3>
             <p className="mt-1 text-sm text-gray-600">{product.product_name} · {unvaluedQuantity.toLocaleString()} {product.unit_of_measure} have no FIFO cost layer.</p>
           </div>
-          <button type="button" onClick={onClose} aria-label="Close" className="text-gray-500 hover:text-gray-800"><X size={20} /></button>
         </div>
         <p className="rounded-lg bg-amber-50 p-3 text-sm text-amber-900">Enter the verified opening cost and date for existing stock. This records a cost layer only; it does not add physical quantity.</p>
         {error && <p role="alert" className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">{error}</p>}

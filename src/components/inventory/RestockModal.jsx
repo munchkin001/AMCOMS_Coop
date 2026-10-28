@@ -1,5 +1,4 @@
 import React, { useState } from 'react';
-import { X } from 'lucide-react';
 import { restockProduct } from '../../lib/inventoryService';
 
 const inputClass = 'w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-500/30';
@@ -52,7 +51,6 @@ const RestockModal = ({ product, currentStock, onClose, onSaved }) => {
             <h3 id="restock-title" className="text-lg font-semibold text-gray-900">Restock Product</h3>
             <p className="text-sm text-gray-600">{product.product_name} ({product.product_code})</p>
           </div>
-          <button type="button" onClick={onClose} aria-label="Close" className="text-gray-500 hover:text-gray-800"><X size={20} /></button>
         </div>
         <p className="mb-4 text-sm text-gray-600">Current stock: <strong>{currentStock.toLocaleString()} {product.unit_of_measure}</strong></p>
         {formError && <p role="alert" className="mb-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">{formError}</p>}
