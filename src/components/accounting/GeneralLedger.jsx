@@ -11,8 +11,8 @@ const tabs = [
   { id: 'journal', label: 'Journal Entries' },
   { id: 'trial-balance', label: 'Trial Balance' },
   { id: 'statements', label: 'Financial Statements', hideFor: ['bookkeeper'] },
-  { id: 'review', label: 'Discrepancies and Audit', hideFor: ['bookkeeper'] },
-  { id: 'rules', label: 'Posting Rules', hideFor: ['bookkeeper'] }
+  { id: 'review', label: 'Discrepancies and Audit', hideFor: ['bookkeeper', 'manager'] },
+  { id: 'rules', label: 'Posting Rules', hideFor: ['bookkeeper', 'manager'] }
 ];
 
 const GeneralLedger = () => {
