@@ -280,9 +280,12 @@ const StaffLayout = ({ children }) => {
         </div>
 
         {/* Page Content */}
-        <div className="amcoms-portal-content flex-1 overflow-auto p-4 lg:p-8">
+        <a href="#staff-main-content" className="sr-only z-[100] rounded-lg bg-white px-4 py-3 font-semibold text-slate-900 focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:shadow-lg">
+          Skip to main content
+        </a>
+        <main id="staff-main-content" tabIndex="-1" className="amcoms-portal-content flex-1 overflow-auto p-4 lg:p-8">
           {children}
-        </div>
+        </main>
       </div>
 
       {/* Logout Confirmation Modal */}

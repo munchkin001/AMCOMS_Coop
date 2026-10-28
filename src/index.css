@@ -6,10 +6,13 @@
   color-scheme: light;
   --amcoms-ink: #10233f;
   --amcoms-primary: #173a69;
+  --amcoms-primary-hover: #102e56;
   --amcoms-accent: #d7ad52;
   --amcoms-canvas: #f3f6fa;
   --amcoms-border: #dce4ee;
   --amcoms-muted: #64748b;
+  --amcoms-focus: #3b6ea8;
+  --amcoms-card-shadow: 0 1px 2px rgb(16 35 63 / 4%), 0 8px 22px rgb(16 35 63 / 3%);
 }
 
 html {
@@ -42,6 +45,7 @@ button:disabled {
 input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
 select,
 textarea {
+  min-height: 2.75rem;
   border-radius: 0.65rem;
   border-color: var(--amcoms-border);
   color: var(--amcoms-ink);
@@ -51,9 +55,9 @@ textarea {
 input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):focus,
 select:focus,
 textarea:focus {
-  border-color: #3b6ea8;
+  border-color: var(--amcoms-focus);
   outline: none;
-  box-shadow: 0 0 0 3px rgb(59 110 168 / 16%);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--amcoms-focus) 16%, transparent);
 }
 
 input::placeholder,
@@ -67,25 +71,74 @@ input[type="radio"] {
 }
 
 .amcoms-portal-shell {
+  height: 100vh;
+  height: 100dvh;
   background: var(--amcoms-canvas);
   color: var(--amcoms-ink);
+}
+
+.amcoms-member-portal {
+  --amcoms-primary: #146344;
+  --amcoms-primary-hover: #0d3b2d;
+  --amcoms-focus: #16835a;
 }
 
 .amcoms-portal-content {
   background:
     radial-gradient(ellipse at top right, rgb(220 232 246 / 28%), transparent 34rem),
     var(--amcoms-canvas);
+  color: var(--amcoms-ink);
+  font-size: 0.9375rem;
+  line-height: 1.6;
+  scrollbar-gutter: stable;
+}
+
+#root .amcoms-portal-content :is(.text-xs, .text-\[11px\]) {
+  font-size: 0.8125rem;
+  line-height: 1.45;
+}
+
+#root .amcoms-portal-content .text-sm {
+  font-size: 0.9375rem;
+  line-height: 1.55;
 }
 
 #root .amcoms-portal-content :is(div, section, article)[class~="bg-white"][class~="border"] {
   border-color: var(--amcoms-border);
   border-radius: 1rem;
-  box-shadow: 0 1px 2px rgb(16 35 63 / 4%), 0 8px 22px rgb(16 35 63 / 3%);
+  box-shadow: var(--amcoms-card-shadow);
+}
+
+#root .amcoms-portal-content button:not(:disabled) {
+  min-height: 2.75rem;
+  transition:
+    background-color 150ms ease,
+    border-color 150ms ease,
+    color 150ms ease,
+    box-shadow 150ms ease,
+    transform 150ms ease;
+}
+
+#root .amcoms-portal-content button:focus-visible,
+#root .amcoms-portal-shell nav a:focus-visible,
+#root .amcoms-portal-shell nav button:focus-visible {
+  outline: 3px solid color-mix(in srgb, var(--amcoms-focus) 65%, white);
+  outline-offset: 2px;
+}
+
+#root .amcoms-portal-content :is(input, select, textarea, [contenteditable="true"]) {
+  font-size: 1rem;
+}
+
+#root .amcoms-portal-content textarea {
+  min-height: 6rem;
+  line-height: 1.6;
 }
 
 #root .amcoms-portal-content table {
   border-collapse: separate;
   border-spacing: 0;
+  font-size: 0.875rem;
 }
 
 #root .amcoms-portal-content thead {
@@ -94,10 +147,16 @@ input[type="radio"] {
 
 #root .amcoms-portal-content thead th {
   color: #475569;
-  font-size: 0.68rem;
+  font-size: 0.75rem;
   font-weight: 800;
   letter-spacing: 0.055em;
   text-transform: uppercase;
+  line-height: 1.45;
+  padding: 0.85rem 1rem;
+}
+
+#root .amcoms-portal-content tbody :is(td, th) {
+  padding: 0.85rem 1rem;
 }
 
 #root .amcoms-portal-content tbody tr {
@@ -106,6 +165,31 @@ input[type="radio"] {
 
 #root .amcoms-portal-content tbody tr:hover {
   background-color: #f4f8fd;
+}
+
+@media (max-width: 640px) {
+  #root .amcoms-portal-content {
+    font-size: 0.9375rem;
+  }
+
+  #root .amcoms-portal-content :is(div, section, article)[class~="bg-white"][class~="border"] {
+    border-radius: 0.875rem;
+  }
+
+  #root .amcoms-portal-content :is(table, [role="table"]) {
+    font-size: 0.875rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }
 
 /* Custom animations */

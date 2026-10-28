@@ -383,8 +383,8 @@ const MemberPortal = () => {
                   <div className="hidden text-right md:block">
                     <p className="text-sm font-medium text-gray-900">{staff?.full_name || 'Member'}</p>
                   </div>
-                  <div className="h-9 w-9 shrink-0 md:h-10 md:w-10 bg-indigo-100 rounded-full flex items-center justify-center">
-                    <span className="text-indigo-600 font-semibold">{staff?.full_name?.charAt(0) || 'M'}</span>
+                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-emerald-100 bg-emerald-50 md:h-10 md:w-10">
+                    <span className="font-semibold text-emerald-800">{staff?.full_name?.charAt(0) || 'M'}</span>
                   </div>
                   <svg className="w-4 h-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
@@ -406,9 +406,12 @@ const MemberPortal = () => {
           </div>
         </div>
 
-        <div className="amcoms-portal-content flex-1 overflow-auto p-4 pb-24 md:p-8 md:pb-8">
+        <a href="#member-main-content" className="sr-only z-[100] rounded-lg bg-white px-4 py-3 font-semibold text-slate-900 focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:shadow-lg">
+          Skip to main content
+        </a>
+        <main id="member-main-content" tabIndex="-1" className="amcoms-portal-content flex-1 overflow-auto p-4 pb-24 md:p-8 md:pb-8">
           {renderModule()}
-        </div>
+        </main>
 
         <nav aria-label="Member quick navigation" className="fixed inset-x-0 bottom-0 z-30 grid grid-cols-5 border-t border-gray-200 bg-white pb-[env(safe-area-inset-bottom)] shadow-[0_-2px_8px_rgba(0,0,0,0.05)] md:hidden">
           {[
