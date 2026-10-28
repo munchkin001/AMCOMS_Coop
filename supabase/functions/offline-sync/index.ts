@@ -18,6 +18,7 @@ const operationTypes = new Set([
   "cooperative_sale",
   "member_dividend",
   "loan_application",
+  "bookkeeper_loan_application",
   "production_record",
   "journal_entry",
   "journal_reversal",
@@ -103,11 +104,16 @@ Deno.serve(async (req) => {
     );
   }
 
-  const { data, error } = await supabase.rpc("sync_offline_operation", {
-    p_operation_id: operation.operationId,
-    p_operation_type: operation.type,
-    p_payload: operation.payload,
-  });
+  const { data, error } = operation.type === "bookkeeper_loan_application"
+    ? await supabase.rpc("sync_bookkeeper_loan_application", {
+      p_operation_id: operation.operationId,
+      p_payload: operation.payload,
+    })
+    : await supabase.rpc("sync_offline_operation", {
+      p_operation_id: operation.operationId,
+      p_operation_type: operation.type,
+      p_payload: operation.payload,
+    });
 
   if (error) {
     console.error("Offline operation rejected:", error.message);

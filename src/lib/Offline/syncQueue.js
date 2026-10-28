@@ -15,6 +15,7 @@ const OPERATION_METADATA = {
   cash_disbursement_delete: { module: "accounting", operation: "cash disbursement deletion" },
   cooperative_sale: { module: "sales", operation: "sale or collection" },
   loan_application: { module: "loans", operation: "loan application" },
+  bookkeeper_loan_application: { module: "loans", operation: "bookkeeper loan application" },
   journal_entry: { module: "accounting", operation: "journal entry" },
   journal_reversal: { module: "accounting", operation: "journal reversal" },
 };

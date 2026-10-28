@@ -232,7 +232,7 @@ async function runSync() {
       inventoryMovementSynced ||= operation.type === "inventory_movement";
       productionSynced ||= operation.type === "production_record";
       salesSynced ||= operation.type === "cooperative_sale";
-      loanApplicationSynced ||= operation.type === "loan_application";
+      loanApplicationSynced ||= ["loan_application", "bookkeeper_loan_application"].includes(operation.type);
       syncedCount += 1;
     } catch (syncError) {
       let message = syncError instanceof Error

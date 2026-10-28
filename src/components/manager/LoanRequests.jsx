@@ -5,6 +5,8 @@ import { useAuth } from '../../contexts/AuthContext';
 import { useMultipleRealtimeSubscriptions } from '../../hooks/useRealtimeSubscription';
 import LoadingSpinner from '../common/LoadingSpinner';
 import { getDataLoadErrorMessage } from '../../lib/errorHandler';
+import { queueOperation, getOperation } from '../../lib/Offline/syncQueue';
+import { syncPendingOperations } from '../../lib/Offline/syncOperations';
 
 const today = () => new Date().toISOString().slice(0, 10);
 const formatMoney = (value) => `₱${Number(value || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })}`;
@@ -72,7 +74,7 @@ const LoanReleaseCard = ({ loan, onRelease, busy }) => {
 };
 
 const LoanRequests = () => {
-  const { staff } = useAuth();
+  const { user, staff, offlineMode } = useAuth();
   const canReview = staff?.role === 'manager';
   const canRelease = staff?.role === 'bookkeeper';
   const canViewQueue = ['manager', 'bookkeeper'].includes(staff?.role);
@@ -81,10 +83,13 @@ const LoanRequests = () => {
   const [requests, setRequests] = useState([]);
   const [approvedLoans, setApprovedLoans] = useState([]);
   const [selectedMember, setSelectedMember] = useState('');
+  const [memberName, setMemberName] = useState('');
   const [loanType, setLoanType] = useState('');
   const [amount, setAmount] = useState('');
   const [purpose, setPurpose] = useState('');
   const [selectedTerm, setSelectedTerm] = useState('');
+  const [termMonths, setTermMonths] = useState('');
+  const [paymentFrequency, setPaymentFrequency] = useState('');
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState(null);
   const [savingApplication, setSavingApplication] = useState(false);
@@ -199,19 +204,88 @@ const LoanRequests = () => {
     event.preventDefault();
     setError('');
     setNotice('');
-    if (!selectedMember || !loanType.trim() || !purpose.trim() || !selectedTerm || !Number.isFinite(Number(amount)) || Number(amount) <= 0) {
+    const manuallyEnteringMember = members.length === 0;
+    const manuallyEnteringTerm = terms.length === 0;
+    const member = members.find((candidate) => candidate.id === selectedMember);
+    const resolvedMemberName = manuallyEnteringMember
+      ? memberName.trim()
+      : member ? fullName(member) : '';
+    const term = manuallyEnteringTerm
+      ? { term_months: Number(termMonths), payment_frequency: paymentFrequency }
+      : terms.find((option) => option.id === selectedTerm);
+    if (
+      !resolvedMemberName ||
+      !loanType.trim() ||
+      !purpose.trim() ||
+      !term ||
+      !Number.isInteger(Number(term.term_months)) ||
+      Number(term.term_months) <= 0 ||
+      !['monthly', 'weekly'].includes(term.payment_frequency) ||
+      !Number.isFinite(Number(amount)) ||
+      Number(amount) <= 0
+    ) {
       setError('Complete all loan application fields with a valid amount.');
-      return;
-    }
-
-    const term = terms.find((option) => option.id === selectedTerm);
-    if (!term) {
-      setError('Select an available repayment term.');
       return;
     }
 
     setSavingApplication(true);
     try {
+      if (manuallyEnteringMember || !navigator.onLine || offlineMode) {
+        const operationId = await queueOperation({
+          type: 'bookkeeper_loan_application',
+          payload: {
+            p_member_name: resolvedMemberName,
+            p_amount: Number(amount),
+            p_loan_type: loanType.trim(),
+            p_purpose: purpose.trim(),
+            p_term_months: Number(term.term_months),
+            p_frequency: term.payment_frequency
+          },
+          userId: user?.id,
+          actorRole: staff?.role,
+          actorName: staff?.full_name,
+          allowLocalQueue: true,
+          summary: `Loan application for ${resolvedMemberName}`,
+          details: {
+            memberName: resolvedMemberName,
+            amount: Number(amount),
+            termMonths: Number(term.term_months),
+            paymentFrequency: term.payment_frequency,
+            localRecordedAt: new Date().toISOString(),
+          },
+        });
+        setNotice('Loan application saved on this device. It will be matched to an active member and checked against current repayment terms when online.');
+        if (navigator.onLine && !offlineMode) {
+          try {
+            await syncPendingOperations();
+            let operation = await getOperation(operationId);
+            if (operation?.status === 'pending') {
+              await syncPendingOperations();
+              operation = await getOperation(operationId);
+            }
+            if (operation?.status === 'synced') {
+              setNotice('Member matched and loan application sent to the Manager for review.');
+              setMemberName('');
+              setSelectedMember('');
+              setLoanType('');
+              setAmount('');
+              setPurpose('');
+              setSelectedTerm('');
+              setTermMonths('');
+              setPaymentFrequency('');
+              await load();
+            } else if (operation?.status === 'failed') {
+              setError(operation.lastError || 'The loan application could not be verified and submitted.');
+              setNotice('');
+            }
+          } catch (syncError) {
+            console.error('Loan application was saved but could not be synchronized:', syncError);
+            setError(`Saved on this device, but synchronization could not finish: ${syncError.message || 'try again when online.'}`);
+          }
+        }
+        return;
+      }
+
       const { error: submitError } = await supabase.rpc('submit_loan_request_for_member', {
         p_member_id: selectedMember,
         p_amount: Number(amount),
@@ -222,10 +296,13 @@ const LoanRequests = () => {
       });
       if (submitError) throw submitError;
       setSelectedMember('');
+      setMemberName('');
       setLoanType('');
       setAmount('');
       setPurpose('');
       setSelectedTerm('');
+      setTermMonths('');
+      setPaymentFrequency('');
       setNotice('Loan application sent to the Manager for review.');
       await load();
     } catch (submitError) {
@@ -261,10 +338,17 @@ const LoanRequests = () => {
           <form onSubmit={submitApplication} className="mt-4 grid gap-4 sm:grid-cols-2">
             <label className="text-sm font-medium text-gray-700">
               Member *
-              <select required value={selectedMember} onChange={(event) => setSelectedMember(event.target.value)} className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2">
-                <option value="">Select a member</option>
-                {members.map((member) => <option key={member.id} value={member.id}>{fullName(member)} · {member.member_number}</option>)}
-              </select>
+              {members.length === 0 ? (
+                <>
+                  <input required maxLength={200} value={memberName} onChange={(event) => setMemberName(event.target.value)} placeholder="Enter member's full name" className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2" />
+                  <span className="mt-1 block text-xs text-amber-800">The server will submit only if exactly one active member has this full name.</span>
+                </>
+              ) : (
+                <select required value={selectedMember} onChange={(event) => setSelectedMember(event.target.value)} className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2">
+                  <option value="">Select a member</option>
+                  {members.map((member) => <option key={member.id} value={member.id}>{fullName(member)} · {member.member_number}</option>)}
+                </select>
+              )}
             </label>
             <label className="text-sm font-medium text-gray-700">
               Loan type *
@@ -279,17 +363,31 @@ const LoanRequests = () => {
             </label>
             <label className="text-sm font-medium text-gray-700">
               Repayment term *
-              <select required value={selectedTerm} onChange={(event) => setSelectedTerm(event.target.value)} className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2">
-                <option value="">Select a term</option>
-                {terms.map((term) => <option key={term.id} value={term.id}>{term.term_months} months · {term.payment_frequency}</option>)}
-              </select>
+              {terms.length === 0 ? (
+                <>
+                  <div className="mt-1 grid grid-cols-2 gap-2">
+                    <input required type="number" min="1" step="1" value={termMonths} onChange={(event) => setTermMonths(event.target.value)} placeholder="Months" aria-label="Repayment term in months" className="w-full rounded-lg border border-gray-300 px-3 py-2" />
+                    <select required value={paymentFrequency} onChange={(event) => setPaymentFrequency(event.target.value)} aria-label="Payment frequency" className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2">
+                      <option value="" disabled>Select frequency</option>
+                      <option value="monthly">Monthly</option>
+                      <option value="weekly">Weekly</option>
+                    </select>
+                  </div>
+                  <span className="mt-1 block text-xs text-amber-800">The server will accept this only if it matches an active configured repayment term.</span>
+                </>
+              ) : (
+                <select required value={selectedTerm} onChange={(event) => setSelectedTerm(event.target.value)} className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2">
+                  <option value="">Select a term</option>
+                  {terms.map((term) => <option key={term.id} value={term.id}>{term.term_months} months · {term.payment_frequency}</option>)}
+                </select>
+              )}
             </label>
             <label className="text-sm font-medium text-gray-700 sm:col-span-2">
               Purpose *
               <textarea required maxLength={500} value={purpose} onChange={(event) => setPurpose(event.target.value)} rows={3} className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2" />
             </label>
-            <button type="submit" disabled={savingApplication || members.length === 0 || terms.length === 0} className="rounded-lg bg-blue-700 px-4 py-2 font-semibold text-white hover:bg-blue-800 disabled:opacity-50 sm:col-span-2">
-              {savingApplication ? 'Submitting...' : 'Send for Manager approval'}
+            <button type="submit" disabled={savingApplication} className="rounded-lg bg-blue-700 px-4 py-2 font-semibold text-white hover:bg-blue-800 disabled:opacity-50 sm:col-span-2">
+              {savingApplication ? 'Submitting...' : !navigator.onLine || offlineMode ? 'Save loan application offline' : 'Send for Manager approval'}
             </button>
           </form>
         </section>

@@ -29,6 +29,7 @@ offlineDb.version(3).stores({
     cash_disbursement_delete: ["accounting", "cash disbursement deletion"],
     cooperative_sale: ["sales", "sale or collection"],
     loan_application: ["loans", "loan application"],
+    bookkeeper_loan_application: ["loans", "bookkeeper loan application"],
     journal_entry: ["accounting", "journal entry"],
     journal_reversal: ["accounting", "journal reversal"],
   }[operation.type] || ["other", "operation"];
