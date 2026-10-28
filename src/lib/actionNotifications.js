@@ -176,7 +176,8 @@ export const withActionNotifications = (client) => new Proxy(client, {
           if (!authMessages[authProperty]) return authValue.bind(authTarget);
           return async (...args) => {
             const response = await authValue.apply(authTarget, args);
-            if (!response?.error && authMessages[authProperty]) {
+            const isLocalSessionCleanup = authProperty === 'signOut' && args[0]?.scope === 'local';
+            if (!response?.error && authMessages[authProperty] && !isLocalSessionCleanup) {
               emitActionNotification(authMessages[authProperty]);
             }
             return response;
