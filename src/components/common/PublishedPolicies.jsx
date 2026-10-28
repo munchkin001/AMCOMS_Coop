@@ -4,6 +4,7 @@ import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import { useMultipleRealtimeSubscriptions } from '../../hooks/useRealtimeSubscription';
 import { getDataLoadErrorMessage } from '../../lib/errorHandler';
+import RichTextContent from './RichTextContent';
 
 const formatDate = (value) => {
   if (!value) return '—';
@@ -27,7 +28,7 @@ const PublishedPolicies = () => {
         .from('policies')
         .select('id, name, category, content, target_audience, published_at, published_by')
         .eq('status', 'published')
-        .eq('target_audience', audience)
+        .in('target_audience', [audience, 'both'])
         .order('published_at', { ascending: false });
       if (loadError) throw loadError;
       setPolicies(data || []);
@@ -97,7 +98,7 @@ const PublishedPolicies = () => {
                 </button>
                 {expanded && (
                   <div className="border-t border-gray-100 px-4 py-5 sm:px-5">
-                    <p className="whitespace-pre-wrap break-words text-sm leading-6 text-gray-700">{policy.content}</p>
+                    <RichTextContent content={policy.content} className="break-words text-sm leading-6 text-gray-700" />
                   </div>
                 )}
               </article>

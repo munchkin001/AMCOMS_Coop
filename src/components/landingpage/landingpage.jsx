@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
 import { BadgeDollarSign, Check, ChevronDown, ClipboardList, IdCard, Sprout, Store } from 'lucide-react';
 import CooperativeMap from './CooperativeMap';
+import RichTextContent from '../common/RichTextContent';
 import './landingpage.css';
 
 
@@ -284,7 +285,7 @@ const Announcements = () => {
                   {new Date(item.published_at).toLocaleDateString('en-PH', { year: 'numeric', month: 'long', day: 'numeric' })}
                 </p>
                 <h3 className="mt-2 text-lg font-semibold text-gray-900">{item.title}</h3>
-                <p className="mt-2 text-sm text-gray-600 whitespace-pre-line">{item.content}</p>
+                <RichTextContent content={item.content} className="mt-2 break-words text-sm text-gray-600" />
               </article>
             ))}
           </div>

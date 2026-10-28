@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { supabase } from '../../lib/supabase';
 import { useMultipleRealtimeSubscriptions } from '../../hooks/useRealtimeSubscription';
 import EmptyState from '../common/EmptyState';
+import RichTextContent from '../common/RichTextContent';
 
 const priorityStyles = {
   urgent: 'bg-red-100 text-red-800',
@@ -66,7 +67,7 @@ const MemberAnnouncements = () => {
           <p className="mt-1 text-xs text-gray-500">
             {new Date(a.published_at).toLocaleDateString('en-PH', { month: 'long', day: 'numeric', year: 'numeric' })}
           </p>
-          <p className="mt-3 whitespace-pre-line text-sm text-gray-700">{a.content}</p>
+          <RichTextContent content={a.content} className="mt-3 break-words text-sm text-gray-700" />
         </article>
       ))}
     </div>

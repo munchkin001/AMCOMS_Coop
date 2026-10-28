@@ -4,6 +4,9 @@ import { useAuth } from '../../contexts/AuthContext';
 import { useRealtimeSubscription } from '../../hooks/useRealtimeSubscription';
 import useToast from '../../hooks/useToast';
 import ToastContainer from '../common/ToastContainer';
+import RichTextContent from '../common/RichTextContent';
+import RichTextEditor from '../common/RichTextEditor';
+import { richTextToPlainText, sanitizeRichTextHtml } from '../../lib/richText';
 
 const roleKeys = {
   allMembers: 'member',
@@ -113,7 +116,8 @@ const Announcements = () => {
   };
 
   const handlePublish = async () => {
-    if (!subject.trim() || !message.trim()) {
+    const plainMessage = richTextToPlainText(message);
+    if (!subject.trim() || !plainMessage) {
       warning('Please fill in subject and message.');
       return;
     }
@@ -128,7 +132,7 @@ const Announcements = () => {
         const groups = Object.entries(recipients).filter(([, selected]) => selected).map(([group]) => group);
         if (groups.length === 0) throw new Error('Select at least one member or staff group to send SMS.');
         const { data, error: smsError } = await supabase.functions.invoke('semaphore-sms', {
-          body: { action: 'send-group', groups, message: `${subject.trim()}\n\n${message.trim()}` }
+          body: { action: 'send-group', groups, message: `${subject.trim()}\n\n${plainMessage}` }
         });
         if (smsError) {
           let serverMessage;
@@ -155,7 +159,7 @@ const Announcements = () => {
     const targetRoles = [...new Set([...Object.entries(recipients).filter(([, selected]) => selected).map(([key]) => roleKeys[key]), 'public'])];
     const { error: insertError } = await supabase.from('announcements').insert({
       title: subject.trim(),
-      content: message.trim(),
+      content: sanitizeRichTextHtml(message),
       target_roles: targetRoles,
       published_by: staff?.id || null
     });
@@ -218,12 +222,11 @@ const Announcements = () => {
               {/* Message */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">Message</label>
-                <textarea
+                <RichTextEditor
+                  id="announcement-message"
                   value={message}
-                  onChange={(e) => setMessage(e.target.value)}
+                  onChange={setMessage}
                   placeholder="Type your announcement..."
-                  rows={8}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 />
               </div>
 
@@ -306,6 +309,9 @@ const Announcements = () => {
                   />
                   <span className="text-sm text-gray-700">Also send via SMS (Signature)</span>
                 </label>
+                {alsoSendViaSMS && (
+                  <p className="ml-6 mt-1 text-xs text-gray-500">SMS supports plain text only; font, color, and other styling will be omitted.</p>
+                )}
               </div>
 
               {/* Action Buttons */}
@@ -357,7 +363,7 @@ const Announcements = () => {
                 <div className="flex items-center space-x-3 mb-2">
                   <h5 className="font-semibold text-gray-900">{announcement.subject}</h5>
                 </div>
-                <p className="text-sm text-gray-600 mb-2">{announcement.message}</p>
+                <RichTextContent content={announcement.message} className="mb-2 break-words text-sm text-gray-600" />
                 <div className="flex items-center space-x-4 text-xs text-gray-500">
                   <span>{announcement.date}</span>
                   <span>• Recipients: {announcement.recipients.join(', ')}</span>

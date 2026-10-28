@@ -175,7 +175,10 @@ const SMSCenter = () => {
           <div>
             <label htmlFor="sms-message" className="mb-1.5 block text-sm font-medium text-gray-800">Message</label>
             <textarea id="sms-message" value={message} onChange={(event) => setMessage(event.target.value)} rows={4} maxLength={2000} required placeholder="Write your message" className="w-full resize-y rounded-md border border-gray-300 px-3 py-2.5 text-sm focus:border-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-700/20" />
-            <p className="mt-1 text-right text-xs text-gray-500">{message.length}/2000 characters</p>
+            <p className="mt-1 flex justify-between gap-3 text-xs text-gray-500">
+              <span>SMS supports plain text; font and color formatting are not transmitted.</span>
+              <span>{message.length}/2000 characters</span>
+            </p>
           </div>
           <button type="submit" disabled={sending || !phone.trim() || !message.trim()} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-md bg-blue-700 px-5 py-2.5 text-sm font-semibold text-white hover:bg-blue-800 disabled:cursor-not-allowed disabled:opacity-50">
             <Send size={17} aria-hidden="true" />{sending ? 'Sending…' : 'Send SMS'}

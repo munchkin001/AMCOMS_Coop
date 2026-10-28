@@ -4,6 +4,9 @@ import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import { useMultipleRealtimeSubscriptions } from '../../hooks/useRealtimeSubscription';
 import { getDataLoadErrorMessage } from '../../lib/errorHandler';
+import { richTextToPlainText, sanitizeRichTextHtml } from '../../lib/richText';
+import RichTextContent from '../common/RichTextContent';
+import RichTextEditor from '../common/RichTextEditor';
 
 const categoryIcons = {
   Loans: HandCoins,
@@ -101,7 +104,7 @@ const Policies = () => {
   );
 
   const handleCreatePolicy = async () => {
-    if (!policyForm.name.trim() || !policyForm.category || !policyForm.content.trim()) {
+    if (!policyForm.name.trim() || !policyForm.category || !richTextToPlainText(policyForm.content)) {
       setError('Policy name, category, and content are required.');
       return;
     }
@@ -112,7 +115,7 @@ const Policies = () => {
       const payload = {
         name: policyForm.name.trim(),
         category: policyForm.category,
-        content: policyForm.content.trim(),
+        content: sanitizeRichTextHtml(policyForm.content),
         status: policyForm.status,
         published_at: isPublished ? new Date().toISOString() : null,
         published_by: isPublished ? staff?.full_name || null : null
@@ -203,7 +206,15 @@ const Policies = () => {
     return <CategoryIcon aria-hidden="true" className={className} />;
   };
 
-  const visiblePolicies = policies.filter((policy) => (policy.target_audience || 'staff') === policyAudience);
+  const visiblePolicies = policies.filter((policy) => (
+    (policy.target_audience || 'staff') === policyAudience
+    || policy.target_audience === 'both'
+  ));
+  const getAudienceLabel = (audience) => ({
+    staff: 'Staff',
+    member: 'Members',
+    both: 'Staff and Members'
+  }[audience] || 'Staff');
 
   return (
     <div className="space-y-6 pb-8">
@@ -315,14 +326,14 @@ const Policies = () => {
                 <div className="flex flex-wrap items-center gap-3">
                   <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-slate-700">{getCategoryIcon(policy.category)}</span>
                   <h3 className="text-base font-semibold text-slate-900">{policy.name}</h3>
-                  <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${policy.target_audience === 'member' ? 'bg-green-100 text-green-800' : 'bg-blue-100 text-blue-800'}`}>
-                    For {policy.target_audience === 'member' ? 'Members' : 'Staff'}
+                  <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${policy.target_audience === 'member' ? 'bg-green-100 text-green-800' : policy.target_audience === 'both' ? 'bg-purple-100 text-purple-800' : 'bg-blue-100 text-blue-800'}`}>
+                    For {getAudienceLabel(policy.target_audience)}
                   </span>
                   <span className={`rounded-full px-2.5 py-1 text-xs font-semibold border ${getStatusColor(policy.status)}`}>
                     {policy.status === 'published' ? 'Published' : 'Draft'}
                   </span>
                 </div>
-                <p className="mt-4 line-clamp-2 text-sm leading-6 text-slate-600">{policy.content}</p>
+                <RichTextContent content={policy.content} className="mt-4 line-clamp-2 break-words text-sm leading-6 text-slate-600" />
                 <div className="mt-4 flex flex-wrap items-center gap-x-5 gap-y-2 text-xs text-slate-500">
                   <span>Category <span className="font-semibold text-slate-700">{policy.category}</span></span>
                   <span>Updated <span className="font-semibold text-slate-700">{policy.lastUpdated}</span></span>
@@ -404,6 +415,7 @@ const Policies = () => {
                 >
                   <option value="staff">Staff only</option>
                   <option value="member">Members</option>
+                  <option value="both">Staff and Members</option>
                 </select>
                 <p className="mt-1 text-xs text-slate-500">
                   {audienceColumnAvailable
@@ -435,12 +447,11 @@ const Policies = () => {
                 <label className="mb-2 block text-sm font-medium text-slate-700">
                   Policy Content *
                 </label>
-                <textarea
+                <RichTextEditor
+                  id="policy-content"
                   value={policyForm.content}
-                  onChange={(e) => setPolicyForm({ ...policyForm, content: e.target.value })}
+                  onChange={(content) => setPolicyForm((current) => ({ ...current, content }))}
                   placeholder="Enter the full policy content..."
-                  rows={10}
-                  className="w-full resize-y rounded-lg border border-slate-300 px-3.5 py-2.5 text-sm leading-6 text-slate-900 placeholder:text-slate-400 focus:border-emerald-600 focus:outline-none focus:ring-2 focus:ring-emerald-600/20"
                 />
               </div>
 
@@ -516,7 +527,7 @@ const Policies = () => {
                   <div>
                     <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Audience</p>
                     <p className="mt-2 text-sm font-medium text-slate-900">
-                      {selectedPolicy.target_audience === 'member' ? 'Members' : 'Staff'}
+                      {getAudienceLabel(selectedPolicy.target_audience)}
                     </p>
                   </div>
                   <div>
@@ -541,7 +552,7 @@ const Policies = () => {
               <div className="border-t border-slate-200 pt-5">
                 <h4 className="text-sm font-semibold uppercase tracking-wide text-slate-500">Policy content</h4>
                 <div className="mt-3 rounded-xl bg-slate-50 p-4 sm:p-5">
-                  <p className="whitespace-pre-wrap text-sm leading-7 text-slate-700">{selectedPolicy.content}</p>
+                  <RichTextContent content={selectedPolicy.content} className="break-words text-sm leading-7 text-slate-700" />
                 </div>
               </div>
             </div>
@@ -579,7 +590,7 @@ const Policies = () => {
               </div>
               <h3 className="text-xl font-bold text-gray-900 text-center mb-2">Publish Policy</h3>
               <p className="text-gray-600 text-center mb-6">
-                Publish this policy for {policies.find((policy) => policy.id === policyToPublish)?.target_audience === 'member' ? 'members' : 'staff'}?
+                Publish this policy for {getAudienceLabel(policies.find((policy) => policy.id === policyToPublish)?.target_audience)}?
               </p>
               <div className="flex space-x-3">
                 <button
