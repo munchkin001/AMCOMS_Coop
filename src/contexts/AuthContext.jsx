@@ -25,6 +25,7 @@ export const AuthProvider = ({ children }) => {
   const [authError, setAuthError] = useState(null);
   const [offlineMode, setOfflineMode] = useState(false);
   const offlineModeRef = useRef(false);
+  const suppressLocalSignOutRef = useRef(false);
 
   const logAuthEvent = useCallback(async (event) => {
     let lastError = null;
@@ -176,6 +177,10 @@ export const AuthProvider = ({ children }) => {
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'SIGNED_OUT' && suppressLocalSignOutRef.current) {
+        return;
+      }
+
       if (session?.user && !navigator.onLine) {
         setSession(null);
         if (!offlineModeRef.current) {
@@ -268,6 +273,17 @@ export const AuthProvider = ({ children }) => {
       setAuthError(null);
       offlineModeRef.current = false;
       setOfflineMode(false);
+
+      suppressLocalSignOutRef.current = true;
+      try {
+        const { error: sessionError } = await supabase.auth.signOut({ scope: 'local' });
+        if (sessionError) throw sessionError;
+      } finally {
+        suppressLocalSignOutRef.current = false;
+      }
+      setSession(null);
+      setUser(null);
+      setStaff(null);
 
       const { data: staffData, error: lookupError } = await findStaffByLoginIdentifier(identifier);
 
