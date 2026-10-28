@@ -16,7 +16,6 @@ const SMSCenter = () => {
   const [loadingHistory, setLoadingHistory] = useState(true);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState('');
-  const [notice, setNotice] = useState('');
   const [creditBalance, setCreditBalance] = useState(null);
   const [accountName, setAccountName] = useState('');
   const [balanceError, setBalanceError] = useState('');
@@ -102,11 +101,10 @@ const SMSCenter = () => {
   const handleSendSMS = async (event) => {
     event.preventDefault();
     setError('');
-    setNotice('');
     setSending(true);
 
     try {
-      const { data, error: sendError } = await supabase.functions.invoke('semaphore-sms', {
+      const { error: sendError } = await supabase.functions.invoke('semaphore-sms', {
         body: { action: 'send', phone, message }
       });
       if (sendError) {
@@ -119,9 +117,6 @@ const SMSCenter = () => {
         throw new Error(messageFromServer || 'The SMS could not be sent. Please try again.');
       }
 
-      setNotice(data?.failed_count
-        ? `Sent ${data.sent_count} message(s); ${data.failed_count} failed.`
-        : `SMS accepted for delivery to ${phone.trim()}.`);
       setPhone('');
       setMessage('');
       await loadHistory();
@@ -167,7 +162,6 @@ const SMSCenter = () => {
         <h2 className="text-lg font-semibold text-gray-950">Send SMS</h2>
         <form onSubmit={handleSendSMS} className="mt-4 space-y-4">
           {error && <p role="alert" className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">{error}</p>}
-          {notice && <p role="status" className="rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-900">{notice}</p>}
           <div>
             <label htmlFor="sms-phone" className="mb-1.5 block text-sm font-medium text-gray-800">Mobile number</label>
             <input id="sms-phone" type="tel" inputMode="tel" autoComplete="tel" value={phone} onChange={(event) => setPhone(event.target.value)} placeholder="09XXXXXXXXX" required maxLength={24} className="w-full rounded-md border border-gray-300 px-3 py-2.5 text-sm focus:border-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-700/20" />

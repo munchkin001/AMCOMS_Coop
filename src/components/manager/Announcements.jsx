@@ -42,7 +42,7 @@ const Announcements = () => {
   const [announcements, setAnnouncements] = useState([]);
   const [announcementToDiscard, setAnnouncementToDiscard] = useState(null);
   const [discarding, setDiscarding] = useState(false);
-  const { toasts, removeToast, success, error: showError, warning, info } = useToast();
+  const { toasts, removeToast, error: showError, warning, info } = useToast();
 
   const loadAnnouncements = useCallback(async () => {
     const { data, error } = await supabase
@@ -86,7 +86,6 @@ const Announcements = () => {
       return;
     }
     setAnnouncementToDiscard(null);
-    success('Announcement discarded.');
     loadAnnouncements();
   };
 
@@ -144,9 +143,6 @@ const Announcements = () => {
           throw new Error(serverMessage || 'SMS delivery failed. The announcement was not published.');
         }
         if (!data?.sent_count) throw new Error('No SMS recipients with valid mobile numbers were found.');
-        const sentMessage = `${data.sent_count} SMS message(s) accepted${data.failed_count ? `; ${data.failed_count} failed` : ''}.`;
-        if (data.failed_count) warning(sentMessage);
-        else success(sentMessage);
       } catch (smsError) {
         showError(smsError.message || 'SMS delivery failed. The announcement was not published.');
         setSending(false);
@@ -169,7 +165,6 @@ const Announcements = () => {
       return;
     }
 
-    success('Announcement published successfully!');
     setSubject('');
     setMessage('');
     setRecipients({

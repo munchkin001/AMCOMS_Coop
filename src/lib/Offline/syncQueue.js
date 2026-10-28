@@ -1,6 +1,7 @@
 
 import offlineDb from "./OfflineDb";
 import { supabase } from "../supabase";
+import { emitActionNotification } from "../actionNotifications";
 
 const OPERATION_METADATA = {
   inventory_movement: { module: "inventory", operation: "stock movement" },
@@ -91,6 +92,7 @@ export async function queueOperation({
   });
 
   notifyQueueUpdated();
+  emitActionNotification("Change saved and queued for sync.");
   return operationId;
 }
 
