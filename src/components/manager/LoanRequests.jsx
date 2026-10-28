@@ -81,6 +81,9 @@ const LoanRequests = () => {
   const canViewQueue = ['manager', 'bookkeeper'].includes(staff?.role);
   const userId = user?.id;
   const [members, setMembers] = useState([]);
+  const [membersLoading, setMembersLoading] = useState(true);
+  const [membersError, setMembersError] = useState('');
+  const [memberLoadAttempt, setMemberLoadAttempt] = useState(0);
   const [terms, setTerms] = useState([]);
   const [requests, setRequests] = useState([]);
   const [approvedLoans, setApprovedLoans] = useState([]);
@@ -100,6 +103,81 @@ const LoanRequests = () => {
   const [decision, setDecision] = useState(null);
   const [notes, setNotes] = useState('');
 
+  useEffect(() => {
+    if (!canRelease) {
+      setMembersLoading(false);
+      return undefined;
+    }
+
+    let active = true;
+    const cacheKey = userId ? `cashbook-members:${userId}` : null;
+
+    const loadMembers = async () => {
+      setMembersLoading(true);
+      setMembersError('');
+      setMembers([]);
+
+      try {
+        if (!navigator.onLine || offlineMode) {
+          const cached = cacheKey ? await offlineDb.cachedData.get(cacheKey) : null;
+          if (!Array.isArray(cached?.data)) {
+            throw new Error('No member list is saved on this device. Reconnect and retry to load the member list.');
+          }
+          if (active) {
+            setMembers(cached.data);
+            if (cached.data.length === 0) setMembersError('No active members were found in the saved list.');
+          }
+          return;
+        }
+
+        const { data, error: memberError } = await supabase.from('members')
+          .select('id, member_number, first_name, middle_name, last_name')
+          .eq('membership_status', 'active')
+          .is('archived_at', null)
+          .order('last_name');
+        if (memberError) throw memberError;
+
+        if (active) {
+          setMembers(data || []);
+          if (!data?.length) setMembersError('No active members were found.');
+        }
+        if (cacheKey) {
+          try {
+            await offlineDb.cachedData.put({
+              key: cacheKey,
+              data: data || [],
+              updatedAt: new Date().toISOString(),
+            });
+          } catch (cacheError) {
+            console.error('Unable to cache loan request members:', cacheError);
+          }
+        }
+      } catch (memberError) {
+        console.error('Unable to load loan request members:', memberError);
+        let cached = null;
+        try {
+          cached = cacheKey ? await offlineDb.cachedData.get(cacheKey) : null;
+        } catch (cacheError) {
+          console.error('Unable to read cached loan request members:', cacheError);
+        }
+        if (active && Array.isArray(cached?.data) && cached.data.length > 0) {
+          setMembers(cached.data);
+          setMembersError('Showing the saved member list. Reconnect and refresh it before submitting.');
+        } else if (active) {
+          setMembers([]);
+          setMembersError(memberError instanceof Error
+            ? memberError.message
+            : 'The member list could not be loaded. Retry or enter the member name for offline sync.');
+        }
+      } finally {
+        if (active) setMembersLoading(false);
+      }
+    };
+
+    loadMembers();
+    return () => { active = false; };
+  }, [canRelease, memberLoadAttempt, offlineMode, userId]);
+
   const load = useCallback(async () => {
     setError('');
     try {
@@ -112,40 +190,6 @@ const LoanRequests = () => {
           .order('created_at', { ascending: true })
           .limit(500)
         : Promise.resolve({ data: [], error: null });
-      const memberCacheKey = userId ? `cashbook-members:${userId}` : null;
-      const memberQuery = canRelease
-        ? (async () => {
-          if (!navigator.onLine || offlineMode) {
-            const cached = memberCacheKey
-              ? await offlineDb.cachedData.get(memberCacheKey)
-              : null;
-            return { data: cached?.data || [], error: null };
-          }
-
-          const result = await supabase.from('members')
-            .select('id, first_name, middle_name, last_name, member_number')
-            .eq('membership_status', 'active')
-            .is('archived_at', null)
-            .order('last_name');
-          if (!result.error) {
-            if (memberCacheKey) {
-              await offlineDb.cachedData.put({
-                key: memberCacheKey,
-                data: result.data || [],
-                updatedAt: new Date().toISOString(),
-              });
-            }
-            return result;
-          }
-
-          const cached = memberCacheKey
-            ? await offlineDb.cachedData.get(memberCacheKey)
-            : null;
-          return cached?.data
-            ? { data: cached.data, error: null }
-            : result;
-        })()
-        : Promise.resolve({ data: [], error: null });
       const termQuery = canRelease
         ? supabase.from('loan_term_options')
           .select('id, term_months, payment_frequency')
@@ -153,7 +197,7 @@ const LoanRequests = () => {
           .order('term_months')
           .order('payment_frequency')
         : Promise.resolve({ data: [], error: null });
-      const [requestResult, loanResult, memberResult, termResult] = await Promise.all([
+      const [requestResult, loanResult, termResult] = await Promise.all([
         requestQuery,
         supabase
           .from('loans')
@@ -161,13 +205,10 @@ const LoanRequests = () => {
           .in('status', ['approved', 'active'])
           .order('approval_date', { ascending: true })
           .limit(500),
-        memberQuery,
         termQuery
       ]);
-      setMembers(memberResult.data || []);
       if (requestResult.error) throw requestResult.error;
       if (loanResult.error) throw loanResult.error;
-      if (memberResult.error) throw memberResult.error;
       if (termResult.error) throw termResult.error;
       setRequests(requestResult.data || []);
       setApprovedLoans(loanResult.data || []);
@@ -178,7 +219,7 @@ const LoanRequests = () => {
     } finally {
       setLoading(false);
     }
-  }, [canRelease, canViewQueue, offlineMode, userId]);
+  }, [canRelease, canViewQueue]);
 
   useEffect(() => {
     load();
@@ -361,6 +402,16 @@ const LoanRequests = () => {
 
       {error && <p role="alert" className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{error}</p>}
       {notice && <p role="status" className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">{notice}</p>}
+      {canRelease && membersError && (
+        <div role={members.length > 0 ? 'status' : 'alert'} className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+          <span>{membersError}</span>
+          {navigator.onLine && !offlineMode && (
+            <button type="button" onClick={() => setMemberLoadAttempt((attempt) => attempt + 1)} disabled={membersLoading} className="rounded-md border border-amber-400 px-3 py-1.5 font-semibold hover:bg-amber-100 disabled:opacity-50">
+              {membersLoading ? 'Loading...' : 'Retry member list'}
+            </button>
+          )}
+        </div>
+      )}
 
       {canRelease && (
         <section className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
@@ -368,16 +419,16 @@ const LoanRequests = () => {
           <form onSubmit={submitApplication} className="mt-4 grid gap-4 sm:grid-cols-2">
             <label className="text-sm font-medium text-gray-700">
               Member *
-              {members.length === 0 ? (
+              {membersLoading || members.length > 0 ? (
+                <select required disabled={membersLoading || members.length === 0} value={selectedMember} onChange={(event) => setSelectedMember(event.target.value)} className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 disabled:bg-gray-100">
+                  <option value="">{membersLoading ? 'Loading members...' : 'Select a member'}</option>
+                  {members.map((member) => <option key={member.id} value={member.id}>{fullName(member)}{member.member_number ? ` (${member.member_number})` : ''}</option>)}
+                </select>
+              ) : (
                 <>
                   <input required maxLength={200} value={memberName} onChange={(event) => setMemberName(event.target.value)} placeholder="Enter member's full name" className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2" />
                   <span className="mt-1 block text-xs text-amber-800">The server will submit only if exactly one active member has this full name.</span>
                 </>
-              ) : (
-                <select required value={selectedMember} onChange={(event) => setSelectedMember(event.target.value)} className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2">
-                  <option value="">Select a member</option>
-                  {members.map((member) => <option key={member.id} value={member.id}>{fullName(member)}{member.member_number ? ` (${member.member_number})` : ''}</option>)}
-                </select>
               )}
             </label>
             <label className="text-sm font-medium text-gray-700">
