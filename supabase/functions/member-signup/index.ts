@@ -54,8 +54,8 @@ Deno.serve(async (request) => {
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || email.length > 254) {
     return json({ error: 'Enter a valid email address.' }, 400, origin);
   }
-  if (password.length < 8 || !/[A-Z]/.test(password) || !/[a-z]/.test(password) || !/[0-9]/.test(password) || !/[^A-Za-z0-9]/.test(password)) {
-    return json({ error: 'Use at least 8 characters with an uppercase letter, a lowercase letter, a number, and a special character or symbol.' }, 400, origin);
+  if (password.length < 8 || !/[A-Z]/.test(password) || !/[a-z]/.test(password) || !/[0-9]/.test(password)) {
+    return json({ error: 'Use at least 8 characters with an uppercase letter, a lowercase letter, and a number.' }, 400, origin);
   }
 
   const supabaseUrl = Deno.env.get('SUPABASE_URL');

@@ -32,7 +32,6 @@ const passwordProblem = (password: string) => {
   if (!/[A-Z]/.test(password)) return 'Include at least one uppercase letter.';
   if (!/[a-z]/.test(password)) return 'Include at least one lowercase letter.';
   if (!/[0-9]/.test(password)) return 'Include at least one number.';
-  if (!/[^A-Za-z0-9]/.test(password)) return 'Include at least one special character or symbol.';
   return null;
 };
 

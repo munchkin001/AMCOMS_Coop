@@ -72,8 +72,8 @@ const MemberSignup = () => {
       return;
     }
 
-    if (formData.password.length < 8 || !/[A-Z]/.test(formData.password) || !/[a-z]/.test(formData.password) || !/[0-9]/.test(formData.password) || !/[^A-Za-z0-9]/.test(formData.password)) {
-      setError('Use at least 8 characters with an uppercase letter, a lowercase letter, a number, and a special character or symbol.');
+    if (formData.password.length < 8 || !/[A-Z]/.test(formData.password) || !/[a-z]/.test(formData.password) || !/[0-9]/.test(formData.password)) {
+      setError('Use at least 8 characters with an uppercase letter, a lowercase letter, and a number. A special character or symbol is recommended, but optional.');
       return;
     }
 
