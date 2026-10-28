@@ -26,10 +26,12 @@ const Policies = () => {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [policies, setPolicies] = useState([]);
+  const [policyAudience, setPolicyAudience] = useState('staff');
   const [policyForm, setPolicyForm] = useState({
     name: '',
     category: '',
     content: '',
+    target_audience: 'staff',
     status: 'draft'
   });
 
@@ -46,7 +48,7 @@ const Policies = () => {
     try {
       const { data, error: loadError } = await supabase
         .from('policies')
-        .select('id, name, category, content, status, published_at, published_by, updated_at')
+        .select('id, name, category, content, target_audience, status, published_at, published_by, updated_at')
         .order('updated_at', { ascending: false });
       if (loadError) throw loadError;
       const refreshedPolicies = (data || []).map(formatPolicy);
@@ -85,6 +87,7 @@ const Policies = () => {
         name: policyForm.name.trim(),
         category: policyForm.category,
         content: policyForm.content.trim(),
+        target_audience: policyForm.target_audience,
         status: policyForm.status,
         published_at: isPublished ? new Date().toISOString() : null,
         published_by: isPublished ? staff?.full_name || null : null
@@ -93,7 +96,7 @@ const Policies = () => {
         ? supabase.from('policies').update(payload).eq('id', editingPolicyId)
         : supabase.from('policies').insert(payload);
       const { data, error: saveError } = await query
-        .select('id, name, category, content, status, published_at, published_by, updated_at')
+        .select('id, name, category, content, target_audience, status, published_at, published_by, updated_at')
         .single();
       if (saveError) throw saveError;
 
@@ -102,7 +105,7 @@ const Policies = () => {
         savedPolicy,
         ...current.filter((policy) => policy.id !== savedPolicy.id)
       ]);
-      setPolicyForm({ name: '', category: '', content: '', status: 'draft' });
+      setPolicyForm({ name: '', category: '', content: '', target_audience: 'staff', status: 'draft' });
       setEditingPolicyId(null);
       setShowCreateModal(false);
       setError('');
@@ -128,7 +131,7 @@ const Policies = () => {
         published_by: staff?.full_name || null
       })
       .eq('id', policyToPublish)
-      .select('id, name, category, content, status, published_at, published_by, updated_at')
+      .select('id, name, category, content, target_audience, status, published_at, published_by, updated_at')
       .single();
 
     if (publishError) {
@@ -151,6 +154,7 @@ const Policies = () => {
       name: policy.name,
       category: policy.category,
       content: policy.content,
+      target_audience: policy.target_audience || 'staff',
       status: policy.status
     });
     setEditingPolicyId(policy.id);
@@ -173,6 +177,8 @@ const Policies = () => {
     return <CategoryIcon aria-hidden="true" className={className} />;
   };
 
+  const visiblePolicies = policies.filter((policy) => (policy.target_audience || 'staff') === policyAudience);
+
   return (
     <div className="space-y-6 pb-8">
       {error && <p role="alert" className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{error}</p>}
@@ -185,7 +191,7 @@ const Policies = () => {
         </div>
         <button
           onClick={() => {
-            setPolicyForm({ name: '', category: '', content: '', status: 'draft' });
+            setPolicyForm({ name: '', category: '', content: '', target_audience: policyAudience, status: 'draft' });
             setEditingPolicyId(null);
             setShowCreateModal(true);
           }}
@@ -239,25 +245,42 @@ const Policies = () => {
       </div>
 
       <section className="space-y-4">
-        <div className="flex items-center justify-between">
-          <div>
-            <h2 className="text-base font-semibold text-slate-900">Policy library</h2>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <h2 className="text-base font-semibold text-slate-900">Policy library</h2>
+          <div className="inline-flex rounded-lg bg-slate-100 p-1" aria-label="Policy audience">
+            {[
+              ['staff', 'Staff Policies'],
+              ['member', 'Member Policies']
+            ].map(([audience, label]) => (
+              <button
+                key={audience}
+                type="button"
+                onClick={() => setPolicyAudience(audience)}
+                aria-pressed={policyAudience === audience}
+                className={`min-h-10 rounded-md px-4 text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-700 ${policyAudience === audience ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-600 hover:text-slate-900'}`}
+              >
+                {label}
+              </button>
+            ))}
           </div>
         </div>
         {loading ? (
           <p className="rounded-2xl border border-slate-200 bg-white p-10 text-center text-sm text-slate-500">Loading policies...</p>
-        ) : policies.length === 0 ? (
+        ) : visiblePolicies.length === 0 ? (
           <div className="rounded-2xl border border-dashed border-slate-300 bg-white px-6 py-12 text-center">
             <FileText aria-hidden="true" className="mx-auto h-8 w-8 text-slate-400" />
-            <p className="mt-3 text-sm font-semibold text-slate-900">No policies yet</p>
+            <p className="mt-3 text-sm font-semibold text-slate-900">No {policyAudience === 'staff' ? 'staff' : 'member'} policies yet</p>
           </div>
-        ) : policies.map((policy) => (
+        ) : visiblePolicies.map((policy) => (
           <article key={policy.id} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition-shadow hover:shadow-md sm:p-6">
             <div className="flex flex-col gap-5 sm:flex-row sm:items-start sm:justify-between">
               <div className="min-w-0 flex-1">
                 <div className="flex flex-wrap items-center gap-3">
                   <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-slate-700">{getCategoryIcon(policy.category)}</span>
                   <h3 className="text-base font-semibold text-slate-900">{policy.name}</h3>
+                  <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${policy.target_audience === 'member' ? 'bg-green-100 text-green-800' : 'bg-blue-100 text-blue-800'}`}>
+                    For {policy.target_audience === 'member' ? 'Members' : 'Staff'}
+                  </span>
                   <span className={`rounded-full px-2.5 py-1 text-xs font-semibold border ${getStatusColor(policy.status)}`}>
                     {policy.status === 'published' ? 'Published' : 'Draft'}
                   </span>
@@ -330,6 +353,21 @@ const Policies = () => {
                   placeholder="e.g., Loan Collection Policy"
                   className="w-full rounded-lg border border-slate-300 px-3.5 py-2.5 text-sm text-slate-900 placeholder:text-slate-400 focus:border-emerald-600 focus:outline-none focus:ring-2 focus:ring-emerald-600/20"
                 />
+              </div>
+
+              <div>
+                <label className="mb-2 block text-sm font-medium text-slate-700">
+                  Audience *
+                </label>
+                <select
+                  value={policyForm.target_audience}
+                  onChange={(e) => setPolicyForm({ ...policyForm, target_audience: e.target.value })}
+                  className="w-full rounded-lg border border-slate-300 bg-white px-3.5 py-2.5 text-sm text-slate-900 focus:border-emerald-600 focus:outline-none focus:ring-2 focus:ring-emerald-600/20"
+                >
+                  <option value="staff">Staff only</option>
+                  <option value="member">Members</option>
+                </select>
+                <p className="mt-1 text-xs text-slate-500">Published policies are shown only in the selected audience’s portal.</p>
               </div>
 
               <div>
@@ -434,6 +472,12 @@ const Policies = () => {
                     </span>
                   </div>
                   <div>
+                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Audience</p>
+                    <p className="mt-2 text-sm font-medium text-slate-900">
+                      {selectedPolicy.target_audience === 'member' ? 'Members' : 'Staff'}
+                    </p>
+                  </div>
+                  <div>
                     <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Last updated</p>
                     <p className="mt-2 text-sm font-medium text-slate-900">{selectedPolicy.lastUpdated}</p>
                   </div>
@@ -493,7 +537,7 @@ const Policies = () => {
               </div>
               <h3 className="text-xl font-bold text-gray-900 text-center mb-2">Publish Policy</h3>
               <p className="text-gray-600 text-center mb-6">
-                Are you sure you want to publish this policy?
+                Publish this policy for {policies.find((policy) => policy.id === policyToPublish)?.target_audience === 'member' ? 'members' : 'staff'}?
               </p>
               <div className="flex space-x-3">
                 <button

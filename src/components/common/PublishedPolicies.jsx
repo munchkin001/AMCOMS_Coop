@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { ChevronDown, ChevronUp, FileText } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
+import { useAuth } from '../../contexts/AuthContext';
 import { useMultipleRealtimeSubscriptions } from '../../hooks/useRealtimeSubscription';
 import { getDataLoadErrorMessage } from '../../lib/errorHandler';
 
@@ -13,6 +14,8 @@ const formatDate = (value) => {
 };
 
 const PublishedPolicies = () => {
+  const { staff } = useAuth();
+  const audience = staff?.role === 'member' ? 'member' : 'staff';
   const [policies, setPolicies] = useState([]);
   const [expandedPolicyId, setExpandedPolicyId] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -22,8 +25,9 @@ const PublishedPolicies = () => {
     try {
       const { data, error: loadError } = await supabase
         .from('policies')
-        .select('id, name, category, content, published_at, published_by')
+        .select('id, name, category, content, target_audience, published_at, published_by')
         .eq('status', 'published')
+        .eq('target_audience', audience)
         .order('published_at', { ascending: false });
       if (loadError) throw loadError;
       setPolicies(data || []);
@@ -34,7 +38,7 @@ const PublishedPolicies = () => {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [audience]);
 
   useEffect(() => {
     loadPolicies();
@@ -48,7 +52,7 @@ const PublishedPolicies = () => {
   return (
     <div className="space-y-5">
       <header className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
-        <h1 className="text-2xl font-bold text-gray-950">Policies</h1>
+        <h1 className="text-2xl font-bold text-gray-950">{audience === 'member' ? 'Member Policies' : 'Staff Policies'}</h1>
       </header>
 
       {error && (
