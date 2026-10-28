@@ -325,8 +325,6 @@ const MemberDashboard = ({ onNavigate }) => {
             icon={Landmark}
             tone="indigo"
             solid
-            actionLabel="View account"
-            onAction={() => onNavigate?.('time-deposit')}
           />
           <DashboardMetricCard
             label="Capital Share"
@@ -351,8 +349,6 @@ const MemberDashboard = ({ onNavigate }) => {
             icon={HandCoins}
             tone="orange"
             solid
-            actionLabel="View loans"
-            onAction={() => onNavigate?.('loans')}
           />
           <DashboardMetricCard
             label="Next Payment"
