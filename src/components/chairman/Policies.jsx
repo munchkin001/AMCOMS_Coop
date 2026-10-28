@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { CheckCircle2, ClipboardList, Clock3, FileText, HandCoins, Package, PiggyBank, Plus, Users, WalletCards, X } from 'lucide-react';
+import { CheckCircle2, ClipboardList, Clock3, FileText, HandCoins, Package, PiggyBank, Plus, Trash2, Users, WalletCards, X } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import { useMultipleRealtimeSubscriptions } from '../../hooks/useRealtimeSubscription';
@@ -33,11 +33,13 @@ const Policies = () => {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showViewModal, setShowViewModal] = useState(false);
   const [showPublishModal, setShowPublishModal] = useState(false);
+  const [policyToDelete, setPolicyToDelete] = useState(null);
   const [selectedPolicy, setSelectedPolicy] = useState(null);
   const [policyToPublish, setPolicyToPublish] = useState(null);
   const [editingPolicyId, setEditingPolicyId] = useState(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState('');
   const [audienceColumnAvailable, setAudienceColumnAvailable] = useState(true);
   const [policies, setPolicies] = useState([]);
@@ -149,6 +151,32 @@ const Policies = () => {
   const handlePublishPolicy = (policyId) => {
     setPolicyToPublish(policyId);
     setShowPublishModal(true);
+  };
+
+  const handleDeletePolicy = async () => {
+    if (!policyToDelete || deleting) return;
+    setDeleting(true);
+    setError('');
+
+    try {
+      const { error: deleteError } = await supabase
+        .from('policies')
+        .delete()
+        .eq('id', policyToDelete.id)
+        .select('id')
+        .single();
+      if (deleteError) throw deleteError;
+
+      setPolicies((current) => current.filter((policy) => policy.id !== policyToDelete.id));
+      setSelectedPolicy((current) => current?.id === policyToDelete.id ? null : current);
+      setShowViewModal(false);
+      setPolicyToDelete(null);
+    } catch (deleteError) {
+      console.error('Error deleting policy:', deleteError);
+      setError(`Unable to delete policy: ${deleteError.message}`);
+    } finally {
+      setDeleting(false);
+    }
   };
 
   const confirmPublishPolicy = async () => {
@@ -364,6 +392,15 @@ const Policies = () => {
                     Publish
                   </button>
                 )}
+                <button
+                  type="button"
+                  onClick={() => setPolicyToDelete(policy)}
+                  aria-label={`Delete ${policy.name}`}
+                  className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-red-200 px-3.5 py-2 text-sm font-semibold text-red-700 transition-colors hover:bg-red-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-600"
+                >
+                  <Trash2 aria-hidden="true" className="h-4 w-4" />
+                  Delete
+                </button>
               </div>
             </div>
           </article>
@@ -609,6 +646,34 @@ const Policies = () => {
                   Publish
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+      {policyToDelete && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/50 p-4" role="alertdialog" aria-modal="true" aria-labelledby="delete-policy-title">
+          <div className="w-full max-w-md rounded-xl bg-white p-6 shadow-xl">
+            <h3 id="delete-policy-title" className="text-lg font-semibold text-slate-900">Delete policy?</h3>
+            <p className="mt-2 text-sm text-slate-600">
+              <span className="font-semibold">{policyToDelete.name}</span> will be permanently deleted and removed from the audience portals.
+            </p>
+            <div className="mt-6 flex justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => setPolicyToDelete(null)}
+                disabled={deleting}
+                className="min-h-10 rounded-lg border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-60"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleDeletePolicy}
+                disabled={deleting}
+                className="min-h-10 rounded-lg bg-red-700 px-4 py-2 text-sm font-semibold text-white hover:bg-red-800 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {deleting ? 'Deleting...' : 'Delete policy'}
+              </button>
             </div>
           </div>
         </div>
