@@ -15,6 +15,7 @@ const escapeHtml = (value) => value
   .replaceAll("'", '&#39;');
 
 const isRichTextMarkup = (value) => /<\/?(?:b|br|div|em|font|h[1-6]|i|li|ol|p|s|span|strike|strong|u|ul)(?:\s|>|\/)/i.test(value);
+const isEncodedRichTextMarkup = (value) => /&lt;\/?(?:b|br|div|em|font|h[1-6]|i|li|ol|p|s|span|strike|strong|u|ul)(?:\s|&gt;|\/)/i.test(value);
 
 const safeColor = (value) => {
   if (!value || !globalThis.CSS?.supports?.('color', value)) return '';
@@ -55,7 +56,13 @@ const cleanStyle = (element, styleAttribute) => {
 };
 
 export const sanitizeRichTextHtml = (value = '') => {
-  const content = String(value);
+  let content = String(value);
+  for (let attempt = 0; attempt < 3 && !isRichTextMarkup(content) && isEncodedRichTextMarkup(content); attempt += 1) {
+    const decodedContent = new DOMParser().parseFromString(content, 'text/html').body.textContent || '';
+    if (decodedContent === content) break;
+    content = decodedContent;
+  }
+
   if (!isRichTextMarkup(content)) {
     const parsedText = new DOMParser().parseFromString(content, 'text/html').body.textContent || '';
     return escapeHtml(parsedText).replace(/\r\n?|\n/g, '<br>');
