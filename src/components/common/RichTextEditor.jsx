@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { Bold, Italic, List, ListOrdered, Underline } from 'lucide-react';
+import { AlignCenter, AlignJustify, AlignLeft, AlignRight, Bold, Italic, List, ListOrdered, Underline } from 'lucide-react';
 import { sanitizeRichTextHtml } from '../../lib/richText';
 
 const fonts = ['Arial', 'Georgia', 'Times New Roman', 'Verdana', 'Tahoma', 'Courier New'];
@@ -79,6 +79,11 @@ const RichTextEditor = ({ id, value, onChange, placeholder, className = '' }) =>
         <span aria-hidden="true" className="mx-1 h-6 border-l border-slate-300" />
         {toolbarButton('Bulleted list', List, 'insertUnorderedList')}
         {toolbarButton('Numbered list', ListOrdered, 'insertOrderedList')}
+        <span aria-hidden="true" className="mx-1 h-6 border-l border-slate-300" />
+        {toolbarButton('Align left', AlignLeft, 'justifyLeft')}
+        {toolbarButton('Align center', AlignCenter, 'justifyCenter')}
+        {toolbarButton('Align right', AlignRight, 'justifyRight')}
+        {toolbarButton('Justify text', AlignJustify, 'justifyFull')}
         <label className="sr-only" htmlFor={`${id}-font`}>Font</label>
         <select
           id={`${id}-font`}

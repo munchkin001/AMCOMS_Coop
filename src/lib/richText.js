@@ -41,6 +41,16 @@ const cleanStyle = (element, styleAttribute) => {
   const fontSize = parsedStyle.style.fontSize.toLowerCase();
   if (Object.values(fontSizes).includes(fontSize)) styles.push(`font-size: ${fontSize}`);
 
+  const textAlign = parsedStyle.style.textAlign.toLowerCase();
+  if (['left', 'center', 'right', 'justify'].includes(textAlign)) {
+    styles.push(`text-align: ${textAlign}`);
+  }
+
+  const legacyAlignment = element.getAttribute('align')?.toLowerCase();
+  if (['left', 'center', 'right', 'justify'].includes(legacyAlignment)) {
+    styles.push(`text-align: ${legacyAlignment}`);
+  }
+
   if (styles.length) element.setAttribute('style', styles.join('; '));
 };
 
