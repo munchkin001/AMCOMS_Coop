@@ -92,6 +92,12 @@ const LoanRequests = () => {
   const [loanType, setLoanType] = useState('');
   const [amount, setAmount] = useState('');
   const [purpose, setPurpose] = useState('');
+  const [collateralType, setCollateralType] = useState('');
+  const [collateralDescription, setCollateralDescription] = useState('');
+  const [guarantorName, setGuarantorName] = useState('');
+  const [guarantorContact, setGuarantorContact] = useState('');
+  const [processingFee, setProcessingFee] = useState('0');
+  const [serviceFee, setServiceFee] = useState('0');
   const [selectedTerm, setSelectedTerm] = useState('');
   const [termMonths, setTermMonths] = useState('');
   const [paymentFrequency, setPaymentFrequency] = useState('');
@@ -102,6 +108,18 @@ const LoanRequests = () => {
   const [notice, setNotice] = useState('');
   const [decision, setDecision] = useState(null);
   const [notes, setNotes] = useState('');
+  const activeTerm = terms.find((term) => term.id === selectedTerm);
+  const requestedAmount = Number(amount);
+  const quotePreview = activeTerm && Number.isFinite(requestedAmount) && requestedAmount > 0
+    ? (() => {
+      const installments = activeTerm.payment_frequency === 'weekly'
+        ? Math.round(activeTerm.term_months * 52 / 12)
+        : activeTerm.term_months;
+      const interest = Math.round(requestedAmount * Number(activeTerm.annual_rate) / 100 * activeTerm.term_months / 12 * 100) / 100;
+      const total = requestedAmount + interest;
+      return { interest, total, installment: Math.round(total / installments * 100) / 100 };
+    })()
+    : null;
 
   useEffect(() => {
     if (!canRelease) {
@@ -192,7 +210,7 @@ const LoanRequests = () => {
         : Promise.resolve({ data: [], error: null });
       const termQuery = canRelease
         ? supabase.from('loan_term_options')
-          .select('id, term_months, payment_frequency')
+          .select('id, term_months, payment_frequency, annual_rate, penalty_rate')
           .eq('is_active', true)
           .order('term_months')
           .order('payment_frequency')
@@ -284,6 +302,14 @@ const LoanRequests = () => {
     const term = manuallyEnteringTerm
       ? { term_months: Number(termMonths), payment_frequency: paymentFrequency }
       : terms.find((option) => option.id === selectedTerm);
+    const applicationDetails = {
+      collateral_type: collateralType.trim(),
+      collateral_description: collateralDescription.trim(),
+      guarantor_name: guarantorName.trim(),
+      guarantor_contact: guarantorContact.trim(),
+      processing_fee: Number(processingFee || 0),
+      service_fee: Number(serviceFee || 0),
+    };
     if (
       !resolvedMemberName ||
       !loanType.trim() ||
@@ -293,7 +319,11 @@ const LoanRequests = () => {
       Number(term.term_months) <= 0 ||
       !['monthly', 'weekly'].includes(term.payment_frequency) ||
       !Number.isFinite(Number(amount)) ||
-      Number(amount) <= 0
+      Number(amount) <= 0 ||
+      !Number.isFinite(applicationDetails.processing_fee) ||
+      applicationDetails.processing_fee < 0 ||
+      !Number.isFinite(applicationDetails.service_fee) ||
+      applicationDetails.service_fee < 0
     ) {
       setError('Complete all loan application fields with a valid amount.');
       return;
@@ -310,7 +340,8 @@ const LoanRequests = () => {
             p_loan_type: loanType.trim(),
             p_purpose: purpose.trim(),
             p_term_months: Number(term.term_months),
-            p_frequency: term.payment_frequency
+            p_frequency: term.payment_frequency,
+            p_application_details: applicationDetails,
           },
           userId: user?.id,
           actorRole: staff?.role,
@@ -322,6 +353,7 @@ const LoanRequests = () => {
             amount: Number(amount),
             termMonths: Number(term.term_months),
             paymentFrequency: term.payment_frequency,
+            applicationDetails,
             localRecordedAt: new Date().toISOString(),
           },
         });
@@ -341,6 +373,12 @@ const LoanRequests = () => {
               setLoanType('');
               setAmount('');
               setPurpose('');
+              setCollateralType('');
+              setCollateralDescription('');
+              setGuarantorName('');
+              setGuarantorContact('');
+              setProcessingFee('0');
+              setServiceFee('0');
               setSelectedTerm('');
               setTermMonths('');
               setPaymentFrequency('');
@@ -357,13 +395,14 @@ const LoanRequests = () => {
         return;
       }
 
-      const { error: submitError } = await supabase.rpc('submit_loan_request_for_member', {
+      const { error: submitError } = await supabase.rpc('submit_loan_request_for_member_with_details', {
         p_member_id: selectedMember,
         p_amount: Number(amount),
         p_loan_type: loanType.trim(),
         p_purpose: purpose.trim(),
         p_term_months: term.term_months,
-        p_frequency: term.payment_frequency
+        p_frequency: term.payment_frequency,
+        p_application_details: applicationDetails,
       });
       if (submitError) throw submitError;
       setSelectedMember('');
@@ -371,6 +410,12 @@ const LoanRequests = () => {
       setLoanType('');
       setAmount('');
       setPurpose('');
+      setCollateralType('');
+      setCollateralDescription('');
+      setGuarantorName('');
+      setGuarantorContact('');
+      setProcessingFee('0');
+      setServiceFee('0');
       setSelectedTerm('');
       setTermMonths('');
       setPaymentFrequency('');
@@ -379,7 +424,7 @@ const LoanRequests = () => {
     } catch (submitError) {
       console.error('Unable to create loan application:', submitError);
       const message = submitError.code === 'PGRST202'
-        ? 'Bookkeeper loan entry is not enabled on the server yet. Apply migration 20261019000003_bookkeeper_loan_application_entry.sql, then refresh this page.'
+        ? 'The detailed loan application function is not enabled on the server yet. Apply migration 20261030000001_loan_application_details.sql, then refresh this page.'
         : submitError.message;
       setError(message || 'The loan application could not be submitted.');
     } finally {
@@ -459,14 +504,53 @@ const LoanRequests = () => {
               ) : (
                 <select required value={selectedTerm} onChange={(event) => setSelectedTerm(event.target.value)} className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2">
                   <option value="">Select a term</option>
-                  {terms.map((term) => <option key={term.id} value={term.id}>{term.term_months} months · {term.payment_frequency}</option>)}
+                  {terms.map((term) => <option key={term.id} value={term.id}>{term.term_months} months · {term.payment_frequency} · {term.annual_rate}% annual interest</option>)}
                 </select>
               )}
             </label>
+            {activeTerm && (
+              <p className="rounded-lg bg-blue-50 p-3 text-sm text-blue-950 sm:col-span-2">
+                Configured rate: <strong>{activeTerm.annual_rate}% annual interest</strong> · {activeTerm.penalty_rate}% penalty rate for overdue payments.
+                {quotePreview && <> Estimated interest: <strong>{formatMoney(quotePreview.interest)}</strong> · total repayment: <strong>{formatMoney(quotePreview.total)}</strong> · installment: <strong>{formatMoney(quotePreview.installment)}</strong>.</>}
+                <span className="mt-1 block text-xs">Estimate only; the server recalculates the final quote using the active cooperative terms.</span>
+              </p>
+            )}
             <label className="text-sm font-medium text-gray-700 sm:col-span-2">
               Purpose *
               <textarea required maxLength={500} value={purpose} onChange={(event) => setPurpose(event.target.value)} rows={3} className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2" />
             </label>
+            <fieldset className="grid gap-3 rounded-lg border border-gray-200 p-4 sm:col-span-2 sm:grid-cols-2">
+              <legend className="px-1 text-sm font-semibold text-gray-800">Security and guarantor (if applicable)</legend>
+              <label className="text-sm font-medium text-gray-700">
+                Collateral type
+                <input maxLength={80} value={collateralType} onChange={(event) => setCollateralType(event.target.value)} placeholder="e.g. savings, equipment, property" className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2" />
+              </label>
+              <label className="text-sm font-medium text-gray-700">
+                Collateral details
+                <input maxLength={300} value={collateralDescription} onChange={(event) => setCollateralDescription(event.target.value)} placeholder="Description or identifying details" className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2" />
+              </label>
+              <label className="text-sm font-medium text-gray-700">
+                Co-maker / guarantor name
+                <input maxLength={160} value={guarantorName} onChange={(event) => setGuarantorName(event.target.value)} className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2" />
+              </label>
+              <label className="text-sm font-medium text-gray-700">
+                Co-maker / guarantor contact
+                <input maxLength={80} value={guarantorContact} onChange={(event) => setGuarantorContact(event.target.value)} className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2" />
+              </label>
+              <p className="text-xs text-gray-500 sm:col-span-2">These details are subject to cooperative policy and Manager verification.</p>
+            </fieldset>
+            <fieldset className="grid gap-3 rounded-lg border border-gray-200 p-4 sm:col-span-2 sm:grid-cols-2">
+              <legend className="px-1 text-sm font-semibold text-gray-800">Fees (if applicable)</legend>
+              <label className="text-sm font-medium text-gray-700">
+                Processing fee (₱)
+                <input type="number" min="0" step="0.01" value={processingFee} onChange={(event) => setProcessingFee(event.target.value)} className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2" />
+              </label>
+              <label className="text-sm font-medium text-gray-700">
+                Other / service fee (₱)
+                <input type="number" min="0" step="0.01" value={serviceFee} onChange={(event) => setServiceFee(event.target.value)} className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2" />
+              </label>
+              <p className="text-xs text-gray-500 sm:col-span-2">Enter only fees confirmed by cooperative policy. Fees are recorded separately and are not included in the interest quote.</p>
+            </fieldset>
             <button type="submit" disabled={savingApplication} className="rounded-lg bg-blue-700 px-4 py-2 font-semibold text-white hover:bg-blue-800 disabled:opacity-50 sm:col-span-2">
               {savingApplication ? 'Submitting...' : !navigator.onLine || offlineMode ? 'Save loan application offline' : 'Send for Manager approval'}
             </button>
@@ -500,6 +584,15 @@ const LoanRequests = () => {
                 <p className="text-sm text-gray-600">Quoted interest <strong className="block text-gray-900">{formatMoney(data.total_interest)}</strong></p>
                 <p className="text-sm text-gray-600">Estimated total payable <strong className="block text-gray-900">{formatMoney(data.total_payable)}</strong></p>
                 <p className="text-sm text-gray-600">Installment <strong className="block text-gray-900">{formatMoney(data.installment_amount)}</strong></p>
+                <p className="text-sm text-gray-600">Annual interest rate <strong className="block text-gray-900">{data.annual_rate ?? '—'}%</strong></p>
+                <p className="text-sm text-gray-600">Late-payment penalty rate <strong className="block text-gray-900">{data.penalty_rate ?? '—'}%</strong></p>
+                <p className="text-sm text-gray-600">Fees (processing / service) <strong className="block text-gray-900">{formatMoney(data.application_details?.processing_fee)} / {formatMoney(data.application_details?.service_fee)}</strong></p>
+                {(data.application_details?.collateral_type || data.application_details?.collateral_description) && (
+                  <p className="text-sm text-gray-600 sm:col-span-3">Collateral <strong className="block text-gray-900">{[data.application_details.collateral_type, data.application_details.collateral_description].filter(Boolean).join(' — ')}</strong></p>
+                )}
+                {(data.application_details?.guarantor_name || data.application_details?.guarantor_contact) && (
+                  <p className="text-sm text-gray-600 sm:col-span-3">Co-maker / guarantor <strong className="block text-gray-900">{[data.application_details.guarantor_name, data.application_details.guarantor_contact].filter(Boolean).join(' · ')}</strong></p>
+                )}
               </div>
               {canReview ? (
                 <div className="mt-4 flex flex-wrap gap-3 border-t border-gray-100 pt-4">
