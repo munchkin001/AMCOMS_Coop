@@ -1,5 +1,5 @@
 import { Fragment, useCallback, useEffect, useMemo, useState } from 'react';
-import { AlertCircle, CheckCircle2, Clock3, Eye, Search, UserCheck, UserPlus, Users, X } from 'lucide-react';
+import { AlertCircle, CheckCircle2, Clock3, Eye, Printer, Search, UserCheck, UserPlus, Users, X } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useRealtimeSubscription } from '../../hooks/useRealtimeSubscription';
 
@@ -7,7 +7,8 @@ const fullName = (member) => [member.first_name, member.middle_name, member.last
 
 const formatDate = (value) => {
   if (!value) return 'Not recorded';
-  return new Date(`${value}T00:00:00`).toLocaleDateString('en-PH', {
+  const date = String(value).length > 10 ? new Date(value) : new Date(`${value}T00:00:00`);
+  return date.toLocaleDateString('en-PH', {
     month: 'short',
     day: 'numeric',
     year: 'numeric'
@@ -26,6 +27,58 @@ const getInstallmentBalance = (schedule) => Math.max(
   Number(schedule.amount_due || 0) + Number(schedule.penalty_amount || 0) - Number(schedule.amount_paid || 0)
 );
 
+const toTimelineRows = ({ loans, payments, savingsTransactions, activity }) => {
+  const knownReferences = new Set([
+    ...payments.map((payment) => payment.reference_number).filter(Boolean),
+    ...savingsTransactions.map((transaction) => transaction.reference_number).filter(Boolean)
+  ]);
+  const rows = [
+    ...loans.filter((loan) => loan.release_date).map((loan) => ({
+      id: `release-${loan.id}`,
+      date: loan.release_date,
+      type: 'Loan released',
+      description: loan.loan_number || 'Loan',
+      amount: Number(loan.principal_amount || 0),
+      amountLabel: 'Disbursed',
+      reference: loan.loan_number
+    })),
+    ...payments.map((payment) => ({
+      id: `payment-${payment.id}`,
+      date: payment.payment_date,
+      type: 'Loan payment',
+      description: `Principal ${formatMoney(payment.principal_paid)} · Interest ${formatMoney(payment.interest_paid)}`,
+      amount: -Number(payment.amount_paid || 0),
+      amountLabel: 'Paid',
+      reference: payment.reference_number || payment.payment_method || 'Not recorded'
+    })),
+    ...savingsTransactions.map((transaction) => {
+      const isWithdrawal = ['withdrawal', 'fee'].includes(transaction.transaction_type);
+      return {
+        id: `savings-${transaction.id}`,
+        date: transaction.transaction_date,
+        type: `${transaction.account_type === 'time_deposit' ? 'Time deposit' : 'Savings'} ${transaction.transaction_type}`,
+        description: transaction.description || 'Savings account transaction',
+        amount: Number(transaction.amount || 0) * (isWithdrawal ? -1 : 1),
+        amountLabel: isWithdrawal ? 'Outflow' : 'Inflow',
+        reference: transaction.reference_number || 'Not recorded'
+      };
+    }),
+    ...activity
+      .filter((item) => !item.voided_at && (!item.reference || !knownReferences.has(item.reference)))
+      .map((item) => ({
+        id: `activity-${item.id}`,
+        date: item.created_at,
+        type: item.title,
+        description: item.note || item.activity_type,
+        amount: Number(item.amount || 0),
+        amountLabel: item.is_discrepancy ? 'Review' : 'Activity',
+        reference: item.reference || 'Not recorded'
+      }))
+  ];
+
+  return rows.sort((a, b) => String(b.date || '').localeCompare(String(a.date || '')));
+};
+
 const MemberManagement = () => {
   const [members, setMembers] = useState([]);
   const [archivedCount, setArchivedCount] = useState(0);
@@ -34,8 +87,12 @@ const MemberManagement = () => {
   const [memberLoans, setMemberLoans] = useState([]);
   const [loanSchedules, setLoanSchedules] = useState([]);
   const [loanPayments, setLoanPayments] = useState([]);
+  const [memberTimeline, setMemberTimeline] = useState([]);
   const [loanDetailsLoading, setLoanDetailsLoading] = useState(false);
   const [loanDetailsError, setLoanDetailsError] = useState('');
+  const [timelineError, setTimelineError] = useState('');
+  const [statementStart, setStatementStart] = useState(`${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}-01`);
+  const [statementEnd, setStatementEnd] = useState(getToday());
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
@@ -55,35 +112,65 @@ const MemberManagement = () => {
         const loanIds = (loans || []).map((loan) => loan.id);
         let schedules = [];
         let payments = [];
+        let savingsTransactions = [];
+        let activity = [];
 
-        if (loanIds.length > 0) {
-          const [schedulesResult, paymentsResult] = await Promise.all([
-            supabase
+        const [schedulesResult, paymentsResult, savingsResult, activityResult] = await Promise.all([
+          loanIds.length > 0
+            ? supabase
               .from('loan_schedule')
               .select('id, loan_id, installment_number, due_date, amount_due, amount_paid, penalty_amount, status, paid_at')
               .in('loan_id', loanIds)
-              .order('due_date', { ascending: true }),
-            supabase
+              .order('due_date', { ascending: true })
+            : Promise.resolve({ data: [], error: null }),
+          loanIds.length > 0
+            ? supabase
               .from('loan_payments')
               .select('id, loan_id, payment_number, payment_date, amount_paid, principal_paid, interest_paid, penalty_paid, balance_after, payment_method, reference_number, receipt_id')
               .in('loan_id', loanIds)
               .eq('status', 'recorded')
               .order('payment_date', { ascending: false })
-          ]);
+            : Promise.resolve({ data: [], error: null }),
+          supabase
+            .from('savings_transactions')
+            .select('id, transaction_type, amount, transaction_date, description, reference_number, savings_accounts!inner(member_id, account_type)')
+            .eq('savings_accounts.member_id', selectedMember.id)
+            .eq('status', 'recorded')
+            .order('transaction_date', { ascending: false }),
+          supabase
+            .from('member_activity')
+            .select('id, activity_type, title, amount, reference, note, is_discrepancy, created_at, voided_at')
+            .eq('member_id', selectedMember.id)
+            .order('created_at', { ascending: false })
+        ]);
 
-          if (schedulesResult.error) throw schedulesResult.error;
-          if (paymentsResult.error) throw paymentsResult.error;
-          schedules = schedulesResult.data || [];
-          payments = paymentsResult.data || [];
-        }
+        if (schedulesResult.error) throw schedulesResult.error;
+        if (paymentsResult.error) throw paymentsResult.error;
+        if (savingsResult.error) throw savingsResult.error;
+        if (activityResult.error) throw activityResult.error;
+        schedules = schedulesResult.data || [];
+        payments = paymentsResult.data || [];
+        savingsTransactions = (savingsResult.data || []).map((transaction) => ({
+          ...transaction,
+          account_type: Array.isArray(transaction.savings_accounts)
+            ? transaction.savings_accounts[0]?.account_type
+            : transaction.savings_accounts?.account_type
+        }));
+        activity = activityResult.data || [];
 
         if (!active) return;
         setMemberLoans(loans || []);
         setLoanSchedules(schedules);
         setLoanPayments(payments);
+        setMemberTimeline(toTimelineRows({ loans: loans || [], payments, savingsTransactions, activity }));
+        setLoanDetailsError('');
+        setTimelineError('');
       } catch (loadError) {
         console.error('Unable to load member loan details:', loadError);
-        if (active) setLoanDetailsError('Loan details could not be loaded. Please try again.');
+        if (active) {
+          setLoanDetailsError('Member financial details could not be loaded. Please try again.');
+          setTimelineError('The financial timeline and statement could not be loaded.');
+        }
       } finally {
         if (active) setLoanDetailsLoading(false);
       }
@@ -100,7 +187,9 @@ const MemberManagement = () => {
     setMemberLoans([]);
     setLoanSchedules([]);
     setLoanPayments([]);
+    setMemberTimeline([]);
     setLoanDetailsError('');
+    setTimelineError('');
     setLoanDetailsLoading(true);
   };
 
@@ -177,6 +266,19 @@ const MemberManagement = () => {
       member.address
     ].some((value) => String(value || '').toLowerCase().includes(normalizedSearch)));
   }, [members, searchTerm]);
+
+  const statementRows = useMemo(() => {
+    if (!statementStart || !statementEnd || statementStart > statementEnd) return [];
+    return memberTimeline.filter((item) => {
+      const date = String(item.date || '').slice(0, 10);
+      return date >= statementStart && date <= statementEnd;
+    });
+  }, [memberTimeline, statementEnd, statementStart]);
+
+  const overdueInstallments = loanSchedules.filter(
+    (schedule) => schedule.due_date < getToday() && getInstallmentBalance(schedule) > 0
+  );
+  const overdueBalance = overdueInstallments.reduce((sum, schedule) => sum + getInstallmentBalance(schedule), 0);
 
   const activeMembers = members.filter((member) => member.membership_status === 'active').length;
   const joinedThisMonth = members.filter((member) => {
@@ -378,6 +480,51 @@ const MemberManagement = () => {
               </div>
               </section>
             </details>
+            <section aria-labelledby="member-readiness-title" className="grid gap-4 border-b border-gray-200 px-6 py-5 lg:grid-cols-2">
+              <article className={`rounded-lg border p-4 ${selectedMember.membership_status === 'active' && overdueInstallments.length === 0 ? 'border-blue-200 bg-blue-50' : 'border-amber-200 bg-amber-50'}`}>
+                <h3 id="member-readiness-title" className="font-semibold text-gray-900">Loan eligibility check</h3>
+                <p className="mt-1 text-sm font-semibold text-blue-900">
+                  {loanDetailsLoading
+                    ? 'Checking member records…'
+                    : loanDetailsError
+                      ? 'Unable to assess'
+                      : selectedMember.membership_status !== 'active'
+                    ? 'Not clear for application'
+                    : overdueInstallments.length
+                      ? 'Needs review'
+                      : 'No immediate warning flags'}
+                </p>
+                <ul className="mt-3 space-y-1.5 text-sm text-gray-700">
+                  <li>{selectedMember.membership_status === 'active' ? '✓ Membership is active' : `• Membership status is ${selectedMember.membership_status}`}</li>
+                  {loanDetailsLoading
+                    ? <li>Checking loan repayment records…</li>
+                    : loanDetailsError
+                      ? <li>• Repayment status could not be verified</li>
+                      : <li>{overdueInstallments.length === 0 ? '✓ No overdue installments found' : `• ${overdueInstallments.length} overdue installment(s), ${formatMoney(overdueBalance)} outstanding`}</li>}
+                  <li className="text-gray-600">Final eligibility is not determined here: minimum savings/capital and membership-tenure rules are not configured in the system.</li>
+                </ul>
+              </article>
+              <article className={`rounded-lg border p-4 ${selectedMember.membership_status === 'suspended' ? 'border-red-200 bg-red-50' : 'border-gray-200 bg-white'}`}>
+                <h3 className="font-semibold text-gray-900">Account restrictions</h3>
+                {selectedMember.membership_status === 'suspended' ? (
+                  <p className="mt-2 text-sm text-red-800">Membership is suspended. Review the member’s status before processing account or loan requests.</p>
+                ) : (
+                  <p className="mt-2 text-sm text-gray-600">Membership status: <span className="font-medium capitalize">{selectedMember.membership_status}</span>.</p>
+                )}
+                <p className="mt-2 text-xs text-gray-500">The system does not currently record separate account holds or restriction reasons.</p>
+              </article>
+              {!loanDetailsLoading && !loanDetailsError && overdueInstallments.length > 0 && (
+                <article className="rounded-lg border border-red-200 bg-red-50 p-4 lg:col-span-2" role="alert">
+                  <h3 className="flex items-center gap-2 font-semibold text-red-900">
+                    <AlertCircle className="size-4" aria-hidden="true" />
+                    Overdue payment alert
+                  </h3>
+                  <p className="mt-1 text-sm text-red-800">
+                    {overdueInstallments.length} missed installment(s) with {formatMoney(overdueBalance)} still due. Review the repayment schedule and contact the member about a payment plan.
+                  </p>
+                </article>
+              )}
+            </section>
             <section aria-labelledby="member-loans-title" className="border-t border-gray-200 px-6 py-5">
               <div className="flex flex-wrap items-start justify-between gap-3">
                   <div>
@@ -627,6 +774,102 @@ const MemberManagement = () => {
                   );
               })()}
             </section>
+            <section aria-labelledby="member-timeline-title" className="border-t border-gray-200 px-6 py-5">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <h3 id="member-timeline-title" className="text-lg font-semibold text-gray-900">Financial timeline and statement</h3>
+                  <p className="mt-1 text-sm text-gray-500">Chronological savings activity, loan releases, payments, and recorded member activity.</p>
+                </div>
+              </div>
+              <div className="member-statement-controls mt-4 flex flex-wrap items-end gap-3 rounded-lg bg-gray-50 p-4">
+                <label className="text-sm font-medium text-gray-700">
+                  From
+                  <input type="date" value={statementStart} max={statementEnd} onChange={(event) => setStatementStart(event.target.value)} className="mt-1 block rounded-md border border-gray-300 bg-white px-3 py-2 text-sm" />
+                </label>
+                <label className="text-sm font-medium text-gray-700">
+                  To
+                  <input type="date" value={statementEnd} min={statementStart} max={getToday()} onChange={(event) => setStatementEnd(event.target.value)} className="mt-1 block rounded-md border border-gray-300 bg-white px-3 py-2 text-sm" />
+                </label>
+                <button
+                  type="button"
+                  onClick={() => window.print()}
+                  disabled={loanDetailsLoading || Boolean(timelineError) || !statementStart || !statementEnd || statementStart > statementEnd}
+                  className="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg bg-blue-700 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-800 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  <Printer className="size-4" aria-hidden="true" />
+                  Print statement
+                </button>
+                <p className="text-xs text-gray-500">Statement includes {statementRows.length} transaction(s) in the selected period.</p>
+              </div>
+              {timelineError ? (
+                <p role="alert" className="mt-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{timelineError}</p>
+              ) : (
+                <div id="member-statement-print" className="mt-4 overflow-hidden rounded-lg border border-gray-200 bg-white">
+                  <header className="border-b border-gray-200 px-4 py-4">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">AMCOMS · Member statement</p>
+                    <h4 className="mt-1 text-lg font-semibold text-gray-900">{fullName(selectedMember)}</h4>
+                    <p className="mt-1 text-sm text-gray-600">
+                      Member ID: {selectedMember.member_number || 'Not assigned'} · Period: {formatDate(statementStart)} – {formatDate(statementEnd)}
+                    </p>
+                  </header>
+                  {loanDetailsLoading ? (
+                    <p className="px-4 py-6 text-center text-sm text-gray-500">Loading financial activity...</p>
+                  ) : statementRows.length === 0 ? (
+                    <p className="px-4 py-6 text-center text-sm text-gray-500">No financial activity recorded for this period.</p>
+                  ) : (
+                    <div className="overflow-x-auto">
+                      <table className="w-full min-w-[700px] text-left text-sm">
+                        <thead className="bg-gray-50 text-xs uppercase tracking-wide text-gray-500">
+                          <tr>
+                            <th scope="col" className="px-4 py-3 font-semibold">Date</th>
+                            <th scope="col" className="px-4 py-3 font-semibold">Activity</th>
+                            <th scope="col" className="px-4 py-3 font-semibold">Description</th>
+                            <th scope="col" className="px-4 py-3 font-semibold">Reference</th>
+                            <th scope="col" className="px-4 py-3 text-right font-semibold">Amount</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-100">
+                          {statementRows.map((item) => (
+                            <tr key={item.id} className="odd:bg-white even:bg-gray-50/60">
+                              <td className="whitespace-nowrap px-4 py-3 text-gray-700">{formatDate(item.date)}</td>
+                              <td className="px-4 py-3 font-medium text-gray-900">{item.type}</td>
+                              <td className="max-w-[280px] px-4 py-3 text-gray-600">{item.description || '—'}</td>
+                              <td className="max-w-[180px] break-all px-4 py-3 text-gray-600">{item.reference || '—'}</td>
+                              <td className={`whitespace-nowrap px-4 py-3 text-right font-semibold ${item.amount < 0 ? 'text-gray-800' : 'text-gray-900'}`}>
+                                {item.amount < 0 ? `−${formatMoney(Math.abs(item.amount))}` : formatMoney(item.amount)}
+                                <span className="mt-0.5 block text-xs font-normal text-gray-500">{item.amountLabel}</span>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                  <footer className="border-t border-gray-200 px-4 py-3 text-xs text-gray-500">
+                    Generated {formatDate(getToday())}. This statement reflects activity recorded in AMCOMS for the selected period.
+                  </footer>
+                </div>
+              )}
+            </section>
+            <style>{`
+              @media print {
+                body * { visibility: hidden !important; }
+                #member-statement-print, #member-statement-print * { visibility: visible !important; }
+                #member-statement-print {
+                  position: absolute !important;
+                  left: 0 !important;
+                  top: 0 !important;
+                  width: 100% !important;
+                  max-height: none !important;
+                  overflow: visible !important;
+                  border: 0 !important;
+                  color: #111827 !important;
+                }
+                #member-statement-print table { width: 100% !important; border-collapse: collapse !important; }
+                #member-statement-print th, #member-statement-print td { border: 1px solid #d1d5db !important; }
+                #member-statement-print tr { break-inside: avoid; }
+              }
+            `}</style>
             <footer className="flex justify-end border-t border-gray-200 bg-gray-50 px-6 py-4">
               <button type="button" onClick={() => setSelectedMember(null)} className="min-h-10 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50">
                 Close
