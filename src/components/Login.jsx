@@ -66,8 +66,9 @@ const Login = ({ portalType }) => {
 
   // Auto-redirect when staff profile loads after login
   useEffect(() => {
-    // Only act if we're in loading state and have both user and staff
-    if (!user || !staff || !loading) {
+    // AuthContext completes profile loading before the login promise resolves.
+    // Redirect based on the authenticated profile, not the transient loading state.
+    if (!user || !staff) {
       return;
     }
 
@@ -101,7 +102,7 @@ const Login = ({ portalType }) => {
     console.log('Valid access confirmed for role:', userRole, '- redirecting...');
     redirectToPortal(userRole);
     // Note: Keep loading=true until navigation completes
-  }, [user, staff, loading, portalType, navigate, redirectToPortal]);
+  }, [user, staff, portalType, navigate, redirectToPortal]);
 
   const handleLogin = async (e) => {
     e.preventDefault();
