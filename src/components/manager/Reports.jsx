@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { useLocation } from 'react-router-dom';
 import { Printer, RefreshCw } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useMultipleRealtimeSubscriptions } from '../../hooks/useRealtimeSubscription';
@@ -91,7 +92,8 @@ const Summary = ({ items }) => (
 );
 
 const Reports = () => {
-  const [reportType, setReportType] = useState('financial');
+  const location = useLocation();
+  const [reportType, setReportType] = useState(location.state?.reportType || 'financial');
   const [period, setPeriod] = useState('monthly');
   const [anchor, setAnchor] = useState(iso(new Date()));
   const [data, setData] = useState({});

@@ -198,12 +198,12 @@ const ManagerDashboard = () => {
 
   // Summary cards data
   const summaryCards = [
-    { label: 'Pending Requests', value: loading ? '...' : dashboardData.pendingRequests.toString(), icon: Clock3, tone: 'yellow', detail: 'Loan requests' },
-    { label: 'Active Loans', value: loading ? '...' : dashboardData.activeLoans.toString(), icon: HandCoins, tone: 'blue', detail: 'Being serviced' },
-    { label: 'Active Savings', value: loading ? '...' : dashboardData.activeSavings.toString(), icon: Landmark, tone: 'green', detail: 'Regular accounts' },
-    { label: 'Active Time Deposits', value: loading ? '...' : dashboardData.activeTimeDeposits.toString(), icon: Gem, tone: 'purple', detail: 'Time deposits' },
-    { label: 'Total Members', value: loading ? '...' : dashboardData.totalMembers.toString(), icon: Users, tone: 'cyan', detail: 'Cooperative members' },
-    { label: 'Inventory Status', value: loading ? '...' : (dashboardData.lowStockProducts > 0 ? 'Alert' : 'Good'), icon: Package, tone: dashboardData.lowStockProducts > 0 ? 'yellow' : 'green', detail: `${dashboardData.lowStockProducts} low stock` }
+    { label: 'Pending Requests', value: loading ? '...' : dashboardData.pendingRequests.toString(), icon: Clock3, tone: 'yellow', detail: 'Loan requests', path: '/staff/loan-requests' },
+    { label: 'Active Loans', value: loading ? '...' : dashboardData.activeLoans.toString(), icon: HandCoins, tone: 'blue', detail: 'Being serviced', path: '/staff/reports', state: { reportType: 'loan' } },
+    { label: 'Active Savings', value: loading ? '...' : dashboardData.activeSavings.toString(), icon: Landmark, tone: 'green', detail: 'Regular accounts', path: '/staff/savings' },
+    { label: 'Active Time Deposits', value: loading ? '...' : dashboardData.activeTimeDeposits.toString(), icon: Gem, tone: 'purple', detail: 'Time deposits', path: '/staff/savings' },
+    { label: 'Total Members', value: loading ? '...' : dashboardData.totalMembers.toString(), icon: Users, tone: 'cyan', detail: 'Cooperative members', path: '/staff/members' },
+    { label: 'Inventory Status', value: loading ? '...' : (dashboardData.lowStockProducts > 0 ? 'Alert' : 'Good'), icon: Package, tone: dashboardData.lowStockProducts > 0 ? 'yellow' : 'green', detail: `${dashboardData.lowStockProducts} low stock`, path: '/staff/inventory' }
   ];
 
   // Financial data for chart
@@ -274,7 +274,16 @@ const ManagerDashboard = () => {
       {/* Summary Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
         {summaryCards.map((card) => (
-          <DashboardMetricCard key={card.label} label={card.label} value={card.value} detail={card.detail} icon={card.icon} tone={card.tone} />
+          <DashboardMetricCard
+            key={card.label}
+            label={card.label}
+            value={card.value}
+            detail={card.detail}
+            icon={card.icon}
+            tone={card.tone}
+            actionLabel="View details"
+            onClick={() => navigate(card.path, card.state ? { state: card.state } : undefined)}
+          />
         ))}
       </div>
 
