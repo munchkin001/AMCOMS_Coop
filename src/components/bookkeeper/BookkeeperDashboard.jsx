@@ -175,10 +175,12 @@ const BookkeeperDashboard = ({ onSelectTransaction, onViewBooks }) => {
             />
           </div>
           <button
-            onClick={() => setSelectedDate(selectedDate === yesterdayDate ? yesterdayDate : todayDate)}
+            onClick={() => setSelectedDate(todayDate)}
+            aria-label="Return to today's dashboard"
+            title="Return to today"
             className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 font-medium"
           >
-            {selectedDateLabel === 'Yesterday' ? 'Yesterday' : 'Today'}
+            {selectedDateLabel}
           </button>
           <button
             onClick={() => changeDate(1)}
