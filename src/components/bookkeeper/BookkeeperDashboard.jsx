@@ -106,11 +106,30 @@ const BookkeeperDashboard = ({ onSelectTransaction, onViewBooks }) => {
     'chart_of_accounts'
   ].map((table) => ({ table, onUpdate: fetchDashboardData })), [selectedDate]);
 
+  const todayDate = toDateString(new Date());
+  const yesterday = new Date();
+  yesterday.setDate(yesterday.getDate() - 1);
+  const yesterdayDate = toDateString(yesterday);
+  const selectedDateLabel = selectedDate === todayDate
+    ? 'Today'
+    : selectedDate === yesterdayDate
+      ? 'Yesterday'
+      : new Date(`${selectedDate}T00:00:00`).toLocaleDateString('en-PH', {
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric'
+      });
+  const selectedDatePossessive = selectedDateLabel === 'Today'
+    ? "Today's"
+    : selectedDateLabel === 'Yesterday'
+      ? "Yesterday's"
+      : selectedDateLabel;
+
   const summaryCards = [
     { label: 'Cash on Hand', amount: dashboardData.cashOnHand, detail: 'Current recorded balance', icon: Wallet, tone: 'blue' },
     { label: 'Cash in Bank', amount: dashboardData.cashInBank, detail: 'Current recorded balance', icon: Landmark, tone: 'green' },
-    { label: "Today's Receipts", amount: dashboardData.todayReceipts, detail: 'Total recorded cash receipts today', icon: TrendingUp, tone: 'emerald' },
-    { label: "Today's Disbursements", amount: dashboardData.todayDisbursements, detail: 'Total recorded cash disbursements today', icon: TrendingDown, tone: 'red' },
+    { label: `${selectedDatePossessive} Receipts`, amount: dashboardData.todayReceipts, detail: `Total recorded cash receipts for ${selectedDateLabel.toLowerCase()}`, icon: TrendingUp, tone: 'emerald' },
+    { label: `${selectedDatePossessive} Disbursements`, amount: dashboardData.todayDisbursements, detail: `Total recorded cash disbursements for ${selectedDateLabel.toLowerCase()}`, icon: TrendingDown, tone: 'red' },
     { label: 'Unposted Entries', amount: dashboardData.unpostedTransactions, detail: 'Journal entries not posted to ledger', icon: Clock3, tone: 'yellow', isCount: true }
   ];
 
@@ -128,11 +147,6 @@ const BookkeeperDashboard = ({ onSelectTransaction, onViewBooks }) => {
     const today = toDateString(new Date());
     setSelectedDate(nextDate > today ? today : nextDate);
   };
-  const todayDate = toDateString(new Date());
-  const yesterday = new Date();
-  yesterday.setDate(yesterday.getDate() - 1);
-  const yesterdayDate = toDateString(yesterday);
-
   return (
     <div className="space-y-6">
       {error && <p role="alert" className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{error}</p>}
@@ -159,15 +173,12 @@ const BookkeeperDashboard = ({ onSelectTransaction, onViewBooks }) => {
               onChange={(e) => setSelectedDate(e.target.value > todayDate ? todayDate : e.target.value)}
               className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 font-medium"
             />
-            {selectedDate === yesterdayDate && (
-              <p className="mt-1 px-4 text-xs font-medium text-gray-500">Yesterday</p>
-            )}
           </div>
           <button
-            onClick={() => setSelectedDate(todayDate)}
+            onClick={() => setSelectedDate(selectedDate === yesterdayDate ? yesterdayDate : todayDate)}
             className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 font-medium"
           >
-            Today
+            {selectedDateLabel === 'Yesterday' ? 'Yesterday' : 'Today'}
           </button>
           <button
             onClick={() => changeDate(1)}
@@ -243,7 +254,7 @@ const BookkeeperDashboard = ({ onSelectTransaction, onViewBooks }) => {
             <svg className="w-8 h-8 text-gray-600 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
             </svg>
-            <span className="text-sm font-medium text-gray-900">View Today's Book</span>
+            <span className="text-sm font-medium text-gray-900">View {selectedDatePossessive} Book</span>
           </button>
         </div>
       </div>
