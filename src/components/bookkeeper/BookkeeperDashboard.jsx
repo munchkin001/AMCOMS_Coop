@@ -121,10 +121,17 @@ const BookkeeperDashboard = ({ onSelectTransaction, onViewBooks }) => {
   ];
 
   const changeDate = (days) => {
-    const current = new Date(selectedDate);
+    const [year, month, day] = selectedDate.split('-').map(Number);
+    const current = new Date(year, month - 1, day);
     current.setDate(current.getDate() + days);
-    setSelectedDate(toDateString(current));
+    const nextDate = toDateString(current);
+    const today = toDateString(new Date());
+    setSelectedDate(nextDate > today ? today : nextDate);
   };
+  const todayDate = toDateString(new Date());
+  const yesterday = new Date();
+  yesterday.setDate(yesterday.getDate() - 1);
+  const yesterdayDate = toDateString(yesterday);
 
   return (
     <div className="space-y-6">
@@ -148,19 +155,25 @@ const BookkeeperDashboard = ({ onSelectTransaction, onViewBooks }) => {
             <input
               type="date"
               value={selectedDate}
-              onChange={(e) => setSelectedDate(e.target.value)}
+              max={todayDate}
+              onChange={(e) => setSelectedDate(e.target.value > todayDate ? todayDate : e.target.value)}
               className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 font-medium"
             />
+            {selectedDate === yesterdayDate && (
+              <p className="mt-1 px-4 text-xs font-medium text-gray-500">Yesterday</p>
+            )}
           </div>
           <button
-            onClick={() => setSelectedDate(toDateString(new Date()))}
+            onClick={() => setSelectedDate(todayDate)}
             className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 font-medium"
           >
             Today
           </button>
           <button
             onClick={() => changeDate(1)}
-            className="p-2 border border-gray-300 rounded-lg hover:bg-gray-50"
+            disabled={selectedDate >= todayDate}
+            aria-label="Next day"
+            className="p-2 border border-gray-300 rounded-lg hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40"
           >
             <svg className="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
