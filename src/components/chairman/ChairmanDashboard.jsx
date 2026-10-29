@@ -306,7 +306,7 @@ const ChairmanDashboard = () => {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 rounded-2xl bg-slate-50/70 p-3 sm:p-5">
       {error && <p role="alert" className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{error}</p>}
       <DiscrepancyPanel />
       {/* Summary Cards */}
@@ -324,55 +324,55 @@ const ChairmanDashboard = () => {
       </div>
 
       {/* Financial Overview */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 items-stretch gap-5 lg:grid-cols-3">
         {/* Income vs Expenses Chart */}
-        <div className="lg:col-span-2 bg-white rounded-lg shadow p-6 border border-gray-200">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">Financial Overview</h3>
-          <div style={{ height: '300px' }}>
+        <div className="min-w-0 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6 lg:col-span-2">
+          <h3 className="mb-4 text-lg font-semibold tracking-tight text-slate-900">Financial Overview</h3>
+          <div className="h-64 sm:h-72">
             <Line data={financialData} options={chartOptions} />
           </div>
-          <div className="mt-4 flex items-center justify-center space-x-8">
-            <div className="text-center">
-              <p className="text-sm text-gray-600">Total Income</p>
-              <p className="text-xl font-bold text-green-600">₱{financialSummary.currentIncome.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+          <div className="mt-5 grid grid-cols-3 gap-2 text-center sm:gap-6">
+            <div className="min-w-0">
+              <p className="text-xs text-slate-500 sm:text-sm">Total Income</p>
+              <p className="mt-1 break-words text-base font-bold tabular-nums text-green-600 sm:text-xl">₱{financialSummary.currentIncome.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
             </div>
-            <div className="text-center">
-              <p className="text-sm text-gray-600">Total Expenses</p>
-              <p className="text-xl font-bold text-red-600">₱{financialSummary.currentExpenses.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+            <div className="min-w-0">
+              <p className="text-xs text-slate-500 sm:text-sm">Total Expenses</p>
+              <p className="mt-1 break-words text-base font-bold tabular-nums text-red-600 sm:text-xl">₱{financialSummary.currentExpenses.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
             </div>
-            <div className="text-center">
-              <p className="text-sm text-gray-600">Net Income</p>
-              <p className="text-xl font-bold text-blue-600">₱{(financialSummary.currentIncome - financialSummary.currentExpenses).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+            <div className="min-w-0">
+              <p className="text-xs text-slate-500 sm:text-sm">Net Income</p>
+              <p className="mt-1 break-words text-base font-bold tabular-nums text-blue-600 sm:text-xl">₱{(financialSummary.currentIncome - financialSummary.currentExpenses).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
             </div>
           </div>
         </div>
 
         {/* Loan Summary */}
-        <div className="bg-white rounded-lg shadow p-6 border border-gray-200">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">Loan Summary</h3>
+        <div className="min-w-0 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+          <h3 className="mb-4 text-lg font-semibold tracking-tight text-slate-900">Loan Summary</h3>
           {loading ? (
             <div className="space-y-4">
-              <div className="h-6 bg-gray-200 rounded animate-pulse"></div>
-              <div className="h-6 bg-gray-200 rounded animate-pulse"></div>
-              <div className="h-6 bg-gray-200 rounded animate-pulse"></div>
+              <div className="h-10 rounded-lg bg-slate-100 animate-pulse"></div>
+              <div className="h-10 rounded-lg bg-slate-100 animate-pulse"></div>
+              <div className="h-10 rounded-lg bg-slate-100 animate-pulse"></div>
             </div>
           ) : (
-            <div className="space-y-4">
-              <div className="flex justify-between items-center pb-3 border-b border-gray-200">
-                <span className="text-sm text-gray-600">Active Loans</span>
-                <span className="font-semibold text-gray-900">{dashboardData.activeLoans}</span>
+            <div>
+              <div className="flex items-center justify-between gap-3 border-b border-slate-200 py-4 first:pt-1">
+                <span className="text-sm text-slate-600">Active Loans</span>
+                <span className="font-semibold tabular-nums text-slate-900">{dashboardData.activeLoans}</span>
               </div>
-              <div className="flex justify-between items-center pb-3 border-b border-gray-200">
-                <span className="text-sm text-gray-600">Paid Loans</span>
-                <span className="font-semibold text-green-600">{dashboardData.paidLoans}</span>
+              <div className="flex items-center justify-between gap-3 border-b border-slate-200 py-4">
+                <span className="text-sm text-slate-600">Paid Loans</span>
+                <span className="font-semibold tabular-nums text-green-600">{dashboardData.paidLoans}</span>
               </div>
-              <div className="flex justify-between items-center pb-3 border-b border-gray-200">
-                <span className="text-sm text-gray-600">Overdue Loans</span>
-                <span className="font-semibold text-red-600">{dashboardData.overdueLoans}</span>
+              <div className="flex items-center justify-between gap-3 border-b border-slate-200 py-4">
+                <span className="text-sm text-slate-600">Overdue Loans</span>
+                <span className="font-semibold tabular-nums text-red-600">{dashboardData.overdueLoans}</span>
               </div>
-              <div className="flex justify-between items-center">
-                <span className="text-sm text-gray-600">Outstanding Balance</span>
-                <span className="font-semibold text-gray-900">
+              <div className="flex items-center justify-between gap-3 py-4">
+                <span className="text-sm text-slate-600">Outstanding Balance</span>
+                <span className="text-right font-semibold tabular-nums text-slate-900">
                   ₱{dashboardData.totalLoanBalance.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                 </span>
               </div>
@@ -382,33 +382,33 @@ const ChairmanDashboard = () => {
       </div>
 
       {/* Bottom Section */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
         {/* Member Summary */}
-        <div className="bg-white rounded-lg shadow p-6 border border-gray-200">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">Member Summary</h3>
+        <div className="min-w-0 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+          <h3 className="mb-4 text-lg font-semibold tracking-tight text-slate-900">Member Summary</h3>
           {loading ? (
             <div className="space-y-3">
-              <div className="h-5 bg-gray-200 rounded animate-pulse"></div>
-              <div className="h-5 bg-gray-200 rounded animate-pulse"></div>
-              <div className="h-5 bg-gray-200 rounded animate-pulse"></div>
+              <div className="h-6 rounded bg-slate-100 animate-pulse"></div>
+              <div className="h-6 rounded bg-slate-100 animate-pulse"></div>
+              <div className="h-6 rounded bg-slate-100 animate-pulse"></div>
             </div>
           ) : (
-            <div className="space-y-3">
-              <div className="flex justify-between items-center">
-                <span className="text-sm text-gray-600">Total Members</span>
-                <span className="font-semibold text-gray-900">{dashboardData.totalMembers}</span>
+            <div className="space-y-4">
+              <div className="flex items-center justify-between gap-3">
+                <span className="text-sm text-slate-600">Total Members</span>
+                <span className="font-semibold tabular-nums text-slate-900">{dashboardData.totalMembers}</span>
               </div>
-              <div className="flex justify-between items-center">
-                <span className="text-sm text-gray-600">Active Members</span>
-                <span className="font-semibold text-green-600">{dashboardData.activeMembers}</span>
+              <div className="flex items-center justify-between gap-3">
+                <span className="text-sm text-slate-600">Active Members</span>
+                <span className="font-semibold tabular-nums text-green-600">{dashboardData.activeMembers}</span>
               </div>
-              <div className="flex justify-between items-center">
-                <span className="text-sm text-gray-600">New Members (This Month)</span>
-                <span className="font-semibold text-blue-600">{newMembersThisMonth}</span>
+              <div className="flex items-center justify-between gap-3">
+                <span className="text-sm text-slate-600">New Members (This Month)</span>
+                <span className="font-semibold tabular-nums text-blue-600">{newMembersThisMonth}</span>
               </div>
-              <div className="flex justify-between items-center">
-                <span className="text-sm text-gray-600">Total Savings</span>
-                <span className="font-semibold text-gray-900">
+              <div className="flex items-center justify-between gap-3">
+                <span className="text-sm text-slate-600">Total Savings</span>
+                <span className="text-right font-semibold tabular-nums text-slate-900">
                   ₱{dashboardData.totalSavings.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                 </span>
               </div>
@@ -417,31 +417,31 @@ const ChairmanDashboard = () => {
         </div>
 
         {/* Inventory Summary */}
-        <div className="bg-white rounded-lg shadow p-6 border border-gray-200">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">Inventory Summary</h3>
+        <div className="min-w-0 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+          <h3 className="mb-4 text-lg font-semibold tracking-tight text-slate-900">Inventory Summary</h3>
           {loading ? (
             <div className="space-y-3">
-              <div className="h-5 bg-gray-200 rounded animate-pulse"></div>
-              <div className="h-5 bg-gray-200 rounded animate-pulse"></div>
-              <div className="h-5 bg-gray-200 rounded animate-pulse"></div>
+              <div className="h-6 rounded bg-slate-100 animate-pulse"></div>
+              <div className="h-6 rounded bg-slate-100 animate-pulse"></div>
+              <div className="h-6 rounded bg-slate-100 animate-pulse"></div>
             </div>
           ) : (
-            <div className="space-y-3">
-              <div className="flex justify-between items-center">
-                <span className="text-sm text-gray-600">Available Products</span>
-                <span className="font-semibold text-gray-900">{dashboardData.totalProducts}</span>
+            <div className="space-y-4">
+              <div className="flex items-center justify-between gap-3">
+                <span className="text-sm text-slate-600">Available Products</span>
+                <span className="font-semibold tabular-nums text-slate-900">{dashboardData.totalProducts}</span>
               </div>
-              <div className="flex justify-between items-center">
-                <span className="text-sm text-gray-600">Low Stock Items</span>
-                <span className="font-semibold text-yellow-600">{dashboardData.lowStockCount}</span>
+              <div className="flex items-center justify-between gap-3">
+                <span className="text-sm text-slate-600">Low Stock Items</span>
+                <span className="font-semibold tabular-nums text-amber-600">{dashboardData.lowStockCount}</span>
               </div>
-              <div className="flex justify-between items-center">
-                <span className="text-sm text-gray-600">Out of Stock</span>
-                <span className="font-semibold text-red-600">{dashboardData.outOfStockCount}</span>
+              <div className="flex items-center justify-between gap-3">
+                <span className="text-sm text-slate-600">Out of Stock</span>
+                <span className="font-semibold tabular-nums text-red-600">{dashboardData.outOfStockCount}</span>
               </div>
-              <div className="flex justify-between items-center">
-                <span className="text-sm text-gray-600">Production (This Month)</span>
-                <span className="font-semibold text-green-600">{dashboardData.totalProduction} units</span>
+              <div className="flex items-center justify-between gap-3">
+                <span className="text-sm text-slate-600">Production (This Month)</span>
+                <span className="font-semibold tabular-nums text-green-600">{dashboardData.totalProduction} units</span>
               </div>
             </div>
           )}
@@ -449,24 +449,24 @@ const ChairmanDashboard = () => {
       </div>
 
       {/* Year-to-Year Comparison & Recent Policies */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
         {/* Year-to-Year Comparison */}
-        <div className="bg-white rounded-lg shadow p-6 border border-gray-200">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">Year-to-Year Comparison</h3>
+        <div className="min-w-0 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+          <h3 className="mb-4 text-lg font-semibold tracking-tight text-slate-900">Year-to-Year Comparison</h3>
           <div className="space-y-4">
             {[
               { label: 'Income', current: yearlyFinancialSummary.currentIncome, previous: yearlyFinancialSummary.previousIncome, color: 'text-green-600' },
               { label: 'Expenses', current: yearlyFinancialSummary.currentExpenses, previous: yearlyFinancialSummary.previousExpenses, color: 'text-red-600' }
             ].map((item) => (
-              <div key={item.label} className="rounded-lg bg-gray-50 p-4">
-                <p className="mb-2 text-sm font-semibold text-gray-800">{item.label}</p>
-                <div className="flex justify-between text-sm">
-                  <span>{yearlyFinancialSummary.currentYear}</span>
-                  <span className={`font-semibold ${item.color}`}>₱{item.current.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+              <div key={item.label} className="rounded-xl bg-slate-50 p-4">
+                <p className="mb-2 text-sm font-semibold text-slate-800">{item.label}</p>
+                <div className="flex justify-between gap-3 text-sm">
+                  <span className="text-slate-600">{yearlyFinancialSummary.currentYear}</span>
+                  <span className={`font-semibold tabular-nums ${item.color}`}>₱{item.current.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                 </div>
-                <div className="mt-1 flex justify-between text-sm">
-                  <span>{yearlyFinancialSummary.previousYear}</span>
-                  <span className="font-medium text-gray-700">₱{item.previous.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                <div className="mt-2 flex justify-between gap-3 text-sm">
+                  <span className="text-slate-600">{yearlyFinancialSummary.previousYear}</span>
+                  <span className="font-medium tabular-nums text-slate-700">₱{item.previous.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                 </div>
               </div>
             ))}
@@ -474,12 +474,12 @@ const ChairmanDashboard = () => {
         </div>
 
         {/* Recent Policies */}
-        <div className="bg-white rounded-lg shadow p-6 border border-gray-200">
+        <div className="min-w-0 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
           <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-semibold text-gray-900">Recent Policies</h3>
+            <h3 className="text-lg font-semibold tracking-tight text-slate-900">Recent Policies</h3>
             <button 
               onClick={() => navigate('/staff/policies')}
-              className="text-sm text-green-600 hover:text-green-700 font-medium cursor-pointer"
+              className="rounded-md text-sm font-semibold text-green-700 hover:text-green-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-600 focus-visible:ring-offset-2"
             >
               View all
             </button>
@@ -496,9 +496,9 @@ const ChairmanDashboard = () => {
           ) : (
             <div className="space-y-3">
               {recentPolicies.map((policy) => (
-                <div key={policy.id} className="p-3 bg-gray-50 rounded-lg">
-                  <p className="text-sm font-medium text-gray-900">{policy.name}</p>
-                  <p className="text-xs text-gray-500 mt-1">Published: {new Date(policy.published_at).toLocaleDateString('en-PH', { year: 'numeric', month: 'short', day: 'numeric' })}</p>
+                <div key={policy.id} className="rounded-xl bg-slate-50 p-3 transition-colors hover:bg-slate-100">
+                    <p className="text-sm font-semibold text-slate-800">{policy.name}</p>
+                    <p className="mt-1 text-xs text-slate-500">Published: {new Date(policy.published_at).toLocaleDateString('en-PH', { year: 'numeric', month: 'short', day: 'numeric' })}</p>
                 </div>
               ))}
             </div>
