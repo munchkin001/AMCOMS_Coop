@@ -230,7 +230,7 @@ const LoanRequests = () => {
         requestQuery,
         supabase
           .from('loans')
-          .select('id, loan_number, request_id, member_id, principal_amount, total_amount, term_months, payment_frequency, approval_date, status, member:members(first_name, middle_name, last_name, member_number)')
+          .select('id, loan_number, request_id, member_id, principal_amount, interest_rate, total_interest, total_amount, balance, term_months, payment_frequency, installments, installment_amount, monthly_payment, penalty_rate, penalty_total, application_date, approval_date, release_date, maturity_date, status, notes, member:members(first_name, middle_name, last_name, member_number), request:requests!loans_request_id_fkey(request_number, request_data)')
           .in('status', ['approved', 'active'])
           .order('approval_date', { ascending: true })
           .limit(500),
@@ -709,19 +709,20 @@ const LoanRequests = () => {
           ))
         ) : (
           <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white shadow-sm">
-            <table className="w-full min-w-[600px] divide-y divide-gray-200 text-left">
+            <table className="w-full min-w-[760px] divide-y divide-gray-200 text-left">
               <thead className="bg-gray-50">
                 <tr>
                   <th scope="col" className="px-5 py-3 text-xs font-semibold uppercase tracking-wide text-gray-600">Member</th>
                   <th scope="col" className="px-5 py-3 text-xs font-semibold uppercase tracking-wide text-gray-600">Loan number</th>
                   <th scope="col" className="px-5 py-3 text-xs font-semibold uppercase tracking-wide text-gray-600">Principal</th>
-                  <th scope="col" className="px-5 py-3 text-xs font-semibold uppercase tracking-wide text-gray-600">Term</th>
+                  <th scope="col" className="px-5 py-3 text-xs font-semibold uppercase tracking-wide text-gray-600">Installment</th>
+                  <th scope="col" className="px-5 py-3 text-xs font-semibold uppercase tracking-wide text-gray-600">Balance</th>
                   <th scope="col" className="px-5 py-3 text-xs font-semibold uppercase tracking-wide text-gray-600">Status</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
                 {filteredApprovedLoans.length === 0 ? (
-                  <tr><td colSpan={5} className="px-5 py-8 text-center text-sm text-gray-500">No approved loans match “{loanSearch}”.</td></tr>
+                  <tr><td colSpan={6} className="px-5 py-8 text-center text-sm text-gray-500">No approved loans match “{loanSearch}”.</td></tr>
                 ) : filteredApprovedLoans.map((loan) => (
                   <tr
                     key={loan.id}
@@ -740,7 +741,8 @@ const LoanRequests = () => {
                     <td className="whitespace-nowrap px-5 py-4 font-medium text-gray-900">{fullName(memberOf(loan))}</td>
                     <td className="whitespace-nowrap px-5 py-4 text-sm text-gray-700">{loan.loan_number}</td>
                     <td className="whitespace-nowrap px-5 py-4 text-sm text-gray-700">{formatMoney(loan.principal_amount)}</td>
-                    <td className="whitespace-nowrap px-5 py-4 text-sm text-gray-700">{loan.term_months} months · {loan.payment_frequency}</td>
+                    <td className="whitespace-nowrap px-5 py-4 text-sm text-gray-700">{formatMoney(loan.installment_amount ?? loan.monthly_payment)} · {loan.payment_frequency}</td>
+                    <td className="whitespace-nowrap px-5 py-4 text-sm text-gray-700">{formatMoney(loan.balance)}</td>
                     <td className="whitespace-nowrap px-5 py-4 text-sm capitalize text-gray-700">{loan.status === 'active' ? 'Cash released' : 'Awaiting disbursement'}</td>
                   </tr>
                 ))}
@@ -752,30 +754,127 @@ const LoanRequests = () => {
 
       {selectedLoan && (
         <div
-          className="fixed inset-0 z-40 flex items-center justify-center bg-black/50 p-4"
+          className="fixed inset-0 z-40 flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-sm"
           role="presentation"
           onMouseDown={(event) => {
             if (event.target === event.currentTarget) setSelectedLoan(null);
           }}
         >
-          <section role="dialog" aria-modal="true" aria-labelledby="approved-loan-details-title" className="w-full max-w-lg rounded-xl bg-white p-6 shadow-xl">
-            <div className="flex items-start justify-between gap-4">
-              <div>
-                <h2 id="approved-loan-details-title" className="text-xl font-bold text-gray-900">Loan details</h2>
-                <p className="mt-1 text-sm text-gray-600">{selectedLoan.loan_number}</p>
-              </div>
-              <button type="button" onClick={() => setSelectedLoan(null)} aria-label="Close loan details" className="rounded-lg p-2 text-gray-500 hover:bg-gray-100 hover:text-gray-800">
-                <X aria-hidden="true" size={20} />
-              </button>
-            </div>
-            <dl className="mt-5 grid gap-4 sm:grid-cols-2">
-              <div><dt className="text-sm text-gray-500">Member</dt><dd className="font-semibold text-gray-900">{fullName(memberOf(selectedLoan))}</dd></div>
-              <div><dt className="text-sm text-gray-500">Status</dt><dd className="font-semibold capitalize text-gray-900">{selectedLoan.status === 'active' ? 'Cash released' : 'Awaiting disbursement'}</dd></div>
-              <div><dt className="text-sm text-gray-500">Principal</dt><dd className="font-semibold text-gray-900">{formatMoney(selectedLoan.principal_amount)}</dd></div>
-              <div><dt className="text-sm text-gray-500">Total payable</dt><dd className="font-semibold text-gray-900">{formatMoney(selectedLoan.total_amount)}</dd></div>
-              <div><dt className="text-sm text-gray-500">Repayment term</dt><dd className="font-semibold text-gray-900">{selectedLoan.term_months} months · {selectedLoan.payment_frequency}</dd></div>
-              <div><dt className="text-sm text-gray-500">Approval date</dt><dd className="font-semibold text-gray-900">{selectedLoan.approval_date || 'Not available'}</dd></div>
-            </dl>
+          <section role="dialog" aria-modal="true" aria-labelledby="approved-loan-details-title" className="max-h-[92vh] w-full max-w-3xl overflow-hidden rounded-2xl bg-white shadow-2xl">
+            {(() => {
+              const application = requestData(selectedLoan.request);
+              const member = memberOf(selectedLoan);
+              const loanStatus = selectedLoan.status === 'active' ? 'Cash released' : 'Awaiting disbursement';
+              const detailRows = [
+                ['Loan type', application.loan_type || 'Not specified'],
+                ['Repayment term', `${selectedLoan.term_months} months`],
+                ['Payment frequency', selectedLoan.payment_frequency || 'Not specified'],
+                ['Installments', selectedLoan.installments ? `${selectedLoan.installments} payments` : 'Not available'],
+                ['Installment amount', formatMoney(selectedLoan.installment_amount ?? selectedLoan.monthly_payment)],
+                ['Annual interest rate', `${selectedLoan.interest_rate ?? 0}%`],
+                ['Late-payment penalty rate', `${selectedLoan.penalty_rate ?? 0}%`],
+              ];
+              const dateRows = [
+                ['Application date', selectedLoan.application_date],
+                ['Approval date', selectedLoan.approval_date],
+                ['Cash release date', selectedLoan.release_date],
+                ['Maturity date', selectedLoan.maturity_date],
+              ];
+              const securityRows = [
+                ['Collateral', [application.application_details?.collateral_type, application.application_details?.collateral_description].filter(Boolean).join(' — ')],
+                ['Co-maker / guarantor', [application.application_details?.guarantor_name, application.application_details?.guarantor_contact].filter(Boolean).join(' · ')],
+                ['Processing fee', formatMoney(application.application_details?.processing_fee)],
+                ['Service fee', formatMoney(application.application_details?.service_fee)],
+              ];
+              const detailValue = (value) => value || 'Not provided';
+              const displayDate = (value) => value ? new Date(`${value}T00:00:00`).toLocaleDateString('en-PH', { year: 'numeric', month: 'short', day: 'numeric' }) : 'Not available';
+              return (
+                <>
+                  <header className="relative bg-gradient-to-br from-slate-900 via-blue-950 to-blue-900 px-6 py-6 text-white sm:px-8">
+                    <div className="absolute inset-x-0 bottom-0 h-1 bg-gradient-to-r from-amber-300 via-yellow-400 to-amber-300" />
+                    <div className="flex items-start justify-between gap-4">
+                      <div>
+                        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-blue-200">Loan account</p>
+                        <h2 id="approved-loan-details-title" className="mt-1 text-2xl font-bold">{selectedLoan.loan_number}</h2>
+                        <p className="mt-2 text-sm text-blue-100">{fullName(member)}{member?.member_number ? ` · Member ${member.member_number}` : ''}</p>
+                      </div>
+                      <button type="button" onClick={() => setSelectedLoan(null)} aria-label="Close loan details" className="rounded-full bg-white/10 p-2 text-white transition hover:bg-white/20 focus:outline-none focus:ring-2 focus:ring-white">
+                        <X aria-hidden="true" size={20} />
+                      </button>
+                    </div>
+                    <span className={`mt-4 inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-semibold ${selectedLoan.status === 'active' ? 'bg-emerald-400/15 text-emerald-100 ring-1 ring-emerald-200/30' : 'bg-amber-300/15 text-amber-100 ring-1 ring-amber-200/30'}`}>
+                      <span className={`h-2 w-2 rounded-full ${selectedLoan.status === 'active' ? 'bg-emerald-300' : 'bg-amber-300'}`} />
+                      {loanStatus}
+                    </span>
+                  </header>
+                  <div className="max-h-[calc(92vh-170px)] space-y-6 overflow-y-auto bg-slate-50 p-6 sm:p-8">
+                    <section aria-label="Loan financial summary" className="grid gap-3 sm:grid-cols-3">
+                      <div className="rounded-xl border border-blue-100 bg-white p-4 shadow-sm">
+                        <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Principal</p>
+                        <p className="mt-2 text-xl font-bold text-slate-900">{formatMoney(selectedLoan.principal_amount)}</p>
+                      </div>
+                      <div className="rounded-xl border border-blue-100 bg-white p-4 shadow-sm">
+                        <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Total interest</p>
+                        <p className="mt-2 text-xl font-bold text-slate-900">{formatMoney(selectedLoan.total_interest)}</p>
+                      </div>
+                      <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 shadow-sm">
+                        <p className="text-xs font-medium uppercase tracking-wide text-amber-800">Total payable</p>
+                        <p className="mt-2 text-xl font-bold text-amber-950">{formatMoney(selectedLoan.total_amount)}</p>
+                      </div>
+                    </section>
+
+                    <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+                      <h3 className="text-sm font-bold uppercase tracking-wide text-slate-800">Repayment details</h3>
+                      <dl className="mt-4 grid gap-x-6 gap-y-4 sm:grid-cols-2">
+                        {detailRows.map(([label, value]) => (
+                          <div key={label}>
+                            <dt className="text-xs font-medium text-slate-500">{label}</dt>
+                            <dd className="mt-1 font-semibold capitalize text-slate-900">{value}</dd>
+                          </div>
+                        ))}
+                        <div>
+                          <dt className="text-xs font-medium text-slate-500">Current balance</dt>
+                          <dd className="mt-1 font-semibold text-slate-900">{formatMoney(selectedLoan.balance)}</dd>
+                        </div>
+                        <div>
+                          <dt className="text-xs font-medium text-slate-500">Penalties recorded</dt>
+                          <dd className="mt-1 font-semibold text-slate-900">{formatMoney(selectedLoan.penalty_total)}</dd>
+                        </div>
+                      </dl>
+                    </section>
+
+                    <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+                      <h3 className="text-sm font-bold uppercase tracking-wide text-slate-800">Loan timeline</h3>
+                      <dl className="mt-4 grid gap-x-6 gap-y-4 sm:grid-cols-2">
+                        {dateRows.map(([label, value]) => (
+                          <div key={label}>
+                            <dt className="text-xs font-medium text-slate-500">{label}</dt>
+                            <dd className="mt-1 font-semibold text-slate-900">{displayDate(value)}</dd>
+                          </div>
+                        ))}
+                      </dl>
+                    </section>
+
+                    <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+                      <h3 className="text-sm font-bold uppercase tracking-wide text-slate-800">Application information</h3>
+                      {selectedLoan.request?.request_number && <p className="mt-1 text-xs text-slate-500">Request {selectedLoan.request.request_number}</p>}
+                      <div className="mt-4">
+                        <p className="text-xs font-medium text-slate-500">Purpose</p>
+                        <p className="mt-1 whitespace-pre-wrap text-sm leading-6 text-slate-800">{detailValue(application.purpose || selectedLoan.notes)}</p>
+                      </div>
+                      <dl className="mt-4 grid gap-x-6 gap-y-4 sm:grid-cols-2">
+                        {securityRows.map(([label, value]) => (
+                          <div key={label}>
+                            <dt className="text-xs font-medium text-slate-500">{label}</dt>
+                            <dd className="mt-1 text-sm font-medium text-slate-800">{detailValue(value)}</dd>
+                          </div>
+                        ))}
+                      </dl>
+                    </section>
+                  </div>
+                </>
+              );
+            })()}
           </section>
         </div>
       )}
