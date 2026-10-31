@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Check, Clock3, RefreshCw } from 'lucide-react';
+import { Check, Clock3, RefreshCw, Search, X } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import { useMultipleRealtimeSubscriptions } from '../../hooks/useRealtimeSubscription';
@@ -13,6 +13,13 @@ const today = () => new Date().toISOString().slice(0, 10);
 const formatMoney = (value) => `₱${Number(value || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })}`;
 const fullName = (member) => [member?.first_name, member?.middle_name, member?.last_name].filter(Boolean).join(' ') || 'Member';
 const memberOf = (record) => (Array.isArray(record?.member) ? record.member[0] : record?.member);
+const matchesMemberSearch = (record, query, identifier) => {
+  const search = query.trim().toLocaleLowerCase();
+  if (!search) return true;
+  const member = memberOf(record);
+  return [fullName(member), member?.member_number, identifier]
+    .some((value) => String(value || '').toLocaleLowerCase().includes(search));
+};
 const requestData = (request) => request.request_data || {};
 const createVoucher = () => `LR-${today().replace(/-/g, '')}-${globalThis.crypto.randomUUID().slice(0, 8).toUpperCase()}`;
 const loanTypes = ['Regular', 'Agricultural', 'Emergency'];
@@ -87,6 +94,10 @@ const LoanRequests = () => {
   const [terms, setTerms] = useState([]);
   const [requests, setRequests] = useState([]);
   const [approvedLoans, setApprovedLoans] = useState([]);
+  const [selectedRequest, setSelectedRequest] = useState(null);
+  const [selectedLoan, setSelectedLoan] = useState(null);
+  const [requestSearch, setRequestSearch] = useState('');
+  const [loanSearch, setLoanSearch] = useState('');
   const [selectedMember, setSelectedMember] = useState('');
   const [memberName, setMemberName] = useState('');
   const [loanType, setLoanType] = useState('');
@@ -434,6 +445,9 @@ const LoanRequests = () => {
 
   if (loading) return <LoadingSpinner />;
 
+  const filteredRequests = requests.filter((request) => matchesMemberSearch(request, requestSearch, request.request_number));
+  const filteredApprovedLoans = approvedLoans.filter((loan) => matchesMemberSearch(loan, loanSearch, loan.loan_number));
+
   return (
     <div className="space-y-6">
       <header className="flex flex-wrap items-center justify-between gap-3">
@@ -559,68 +573,212 @@ const LoanRequests = () => {
       )}
 
       {canViewQueue && <section className="space-y-3">
-        <div className="flex items-center gap-2">
-          <Clock3 aria-hidden="true" className="text-amber-700" size={20} />
-          <h2 className="text-lg font-semibold text-gray-900">Applications awaiting decision ({requests.length})</h2>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-center gap-2">
+            <Clock3 aria-hidden="true" className="text-amber-700" size={20} />
+            <h2 className="text-lg font-semibold text-gray-900">Applications awaiting decision ({requests.length})</h2>
+          </div>
+          <label className="relative block w-full sm:w-72">
+            <Search aria-hidden="true" size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+            <input type="search" value={requestSearch} onChange={(event) => setRequestSearch(event.target.value)} placeholder="Search member or request" aria-label="Search loan applications by member or request number" className="w-full rounded-lg border border-gray-300 py-2 pl-9 pr-3 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200" />
+          </label>
         </div>
         {requests.length === 0 ? (
           <p className="rounded-xl border border-gray-200 bg-white p-6 text-sm text-gray-600">No loan applications are waiting for review.</p>
-        ) : requests.map((request) => {
-          const data = requestData(request);
-          return (
-            <article key={request.id} className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
-              <div className="flex flex-wrap items-start justify-between gap-3">
-                <div>
-                  <h3 className="text-lg font-semibold text-gray-900">{fullName(memberOf(request))}</h3>
-                  <p className="mt-1 text-sm text-gray-600">{request.request_number} · Submitted {new Date(request.created_at).toLocaleDateString('en-PH')}</p>
-                </div>
-                <span className="rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-900">{request.status.replace('_', ' ')}</span>
-              </div>
-              <div className="mt-4 grid gap-3 sm:grid-cols-3">
-                <p className="text-sm text-gray-600">Requested <strong className="block text-gray-900">{formatMoney(request.amount)}</strong></p>
-                <p className="text-sm text-gray-600">Loan type <strong className="block text-gray-900">{data.loan_type || 'Not specified'}</strong></p>
-                <p className="text-sm text-gray-600">Proposed terms <strong className="block text-gray-900">{data.term_months || '—'} months · {data.payment_frequency || 'monthly'}</strong></p>
-                <p className="text-sm text-gray-600 sm:col-span-3">Purpose <strong className="block text-gray-900">{data.purpose || 'Not provided'}</strong></p>
-                <p className="text-sm text-gray-600">Quoted interest <strong className="block text-gray-900">{formatMoney(data.total_interest)}</strong></p>
-                <p className="text-sm text-gray-600">Estimated total payable <strong className="block text-gray-900">{formatMoney(data.total_payable)}</strong></p>
-                <p className="text-sm text-gray-600">Installment <strong className="block text-gray-900">{formatMoney(data.installment_amount)}</strong></p>
-                <p className="text-sm text-gray-600">Annual interest rate <strong className="block text-gray-900">{data.annual_rate ?? '—'}%</strong></p>
-                <p className="text-sm text-gray-600">Late-payment penalty rate <strong className="block text-gray-900">{data.penalty_rate ?? '—'}%</strong></p>
-                <p className="text-sm text-gray-600">Fees (processing / service) <strong className="block text-gray-900">{formatMoney(data.application_details?.processing_fee)} / {formatMoney(data.application_details?.service_fee)}</strong></p>
-                {(data.application_details?.collateral_type || data.application_details?.collateral_description) && (
-                  <p className="text-sm text-gray-600 sm:col-span-3">Collateral <strong className="block text-gray-900">{[data.application_details.collateral_type, data.application_details.collateral_description].filter(Boolean).join(' — ')}</strong></p>
-                )}
-                {(data.application_details?.guarantor_name || data.application_details?.guarantor_contact) && (
-                  <p className="text-sm text-gray-600 sm:col-span-3">Co-maker / guarantor <strong className="block text-gray-900">{[data.application_details.guarantor_name, data.application_details.guarantor_contact].filter(Boolean).join(' · ')}</strong></p>
-                )}
-              </div>
-              {canReview ? (
-                <div className="mt-4 flex flex-wrap gap-3 border-t border-gray-100 pt-4">
-                  <button type="button" disabled={!!busyId} onClick={() => { setNotes(''); setDecision({ ...request, status: 'approved' }); }} className="rounded-lg bg-emerald-700 px-4 py-2 font-semibold text-white hover:bg-emerald-800 disabled:opacity-50">Approve application</button>
-                  <button type="button" disabled={!!busyId} onClick={() => { setNotes(''); setDecision({ ...request, status: 'rejected' }); }} className="rounded-lg border border-red-300 px-4 py-2 font-semibold text-red-700 hover:bg-red-50 disabled:opacity-50">Reject application</button>
-                </div>
-              ) : null}
-            </article>
-          );
-        })}
+        ) : (
+          <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white shadow-sm">
+            <table className="w-full min-w-[640px] divide-y divide-gray-200 text-left">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th scope="col" className="px-5 py-3 text-xs font-semibold uppercase tracking-wide text-gray-600">Member</th>
+                  <th scope="col" className="px-5 py-3 text-xs font-semibold uppercase tracking-wide text-gray-600">Request</th>
+                  <th scope="col" className="px-5 py-3 text-xs font-semibold uppercase tracking-wide text-gray-600">Loan type</th>
+                  <th scope="col" className="px-5 py-3 text-xs font-semibold uppercase tracking-wide text-gray-600">Amount</th>
+                  <th scope="col" className="px-5 py-3 text-xs font-semibold uppercase tracking-wide text-gray-600">Submitted</th>
+                  <th scope="col" className="px-5 py-3 text-xs font-semibold uppercase tracking-wide text-gray-600">Status</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {filteredRequests.length === 0 ? (
+                  <tr><td colSpan={6} className="px-5 py-8 text-center text-sm text-gray-500">No loan applications match “{requestSearch}”.</td></tr>
+                ) : filteredRequests.map((request) => {
+                  const data = requestData(request);
+                  return (
+                    <tr
+                      key={request.id}
+                      role="button"
+                      tabIndex={0}
+                      aria-label={`View loan application ${request.request_number} for ${fullName(memberOf(request))}`}
+                      onClick={() => setSelectedRequest(request)}
+                      onKeyDown={(event) => {
+                        if (event.key === 'Enter' || event.key === ' ') {
+                          event.preventDefault();
+                          setSelectedRequest(request);
+                        }
+                      }}
+                      className="cursor-pointer hover:bg-blue-50 focus:bg-blue-50 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-blue-600"
+                    >
+                      <td className="whitespace-nowrap px-5 py-4 font-medium text-gray-900">{fullName(memberOf(request))}</td>
+                      <td className="whitespace-nowrap px-5 py-4 text-sm text-gray-700">{request.request_number}</td>
+                      <td className="whitespace-nowrap px-5 py-4 text-sm text-gray-700">{data.loan_type || 'Not specified'}</td>
+                      <td className="whitespace-nowrap px-5 py-4 text-sm text-gray-700">{formatMoney(request.amount)}</td>
+                      <td className="whitespace-nowrap px-5 py-4 text-sm text-gray-700">{new Date(request.created_at).toLocaleDateString('en-PH')}</td>
+                      <td className="whitespace-nowrap px-5 py-4">
+                        <span className="rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold capitalize text-amber-900">{request.status.replace('_', ' ')}</span>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
       </section>}
 
+      {selectedRequest && (() => {
+        const data = requestData(selectedRequest);
+        const applicationDetails = data.application_details || {};
+        return (
+          <div
+            className="fixed inset-0 z-40 flex items-center justify-center bg-black/50 p-4"
+            role="presentation"
+            onMouseDown={(event) => {
+              if (event.target === event.currentTarget) setSelectedRequest(null);
+            }}
+          >
+            <section role="dialog" aria-modal="true" aria-labelledby="loan-request-details-title" className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-xl bg-white p-6 shadow-xl">
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <h2 id="loan-request-details-title" className="text-xl font-bold text-gray-900">Loan application details</h2>
+                  <p className="mt-1 text-sm text-gray-600">{selectedRequest.request_number} · Submitted {new Date(selectedRequest.created_at).toLocaleDateString('en-PH')}</p>
+                </div>
+                <button type="button" onClick={() => setSelectedRequest(null)} aria-label="Close loan application details" className="rounded-lg p-2 text-gray-500 hover:bg-gray-100 hover:text-gray-800">
+                  <X aria-hidden="true" size={20} />
+                </button>
+              </div>
+              <dl className="mt-5 grid gap-4 sm:grid-cols-2">
+                <div><dt className="text-sm text-gray-500">Member</dt><dd className="font-semibold text-gray-900">{fullName(memberOf(selectedRequest))}</dd></div>
+                <div><dt className="text-sm text-gray-500">Status</dt><dd className="font-semibold capitalize text-gray-900">{selectedRequest.status.replace('_', ' ')}</dd></div>
+                <div><dt className="text-sm text-gray-500">Loan type</dt><dd className="font-semibold text-gray-900">{data.loan_type || 'Not specified'}</dd></div>
+                <div><dt className="text-sm text-gray-500">Amount requested</dt><dd className="font-semibold text-gray-900">{formatMoney(selectedRequest.amount)}</dd></div>
+                <div><dt className="text-sm text-gray-500">Proposed terms</dt><dd className="font-semibold text-gray-900">{data.term_months || '—'} months · {data.payment_frequency || 'monthly'}</dd></div>
+                <div><dt className="text-sm text-gray-500">Purpose</dt><dd className="font-semibold text-gray-900">{data.purpose || 'Not provided'}</dd></div>
+                <div><dt className="text-sm text-gray-500">Quoted interest</dt><dd className="font-semibold text-gray-900">{formatMoney(data.total_interest)}</dd></div>
+                <div><dt className="text-sm text-gray-500">Estimated total payable</dt><dd className="font-semibold text-gray-900">{formatMoney(data.total_payable)}</dd></div>
+                <div><dt className="text-sm text-gray-500">Installment</dt><dd className="font-semibold text-gray-900">{formatMoney(data.installment_amount)}</dd></div>
+                <div><dt className="text-sm text-gray-500">Annual interest rate</dt><dd className="font-semibold text-gray-900">{data.annual_rate ?? '—'}%</dd></div>
+                <div><dt className="text-sm text-gray-500">Late-payment penalty rate</dt><dd className="font-semibold text-gray-900">{data.penalty_rate ?? '—'}%</dd></div>
+                <div><dt className="text-sm text-gray-500">Fees (processing / service)</dt><dd className="font-semibold text-gray-900">{formatMoney(applicationDetails.processing_fee)} / {formatMoney(applicationDetails.service_fee)}</dd></div>
+                <div><dt className="text-sm text-gray-500">Collateral</dt><dd className="font-semibold text-gray-900">{[applicationDetails.collateral_type, applicationDetails.collateral_description].filter(Boolean).join(' — ') || 'Not provided'}</dd></div>
+                <div><dt className="text-sm text-gray-500">Co-maker / guarantor</dt><dd className="font-semibold text-gray-900">{[applicationDetails.guarantor_name, applicationDetails.guarantor_contact].filter(Boolean).join(' · ') || 'Not provided'}</dd></div>
+              </dl>
+              {canReview && (
+                <div className="mt-6 flex flex-wrap justify-end gap-3 border-t border-gray-100 pt-4">
+                  <button type="button" disabled={!!busyId} onClick={() => { setNotes(''); setDecision({ ...selectedRequest, status: 'rejected' }); setSelectedRequest(null); }} className="rounded-lg border border-red-300 px-4 py-2 font-semibold text-red-700 hover:bg-red-50 disabled:opacity-50">Reject application</button>
+                  <button type="button" disabled={!!busyId} onClick={() => { setNotes(''); setDecision({ ...selectedRequest, status: 'approved' }); setSelectedRequest(null); }} className="rounded-lg bg-emerald-700 px-4 py-2 font-semibold text-white hover:bg-emerald-800 disabled:opacity-50">Approve application</button>
+                </div>
+              )}
+            </section>
+          </div>
+        );
+      })()}
+
       <section className="space-y-3">
-        <div className="flex items-center gap-2">
-          <Check aria-hidden="true" className="text-blue-700" size={20} />
-          <h2 className="text-lg font-semibold text-gray-900">Approved loans ({approvedLoans.length})</h2>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-center gap-2">
+            <Check aria-hidden="true" className="text-blue-700" size={20} />
+            <h2 className="text-lg font-semibold text-gray-900">Approved loans ({approvedLoans.length})</h2>
+          </div>
+          {!canRelease && (
+            <label className="relative block w-full sm:w-72">
+              <Search aria-hidden="true" size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+              <input type="search" value={loanSearch} onChange={(event) => setLoanSearch(event.target.value)} placeholder="Search member or loan" aria-label="Search approved loans by member or loan number" className="w-full rounded-lg border border-gray-300 py-2 pl-9 pr-3 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200" />
+            </label>
+          )}
         </div>
         {approvedLoans.length === 0 ? (
           <p className="rounded-xl border border-gray-200 bg-white p-6 text-sm text-gray-600">No approved loans to show.</p>
-        ) : approvedLoans.map((loan) => canRelease && loan.status === 'approved' ? (
-          <LoanReleaseCard key={loan.id} loan={loan} busy={busyId === loan.id} onRelease={releaseLoan} />
+        ) : canRelease ? (
+          approvedLoans.map((loan) => loan.status === 'approved' ? (
+            <LoanReleaseCard key={loan.id} loan={loan} busy={busyId === loan.id} onRelease={releaseLoan} />
+          ) : (
+            <article key={loan.id} className="rounded-xl border border-gray-200 bg-white p-5">
+              <h3 className="font-semibold text-gray-900">{fullName(memberOf(loan))} · {loan.loan_number}</h3>
+              <p className="mt-1 text-sm text-gray-600">Cash released · Principal {formatMoney(loan.principal_amount)} · Term {loan.term_months} months</p>
+            </article>
+          ))
         ) : (
-          <article key={loan.id} className="rounded-xl border border-gray-200 bg-white p-5">
-            <h3 className="font-semibold text-gray-900">{fullName(memberOf(loan))} · {loan.loan_number}</h3>
-            <p className="mt-1 text-sm text-gray-600">{loan.status === 'active' ? 'Cash released' : 'Approved · awaiting Bookkeeper cash release'} · Principal {formatMoney(loan.principal_amount)} · Term {loan.term_months} months</p>
-          </article>
-        ))}
+          <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white shadow-sm">
+            <table className="w-full min-w-[600px] divide-y divide-gray-200 text-left">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th scope="col" className="px-5 py-3 text-xs font-semibold uppercase tracking-wide text-gray-600">Member</th>
+                  <th scope="col" className="px-5 py-3 text-xs font-semibold uppercase tracking-wide text-gray-600">Loan number</th>
+                  <th scope="col" className="px-5 py-3 text-xs font-semibold uppercase tracking-wide text-gray-600">Principal</th>
+                  <th scope="col" className="px-5 py-3 text-xs font-semibold uppercase tracking-wide text-gray-600">Term</th>
+                  <th scope="col" className="px-5 py-3 text-xs font-semibold uppercase tracking-wide text-gray-600">Status</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {filteredApprovedLoans.length === 0 ? (
+                  <tr><td colSpan={5} className="px-5 py-8 text-center text-sm text-gray-500">No approved loans match “{loanSearch}”.</td></tr>
+                ) : filteredApprovedLoans.map((loan) => (
+                  <tr
+                    key={loan.id}
+                    role="button"
+                    tabIndex={0}
+                    aria-label={`View loan details for ${loan.loan_number}, ${fullName(memberOf(loan))}`}
+                    onClick={() => setSelectedLoan(loan)}
+                    onKeyDown={(event) => {
+                      if (event.key === 'Enter' || event.key === ' ') {
+                        event.preventDefault();
+                        setSelectedLoan(loan);
+                      }
+                    }}
+                    className="cursor-pointer hover:bg-blue-50 focus:bg-blue-50 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-blue-600"
+                  >
+                    <td className="whitespace-nowrap px-5 py-4 font-medium text-gray-900">{fullName(memberOf(loan))}</td>
+                    <td className="whitespace-nowrap px-5 py-4 text-sm text-gray-700">{loan.loan_number}</td>
+                    <td className="whitespace-nowrap px-5 py-4 text-sm text-gray-700">{formatMoney(loan.principal_amount)}</td>
+                    <td className="whitespace-nowrap px-5 py-4 text-sm text-gray-700">{loan.term_months} months · {loan.payment_frequency}</td>
+                    <td className="whitespace-nowrap px-5 py-4 text-sm capitalize text-gray-700">{loan.status === 'active' ? 'Cash released' : 'Awaiting disbursement'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </section>
+
+      {selectedLoan && (
+        <div
+          className="fixed inset-0 z-40 flex items-center justify-center bg-black/50 p-4"
+          role="presentation"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) setSelectedLoan(null);
+          }}
+        >
+          <section role="dialog" aria-modal="true" aria-labelledby="approved-loan-details-title" className="w-full max-w-lg rounded-xl bg-white p-6 shadow-xl">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <h2 id="approved-loan-details-title" className="text-xl font-bold text-gray-900">Loan details</h2>
+                <p className="mt-1 text-sm text-gray-600">{selectedLoan.loan_number}</p>
+              </div>
+              <button type="button" onClick={() => setSelectedLoan(null)} aria-label="Close loan details" className="rounded-lg p-2 text-gray-500 hover:bg-gray-100 hover:text-gray-800">
+                <X aria-hidden="true" size={20} />
+              </button>
+            </div>
+            <dl className="mt-5 grid gap-4 sm:grid-cols-2">
+              <div><dt className="text-sm text-gray-500">Member</dt><dd className="font-semibold text-gray-900">{fullName(memberOf(selectedLoan))}</dd></div>
+              <div><dt className="text-sm text-gray-500">Status</dt><dd className="font-semibold capitalize text-gray-900">{selectedLoan.status === 'active' ? 'Cash released' : 'Awaiting disbursement'}</dd></div>
+              <div><dt className="text-sm text-gray-500">Principal</dt><dd className="font-semibold text-gray-900">{formatMoney(selectedLoan.principal_amount)}</dd></div>
+              <div><dt className="text-sm text-gray-500">Total payable</dt><dd className="font-semibold text-gray-900">{formatMoney(selectedLoan.total_amount)}</dd></div>
+              <div><dt className="text-sm text-gray-500">Repayment term</dt><dd className="font-semibold text-gray-900">{selectedLoan.term_months} months · {selectedLoan.payment_frequency}</dd></div>
+              <div><dt className="text-sm text-gray-500">Approval date</dt><dd className="font-semibold text-gray-900">{selectedLoan.approval_date || 'Not available'}</dd></div>
+            </dl>
+          </section>
+        </div>
+      )}
 
       {decision && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" role="dialog" aria-modal="true" aria-labelledby="loan-review-title">
