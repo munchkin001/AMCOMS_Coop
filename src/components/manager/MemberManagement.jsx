@@ -940,7 +940,7 @@ const MemberManagement = () => {
               {timelineError ? (
                 <p role="alert" className="mt-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{timelineError}</p>
               ) : (
-                <div id="member-statement-print" className="mt-4 overflow-hidden rounded-lg border border-gray-200 bg-white">
+                <div id="member-statement-print" className="amcoms-print-document mt-4 overflow-hidden rounded-lg border border-gray-200 bg-white">
                   <header className="border-b border-gray-200 px-4 py-4">
                     <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">AMCOMS · Member statement</p>
                     <h4 className="mt-1 text-lg font-semibold text-gray-900">{fullName(selectedMember)}</h4>
@@ -988,7 +988,7 @@ const MemberManagement = () => {
                       </table>
                     </div>
                   )}
-                  <footer className="border-t border-gray-200 px-4 py-3 text-xs text-gray-500">
+                  <footer className="print:hidden border-t border-gray-200 px-4 py-3 text-xs text-gray-500">
                     Generated {formatDate(getToday())}. This statement reflects activity recorded in AMCOMS for the selected period.
                   </footer>
                 </div>
@@ -998,17 +998,20 @@ const MemberManagement = () => {
               @media print {
                 body * { visibility: hidden !important; }
                 #member-statement-print, #member-statement-print * { visibility: visible !important; }
+                html, body, #root { width: 100% !important; min-width: 0 !important; height: auto !important; overflow: visible !important; }
                 #member-statement-print {
                   position: absolute !important;
                   left: 0 !important;
                   top: 0 !important;
                   width: 100% !important;
+                  min-width: 0 !important;
                   max-height: none !important;
                   overflow: visible !important;
                   border: 0 !important;
                   color: #111827 !important;
                 }
-                #member-statement-print table { width: 100% !important; border-collapse: collapse !important; }
+                #member-statement-print * { min-width: 0 !important; overflow: visible !important; }
+                #member-statement-print table { width: 100% !important; min-width: 0 !important; max-width: 100% !important; border-collapse: collapse !important; }
                 #member-statement-print th, #member-statement-print td { border: 1px solid #d1d5db !important; }
                 #member-statement-print tr { break-inside: avoid; }
               }

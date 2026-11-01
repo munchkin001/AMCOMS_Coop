@@ -190,14 +190,14 @@ const DailyCollection = () => {
           <p className="mt-2 text-3xl font-semibold tracking-tight text-gray-900">
             {loading ? 'Loading…' : error ? 'Unavailable' : formatMoney(totalCollections)}
           </p>
-          <p className="mt-2 text-sm text-gray-500">{selectedDate}</p>
+          <p className="print:hidden mt-2 text-sm text-gray-500">{selectedDate}</p>
         </div>
         <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
           <p className="text-sm font-medium text-gray-500">Recorded receipts</p>
           <p className="mt-2 text-3xl font-semibold tracking-tight text-gray-900">
             {loading ? '…' : error ? '—' : totalTransactions.toLocaleString()}
           </p>
-          <p className="mt-2 text-sm text-gray-500">For the selected date</p>
+          <p className="print:hidden mt-2 text-sm text-gray-500">For the selected date</p>
         </div>
       </section>
 

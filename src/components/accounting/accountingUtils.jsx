@@ -22,10 +22,13 @@ export const PrintStyles = () => (
   <style>{`
     @media print {
       @page { size: A4 landscape; margin: 12mm; }
+      html, body, #root { width: 100% !important; min-width: 0 !important; height: auto !important; overflow: visible !important; }
       body * { visibility: hidden !important; }
       #gl-print, #gl-print * { visibility: visible !important; }
-      #gl-print { position: absolute; left: 0; top: 0; width: 100%; border: 0 !important; box-shadow: none !important; }
-      .no-print { display: none !important; }
+      #gl-print { position: absolute; left: 0; top: 0; width: 100% !important; min-width: 0 !important; max-width: none !important; overflow: visible !important; border: 0 !important; box-shadow: none !important; }
+      #gl-print * { min-width: 0 !important; overflow: visible !important; }
+      #gl-print table { width: 100% !important; min-width: 0 !important; max-width: 100% !important; }
+      .no-print, .print\\:hidden, [data-no-print="true"] { display: none !important; }
       thead { display: table-header-group; }
       tr { break-inside: avoid; }
     }

@@ -232,6 +232,15 @@ input[type="radio"] {
     margin: 15mm;
   }
 
+  html,
+  body,
+  #root {
+    width: 100% !important;
+    min-width: 0 !important;
+    height: auto !important;
+    overflow: visible !important;
+  }
+
   body {
     background: #fff !important;
     color: #111827 !important;
@@ -252,7 +261,9 @@ input[type="radio"] {
     position: absolute !important;
     inset: 0 auto auto 0 !important;
     width: 100% !important;
+    min-width: 0 !important;
     max-width: none !important;
+    overflow: visible !important;
     margin: 0 !important;
     padding: 0 !important;
     border: 0 !important;
@@ -264,10 +275,15 @@ input[type="radio"] {
     font-size: 10pt !important;
   }
 
-  .amcoms-print-document .no-print,
-  .amcoms-print-document .print\:hidden,
-  .amcoms-print-document [data-no-print="true"] {
+  .no-print,
+  .print\:hidden,
+  [data-no-print="true"] {
     display: none !important;
+  }
+
+  .amcoms-print-document * {
+    min-width: 0 !important;
+    overflow: visible !important;
   }
 
   .amcoms-document-header {
@@ -276,8 +292,10 @@ input[type="radio"] {
   }
 
   .amcoms-print-document table {
-    width: 100%;
-    border-collapse: collapse;
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+    border-collapse: collapse !important;
   }
 
   .amcoms-print-document thead {
