@@ -1,7 +1,13 @@
 import React, { startTransition, useCallback, useState, useEffect, useRef } from 'react';
-import { Archive, Download, RefreshCw } from 'lucide-react';
+import {
+  Activity, Archive, CalendarDays, ChevronLeft, ChevronRight, Clock3, Download, Filter,
+  RefreshCw, Search, ShieldCheck, UserRound, X
+} from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useRealtimeSubscription } from '../../hooks/useRealtimeSubscription';
+
+const PAGE_SIZE = 20;
+const SENSITIVE_FIELD = /password|token|secret|api.?key|credential/i;
 
 const getCurrentMonthKey = () => {
   const parts = new Intl.DateTimeFormat('en', {
@@ -41,6 +47,50 @@ const formatDateKeyInManila = (date) => {
   return `${values.year}-${values.month}-${values.day}`;
 };
 
+const formatDateTime = (date) => new Date(date).toLocaleString('en-PH', {
+  timeZone: 'Asia/Manila',
+  year: 'numeric',
+  month: 'short',
+  day: 'numeric',
+  hour: 'numeric',
+  minute: '2-digit',
+  second: '2-digit'
+});
+
+const formatFieldLabel = (field) => field
+  .replaceAll('_', ' ')
+  .replace(/\b\w/g, (letter) => letter.toUpperCase());
+
+const sanitizeAuditValue = (value) => {
+  if (Array.isArray(value)) return value.map(sanitizeAuditValue);
+  if (!value || typeof value !== 'object') return value;
+  return Object.fromEntries(Object.entries(value).map(([key, nestedValue]) => [
+    key,
+    SENSITIVE_FIELD.test(key) ? '[Redacted]' : sanitizeAuditValue(nestedValue)
+  ]));
+};
+
+const formatAuditValue = (value) => {
+  if (value === null || value === undefined || value === '') return '—';
+  if (typeof value === 'object') return JSON.stringify(sanitizeAuditValue(value), null, 2);
+  return String(value);
+};
+
+const getChangedFields = (log) => {
+  const oldData = log.old_data && typeof log.old_data === 'object' ? log.old_data : {};
+  const newData = log.new_data && typeof log.new_data === 'object' ? log.new_data : {};
+  const fields = new Set([...Object.keys(oldData), ...Object.keys(newData)]);
+
+  return Array.from(fields)
+    .filter((field) => !SENSITIVE_FIELD.test(field))
+    .filter((field) => JSON.stringify(oldData[field]) !== JSON.stringify(newData[field]))
+    .map((field) => ({
+      field,
+      oldValue: Object.prototype.hasOwnProperty.call(oldData, field) ? formatAuditValue(oldData[field]) : 'Not present',
+      newValue: Object.prototype.hasOwnProperty.call(newData, field) ? formatAuditValue(newData[field]) : 'Not present'
+    }));
+};
+
 const AuditLog = () => {
   const [filters, setFilters] = useState({
     user: '',
@@ -57,6 +107,8 @@ const AuditLog = () => {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
   const [archiveLoadError, setArchiveLoadError] = useState('');
+  const [selectedLog, setSelectedLog] = useState(null);
+  const [page, setPage] = useState(1);
   const latestRequestRef = useRef(0);
 
   const fetchAuditLogs = useCallback(async () => {
@@ -79,7 +131,7 @@ const AuditLog = () => {
       while (hasMore) {
         let query = supabase
           .from('audit_logs')
-          .select('id, action, table_name, created_at, staff:staff!audit_logs_user_id_fkey!inner(full_name, role)')
+          .select('id, action, table_name, record_id, old_data, new_data, ip_address, user_agent, created_at, staff:staff!audit_logs_user_id_fkey!inner(full_name, role)')
           .gte('created_at', start)
           .lt('created_at', end)
           .order('created_at', { ascending: false })
@@ -183,10 +235,6 @@ const AuditLog = () => {
     fetchArchiveMonths();
   }, null, [fetchArchiveMonths, fetchAuditLogs]);
 
-  const handleFilterChange = (field, value) => {
-    setFilters((current) => ({ ...current, [field]: value }));
-  };
-
   const getModule = (tableName) => {
     if (tableName === 'authentication') return 'Account access';
     if (['loans', 'loan_payments', 'loan_products', 'loan_applications'].includes(tableName)) return 'Loans';
@@ -242,15 +290,14 @@ const AuditLog = () => {
   const getActorName = (log) => log.staff?.full_name || 'Historical activity';
   const getActivityLabel = (log) => {
     if (log.table_name === 'authentication') {
-      return log.action === 'Signed in' ? 'Signed in' : 'Signed out';
+      return log.action || 'Account activity';
     }
 
-    const actionVerb = log.action?.startsWith('Created ')
-      ? 'Added'
-      : log.action?.startsWith('Deleted ')
-        ? 'Removed'
-        : 'Updated';
-    return `${actionVerb} ${tableLabels[log.table_name] || 'system entry'}`;
+    const actionMatch = log.action?.match(/^(Created|Updated|Deleted)\s+/);
+    if (!actionMatch) return log.action || 'System activity';
+    const actionVerb = { Created: 'Added', Updated: 'Updated', Deleted: 'Removed' }[actionMatch[1]];
+    const tableName = log.action.slice(actionMatch[0].length).toLowerCase();
+    return `${actionVerb} ${tableLabels[tableName] || tableLabels[log.table_name] || 'system entry'}`;
   };
 
   const filteredLogs = auditLogs.filter((log) => {
@@ -263,19 +310,36 @@ const AuditLog = () => {
       && (!filters.dateTo || eventDate <= filters.dateTo);
   });
 
+  const pageCount = Math.max(1, Math.ceil(filteredLogs.length / PAGE_SIZE));
+  const currentPage = Math.min(page, pageCount);
+  const pageLogs = filteredLogs.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
+  const activeStaffCount = new Set(auditLogs.map((log) => getActorName(log))).size;
+  const activeAreaCount = new Set(auditLogs.map((log) => getModule(log.table_name))).size;
+  const accessEventCount = auditLogs.filter((log) => log.table_name === 'authentication').length;
+  const latestActivity = auditLogs[0] ? formatDateTime(auditLogs[0].created_at) : 'No activity yet';
+  const selectedChanges = selectedLog ? getChangedFields(selectedLog) : [];
+
   const handleReset = () => {
     setFilters({ user: '', module: '', dateFrom: '', dateTo: '', action: '' });
+    setPage(1);
+  };
+
+  const handleFilterChange = (field, value) => {
+    setFilters((current) => ({ ...current, [field]: value }));
+    setPage(1);
   };
 
   const handleExport = () => {
     const rows = [
-      ['Date and time', 'Staff', 'Role', 'Activity', 'Area'],
+      ['Date and time (Manila)', 'Staff', 'Role', 'Activity', 'Area', 'Table', 'Record ID'],
       ...filteredLogs.map((log) => [
-        new Date(log.created_at).toLocaleString(),
+        formatDateTime(log.created_at),
         getActorName(log),
         log.staff?.role || '',
         getActivityLabel(log),
         getModule(log.table_name),
+        log.table_name || '',
+        log.record_id || ''
       ]),
     ];
     const csv = rows.map((row) => row.map((value) => `"${String(value ?? '').replaceAll('"', '""')}"`).join(',')).join('\r\n');
@@ -310,18 +374,101 @@ const AuditLog = () => {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col gap-4 rounded-lg border border-gray-200 bg-white p-4 shadow-sm sm:flex-row sm:items-center sm:justify-between">
-        <div className="inline-flex w-fit rounded-lg bg-gray-100 p-1" aria-label="Staff audit log period">
+      <header className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-slate-950 via-[#173b35] to-emerald-800 p-6 text-white shadow-lg sm:p-8">
+        <div aria-hidden="true" className="pointer-events-none absolute -right-10 -top-20 size-64 rounded-full border-[30px] border-white/5" />
+        <div className="relative flex flex-wrap items-start justify-between gap-5">
+          <div>
+            <span className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-emerald-100">
+              <ShieldCheck aria-hidden="true" className="size-4" />
+              Staff activity oversight
+            </span>
+            <h1 className="mt-4 text-2xl font-bold tracking-tight sm:text-3xl">Audit log</h1>
+            <p className="mt-2 max-w-2xl text-sm leading-6 text-emerald-100">
+              Review staff actions, account access, and record changes. Select an entry to inspect its audit details.
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => { setLoading(true); fetchAuditLogs(); }}
+              disabled={loading}
+              className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-white/20 bg-white/10 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-white/20 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              <RefreshCw aria-hidden="true" className={`size-4 ${loading ? 'animate-spin' : ''}`} />
+              Refresh
+            </button>
+            <button
+              type="button"
+              onClick={handleExport}
+              disabled={!filteredLogs.length}
+              className="inline-flex min-h-10 items-center gap-2 rounded-lg bg-white px-4 py-2 text-sm font-semibold text-emerald-950 transition-colors hover:bg-emerald-50 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              <Download aria-hidden="true" className="size-4" />
+              Export CSV
+            </button>
+          </div>
+        </div>
+        <div className="relative mt-6 flex flex-wrap items-center gap-3 border-t border-white/15 pt-4 text-sm text-emerald-100">
+          <span className="inline-flex items-center gap-2"><CalendarDays aria-hidden="true" className="size-4" />{displayedMonth}</span>
+          <span className="hidden text-emerald-300 sm:inline">•</span>
+          <span className="inline-flex items-center gap-2"><Clock3 aria-hidden="true" className="size-4" />Latest: {latestActivity}</span>
+        </div>
+      </header>
+
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        {[
+          { label: 'Recorded events', value: auditLogs.length, icon: Activity, tone: 'bg-emerald-50 text-emerald-800' },
+          { label: 'Staff represented', value: activeStaffCount, icon: UserRound, tone: 'bg-blue-50 text-blue-800' },
+          { label: 'Areas with activity', value: activeAreaCount, icon: Filter, tone: 'bg-violet-50 text-violet-800' },
+          { label: 'Account access events', value: accessEventCount, icon: ShieldCheck, tone: 'bg-amber-50 text-amber-800' }
+        ].map(({ label, value, icon: Icon, tone }) => (
+          <article key={label} className="flex items-center gap-4 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+            <span className={`flex size-11 shrink-0 items-center justify-center rounded-xl ${tone}`}>
+              <Icon aria-hidden="true" className="size-5" />
+            </span>
+            <div>
+              <p className="text-xs font-medium text-slate-500">{label}</p>
+              <p className="mt-1 text-2xl font-bold tabular-nums text-slate-900">{loading ? '—' : value}</p>
+            </div>
+          </article>
+        ))}
+      </div>
+
+      <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div>
+            <h2 className="text-base font-semibold text-slate-900">Activity range</h2>
+            <p className="mt-1 text-sm text-slate-500">Choose current or archived activity, then narrow the results.</p>
+          </div>
+          {view === 'archive' && (
+            <label htmlFor="archive-month" className="w-full text-sm font-medium text-slate-700 sm:w-auto">
+              Archive month
+              <select
+                id="archive-month"
+                value={selectedArchiveMonth}
+                onChange={(event) => {
+                  setLoading(true);
+                  setSelectedArchiveMonth(event.target.value);
+                  setPage(1);
+                }}
+                disabled={!archiveMonths.length}
+                className="mt-1 block min-h-11 w-full rounded-lg border border-slate-300 bg-white px-3 text-sm text-slate-900 focus:border-emerald-700 focus:outline-none focus:ring-2 focus:ring-emerald-700/20 disabled:bg-slate-100 sm:min-w-48"
+              >
+                {!archiveMonths.length && <option value="">No archived months</option>}
+                {archiveMonths.map((month) => <option key={month} value={month}>{formatMonth(month)}</option>)}
+              </select>
+            </label>
+          )}
+        </div>
+
+        <div className="mt-4 inline-flex rounded-xl bg-slate-100 p-1" aria-label="Audit log period">
           <button
             type="button"
-            onClick={() => {
-              setLoading(true);
-              setView('current');
-            }}
+            onClick={() => { setLoading(true); setView('current'); setPage(1); }}
             aria-pressed={view === 'current'}
-            className={`min-h-11 rounded-md px-4 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-700 focus-visible:ring-offset-2 ${view === 'current' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-600 hover:text-gray-900'}`}
+            className={`min-h-10 rounded-lg px-4 text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-700 focus-visible:ring-offset-2 ${view === 'current' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-600 hover:text-slate-900'}`}
           >
-            Current Month
+            Current month
           </button>
           <button
             type="button"
@@ -333,58 +480,38 @@ const AuditLog = () => {
                 setLoading(true);
               }
               setView('archive');
+              setPage(1);
             }}
             aria-pressed={view === 'archive'}
-            className={`inline-flex min-h-11 items-center gap-2 rounded-md px-4 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-700 focus-visible:ring-offset-2 ${view === 'archive' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-600 hover:text-gray-900'}`}
+            className={`inline-flex min-h-10 items-center gap-2 rounded-lg px-4 text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-700 focus-visible:ring-offset-2 ${view === 'archive' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-600 hover:text-slate-900'}`}
           >
             <Archive aria-hidden="true" className="size-4" />
-            Archived Logs
+            Archived
           </button>
         </div>
-        {view === 'archive' && (
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-            <label htmlFor="archive-month" className="text-sm font-medium text-gray-700">Archive month</label>
-            <select
-              id="archive-month"
-              value={selectedArchiveMonth}
-              onChange={(event) => {
-                setLoading(true);
-                setSelectedArchiveMonth(event.target.value);
-              }}
-              disabled={!archiveMonths.length}
-              className="min-h-11 rounded-lg border border-gray-300 bg-white px-3 text-sm text-gray-900 focus:border-green-600 focus:outline-none focus:ring-2 focus:ring-green-600 disabled:bg-gray-100"
-            >
-              {!archiveMonths.length && <option value="">No archived months</option>}
-              {archiveMonths.map((month) => <option key={month} value={month}>{formatMonth(month)}</option>)}
-            </select>
-          </div>
-        )}
-      </div>
 
-      {/* Filters */}
-      <div className="bg-white rounded-lg shadow p-6 border border-gray-200">
-        <h3 className="text-lg font-semibold text-gray-900 mb-4">Filter {displayedMonth} Staff Activity</h3>
-        
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 mb-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Staff</label>
-            <input
-              type="text"
-              value={filters.user}
-              onChange={(e) => handleFilterChange('user', e.target.value)}
-              placeholder="Search staff"
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Area</label>
+        <div className="mt-5 grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
+          <label className="text-sm font-medium text-slate-700">
+            Staff member
+            <span className="relative mt-1 block">
+              <Search aria-hidden="true" className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-400" />
+              <input
+                type="search"
+                value={filters.user}
+                onChange={(event) => handleFilterChange('user', event.target.value)}
+                placeholder="Search staff"
+                className="min-h-11 w-full rounded-lg border border-slate-300 bg-white pl-9 pr-3 text-sm font-normal text-slate-900 placeholder:text-slate-400 focus:border-emerald-700 focus:outline-none focus:ring-2 focus:ring-emerald-700/20"
+              />
+            </span>
+          </label>
+          <label className="text-sm font-medium text-slate-700">
+            Area
             <select
               value={filters.module}
-              onChange={(e) => handleFilterChange('module', e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+              onChange={(event) => handleFilterChange('module', event.target.value)}
+              className="mt-1 min-h-11 w-full rounded-lg border border-slate-300 bg-white px-3 text-sm font-normal text-slate-900 focus:border-emerald-700 focus:outline-none focus:ring-2 focus:ring-emerald-700/20"
             >
-              <option value="">All Areas</option>
+              <option value="">All areas</option>
               <option value="Loans">Loans</option>
               <option value="Financial">Financial</option>
               <option value="Inventory">Inventory</option>
@@ -396,113 +523,258 @@ const AuditLog = () => {
               <option value="Settings">Settings</option>
               <option value="System activity">System activity</option>
             </select>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Date From</label>
+          </label>
+          <label className="text-sm font-medium text-slate-700">
+            Date from
             <input
               type="date"
               value={filters.dateFrom}
-              onChange={(e) => handleFilterChange('dateFrom', e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+              onChange={(event) => handleFilterChange('dateFrom', event.target.value)}
+              className="mt-1 min-h-11 w-full rounded-lg border border-slate-300 bg-white px-3 text-sm font-normal text-slate-900 focus:border-emerald-700 focus:outline-none focus:ring-2 focus:ring-emerald-700/20"
             />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Date To</label>
+          </label>
+          <label className="text-sm font-medium text-slate-700">
+            Date to
             <input
               type="date"
               value={filters.dateTo}
-              onChange={(e) => handleFilterChange('dateTo', e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+              onChange={(event) => handleFilterChange('dateTo', event.target.value)}
+              className="mt-1 min-h-11 w-full rounded-lg border border-slate-300 bg-white px-3 text-sm font-normal text-slate-900 focus:border-emerald-700 focus:outline-none focus:ring-2 focus:ring-emerald-700/20"
             />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Activity</label>
-            <input
-              type="text"
-              value={filters.action}
-              onChange={(e) => handleFilterChange('action', e.target.value)}
-              placeholder="Search activity"
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
-            />
-          </div>
+          </label>
+          <label className="text-sm font-medium text-slate-700">
+            Activity
+            <span className="relative mt-1 block">
+              <Search aria-hidden="true" className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-400" />
+              <input
+                type="search"
+                value={filters.action}
+                onChange={(event) => handleFilterChange('action', event.target.value)}
+                placeholder="Search activity"
+                className="min-h-11 w-full rounded-lg border border-slate-300 bg-white pl-9 pr-3 text-sm font-normal text-slate-900 placeholder:text-slate-400 focus:border-emerald-700 focus:outline-none focus:ring-2 focus:ring-emerald-700/20"
+              />
+            </span>
+          </label>
         </div>
-
-        <div className="flex space-x-3">
+        <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 pt-4">
+          <p className="text-sm text-slate-500">
+            Showing <span className="font-semibold text-slate-800">{filteredLogs.length}</span> of {auditLogs.length} events in {displayedMonth}
+          </p>
           <button
+            type="button"
             onClick={handleReset}
-            className="inline-flex items-center gap-2 px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors font-medium"
+            className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-700"
           >
             <RefreshCw aria-hidden="true" className="size-4" />
-            Reset Filters
-          </button>
-          <button
-            onClick={handleExport}
-            className="inline-flex items-center gap-2 px-4 py-2 bg-green-700 text-white rounded-lg hover:bg-green-800 transition-colors font-medium"
-          >
-            <Download aria-hidden="true" className="size-4" />
-            Export to CSV
+            Clear filters
           </button>
         </div>
-      </div>
+      </section>
 
-      {loadError && <p role="alert" className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-800">{loadError}</p>}
-      {archiveLoadError && view === 'archive' && <p role="alert" className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-800">{archiveLoadError}</p>}
+      {loadError && <p role="alert" className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{loadError}</p>}
+      {archiveLoadError && view === 'archive' && <p role="alert" className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{archiveLoadError}</p>}
 
-      {/* Results Summary */}
-      <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-        <p className="text-sm text-blue-900">
-          {displayedMonth}: showing <span className="font-semibold">{filteredLogs.length}</span> of <span className="font-semibold">{auditLogs.length}</span> staff activity entries
-        </p>
-      </div>
+      <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+        <header className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 px-5 py-4 sm:px-6">
+          <div>
+            <h2 className="font-semibold text-slate-900">Activity entries</h2>
+            <p className="mt-1 text-xs text-slate-500">Newest first · times shown in Manila time · select a row for details</p>
+          </div>
+          {!loading && filteredLogs.length > 0 && (
+            <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-800">
+              {filteredLogs.length} {filteredLogs.length === 1 ? 'event' : 'events'}
+            </span>
+          )}
+        </header>
 
-      {/* Audit Log Table */}
-      <div className="bg-white rounded-lg shadow border border-gray-200 overflow-hidden">
-        <div className="overflow-x-auto">
-          {loading ? (
-            <div className="p-12 text-center text-gray-500">
-              <p className="text-sm">Loading activity...</p>
-            </div>
-          ) : filteredLogs.length === 0 ? (
-            <div className="p-12 text-center text-gray-500">
-              <svg className="w-16 h-16 mx-auto mb-3 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-              </svg>
-              <p className="text-sm font-medium">{auditLogs.length ? 'No entries match these filters' : view === 'archive' ? 'No archived staff activity for this month' : 'No staff activity this month'}</p>
-            </div>
-          ) : (
-            <table className="w-full">
-              <thead className="bg-gray-50">
+        {loading ? (
+          <div className="space-y-3 p-5" aria-label="Loading audit activity">
+            {[1, 2, 3, 4].map((item) => <div key={item} className="h-14 animate-pulse rounded-lg bg-slate-100" />)}
+          </div>
+        ) : filteredLogs.length === 0 ? (
+          <div className="px-6 py-14 text-center">
+            <span className="mx-auto flex size-14 items-center justify-center rounded-2xl bg-slate-100 text-slate-500">
+              <Activity aria-hidden="true" className="size-7" />
+            </span>
+            <p className="mt-4 text-base font-semibold text-slate-900">
+              {auditLogs.length ? 'No entries match these filters' : view === 'archive' ? 'No archived activity for this month' : 'No staff activity this month'}
+            </p>
+            <p className="mt-1 text-sm text-slate-500">{auditLogs.length ? 'Clear or adjust the filters to see more entries.' : 'Recorded staff actions will appear here.'}</p>
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[760px] text-left text-sm">
+              <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
                 <tr>
-                  <th className="text-left py-3 px-4 font-semibold text-gray-700 text-sm">Date & Time</th>
-                  <th className="text-left py-3 px-4 font-semibold text-gray-700 text-sm">Staff</th>
-                  <th className="text-left py-3 px-4 font-semibold text-gray-700 text-sm">Activity</th>
-                  <th className="text-left py-3 px-4 font-semibold text-gray-700 text-sm">Area</th>
+                  <th scope="col" className="px-5 py-3 font-semibold">Date &amp; time</th>
+                  <th scope="col" className="px-5 py-3 font-semibold">Staff</th>
+                  <th scope="col" className="px-5 py-3 font-semibold">Activity</th>
+                  <th scope="col" className="px-5 py-3 font-semibold">Area</th>
+                  <th scope="col" className="px-5 py-3 font-semibold">Record</th>
+                  <th scope="col" className="px-5 py-3"><span className="sr-only">Details</span></th>
                 </tr>
               </thead>
-              <tbody>
-                {filteredLogs.map((log) => (
-                  <tr key={log.id} className="border-b border-gray-200 hover:bg-gray-50">
-                    <td className="whitespace-nowrap py-3 px-4 text-sm text-gray-900">
-                      {new Date(log.created_at).toLocaleString()}
-                    </td>
-                    <td className="py-3 px-4 text-sm text-gray-900 font-medium">{getActorName(log)}</td>
-                    <td className="py-3 px-4 text-sm text-gray-700">{getActivityLabel(log)}</td>
-                    <td className="py-3 px-4">
-                      <span className={`inline-block px-3 py-1 rounded-full text-xs font-medium ${getModuleColor(getModule(log.table_name))}`}>
-                        {getModule(log.table_name)}
-                      </span>
-                    </td>
-                  </tr>
-                ))}
+              <tbody className="divide-y divide-slate-100">
+                {pageLogs.map((log) => {
+                  const module = getModule(log.table_name);
+                  return (
+                    <tr
+                      key={log.id}
+                      tabIndex={0}
+                      aria-label={`View details: ${getActivityLabel(log)} by ${getActorName(log)}`}
+                      onClick={() => setSelectedLog(log)}
+                      onKeyDown={(event) => {
+                        if (event.key === 'Enter' || event.key === ' ') {
+                          event.preventDefault();
+                          setSelectedLog(log);
+                        }
+                      }}
+                      className="cursor-pointer bg-white transition-colors hover:bg-emerald-50/60 focus:bg-emerald-50/60 focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-emerald-700"
+                    >
+                      <td className="whitespace-nowrap px-5 py-4 text-slate-600">{formatDateTime(log.created_at)}</td>
+                      <td className="px-5 py-4">
+                        <p className="font-semibold text-slate-900">{getActorName(log)}</p>
+                        <p className="mt-0.5 text-xs capitalize text-slate-500">{log.staff?.role || 'Staff account'}</p>
+                      </td>
+                      <td className="px-5 py-4 font-medium text-slate-800">{getActivityLabel(log)}</td>
+                      <td className="px-5 py-4">
+                        <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${getModuleColor(module)}`}>{module}</span>
+                      </td>
+                      <td className="max-w-48 truncate px-5 py-4 font-mono text-xs text-slate-500" title={log.record_id || log.table_name || ''}>
+                        {log.record_id || log.table_name || '—'}
+                      </td>
+                      <td className="px-5 py-4 text-right text-xs font-semibold text-emerald-800">View</td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
-          )}
-        </div>
-      </div>
+          </div>
+        )}
 
+        {!loading && filteredLogs.length > PAGE_SIZE && (
+          <footer className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 px-5 py-3 sm:px-6">
+            <p className="text-sm text-slate-500">
+              Showing {(currentPage - 1) * PAGE_SIZE + 1}–{Math.min(currentPage * PAGE_SIZE, filteredLogs.length)} of {filteredLogs.length}
+            </p>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setPage((current) => Math.max(1, current - 1))}
+                disabled={currentPage === 1}
+                aria-label="Previous page"
+                className="flex size-9 items-center justify-center rounded-lg border border-slate-300 text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                <ChevronLeft aria-hidden="true" className="size-4" />
+              </button>
+              <span className="px-2 text-sm font-medium text-slate-700">Page {currentPage} of {pageCount}</span>
+              <button
+                type="button"
+                onClick={() => setPage((current) => Math.min(pageCount, current + 1))}
+                disabled={currentPage === pageCount}
+                aria-label="Next page"
+                className="flex size-9 items-center justify-center rounded-lg border border-slate-300 text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                <ChevronRight aria-hidden="true" className="size-4" />
+              </button>
+            </div>
+          </footer>
+        )}
+      </section>
+
+      {selectedLog && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-sm" onClick={() => setSelectedLog(null)}>
+          <section
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="audit-entry-title"
+            className="flex max-h-[92vh] w-full max-w-3xl flex-col overflow-hidden rounded-2xl border border-white/60 bg-slate-50 shadow-2xl"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <header className="relative overflow-hidden bg-gradient-to-br from-slate-950 via-[#173b35] to-emerald-800 px-5 py-5 text-white sm:px-7">
+              <div aria-hidden="true" className="pointer-events-none absolute -right-10 -top-20 size-48 rounded-full border-[24px] border-white/5" />
+              <div className="relative flex items-start justify-between gap-4">
+                <div className="min-w-0">
+                  <p className="text-xs font-semibold uppercase tracking-[0.14em] text-emerald-100">Audit entry · {getModule(selectedLog.table_name)}</p>
+                  <h2 id="audit-entry-title" className="mt-1 break-words text-xl font-bold">{getActivityLabel(selectedLog)}</h2>
+                  <p className="mt-1 text-sm text-emerald-100">{getActorName(selectedLog)}{selectedLog.staff?.role ? ` · ${selectedLog.staff.role}` : ''}</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setSelectedLog(null)}
+                  aria-label="Close audit entry details"
+                  className="flex size-9 shrink-0 items-center justify-center rounded-lg border border-white/20 bg-white/10 text-white hover:bg-white/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
+                >
+                  <X aria-hidden="true" className="size-5" />
+                </button>
+              </div>
+            </header>
+            <div className="min-h-0 space-y-5 overflow-y-auto p-5 sm:p-6">
+              <dl className="grid gap-3 sm:grid-cols-2">
+                {[
+                  ['Date and time', formatDateTime(selectedLog.created_at)],
+                  ['Area', getModule(selectedLog.table_name)],
+                  ['Source table', selectedLog.table_name || 'Not recorded'],
+                  ['Record ID', selectedLog.record_id || 'Not recorded'],
+                  ['IP address', selectedLog.ip_address || 'Not recorded']
+                ].map(([label, value]) => (
+                  <div key={label} className="min-w-0 rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
+                    <dt className="text-xs font-medium text-slate-500">{label}</dt>
+                    <dd className="mt-1 break-all text-sm font-semibold text-slate-900">{value}</dd>
+                  </div>
+                ))}
+              </dl>
+
+              {selectedLog.user_agent && (
+                <details className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+                  <summary className="cursor-pointer text-sm font-semibold text-slate-800">Client information</summary>
+                  <p className="mt-2 break-all text-xs leading-5 text-slate-600">{selectedLog.user_agent}</p>
+                </details>
+              )}
+
+              <section className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+                <header className="border-b border-slate-100 px-4 py-3">
+                  <h3 className="text-sm font-semibold text-slate-900">Recorded field changes</h3>
+                  <p className="mt-1 text-xs text-slate-500">Sensitive credential fields are hidden.</p>
+                </header>
+                {selectedChanges.length === 0 ? (
+                  <p className="px-4 py-6 text-center text-sm text-slate-500">No field-level changes were recorded for this event.</p>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full min-w-[520px] text-left text-sm">
+                      <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
+                        <tr>
+                          <th scope="col" className="px-4 py-2.5 font-semibold">Field</th>
+                          <th scope="col" className="px-4 py-2.5 font-semibold">Previous value</th>
+                          <th scope="col" className="px-4 py-2.5 font-semibold">New value</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100">
+                        {selectedChanges.map(({ field, oldValue, newValue }) => (
+                          <tr key={field} className="align-top">
+                            <th scope="row" className="whitespace-nowrap px-4 py-3 text-left font-semibold text-slate-700">{formatFieldLabel(field)}</th>
+                            <td className="max-w-64 break-words px-4 py-3 text-slate-600"><pre className="whitespace-pre-wrap break-words font-sans text-xs">{oldValue}</pre></td>
+                            <td className="max-w-64 break-words px-4 py-3 text-slate-900"><pre className="whitespace-pre-wrap break-words font-sans text-xs">{newValue}</pre></td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </section>
+            </div>
+            <footer className="flex justify-end border-t border-slate-200 bg-white px-5 py-4 sm:px-6">
+              <button
+                type="button"
+                onClick={() => setSelectedLog(null)}
+                className="min-h-10 rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-700 focus-visible:ring-offset-2"
+              >
+                Close details
+              </button>
+            </footer>
+          </section>
+        </div>
+      )}
     </div>
   );
 };
