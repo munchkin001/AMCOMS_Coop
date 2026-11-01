@@ -12,10 +12,63 @@ const iso = (d) => {
   return copy.toISOString().slice(0, 10);
 };
 const fullName = (m) => [m?.first_name, m?.middle_name, m?.last_name].filter(Boolean).join(' ') || '-';
+const AGING_BUCKETS = [
+  { key: 'current', label: 'Current / not due' },
+  { key: 'days1To30', label: '1–30 days' },
+  { key: 'days31To60', label: '31–60 days' },
+  { key: 'days61To90', label: '61–90 days' },
+  { key: 'over90Days', label: 'Over 90 days' }
+];
+
+const daysPastDue = (asOf, dueDate) => {
+  if (!dueDate) return null;
+  const asOfTime = Date.parse(`${asOf}T00:00:00Z`);
+  const dueTime = Date.parse(`${dueDate}T00:00:00Z`);
+  return Math.floor((asOfTime - dueTime) / 86400000);
+};
+
+const createAgingRow = ({ id, particulars, reference, party, dueDate, amount, asOf }) => {
+  const days = daysPastDue(asOf, dueDate);
+  const bucket = days === null || days <= 0
+    ? 'current'
+    : days <= 30
+      ? 'days1To30'
+      : days <= 60
+        ? 'days31To60'
+        : days <= 90
+          ? 'days61To90'
+          : 'over90Days';
+  return {
+    id,
+    particulars: particulars || '-',
+    reference: reference || '-',
+    party: party || '-',
+    dueDate,
+    daysPastDue: days,
+    current: bucket === 'current' ? amount : 0,
+    days1To30: bucket === 'days1To30' ? amount : 0,
+    days31To60: bucket === 'days31To60' ? amount : 0,
+    days61To90: bucket === 'days61To90' ? amount : 0,
+    over90Days: bucket === 'over90Days' ? amount : 0,
+    total: amount
+  };
+};
+
+const fetchAllRows = async (createQuery) => {
+  const rows = [];
+  const pageSize = 1000;
+  for (let offset = 0; ; offset += pageSize) {
+    const { data, error } = await createQuery().range(offset, offset + pageSize - 1);
+    if (error) throw error;
+    rows.push(...(data || []));
+    if (!data || data.length < pageSize) return rows;
+  }
+};
 
 const REPORTS = {
   financial: { title: 'Financial Report', blurb: 'Cash receipts and disbursements' },
   loan: { title: 'Loan Report', blurb: 'Loan portfolio and collections' },
+  aging: { title: 'Accounts Receivable & Payable Aging', blurb: 'Outstanding sales, loan installments, supplier purchases, and time deposits' },
   member: { title: 'Member Report', blurb: 'Membership and savings' },
   inventory: { title: 'Inventory Report', blurb: 'Stock levels and movements' }
 };
@@ -71,7 +124,7 @@ const DataTable = ({ columns, rows, empty = 'No records for this period.', foote
         <tfoot>
           <tr className="bg-slate-100 font-semibold">
             {footer.map((cell, i) => (
-              <td key={i} className={`border border-slate-300 px-2 py-1.5 ${i > 0 ? 'text-right tabular-nums' : ''}`}>{cell}</td>
+              <td key={i} className={`border border-slate-300 px-2 py-1.5 ${columns[i]?.right ? 'text-right tabular-nums' : ''}`}>{cell}</td>
             ))}
           </tr>
         </tfoot>
@@ -102,6 +155,7 @@ const Reports = () => {
   const [generatedAt, setGeneratedAt] = useState(new Date());
 
   const range = useMemo(() => getRange(period, anchor), [period, anchor]);
+  const asOfDate = iso(new Date());
 
   const load = useCallback(async () => {
     setError('');
@@ -123,6 +177,34 @@ const Reports = () => {
         ]);
         if (l.error || p.error) throw l.error || p.error;
         result = { loans: l.data || [], payments: p.data || [] };
+      } else if (reportType === 'aging') {
+        const [sales, purchases, disbursements, timeDeposits, schedules] = await Promise.all([
+          fetchAllRows(() => supabase.from('sales_orders')
+            .select('id, order_number, order_date, customer_name, net_amount, amount_paid, payment_status, order_status, notes, member:members(first_name, middle_name, last_name), sales_order_items(id, item_description, quantity, product:products(product_name))')
+            .in('payment_status', ['pending', 'partial'])
+            .neq('order_status', 'cancelled')
+            .order('order_date', { ascending: true })),
+          fetchAllRows(() => supabase.from('purchases')
+            .select('id, purchase_number, purchase_date, net_amount, payment_status, status, notes, suppliers(supplier_name), purchase_items(id, item_name, quantity, products(product_name))')
+            .in('payment_status', ['pending', 'partial', 'overdue'])
+            .neq('status', 'cancelled')
+            .order('purchase_date', { ascending: true })),
+          fetchAllRows(() => supabase.from('cash_disbursements')
+            .select('id, voucher_number, disbursement_date, amount, description, status')
+            .eq('status', 'recorded')
+            .order('disbursement_date', { ascending: true })),
+          fetchAllRows(() => supabase.from('savings_accounts')
+            .select('id, account_number, balance, interest_rate, opening_date, maturity_date, status, member:members(first_name, middle_name, last_name, member_number)')
+            .eq('account_type', 'time_deposit')
+            .neq('status', 'closed')
+            .gt('balance', 0)
+            .order('maturity_date', { ascending: true })),
+          fetchAllRows(() => supabase.from('loan_schedule')
+            .select('id, installment_number, due_date, amount_due, amount_paid, penalty_amount, status, loan:loans!inner(loan_number, status, member:members(first_name, middle_name, last_name))')
+            .neq('status', 'paid')
+            .order('due_date', { ascending: true }))
+        ]);
+        result = { sales, purchases, disbursements, timeDeposits, schedules };
       } else if (reportType === 'member') {
         const [m, s] = await Promise.all([
           supabase.from('members').select('id, member_number, first_name, middle_name, last_name, membership_status, membership_type, date_joined, archived_at'),
@@ -159,8 +241,11 @@ const Reports = () => {
     { table: 'cash_disbursements', onUpdate: load },
     { table: 'loans', onUpdate: load },
     { table: 'loan_payments', onUpdate: load },
+    { table: 'loan_schedule', onUpdate: load },
     { table: 'members', onUpdate: load },
     { table: 'savings_accounts', onUpdate: load },
+    { table: 'sales_orders', onUpdate: load },
+    { table: 'purchases', onUpdate: load },
     { table: 'products', onUpdate: load },
     { table: 'stock_inventory', onUpdate: load },
     { table: 'stock_movements', onUpdate: load }
@@ -170,6 +255,128 @@ const Reports = () => {
   const periodLabel = range.from === range.to ? fmtDate(range.from) : `${fmtDate(range.from)} to ${fmtDate(range.to)}`;
 
   const renderBody = () => {
+    if (reportType === 'aging') {
+      const asOf = asOfDate;
+      const sales = (data.sales || []).map((sale) => {
+        const items = (sale.sales_order_items || [])
+          .map((item) => `${item.item_description || item.product?.product_name || 'Sale item'}${item.quantity ? ` × ${num(item.quantity)}` : ''}`)
+          .join(', ');
+        return createAgingRow({
+          id: `sale-${sale.id}`,
+          particulars: items || sale.notes || 'Sales order',
+          reference: sale.order_number,
+          party: sale.member ? fullName(sale.member) : sale.customer_name || 'Customer',
+          dueDate: sale.order_date,
+          amount: Math.max(Number(sale.net_amount || 0) - Number(sale.amount_paid || 0), 0),
+          asOf
+        });
+      }).filter((row) => row.total > 0);
+      const purchasePayments = data.disbursements || [];
+      const purchases = (data.purchases || []).map((purchase) => {
+        const paid = purchasePayments.reduce((total, payment) => {
+          const paymentReference = `${payment.description || ''} ${payment.voucher_number || ''}`.toLocaleLowerCase();
+          return paymentReference.includes(String(purchase.purchase_number || '').toLocaleLowerCase())
+            ? total + Number(payment.amount || 0)
+            : total;
+        }, 0);
+        const items = (purchase.purchase_items || [])
+          .map((item) => `${item.item_name || item.products?.product_name || 'Purchase item'}${item.quantity ? ` × ${num(item.quantity)}` : ''}`)
+          .join(', ');
+        return createAgingRow({
+          id: `purchase-${purchase.id}`,
+          particulars: items || purchase.notes || 'Supplier purchase',
+          reference: purchase.purchase_number,
+          party: purchase.suppliers?.supplier_name || 'Supplier',
+          dueDate: purchase.purchase_date,
+          amount: Math.max(Number(purchase.net_amount || 0) - paid, 0),
+          asOf
+        });
+      }).filter((row) => row.total > 0);
+      const timeDeposits = (data.timeDeposits || []).map((account) => createAgingRow({
+        id: `time-deposit-${account.id}`,
+        particulars: `Time deposit${account.interest_rate !== null ? ` · ${Number(account.interest_rate || 0)}% interest` : ''}`,
+        reference: account.account_number,
+        party: fullName(account.member),
+        dueDate: account.maturity_date,
+        amount: Number(account.balance || 0),
+        asOf
+      })).filter((row) => row.total > 0);
+      const schedules = (data.schedules || []).map((schedule) => {
+        const loan = Array.isArray(schedule.loan) ? schedule.loan[0] : schedule.loan;
+        if (loan?.status !== 'active') return null;
+        const due = Number(schedule.amount_due || 0);
+        const paid = Number(schedule.amount_paid || 0);
+        const unpaidInstallment = Math.max(due - paid, 0);
+        const unpaidPenalty = Math.max(Number(schedule.penalty_amount || 0) - Math.max(paid - due, 0), 0);
+        const outstanding = unpaidInstallment + unpaidPenalty;
+        if (outstanding <= 0) return null;
+        return createAgingRow({
+          id: `loan-schedule-${schedule.id}`,
+          particulars: `Loan installment ${schedule.installment_number}${unpaidPenalty ? ` · includes ${peso(unpaidPenalty)} penalty` : ''}`,
+          reference: loan.loan_number,
+          party: fullName(loan.member),
+          dueDate: schedule.due_date,
+          amount: outstanding,
+          asOf
+        });
+      }).filter(Boolean);
+
+      const receivables = [...sales, ...schedules];
+      const payables = [...purchases, ...timeDeposits];
+      const agingColumns = [
+        { label: 'Particulars', render: (row) => row.particulars },
+        { label: 'Reference', render: (row) => row.reference },
+        { label: 'Customer / supplier / member', render: (row) => row.party },
+        { label: 'Due / age date', render: (row) => fmtDate(row.dueDate) },
+        { label: 'Days past due', right: true, render: (row) => row.daysPastDue === null ? '-' : row.daysPastDue <= 0 ? 'Not due' : num(row.daysPastDue) },
+        ...AGING_BUCKETS.map(({ key, label }) => ({ label, right: true, render: (row) => peso(row[key]) })),
+        { label: 'Total outstanding', right: true, render: (row) => peso(row.total) }
+      ];
+      const agingFooter = (rows) => [
+        'TOTAL', '', '', '', '',
+        ...AGING_BUCKETS.map(({ key }) => peso(rows.reduce((total, row) => total + row[key], 0))),
+        peso(rows.reduce((total, row) => total + row.total, 0))
+      ];
+      const sumOutstanding = (rows) => rows.reduce((total, row) => total + row.total, 0);
+      return (
+        <>
+          <Summary items={[
+            ['Accounts receivable', peso(sumOutstanding(receivables))],
+            ['Accounts payable', peso(sumOutstanding(payables))],
+            ['Sales receivable', peso(sumOutstanding(sales))],
+            ['Time deposits payable', peso(sumOutstanding(timeDeposits))]
+          ]} />
+          <p className="mt-4 rounded border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] leading-5 text-amber-950">
+            Snapshot of current outstanding balances as of {fmtDate(asOf)}. Sales and supplier purchases are aged from their order/purchase dates because separate due dates are not recorded. Loan installments are aged from scheduled due dates; time deposits are aged from maturity dates, with deposits not yet matured or missing a maturity date shown as current.
+          </p>
+          <Section title="Accounts Receivable — Sales and Loan Installments">
+            <DataTable
+              rows={receivables}
+              columns={agingColumns}
+              empty="No outstanding sales or loan installments as of this date."
+              footer={agingFooter(receivables)}
+            />
+          </Section>
+          <Section title="Accounts Payable — Supplier Purchases">
+            <DataTable
+              rows={purchases}
+              columns={agingColumns}
+              empty="No outstanding supplier purchases as of this date."
+              footer={agingFooter(purchases)}
+            />
+          </Section>
+          <Section title="Accounts Payable — Time Deposits">
+            <DataTable
+              rows={timeDeposits}
+              columns={agingColumns}
+              empty="No active time deposits with an outstanding balance."
+              footer={agingFooter(timeDeposits)}
+            />
+          </Section>
+        </>
+      );
+    }
+
     if (reportType === 'financial') {
       const receipts = data.receipts || [];
       const disb = data.disbursements || [];
@@ -363,19 +570,28 @@ const Reports = () => {
               {Object.entries(REPORTS).map(([key, r]) => <option key={key} value={key}>{r.title}</option>)}
             </select>
           </div>
-          <div>
-            <label className="mb-1.5 block text-sm font-medium text-gray-700">Period</label>
-            <select value={period} onChange={(e) => setPeriod(e.target.value)} className={inputClass}>
-              <option value="daily">Daily</option>
-              <option value="monthly">Monthly</option>
-              <option value="quarterly">Quarterly</option>
-              <option value="annual">Annual</option>
-            </select>
-          </div>
-          <div>
-            <label className="mb-1.5 block text-sm font-medium text-gray-700">Reference date</label>
-            <input type="date" value={anchor} onChange={(e) => e.target.value && setAnchor(e.target.value)} className={inputClass} />
-          </div>
+          {reportType === 'aging' ? (
+            <div className="flex flex-col justify-center rounded-lg border border-blue-100 bg-blue-50 px-3 py-2">
+              <span className="text-xs font-medium text-blue-800">Snapshot date</span>
+              <span className="mt-1 text-sm font-semibold text-blue-950">{fmtDate(asOfDate)}</span>
+            </div>
+          ) : (
+            <>
+              <div>
+                <label className="mb-1.5 block text-sm font-medium text-gray-700">Period</label>
+                <select value={period} onChange={(e) => setPeriod(e.target.value)} className={inputClass}>
+                  <option value="daily">Daily</option>
+                  <option value="monthly">Monthly</option>
+                  <option value="quarterly">Quarterly</option>
+                  <option value="annual">Annual</option>
+                </select>
+              </div>
+              <div>
+                <label className="mb-1.5 block text-sm font-medium text-gray-700">Reference date</label>
+                <input type="date" value={anchor} onChange={(e) => e.target.value && setAnchor(e.target.value)} className={inputClass} />
+              </div>
+            </>
+          )}
           <div className="flex items-end gap-2">
             <button type="button" onClick={() => { setLoading(true); load(); }} className="inline-flex flex-1 items-center justify-center gap-2 rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">
               <RefreshCw size={16} /> Refresh
@@ -393,7 +609,7 @@ const Reports = () => {
         <header className="amcoms-document-header border-b-4 border-double pb-4 text-center">
           <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[#183b34]">Agay-ayan Multi-Purpose Cooperative</p>
           <h1 className="mt-2 text-2xl font-bold text-slate-900">{meta.title}</h1>
-          <p className="mt-3 text-sm font-medium text-slate-800">Period covered: {periodLabel}</p>
+          <p className="mt-3 text-sm font-medium text-slate-800">{reportType === 'aging' ? 'Aging as of' : 'Period covered'}: {reportType === 'aging' ? fmtDate(asOfDate) : periodLabel}</p>
           <p className="text-xs text-slate-500">Generated {generatedAt.toLocaleString('en-PH')}</p>
         </header>
 
