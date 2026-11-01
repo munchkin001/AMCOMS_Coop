@@ -84,6 +84,7 @@ const MemberManagement = () => {
   const [archivedCount, setArchivedCount] = useState(0);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedMember, setSelectedMember] = useState(null);
+  const [selectedFinancialRecord, setSelectedFinancialRecord] = useState(null);
   const [memberLoans, setMemberLoans] = useState([]);
   const [loanSchedules, setLoanSchedules] = useState([]);
   const [loanPayments, setLoanPayments] = useState([]);
@@ -191,6 +192,69 @@ const MemberManagement = () => {
     setLoanDetailsError('');
     setTimelineError('');
     setLoanDetailsLoading(true);
+  };
+
+  const openFinancialRecord = (title, details) => {
+    setSelectedFinancialRecord({ title, details });
+  };
+
+  const openLoanRecord = (loan, nextDue) => openFinancialRecord(`Loan ${loan.loan_number || ''}`.trim(), [
+    ['Loan number', loan.loan_number],
+    ['Status', loan.status?.replaceAll('_', ' ')],
+    ['Principal amount', formatMoney(loan.principal_amount)],
+    ['Total amount', formatMoney(loan.total_amount)],
+    ['Outstanding balance', formatMoney(loan.balance)],
+    ['Installment amount', formatMoney(loan.installment_amount || loan.monthly_payment)],
+    ['Interest rate', loan.interest_rate === null ? 'Not recorded' : `${loan.interest_rate}%`],
+    ['Payment frequency', loan.payment_frequency],
+    ['Term', loan.term_months ? `${loan.term_months} months` : 'Not recorded'],
+    ['Next unpaid due', nextDue ? formatDate(nextDue.due_date) : 'No unpaid dues'],
+    ['Next installment balance', nextDue ? formatMoney(getInstallmentBalance(nextDue)) : '—'],
+    ['Application date', formatDate(loan.application_date)],
+    ['Approval date', formatDate(loan.approval_date)],
+    ['Release date', formatDate(loan.release_date)],
+    ['Maturity date', formatDate(loan.maturity_date)],
+    ...(loan.notes ? [['Loan notes', loan.notes]] : [])
+  ]);
+  const openInstallmentRecord = (loan, installment, status, remaining) => openFinancialRecord(`Installment ${installment.installment_number}`, [
+    ['Loan number', loan.loan_number],
+    ['Installment number', installment.installment_number],
+    ['Due date', formatDate(installment.due_date)],
+    ['Status', status],
+    ['Amount due', formatMoney(installment.amount_due)],
+    ['Penalty amount', formatMoney(installment.penalty_amount)],
+    ['Total due', formatMoney(Number(installment.amount_due || 0) + Number(installment.penalty_amount || 0))],
+    ['Amount paid', formatMoney(installment.amount_paid)],
+    ['Remaining balance', formatMoney(remaining)],
+    ['Paid date', formatDate(installment.paid_at)]
+  ]);
+  const openPaymentRecord = (loan, payment) => openFinancialRecord(`Payment ${payment.payment_number || ''}`.trim(), [
+    ['Loan number', loan.loan_number],
+    ['Payment number', payment.payment_number],
+    ['Payment date', formatDate(payment.payment_date)],
+    ['Total paid', formatMoney(payment.amount_paid)],
+    ['Principal paid', formatMoney(payment.principal_paid)],
+    ['Interest paid', formatMoney(payment.interest_paid)],
+    ['Penalty paid', formatMoney(payment.penalty_paid)],
+    ['Balance after payment', formatMoney(payment.balance_after)],
+    ['Payment method', payment.payment_method],
+    ['Reference number', payment.reference_number],
+    ['Receipt ID', payment.receipt_id]
+  ]);
+  const openStatementRecord = (item) => openFinancialRecord(item.type, [
+    ['Activity', item.type],
+    ['Date', formatDate(item.date)],
+    ['Description', item.description],
+    ['Reference', item.reference],
+    ['Amount', formatMoney(Math.abs(item.amount))],
+    ['Direction', item.amount < 0 ? 'Outflow' : 'Inflow'],
+    ['Activity label', item.amountLabel]
+  ]);
+  const activateRowFromKeyboard = (event) => {
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      event.currentTarget.click();
+    }
   };
 
   const loadMembers = useCallback(async () => {
@@ -363,7 +427,19 @@ const MemberManagement = () => {
                 </thead>
                 <tbody className="divide-y divide-gray-100">
                   {filteredMembers.map((member) => (
-                    <tr key={member.id} className="odd:bg-white even:bg-gray-50/60 hover:bg-blue-50/50">
+                    <tr
+                      key={member.id}
+                      tabIndex={0}
+                      aria-label={`View member details for ${fullName(member)}`}
+                      onClick={() => openMemberDetails(member)}
+                      onKeyDown={(event) => {
+                        if (event.key === 'Enter' || event.key === ' ') {
+                          event.preventDefault();
+                          openMemberDetails(member);
+                        }
+                      }}
+                      className="cursor-pointer odd:bg-white even:bg-gray-50/60 hover:bg-blue-50/50 focus:bg-blue-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-blue-600"
+                    >
                       <td className="px-4 py-3">
                         <p className="font-semibold text-gray-900">{fullName(member)}</p>
                         <p className="mt-1 text-xs text-gray-500">ID: {member.member_number || 'Not assigned'}</p>
@@ -384,7 +460,7 @@ const MemberManagement = () => {
                       <td className="px-4 py-3 text-right">
                         <button
                           type="button"
-                          onClick={() => openMemberDetails(member)}
+                          onClick={(event) => { event.stopPropagation(); openMemberDetails(member); }}
                           className="inline-flex min-h-9 items-center justify-center gap-1.5 whitespace-nowrap rounded-lg bg-blue-700 px-3 py-2 text-xs font-semibold text-white hover:bg-blue-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-700 focus-visible:ring-offset-2"
                         >
                           <Eye className="size-4" aria-hidden="true" />
@@ -534,6 +610,47 @@ const MemberManagement = () => {
                       {memberLoans.length} {memberLoans.length === 1 ? 'loan' : 'loans'}
                     </p>
                   )}
+                  {selectedFinancialRecord && (
+                    <div
+                      className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/65 p-3 backdrop-blur-sm sm:p-5"
+                      onClick={() => setSelectedFinancialRecord(null)}
+                    >
+                      <section
+                        role="dialog"
+                        aria-modal="true"
+                        aria-labelledby="member-record-details-title"
+                        className="flex max-h-[90vh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-white/60 bg-slate-50 shadow-2xl"
+                        onClick={(event) => event.stopPropagation()}
+                      >
+                        <header className="relative overflow-hidden bg-gradient-to-br from-[#163c34] via-[#1d5145] to-[#276456] px-5 py-5 text-white sm:px-7">
+                          <div className="pointer-events-none absolute -right-10 -top-20 size-48 rounded-full border-[24px] border-white/5" />
+                          <div className="relative flex items-start justify-between gap-4">
+                            <div>
+                              <p className="text-xs font-semibold uppercase tracking-[0.14em] text-emerald-100">Member record</p>
+                              <h2 id="member-record-details-title" className="mt-1 text-xl font-bold">{selectedFinancialRecord.title}</h2>
+                              <p className="mt-1 text-sm text-emerald-100">{fullName(selectedMember)} · ID {selectedMember.member_number || 'Not assigned'}</p>
+                            </div>
+                            <button type="button" onClick={() => setSelectedFinancialRecord(null)} aria-label="Close record details" className="flex size-9 items-center justify-center rounded-lg border border-white/20 bg-white/10 text-white hover:bg-white/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white">
+                              <X className="size-5" aria-hidden="true" />
+                            </button>
+                          </div>
+                        </header>
+                        <dl className="grid min-h-0 gap-3 overflow-y-auto p-5 sm:grid-cols-2 sm:p-6">
+                          {selectedFinancialRecord.details.map(([label, value]) => (
+                            <div key={label} className={`min-w-0 rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-sm ${label.includes('notes') || label === 'Description' ? 'sm:col-span-2' : ''}`}>
+                              <dt className="text-xs font-medium text-slate-500">{label}</dt>
+                              <dd className="mt-1 break-words text-sm font-semibold text-slate-900">{value || 'Not recorded'}</dd>
+                            </div>
+                          ))}
+                        </dl>
+                        <footer className="flex justify-end border-t border-slate-200 bg-white px-5 py-4 sm:px-6">
+                          <button type="button" onClick={() => setSelectedFinancialRecord(null)} className="min-h-10 rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-700 focus-visible:ring-offset-2">
+                            Close
+                          </button>
+                        </footer>
+                      </section>
+                    </div>
+                  )}
               </div>
 
               {loanDetailsLoading ? (
@@ -622,7 +739,14 @@ const MemberManagement = () => {
                                       : 'bg-amber-100 text-amber-800';
 
                                 return (
-                                  <tr key={loan.id} className="align-top odd:bg-white even:bg-gray-50/60">
+                                  <tr
+                                    key={loan.id}
+                                    tabIndex={0}
+                                    aria-label={`View loan details for ${loan.loan_number || 'loan'}`}
+                                    onClick={() => openLoanRecord(loan, nextDue)}
+                                    onKeyDown={activateRowFromKeyboard}
+                                    className="align-top cursor-pointer odd:bg-white even:bg-gray-50/60 hover:bg-blue-50 focus:bg-blue-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-blue-600"
+                                  >
                                     <td className="px-4 py-3">
                                       <p className="font-semibold text-gray-900">{loan.loan_number || 'Loan'}</p>
                                       <span className={`mt-1 inline-flex rounded-full px-2 py-0.5 text-xs font-semibold capitalize ${statusClass}`}>
@@ -709,7 +833,14 @@ const MemberManagement = () => {
                                                   ? 'bg-amber-100 text-amber-800'
                                                   : 'bg-blue-100 text-blue-800';
                                             return (
-                                              <tr key={installment.id} className="odd:bg-white even:bg-gray-50/60">
+                                              <tr
+                                                key={installment.id}
+                                                tabIndex={0}
+                                                aria-label={`View installment ${installment.installment_number} due ${formatDate(installment.due_date)}`}
+                                                onClick={() => openInstallmentRecord(loan, installment, status, remaining)}
+                                                onKeyDown={activateRowFromKeyboard}
+                                                className="cursor-pointer odd:bg-white even:bg-gray-50/60 hover:bg-blue-50 focus:bg-blue-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-blue-600"
+                                              >
                                                 <td className="whitespace-nowrap px-3 py-2.5 text-gray-700">{formatDate(installment.due_date)}</td>
                                                 <td className="whitespace-nowrap px-3 py-2.5 text-gray-700">{formatMoney(Number(installment.amount_due || 0) + Number(installment.penalty_amount || 0))}</td>
                                                 <td className="whitespace-nowrap px-3 py-2.5 text-gray-700">{formatMoney(installment.amount_paid)}</td>
@@ -746,7 +877,14 @@ const MemberManagement = () => {
                                         </thead>
                                         <tbody className="divide-y divide-gray-100">
                                           {payments.map((payment) => (
-                                            <tr key={payment.id} className="odd:bg-white even:bg-gray-50/60">
+                                            <tr
+                                              key={payment.id}
+                                              tabIndex={0}
+                                              aria-label={`View payment ${payment.payment_number || ''} details`}
+                                              onClick={() => openPaymentRecord(loan, payment)}
+                                              onKeyDown={activateRowFromKeyboard}
+                                              className="cursor-pointer odd:bg-white even:bg-gray-50/60 hover:bg-blue-50 focus:bg-blue-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-blue-600"
+                                            >
                                               <td className="whitespace-nowrap px-3 py-2.5 text-gray-700">{formatDate(payment.payment_date)}</td>
                                               <td className="whitespace-nowrap px-3 py-2.5 font-medium text-gray-900">{formatMoney(payment.amount_paid)}</td>
                                               <td className="whitespace-nowrap px-3 py-2.5 text-gray-700">{formatMoney(payment.principal_paid)} / {formatMoney(payment.interest_paid)}</td>
@@ -828,7 +966,14 @@ const MemberManagement = () => {
                         </thead>
                         <tbody className="divide-y divide-gray-100">
                           {statementRows.map((item) => (
-                            <tr key={item.id} className="odd:bg-white even:bg-gray-50/60">
+                            <tr
+                              key={item.id}
+                              tabIndex={0}
+                              aria-label={`View ${item.type} details`}
+                              onClick={() => openStatementRecord(item)}
+                              onKeyDown={activateRowFromKeyboard}
+                              className="cursor-pointer odd:bg-white even:bg-gray-50/60 hover:bg-blue-50 focus:bg-blue-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-blue-600"
+                            >
                               <td className="whitespace-nowrap px-4 py-3 text-gray-700">{formatDate(item.date)}</td>
                               <td className="px-4 py-3 font-medium text-gray-900">{item.type}</td>
                               <td className="max-w-[280px] px-4 py-3 text-gray-600">{item.description || '—'}</td>

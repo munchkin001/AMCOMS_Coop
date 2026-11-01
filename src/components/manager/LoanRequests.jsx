@@ -646,38 +646,65 @@ const LoanRequests = () => {
               if (event.target === event.currentTarget) setSelectedRequest(null);
             }}
           >
-            <section role="dialog" aria-modal="true" aria-labelledby="loan-request-details-title" className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-xl bg-white p-6 shadow-xl">
-              <div className="flex items-start justify-between gap-4">
-                <div>
-                  <h2 id="loan-request-details-title" className="text-xl font-bold text-gray-900">Loan application details</h2>
-                  <p className="mt-1 text-sm text-gray-600">{selectedRequest.request_number} · Submitted {new Date(selectedRequest.created_at).toLocaleDateString('en-PH')}</p>
+            <section role="dialog" aria-modal="true" aria-labelledby="loan-request-details-title" className="flex max-h-[92vh] w-full max-w-3xl flex-col overflow-hidden rounded-2xl border border-white/60 bg-slate-50 shadow-2xl">
+              <header className="relative overflow-hidden bg-gradient-to-br from-[#163c34] via-[#1d5145] to-[#276456] px-5 py-5 text-white sm:px-7">
+                <div className="pointer-events-none absolute -right-10 -top-20 size-48 rounded-full border-[24px] border-white/5" />
+                <div className="relative flex items-start justify-between gap-4">
+                  <div className="min-w-0">
+                    <p className="text-xs font-semibold uppercase tracking-[0.14em] text-emerald-100">Loan application</p>
+                    <h2 id="loan-request-details-title" className="mt-1 text-2xl font-bold tracking-tight">Application details</h2>
+                    <p className="mt-1 break-all text-sm text-emerald-100">{selectedRequest.request_number} · Submitted {new Date(selectedRequest.created_at).toLocaleDateString('en-PH')}</p>
+                  </div>
+                  <button type="button" onClick={() => setSelectedRequest(null)} aria-label="Close loan application details" className="flex size-9 flex-none items-center justify-center rounded-lg border border-white/20 bg-white/10 text-white hover:bg-white/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white">
+                    <X aria-hidden="true" size={20} />
+                  </button>
                 </div>
-                <button type="button" onClick={() => setSelectedRequest(null)} aria-label="Close loan application details" className="rounded-lg p-2 text-gray-500 hover:bg-gray-100 hover:text-gray-800">
-                  <X aria-hidden="true" size={20} />
-                </button>
+                <div className="relative mt-4 flex flex-wrap items-end justify-between gap-3 border-t border-white/15 pt-4">
+                  <div>
+                    <p className="text-xs font-medium uppercase tracking-wide text-emerald-100">Requested amount</p>
+                    <p className="mt-1 text-3xl font-bold tabular-nums">{formatMoney(selectedRequest.amount)}</p>
+                    <p className="mt-1 text-sm text-emerald-100">{fullName(memberOf(selectedRequest))}</p>
+                  </div>
+                  <span className="inline-flex rounded-full border border-amber-200/20 bg-amber-200/15 px-3 py-1.5 text-xs font-semibold capitalize text-amber-50">
+                    {selectedRequest.status.replaceAll('_', ' ')}
+                  </span>
+                </div>
+              </header>
+              <div className="min-h-0 flex-1 overflow-y-auto p-4 sm:p-6">
+                <section className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+                  <header className="border-b border-slate-100 px-4 py-3">
+                    <h3 className="text-sm font-semibold text-slate-900">Request information</h3>
+                    <p className="mt-0.5 text-xs text-slate-500">Terms and details provided with the application</p>
+                  </header>
+                  <dl className="grid gap-px bg-slate-100 sm:grid-cols-2">
+                    {[
+                      ['Member', fullName(memberOf(selectedRequest))],
+                      ['Loan type', data.loan_type || 'Not specified'],
+                      ['Proposed terms', `${data.term_months || '—'} months · ${data.payment_frequency || 'monthly'}`],
+                      ['Purpose', data.purpose || 'Not provided'],
+                      ['Quoted interest', formatMoney(data.total_interest)],
+                      ['Estimated total payable', formatMoney(data.total_payable)],
+                      ['Installment', formatMoney(data.installment_amount)],
+                      ['Annual interest rate', `${data.annual_rate ?? '—'}%`],
+                      ['Late-payment penalty rate', `${data.penalty_rate ?? '—'}%`],
+                      ['Fees (processing / service)', `${formatMoney(applicationDetails.processing_fee)} / ${formatMoney(applicationDetails.service_fee)}`],
+                      ['Collateral', [applicationDetails.collateral_type, applicationDetails.collateral_description].filter(Boolean).join(' — ') || 'Not provided'],
+                      ['Co-maker / guarantor', [applicationDetails.guarantor_name, applicationDetails.guarantor_contact].filter(Boolean).join(' · ') || 'Not provided']
+                    ].map(([label, value]) => (
+                      <div key={label} className={`min-w-0 bg-white px-4 py-3 ${['Purpose', 'Collateral', 'Co-maker / guarantor'].includes(label) ? 'sm:col-span-2' : ''}`}>
+                        <dt className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">{label}</dt>
+                        <dd className="mt-1 break-words text-sm font-medium text-slate-900">{value || 'Not provided'}</dd>
+                      </div>
+                    ))}
+                  </dl>
+                </section>
+                {canReview && (
+                  <div className="mt-5 flex flex-wrap justify-end gap-3">
+                    <button type="button" disabled={!!busyId} onClick={() => { setNotes(''); setDecision({ ...selectedRequest, status: 'rejected' }); setSelectedRequest(null); }} className="min-h-10 rounded-lg border border-red-200 bg-white px-4 py-2 font-semibold text-red-700 transition hover:bg-red-50 disabled:opacity-50">Reject application</button>
+                    <button type="button" disabled={!!busyId} onClick={() => { setNotes(''); setDecision({ ...selectedRequest, status: 'approved' }); setSelectedRequest(null); }} className="min-h-10 rounded-lg bg-emerald-800 px-4 py-2 font-semibold text-white transition hover:bg-emerald-900 disabled:opacity-50">Approve application</button>
+                  </div>
+                )}
               </div>
-              <dl className="mt-5 grid gap-4 sm:grid-cols-2">
-                <div><dt className="text-sm text-gray-500">Member</dt><dd className="font-semibold text-gray-900">{fullName(memberOf(selectedRequest))}</dd></div>
-                <div><dt className="text-sm text-gray-500">Status</dt><dd className="font-semibold capitalize text-gray-900">{selectedRequest.status.replace('_', ' ')}</dd></div>
-                <div><dt className="text-sm text-gray-500">Loan type</dt><dd className="font-semibold text-gray-900">{data.loan_type || 'Not specified'}</dd></div>
-                <div><dt className="text-sm text-gray-500">Amount requested</dt><dd className="font-semibold text-gray-900">{formatMoney(selectedRequest.amount)}</dd></div>
-                <div><dt className="text-sm text-gray-500">Proposed terms</dt><dd className="font-semibold text-gray-900">{data.term_months || '—'} months · {data.payment_frequency || 'monthly'}</dd></div>
-                <div><dt className="text-sm text-gray-500">Purpose</dt><dd className="font-semibold text-gray-900">{data.purpose || 'Not provided'}</dd></div>
-                <div><dt className="text-sm text-gray-500">Quoted interest</dt><dd className="font-semibold text-gray-900">{formatMoney(data.total_interest)}</dd></div>
-                <div><dt className="text-sm text-gray-500">Estimated total payable</dt><dd className="font-semibold text-gray-900">{formatMoney(data.total_payable)}</dd></div>
-                <div><dt className="text-sm text-gray-500">Installment</dt><dd className="font-semibold text-gray-900">{formatMoney(data.installment_amount)}</dd></div>
-                <div><dt className="text-sm text-gray-500">Annual interest rate</dt><dd className="font-semibold text-gray-900">{data.annual_rate ?? '—'}%</dd></div>
-                <div><dt className="text-sm text-gray-500">Late-payment penalty rate</dt><dd className="font-semibold text-gray-900">{data.penalty_rate ?? '—'}%</dd></div>
-                <div><dt className="text-sm text-gray-500">Fees (processing / service)</dt><dd className="font-semibold text-gray-900">{formatMoney(applicationDetails.processing_fee)} / {formatMoney(applicationDetails.service_fee)}</dd></div>
-                <div><dt className="text-sm text-gray-500">Collateral</dt><dd className="font-semibold text-gray-900">{[applicationDetails.collateral_type, applicationDetails.collateral_description].filter(Boolean).join(' — ') || 'Not provided'}</dd></div>
-                <div><dt className="text-sm text-gray-500">Co-maker / guarantor</dt><dd className="font-semibold text-gray-900">{[applicationDetails.guarantor_name, applicationDetails.guarantor_contact].filter(Boolean).join(' · ') || 'Not provided'}</dd></div>
-              </dl>
-              {canReview && (
-                <div className="mt-6 flex flex-wrap justify-end gap-3 border-t border-gray-100 pt-4">
-                  <button type="button" disabled={!!busyId} onClick={() => { setNotes(''); setDecision({ ...selectedRequest, status: 'rejected' }); setSelectedRequest(null); }} className="rounded-lg border border-red-300 px-4 py-2 font-semibold text-red-700 hover:bg-red-50 disabled:opacity-50">Reject application</button>
-                  <button type="button" disabled={!!busyId} onClick={() => { setNotes(''); setDecision({ ...selectedRequest, status: 'approved' }); setSelectedRequest(null); }} className="rounded-lg bg-emerald-700 px-4 py-2 font-semibold text-white hover:bg-emerald-800 disabled:opacity-50">Approve application</button>
-                </div>
-              )}
             </section>
           </div>
         );

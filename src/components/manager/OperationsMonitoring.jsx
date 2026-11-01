@@ -416,24 +416,27 @@ const OperationsMonitoring = () => {
       )}
 
       {selectedRecord && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-sm" onClick={() => setSelectedRecord(null)}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/65 p-4 backdrop-blur-sm" onClick={() => setSelectedRecord(null)}>
           <section
             role="dialog"
             aria-modal="true"
             aria-labelledby="operations-detail-title"
-            className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-2xl bg-white shadow-2xl"
+            className="flex max-h-[90vh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-white/60 bg-slate-50 shadow-2xl"
             onClick={(event) => event.stopPropagation()}
           >
-            <header className="flex items-start justify-between gap-4 border-b border-slate-200 px-5 py-4 sm:px-6">
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-wide text-emerald-800">Operations record</p>
-                <h2 id="operations-detail-title" className="mt-1 text-xl font-bold text-slate-900">{selectedRecord.detailTitle}</h2>
+            <header className="relative overflow-hidden bg-gradient-to-br from-[#163c34] via-[#1d5145] to-[#276456] px-5 py-5 text-white sm:px-7">
+              <div className="pointer-events-none absolute -right-10 -top-20 size-48 rounded-full border-[24px] border-white/5" />
+              <div className="relative flex items-start justify-between gap-4">
+                <div className="min-w-0">
+                  <p className="text-xs font-semibold uppercase tracking-[0.14em] text-emerald-100">Operations record</p>
+                  <h2 id="operations-detail-title" className="mt-1 break-words text-xl font-bold">{selectedRecord.detailTitle}</h2>
+                </div>
+                <button type="button" onClick={() => setSelectedRecord(null)} aria-label="Close record details" className="flex size-9 flex-none items-center justify-center rounded-lg border border-white/20 bg-white/10 text-white hover:bg-white/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white">
+                  <X className="size-5" aria-hidden="true" />
+                </button>
               </div>
-              <button type="button" onClick={() => setSelectedRecord(null)} aria-label="Close record details" className="flex size-9 items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100 hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-700">
-                <X className="size-5" aria-hidden="true" />
-              </button>
             </header>
-            <dl className="grid gap-3 p-5 sm:grid-cols-2 sm:p-6">
+            <dl className="grid min-h-0 gap-3 overflow-y-auto p-5 sm:grid-cols-2 sm:p-6">
               {selectedRecord.details.map(([label, value]) => (
                 <div key={label} className="min-w-0 rounded-lg border border-slate-100 bg-slate-50/70 px-3.5 py-3">
                   <dt className="text-xs font-medium text-slate-500">{label}</dt>

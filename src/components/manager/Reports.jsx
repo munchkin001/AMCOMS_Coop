@@ -41,6 +41,7 @@ const createAgingRow = ({ id, category, particulars, reference, party, dueDate, 
   return {
     id,
     category,
+    isAgingEntry: true,
     particulars: particulars || '-',
     reference: reference || '-',
     party: party || '-',
@@ -310,6 +311,10 @@ const Reports = () => {
   const meta = REPORTS[reportType];
   const periodLabel = range.from === range.to ? fmtDate(range.from) : `${fmtDate(range.from)} to ${fmtDate(range.to)}`;
 
+  const showTableDetails = (category, reference, details, total) => {
+    setSelectedAgingEntry({ category, reference, details, total, isAgingEntry: false });
+  };
+
   const renderBody = () => {
     if (reportType === 'aging') {
       const asOf = asOfDate;
@@ -532,6 +537,15 @@ const Reports = () => {
                 { label: 'Amount', right: true, render: (r) => peso(r.amount) }
               ]}
               footer={['Total', '', '', '', peso(totalIn)]}
+              onRowClick={(row) => showTableDetails('Cash receipt', row.receipt_number, [
+                ['Receipt number', row.receipt_number],
+                ['Receipt date', fmtDate(row.receipt_date)],
+                ['Received from', row.received_from],
+                ['Particulars', row.description],
+                ['Payment method', row.payment_method],
+                ['Status', row.status],
+                ['Amount', peso(row.amount)]
+              ], row.amount)}
             />
           </Section>
           <Section title="Cash Disbursements">
@@ -545,6 +559,15 @@ const Reports = () => {
                 { label: 'Amount', right: true, render: (r) => peso(r.amount) }
               ]}
               footer={['Total', '', '', '', peso(totalOut)]}
+              onRowClick={(row) => showTableDetails('Cash disbursement', row.voucher_number, [
+                ['Voucher number', row.voucher_number],
+                ['Disbursement date', fmtDate(row.disbursement_date)],
+                ['Payee', row.payee],
+                ['Particulars', row.description],
+                ['Payment method', row.payment_method],
+                ['Status', row.status],
+                ['Amount', peso(row.amount)]
+              ], row.amount)}
             />
           </Section>
         </>
@@ -573,6 +596,17 @@ const Reports = () => {
                 { label: 'Principal', right: true, render: (l) => peso(l.principal_amount) },
                 { label: 'Balance', right: true, render: (l) => peso(l.balance) }
               ]}
+              onRowClick={(loan) => showTableDetails('Loan account', loan.loan_number, [
+                ['Loan number', loan.loan_number],
+                ['Member', fullName(loan.member)],
+                ['Status', loan.status],
+                ['Principal amount', peso(loan.principal_amount)],
+                ['Outstanding balance', peso(loan.balance)],
+                ['Term', loan.term_months ? `${loan.term_months} months` : '-'],
+                ['Payment frequency', loan.payment_frequency],
+                ['Application date', fmtDate(loan.application_date)],
+                ['Release date', fmtDate(loan.release_date)]
+              ], loan.balance)}
             />
           </Section>
           <Section title="Loan Collections">
@@ -588,6 +622,15 @@ const Reports = () => {
                 { label: 'Total paid', right: true, render: (p) => peso(p.amount_paid) }
               ]}
               footer={['Total', '', '', '', '', '', peso(collected)]}
+              onRowClick={(payment) => showTableDetails('Loan collection', payment.id, [
+                ['Payment date', fmtDate(payment.payment_date)],
+                ['Loan number', payment.loan?.loan_number],
+                ['Member', fullName(payment.loan?.member)],
+                ['Principal paid', peso(payment.principal_paid)],
+                ['Interest paid', peso(payment.interest_paid)],
+                ['Penalty paid', peso(payment.penalty_paid)],
+                ['Total paid', peso(payment.amount_paid)]
+              ], payment.amount_paid)}
             />
           </Section>
         </>
@@ -615,6 +658,14 @@ const Reports = () => {
                 { label: 'Date joined', render: (m) => fmtDate(m.date_joined) },
                 { label: 'Status', render: (m) => <span className="capitalize">{m.membership_status}</span> }
               ]}
+              onRowClick={(member) => showTableDetails('Member profile', member.member_number, [
+                ['Member number', member.member_number],
+                ['Member name', fullName(member)],
+                ['Membership type', member.membership_type],
+                ['Date joined', fmtDate(member.date_joined)],
+                ['Membership status', member.membership_status],
+                ['Archived', member.archived_at ? fmtDate(member.archived_at) : 'No']
+              ])}
             />
           </Section>
           <Section title="Savings and Time Deposits">
@@ -629,6 +680,16 @@ const Reports = () => {
                 { label: 'Total balance', right: true, render: (r) => peso(r.total) }
               ]}
               footer={['Total', num(savings.length + deposits.length), peso(sum(savings) + sum(deposits))]}
+              onRowClick={(accountGroup) => {
+                const rows = accountGroup.id === 't' ? deposits : savings;
+                showTableDetails(accountGroup.name, `${accountGroup.count} active accounts`, [
+                  ['Account type', accountGroup.name],
+                  ['Number of active accounts', num(accountGroup.count)],
+                  ['Combined balance', peso(accountGroup.total)],
+                  ['Report period', periodLabel],
+                  ['Account records in this category', rows.map((account) => `${account.account_number || 'Account'} · ${peso(account.balance)}`).join(', ') || 'No accounts']
+                ], accountGroup.total);
+              }}
             />
           </Section>
         </>
@@ -656,6 +717,16 @@ const Reports = () => {
               { label: 'Reorder level', right: true, render: (p) => num(p.reorder_level || p.minimum_stock) },
               { label: 'Status', render: (p) => p.status }
             ]}
+            onRowClick={(product) => showTableDetails('Inventory item', product.product_code || product.product_name, [
+              ['Product code', product.product_code],
+              ['Product name', product.product_name],
+              ['Unit of measure', product.unit_of_measure],
+              ['Quantity on hand', `${num(product.qty)} ${product.unit_of_measure || ''}`.trim()],
+              ['Unit price', peso(product.unit_price)],
+              ['Stock value at unit price', peso(product.qty * Number(product.unit_price || 0))],
+              ['Reorder level', num(product.reorder_level || product.minimum_stock)],
+              ['Stock status', product.status]
+            ], product.qty * Number(product.unit_price || 0))}
           />
         </Section>
         <Section title="Stock Movements">
@@ -668,6 +739,13 @@ const Reports = () => {
               { label: 'Reference', render: (m) => m.reference_number || '-' },
               { label: 'Quantity', right: true, render: (m) => `${num(m.quantity)} ${m.product?.unit_of_measure || ''}` }
             ]}
+            onRowClick={(movement) => showTableDetails('Stock movement', movement.reference_number, [
+              ['Movement date', fmtDate(movement.movement_date)],
+              ['Product', movement.product?.product_name],
+              ['Movement type', String(movement.movement_type || '').replaceAll('_', ' ')],
+              ['Reference number', movement.reference_number],
+              ['Quantity', `${num(movement.quantity)} ${movement.product?.unit_of_measure || ''}`.trim()]
+            ])}
           />
         </Section>
       </>
@@ -777,7 +855,7 @@ const Reports = () => {
           <div><div className="border-t border-slate-800 pt-1">Noted by (Manager)</div></div>
         </footer>
       </article>
-      {reportType === 'aging' && selectedAgingEntry && (
+      {selectedAgingEntry && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/65 p-3 backdrop-blur-sm print:hidden sm:p-5"
           onClick={() => setSelectedAgingEntry(null)}
@@ -811,20 +889,27 @@ const Reports = () => {
               </div>
               <div className="relative mt-5 flex flex-wrap items-end justify-between gap-3 border-t border-white/15 pt-4">
                 <div>
-                  <p className="text-xs font-medium uppercase tracking-wide text-emerald-100">Total outstanding</p>
-                  <p className="mt-1 text-3xl font-bold tabular-nums tracking-tight">{peso(selectedAgingEntry.total)}</p>
+                  <p className="text-xs font-medium uppercase tracking-wide text-emerald-100">{selectedAgingEntry.isAgingEntry ? 'Total outstanding' : 'Record reference'}</p>
+                  <p className="mt-1 text-2xl font-bold tabular-nums tracking-tight">
+                    {selectedAgingEntry.isAgingEntry || selectedAgingEntry.total !== undefined
+                      ? peso(selectedAgingEntry.total)
+                      : selectedAgingEntry.reference || 'Record details'}
+                  </p>
                 </div>
-                <span className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold ${selectedAgingEntry.daysPastDue > 0 ? 'bg-amber-100 text-amber-900' : 'bg-emerald-100 text-emerald-900'}`}>
-                  <Clock3 className="size-3.5" aria-hidden="true" />
-                  {selectedAgingEntry.daysPastDue === null
-                    ? 'Age not recorded'
-                    : selectedAgingEntry.daysPastDue <= 0
-                      ? 'Current · not due'
-                      : `${num(selectedAgingEntry.daysPastDue)} days past due`}
-                </span>
+                {selectedAgingEntry.isAgingEntry && (
+                  <span className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold ${selectedAgingEntry.daysPastDue > 0 ? 'bg-amber-100 text-amber-900' : 'bg-emerald-100 text-emerald-900'}`}>
+                    <Clock3 className="size-3.5" aria-hidden="true" />
+                    {selectedAgingEntry.daysPastDue === null
+                      ? 'Age not recorded'
+                      : selectedAgingEntry.daysPastDue <= 0
+                        ? 'Current · not due'
+                        : `${num(selectedAgingEntry.daysPastDue)} days past due`}
+                  </span>
+                )}
               </div>
             </header>
             <div className="min-h-0 flex-1 space-y-4 overflow-y-auto p-4 sm:p-6">
+              {selectedAgingEntry.isAgingEntry && (
               <section aria-label="Aging summary" className="grid gap-3 sm:grid-cols-2">
                 <div className="flex items-center gap-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
                   <span className="flex size-10 flex-none items-center justify-center rounded-xl bg-blue-50 text-blue-700">
@@ -845,6 +930,7 @@ const Reports = () => {
                   </div>
                 </div>
               </section>
+              )}
 
               <section className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
                 <header className="border-b border-slate-100 px-4 py-3">
@@ -861,6 +947,7 @@ const Reports = () => {
                 </dl>
               </section>
 
+              {selectedAgingEntry.isAgingEntry && (
               <section className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
                 <header className="border-b border-slate-100 px-4 py-3">
                   <h3 className="text-sm font-semibold text-slate-900">Aging breakdown</h3>
@@ -877,9 +964,10 @@ const Reports = () => {
                   })}
                 </div>
               </section>
+              )}
             </div>
             <footer className="flex flex-none items-center justify-between gap-3 border-t border-slate-200 bg-white px-5 py-3 sm:px-6">
-              <p className="text-xs text-slate-500">Aging as of {fmtDate(asOfDate)}</p>
+              <p className="text-xs text-slate-500">{selectedAgingEntry.isAgingEntry ? `Aging as of ${fmtDate(asOfDate)}` : `Report period · ${periodLabel}`}</p>
               <button type="button" onClick={() => setSelectedAgingEntry(null)} className="min-h-10 rounded-lg bg-[#183b34] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#102e28] focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-700 focus-visible:ring-offset-2">
                 Done
               </button>
