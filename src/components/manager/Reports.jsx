@@ -66,9 +66,9 @@ const fetchAllRows = async (createQuery) => {
 };
 
 const REPORTS = {
+  aging: { title: 'Accounts Receivable & Payable Aging', blurb: 'Outstanding sales, loan installments, supplier purchases, and time deposits' },
   financial: { title: 'Financial Report', blurb: 'Cash receipts and disbursements' },
   loan: { title: 'Loan Report', blurb: 'Loan portfolio and collections' },
-  aging: { title: 'Accounts Receivable & Payable Aging', blurb: 'Outstanding sales, loan installments, supplier purchases, and time deposits' },
   member: { title: 'Member Report', blurb: 'Membership and savings' },
   inventory: { title: 'Inventory Report', blurb: 'Stock levels and movements' }
 };
@@ -146,7 +146,7 @@ const Summary = ({ items }) => (
 
 const Reports = () => {
   const location = useLocation();
-  const [reportType, setReportType] = useState(location.state?.reportType || 'financial');
+  const [reportType, setReportType] = useState(location.state?.reportType || 'aging');
   const [period, setPeriod] = useState('monthly');
   const [anchor, setAnchor] = useState(iso(new Date()));
   const [data, setData] = useState({});
