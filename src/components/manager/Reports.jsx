@@ -100,7 +100,7 @@ const Section = ({ title, children }) => (
   </section>
 );
 
-const DataTable = ({ columns, rows, empty = 'No records for this period.', footer, tableClassName = '' }) => (
+const DataTable = ({ columns, rows, empty = 'No records for this period.', footer, tableClassName = '', onRowClick }) => (
   <div className="report-table-scroll overflow-x-auto">
     <table className={`w-full border-collapse text-left text-xs ${tableClassName}`}>
       <thead>
@@ -115,7 +115,19 @@ const DataTable = ({ columns, rows, empty = 'No records for this period.', foote
           <tr><td colSpan={columns.length} className="border border-slate-300 px-2 py-4 text-center text-slate-500">{empty}</td></tr>
         )}
         {rows.map((row, i) => (
-          <tr key={row.id || i} className="odd:bg-white even:bg-slate-50">
+          <tr
+            key={row.id || i}
+            tabIndex={onRowClick ? 0 : undefined}
+            aria-label={onRowClick ? `View details for ${row.category || row.reference || 'report entry'}` : undefined}
+            onClick={onRowClick ? () => onRowClick(row) : undefined}
+            onKeyDown={onRowClick ? (event) => {
+              if (event.key === 'Enter' || event.key === ' ') {
+                event.preventDefault();
+                onRowClick(row);
+              }
+            } : undefined}
+            className={`odd:bg-white even:bg-slate-50 ${onRowClick ? 'cursor-pointer hover:bg-blue-50 focus:bg-blue-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-blue-600' : ''}`}
+          >
             {columns.map((c) => (
               <td key={c.label} className={`border border-slate-300 px-2 py-1.5 text-slate-800 ${c.right ? 'text-right tabular-nums' : ''}`}>{c.render(row)}</td>
             ))}
@@ -386,7 +398,6 @@ const Reports = () => {
       const payables = [...purchases, ...timeDeposits];
       const agingRows = [...receivables, ...payables];
       const agingColumns = [
-        { label: 'Entry type', render: (row) => row.category },
         { label: 'Particulars', render: (row) => row.particulars },
         { label: 'Reference', render: (row) => row.reference },
         { label: 'Customer / supplier / member', render: (row) => row.party },
@@ -395,45 +406,21 @@ const Reports = () => {
         ...AGING_BUCKETS.map(({ key, label }) => ({ label, right: true, render: (row) => peso(row[key]) })),
         { label: 'Total outstanding', right: true, render: (row) => peso(row.total) }
       ];
+      const printAgingColumns = [
+        { label: 'Entry type', render: (row) => row.category },
+        ...agingColumns
+      ];
       const agingFooter = (rows) => [
+        'TOTAL', '', '', '', '',
+        ...AGING_BUCKETS.map(({ key }) => peso(rows.reduce((total, row) => total + row[key], 0))),
+        peso(rows.reduce((total, row) => total + row.total, 0))
+      ];
+      const printAgingFooter = (rows) => [
         'TOTAL', '', '', '', '', '',
         ...AGING_BUCKETS.map(({ key }) => peso(rows.reduce((total, row) => total + row[key], 0))),
         peso(rows.reduce((total, row) => total + row.total, 0))
       ];
       const sumOutstanding = (rows) => rows.reduce((total, row) => total + row.total, 0);
-      const renderAgingEntries = (title, rows, empty) => (
-        <Section title={title}>
-          {rows.length === 0 ? (
-            <p className="rounded-lg border border-slate-200 bg-slate-50 p-4 text-sm text-slate-500">{empty}</p>
-          ) : (
-            <div className="grid gap-3 md:grid-cols-2 2xl:grid-cols-3">
-              {rows.map((row) => (
-                <button
-                  key={row.id}
-                  type="button"
-                  onClick={() => setSelectedAgingEntry(row)}
-                  className="rounded-lg border border-slate-200 bg-white p-4 text-left shadow-sm transition hover:border-blue-300 hover:bg-blue-50/40 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  aria-label={`View details for ${row.category}: ${row.reference}`}
-                >
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">{row.category}</p>
-                      <p className="mt-1 break-words text-sm font-semibold text-slate-900">{row.particulars}</p>
-                    </div>
-                    <span className="shrink-0 text-sm font-bold tabular-nums text-slate-900">{peso(row.total)}</span>
-                  </div>
-                  <dl className="mt-3 grid grid-cols-2 gap-x-4 gap-y-2 border-t border-slate-100 pt-3 text-xs">
-                    <div><dt className="text-slate-500">Reference</dt><dd className="mt-0.5 break-words font-medium text-slate-800">{row.reference}</dd></div>
-                    <div><dt className="text-slate-500">Customer / supplier / member</dt><dd className="mt-0.5 break-words font-medium text-slate-800">{row.party}</dd></div>
-                    <div><dt className="text-slate-500">Age date</dt><dd className="mt-0.5 font-medium text-slate-800">{fmtDate(row.dueDate)}</dd></div>
-                    <div><dt className="text-slate-500">Age</dt><dd className="mt-0.5 font-medium text-slate-800">{row.daysPastDue === null ? '-' : row.daysPastDue <= 0 ? 'Not due' : `${num(row.daysPastDue)} days past due`}</dd></div>
-                  </dl>
-                </button>
-              ))}
-            </div>
-          )}
-        </Section>
-      );
       return (
         <>
           <Summary items={[
@@ -444,18 +431,44 @@ const Reports = () => {
           ]} />
           <p className="mt-4 text-xs text-slate-600">Aging basis: sale or purchase date, scheduled loan due date, and time-deposit maturity date.</p>
           <div className="aging-screen-entries">
-            {renderAgingEntries('Accounts Receivable — Sales Orders', sales, 'No outstanding sales as of this date.')}
-            {renderAgingEntries('Accounts Receivable — Loan Installments', schedules, 'No outstanding loan installments as of this date.')}
-            {renderAgingEntries('Accounts Payable — Supplier Purchases', purchases, 'No outstanding supplier purchases as of this date.')}
-            {renderAgingEntries('Accounts Payable — Time Deposits', timeDeposits, 'No active time deposits with an outstanding balance.')}
+            <Section title="Accounts Receivable — Sales and Loan Installments">
+              <DataTable
+                rows={receivables}
+                columns={agingColumns}
+                empty="No outstanding sales or loan installments as of this date."
+                footer={agingFooter(receivables)}
+                tableClassName="aging-report-table min-w-[1200px]"
+                onRowClick={setSelectedAgingEntry}
+              />
+            </Section>
+            <Section title="Accounts Payable — Supplier Purchases">
+              <DataTable
+                rows={purchases}
+                columns={agingColumns}
+                empty="No outstanding supplier purchases as of this date."
+                footer={agingFooter(purchases)}
+                tableClassName="aging-report-table min-w-[1200px]"
+                onRowClick={setSelectedAgingEntry}
+              />
+            </Section>
+            <Section title="Accounts Payable — Time Deposits">
+              <DataTable
+                rows={timeDeposits}
+                columns={agingColumns}
+                empty="No active time deposits with an outstanding balance."
+                footer={agingFooter(timeDeposits)}
+                tableClassName="aging-report-table min-w-[1200px]"
+                onRowClick={setSelectedAgingEntry}
+              />
+            </Section>
           </div>
           <div className="aging-print-table hidden">
             <Section title="Accounts Receivable & Payable">
               <DataTable
                 rows={agingRows}
-                columns={agingColumns}
+                columns={printAgingColumns}
                 empty="No outstanding receivables or payables as of this date."
-                footer={agingFooter(agingRows)}
+                footer={printAgingFooter(agingRows)}
                 tableClassName="aging-report-table min-w-[1200px]"
               />
             </Section>
