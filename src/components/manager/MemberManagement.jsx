@@ -1,5 +1,5 @@
-import { Fragment, useCallback, useEffect, useMemo, useState } from 'react';
-import { AlertCircle, CheckCircle2, Clock3, Eye, Printer, Search, UserCheck, UserPlus, Users, X } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { AlertCircle, CheckCircle2, Clock3, Eye, HandCoins, Landmark, Printer, Search, UserCheck, UserPlus, Users, Wallet, X } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useRealtimeSubscription } from '../../hooks/useRealtimeSubscription';
 
@@ -401,89 +401,87 @@ const MemberManagement = () => {
       </section>
 
       {selectedMember && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4">
-          <section role="dialog" aria-modal="true" aria-labelledby="member-details-title" className="max-h-[92vh] w-full max-w-6xl overflow-y-auto rounded-xl bg-white shadow-2xl">
-            <header className="sticky top-0 z-20 flex items-start justify-between border-b border-gray-200 bg-white/95 px-6 py-4 shadow-sm backdrop-blur">
-              <div>
-                <h2 id="member-details-title" className="text-xl font-semibold text-gray-900">{fullName(selectedMember)}</h2>
-                <div className="mt-1 flex flex-wrap items-center gap-2 text-sm text-gray-500">
-                  <span>Member ID: {selectedMember.member_number || 'Not assigned'}</span>
-                  <span aria-hidden="true">·</span>
-                  <span className={`rounded-full px-2 py-0.5 text-xs font-semibold capitalize ${selectedMember.membership_status === 'active' ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}`}>
-                    {selectedMember.membership_status}
-                  </span>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/55 p-3 backdrop-blur-sm sm:p-5">
+          <section role="dialog" aria-modal="true" aria-labelledby="member-details-title" className="flex max-h-[92vh] w-full max-w-7xl flex-col overflow-hidden rounded-2xl border border-white/60 bg-slate-50 shadow-2xl">
+            <header className="z-20 flex flex-none items-center justify-between gap-4 border-b border-slate-200 bg-gradient-to-r from-emerald-50 via-white to-white px-5 py-4 sm:px-7">
+              <div className="flex min-w-0 items-center gap-4">
+                <span className="flex size-12 flex-none items-center justify-center rounded-2xl bg-[#183b34] text-lg font-bold text-white shadow-sm">
+                  {`${selectedMember.first_name?.[0] || ''}${selectedMember.last_name?.[0] || ''}`.toUpperCase() || <Users className="size-5" aria-hidden="true" />}
+                </span>
+                <div className="min-w-0">
+                  <p className="text-xs font-semibold uppercase tracking-[0.14em] text-emerald-800">Member profile</p>
+                  <h2 id="member-details-title" className="mt-0.5 truncate text-xl font-bold tracking-tight text-slate-900">{fullName(selectedMember)}</h2>
+                  <div className="mt-1 flex flex-wrap items-center gap-2 text-sm text-slate-500">
+                    <span>ID {selectedMember.member_number || 'Not assigned'}</span>
+                    <span aria-hidden="true" className="text-slate-300">•</span>
+                    <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold capitalize ${selectedMember.membership_status === 'active' ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}`}>
+                      <span className={`size-1.5 rounded-full ${selectedMember.membership_status === 'active' ? 'bg-emerald-600' : 'bg-amber-600'}`} />
+                      {selectedMember.membership_status}
+                    </span>
+                  </div>
                 </div>
               </div>
-              <button type="button" onClick={() => setSelectedMember(null)} className="rounded-md p-2 text-gray-500 hover:bg-gray-100 hover:text-gray-700" aria-label="Close member details">
+              <button type="button" onClick={() => setSelectedMember(null)} className="flex size-10 flex-none items-center justify-center rounded-xl text-slate-500 transition hover:bg-white hover:text-slate-900 hover:shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-700" aria-label="Close member details">
                 <X className="size-5" aria-hidden="true" />
               </button>
             </header>
+            <div className="min-h-0 flex-1 overflow-y-auto px-4 py-5 sm:px-6 sm:py-6">
+            <section aria-label="Member financial summary" className="grid gap-3 sm:grid-cols-3">
+              {[
+                { label: 'Savings balance', value: selectedMember.savings_total, Icon: Wallet, tone: 'bg-blue-50 text-blue-700' },
+                { label: 'Outstanding loan', value: selectedMember.loan_balance, Icon: HandCoins, tone: 'bg-violet-50 text-violet-700' },
+                { label: 'Time deposits', value: selectedMember.time_deposit_total, Icon: Landmark, tone: 'bg-emerald-50 text-emerald-700' }
+              ].map(({ label, value, Icon, tone }) => (
+                <article key={label} className="flex items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3.5 shadow-sm">
+                  <div>
+                    <p className="text-xs font-medium text-slate-500">{label}</p>
+                    <p className="mt-1 text-lg font-bold tabular-nums text-slate-900">{formatMoney(value)}</p>
+                  </div>
+                  <span className={`flex size-10 flex-none items-center justify-center rounded-xl ${tone}`}>
+                    <Icon className="size-5" aria-hidden="true" />
+                  </span>
+                </article>
+              ))}
+            </section>
             <details className="border-b border-gray-200">
-              <summary className="group flex cursor-pointer list-none items-center justify-between bg-gray-50 px-6 py-3 text-sm font-semibold text-gray-800 hover:bg-gray-100">
-                Member profile details
-                <span className="text-xs font-medium text-blue-700 group-open:hidden">Expand profile</span>
-                <span className="hidden text-xs font-medium text-blue-700 group-open:inline">Hide profile</span>
+              <summary className="group mt-5 flex cursor-pointer list-none items-center justify-between gap-4 rounded-xl border border-slate-200 bg-white px-4 py-3.5 text-sm font-semibold text-slate-800 shadow-sm transition hover:border-slate-300">
+                <span>
+                  <span className="block">Personal and contact information</span>
+                  <span className="mt-0.5 block text-xs font-normal text-slate-500">Membership details and emergency contact</span>
+                </span>
+                <span className="flex-none text-xs font-semibold text-emerald-700 group-open:hidden">Show details</span>
+                <span className="hidden flex-none text-xs font-semibold text-emerald-700 group-open:inline">Hide details</span>
               </summary>
-              <section aria-label="Member information" className="px-6 py-5">
-              <div className="overflow-x-auto rounded-lg border border-gray-200">
-                <table className="w-full min-w-[560px] text-left text-sm">
-                  <thead className="bg-gray-50 text-xs uppercase tracking-wide text-gray-500">
-                    <tr>
-                      <th scope="col" className="px-4 py-3 font-semibold">Member information</th>
-                      <th scope="col" className="px-4 py-3 font-semibold">Details</th>
-                      <th scope="col" className="px-4 py-3 font-semibold">Member information</th>
-                      <th scope="col" className="px-4 py-3 font-semibold">Details</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-100">
-                    {[
-                      [
-                        ['Savings', formatMoney(selectedMember.savings_total)],
-                        ['Loan balance', formatMoney(selectedMember.loan_balance)]
-                      ],
-                      [
-                        ['Time deposits', formatMoney(selectedMember.time_deposit_total)],
-                        ['Status', selectedMember.membership_status]
-                      ],
-                      [
-                        ['Membership type', selectedMember.membership_type],
-                        ['Date joined', formatDate(selectedMember.date_joined)]
-                      ],
-                      [
-                        ['Gender', selectedMember.gender],
-                        ['Phone', selectedMember.phone]
-                      ],
-                      [
-                        ['Email', selectedMember.email],
-                        ['Address', selectedMember.address]
-                      ],
-                      [
-                        ['Occupation', selectedMember.occupation],
-                        ['Emergency contact', selectedMember.emergency_contact_name]
-                      ],
-                      [
-                        ['Emergency contact number', selectedMember.emergency_contact_phone],
-                        ['', '']
-                      ]
-                    ].map((row, index) => (
-                      <tr key={index} className="odd:bg-white even:bg-gray-50/60">
-                        {row.map(([label, value], cellIndex) => (
-                          <Fragment key={cellIndex}>
-                            <th scope="row" className="w-1/4 px-4 py-3 text-left font-medium text-gray-600">{label}</th>
-                            <td className="w-1/4 break-words px-4 py-3 text-gray-900">{value || 'Not recorded'}</td>
-                          </Fragment>
-                        ))}
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+              <section aria-label="Member information" className="pt-4">
+                <dl className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                  {[
+                    ['Membership type', selectedMember.membership_type],
+                    ['Date joined', formatDate(selectedMember.date_joined)],
+                    ['Gender', selectedMember.gender],
+                    ['Phone', selectedMember.phone],
+                    ['Email', selectedMember.email],
+                    ['Address', selectedMember.address],
+                    ['Occupation', selectedMember.occupation],
+                    ['Emergency contact', selectedMember.emergency_contact_name],
+                    ['Emergency contact number', selectedMember.emergency_contact_phone]
+                  ].map(([label, value]) => (
+                    <div key={label} className="min-w-0 rounded-xl border border-slate-200 bg-white px-4 py-3">
+                      <dt className="text-xs font-medium text-slate-500">{label}</dt>
+                      <dd className="mt-1 break-words text-sm font-medium text-slate-900">{value || 'Not recorded'}</dd>
+                    </div>
+                  ))}
+                </dl>
               </section>
             </details>
-            <section aria-labelledby="member-readiness-title" className="grid gap-4 border-b border-gray-200 px-6 py-5 lg:grid-cols-2">
-              <article className={`rounded-lg border p-4 ${selectedMember.membership_status === 'active' && overdueInstallments.length === 0 ? 'border-blue-200 bg-blue-50' : 'border-amber-200 bg-amber-50'}`}>
-                <h3 id="member-readiness-title" className="font-semibold text-gray-900">Loan eligibility check</h3>
-                <p className="mt-1 text-sm font-semibold text-blue-900">
+            <section aria-labelledby="member-readiness-title" className="mt-5 grid gap-4 lg:grid-cols-2">
+              <article className={`rounded-xl border p-5 shadow-sm ${selectedMember.membership_status === 'active' && overdueInstallments.length === 0 ? 'border-emerald-200 bg-emerald-50/70' : 'border-amber-200 bg-amber-50/70'}`}>
+                <div className="flex items-center gap-2">
+                  {selectedMember.membership_status === 'active' && overdueInstallments.length === 0
+                    ? <CheckCircle2 className="size-5 text-emerald-700" aria-hidden="true" />
+                    : <AlertCircle className="size-5 text-amber-700" aria-hidden="true" />}
+                  <h3 id="member-readiness-title" className="font-semibold text-slate-900">Loan eligibility review</h3>
+                </div>
+                <p className={`mt-1 text-sm font-semibold ${!loanDetailsLoading && !loanDetailsError && selectedMember.membership_status === 'active' && overdueInstallments.length === 0 ? 'text-emerald-800' : 'text-amber-900'}`}>
                   {loanDetailsLoading
                     ? 'Checking member records…'
                     : loanDetailsError
@@ -494,18 +492,18 @@ const MemberManagement = () => {
                       ? 'Needs review'
                       : 'No immediate warning flags'}
                 </p>
-                <ul className="mt-3 space-y-1.5 text-sm text-gray-700">
+                <ul className="mt-3 space-y-2 text-sm leading-5 text-slate-700">
                   <li>{selectedMember.membership_status === 'active' ? '✓ Membership is active' : `• Membership status is ${selectedMember.membership_status}`}</li>
                   {loanDetailsLoading
                     ? <li>Checking loan repayment records…</li>
                     : loanDetailsError
                       ? <li>• Repayment status could not be verified</li>
                       : <li>{overdueInstallments.length === 0 ? '✓ No overdue installments found' : `• ${overdueInstallments.length} overdue installment(s), ${formatMoney(overdueBalance)} outstanding`}</li>}
-                  <li className="text-gray-600">Final eligibility is not determined here: minimum savings/capital and membership-tenure rules are not configured in the system.</li>
+                  <li className="border-t border-emerald-200/70 pt-2 text-xs leading-5 text-slate-600">Final eligibility is not determined here: minimum savings/capital and membership-tenure rules are not configured in the system.</li>
                 </ul>
               </article>
-              <article className={`rounded-lg border p-4 ${selectedMember.membership_status === 'suspended' ? 'border-red-200 bg-red-50' : 'border-gray-200 bg-white'}`}>
-                <h3 className="font-semibold text-gray-900">Account restrictions</h3>
+              <article className={`rounded-xl border p-5 shadow-sm ${selectedMember.membership_status === 'suspended' ? 'border-red-200 bg-red-50' : 'border-slate-200 bg-white'}`}>
+                <h3 className="font-semibold text-slate-900">Account restrictions</h3>
                 {selectedMember.membership_status === 'suspended' ? (
                   <p className="mt-2 text-sm text-red-800">Membership is suspended. Review the member’s status before processing account or loan requests.</p>
                 ) : (
@@ -514,7 +512,7 @@ const MemberManagement = () => {
                 <p className="mt-2 text-xs text-gray-500">The system does not currently record separate account holds or restriction reasons.</p>
               </article>
               {!loanDetailsLoading && !loanDetailsError && overdueInstallments.length > 0 && (
-                <article className="rounded-lg border border-red-200 bg-red-50 p-4 lg:col-span-2" role="alert">
+                <article className="rounded-xl border border-red-200 bg-red-50 p-5 shadow-sm lg:col-span-2" role="alert">
                   <h3 className="flex items-center gap-2 font-semibold text-red-900">
                     <AlertCircle className="size-4" aria-hidden="true" />
                     Overdue payment alert
@@ -525,7 +523,7 @@ const MemberManagement = () => {
                 </article>
               )}
             </section>
-            <section aria-labelledby="member-loans-title" className="border-t border-gray-200 px-6 py-5">
+            <section aria-labelledby="member-loans-title" className="mt-5 rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
               <div className="flex flex-wrap items-start justify-between gap-3">
                   <div>
                     <h3 id="member-loans-title" className="text-lg font-semibold text-gray-900">Loans and repayments</h3>
@@ -774,7 +772,7 @@ const MemberManagement = () => {
                   );
               })()}
             </section>
-            <section aria-labelledby="member-timeline-title" className="border-t border-gray-200 px-6 py-5">
+            <section aria-labelledby="member-timeline-title" className="mt-5 rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div>
                   <h3 id="member-timeline-title" className="text-lg font-semibold text-gray-900">Financial timeline and statement</h3>
@@ -870,7 +868,8 @@ const MemberManagement = () => {
                 #member-statement-print tr { break-inside: avoid; }
               }
             `}</style>
-            <footer className="flex justify-end border-t border-gray-200 bg-gray-50 px-6 py-4">
+            </div>
+            <footer className="flex flex-none justify-end border-t border-slate-200 bg-white px-5 py-4 sm:px-6">
               <button type="button" onClick={() => setSelectedMember(null)} className="min-h-10 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50">
                 Close
               </button>
