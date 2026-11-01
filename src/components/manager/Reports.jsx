@@ -27,7 +27,7 @@ const daysPastDue = (asOf, dueDate) => {
   return Math.floor((asOfTime - dueTime) / 86400000);
 };
 
-const createAgingRow = ({ id, particulars, reference, party, dueDate, amount, asOf }) => {
+const createAgingRow = ({ id, category, particulars, reference, party, dueDate, amount, asOf, details }) => {
   const days = daysPastDue(asOf, dueDate);
   const bucket = days === null || days <= 0
     ? 'current'
@@ -40,10 +40,12 @@ const createAgingRow = ({ id, particulars, reference, party, dueDate, amount, as
           : 'over90Days';
   return {
     id,
+    category,
     particulars: particulars || '-',
     reference: reference || '-',
     party: party || '-',
     dueDate,
+    details,
     daysPastDue: days,
     current: bucket === 'current' ? amount : 0,
     days1To30: bucket === 'days1To30' ? amount : 0,
@@ -153,6 +155,7 @@ const Reports = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [generatedAt, setGeneratedAt] = useState(new Date());
+  const [selectedAgingEntry, setSelectedAgingEntry] = useState(null);
 
   const range = useMemo(() => getRange(period, anchor), [period, anchor]);
   const asOfDate = iso(new Date());
@@ -261,13 +264,29 @@ const Reports = () => {
         const items = (sale.sales_order_items || [])
           .map((item) => `${item.item_description || item.product?.product_name || 'Sale item'}${item.quantity ? ` × ${num(item.quantity)}` : ''}`)
           .join(', ');
+        const netAmount = Number(sale.net_amount || 0);
+        const amountPaid = Number(sale.amount_paid || 0);
         return createAgingRow({
           id: `sale-${sale.id}`,
+          category: 'Sales receivable',
           particulars: items || sale.notes || 'Sales order',
           reference: sale.order_number,
           party: sale.member ? fullName(sale.member) : sale.customer_name || 'Customer',
           dueDate: sale.order_date,
-          amount: Math.max(Number(sale.net_amount || 0) - Number(sale.amount_paid || 0), 0),
+          amount: Math.max(netAmount - amountPaid, 0),
+          details: [
+            ['Record type', 'Sales order'],
+            ['Order number', sale.order_number],
+            ['Order date', fmtDate(sale.order_date)],
+            ['Customer', sale.member ? fullName(sale.member) : sale.customer_name || 'Customer'],
+            ['Payment status', sale.payment_status],
+            ['Order status', sale.order_status],
+            ['Net amount', peso(netAmount)],
+            ['Amount paid', peso(amountPaid)],
+            ['Outstanding balance', peso(Math.max(netAmount - amountPaid, 0))],
+            ['Particulars', items || sale.notes || 'Sales order'],
+            ...(sale.notes ? [['Notes', sale.notes]] : [])
+          ],
           asOf
         });
       }).filter((row) => row.total > 0);
@@ -282,23 +301,50 @@ const Reports = () => {
         const items = (purchase.purchase_items || [])
           .map((item) => `${item.item_name || item.products?.product_name || 'Purchase item'}${item.quantity ? ` × ${num(item.quantity)}` : ''}`)
           .join(', ');
+        const netAmount = Number(purchase.net_amount || 0);
         return createAgingRow({
           id: `purchase-${purchase.id}`,
+          category: 'Supplier purchase',
           particulars: items || purchase.notes || 'Supplier purchase',
           reference: purchase.purchase_number,
           party: purchase.suppliers?.supplier_name || 'Supplier',
           dueDate: purchase.purchase_date,
-          amount: Math.max(Number(purchase.net_amount || 0) - paid, 0),
+          amount: Math.max(netAmount - paid, 0),
+          details: [
+            ['Record type', 'Supplier purchase'],
+            ['Purchase number', purchase.purchase_number],
+            ['Purchase date', fmtDate(purchase.purchase_date)],
+            ['Supplier', purchase.suppliers?.supplier_name || 'Supplier'],
+            ['Payment status', purchase.payment_status],
+            ['Purchase status', purchase.status],
+            ['Net amount', peso(netAmount)],
+            ['Recorded payments', peso(paid)],
+            ['Outstanding balance', peso(Math.max(netAmount - paid, 0))],
+            ['Particulars', items || purchase.notes || 'Supplier purchase'],
+            ...(purchase.notes ? [['Notes', purchase.notes]] : [])
+          ],
           asOf
         });
       }).filter((row) => row.total > 0);
       const timeDeposits = (data.timeDeposits || []).map((account) => createAgingRow({
         id: `time-deposit-${account.id}`,
+        category: 'Time deposit payable',
         particulars: `Time deposit${account.interest_rate !== null ? ` · ${Number(account.interest_rate || 0)}% interest` : ''}`,
         reference: account.account_number,
         party: fullName(account.member),
         dueDate: account.maturity_date,
         amount: Number(account.balance || 0),
+        details: [
+          ['Record type', 'Time deposit'],
+          ['Account number', account.account_number],
+          ['Member', fullName(account.member)],
+          ['Member number', account.member?.member_number || '-'],
+          ['Opening date', fmtDate(account.opening_date)],
+          ['Maturity date', fmtDate(account.maturity_date)],
+          ['Interest rate', account.interest_rate === null ? '-' : `${Number(account.interest_rate || 0)}%`],
+          ['Account status', account.status],
+          ['Outstanding balance', peso(account.balance)]
+        ],
         asOf
       })).filter((row) => row.total > 0);
       const schedules = (data.schedules || []).map((schedule) => {
@@ -312,18 +358,35 @@ const Reports = () => {
         if (outstanding <= 0) return null;
         return createAgingRow({
           id: `loan-schedule-${schedule.id}`,
+          category: 'Loan installment',
           particulars: `Loan installment ${schedule.installment_number}${unpaidPenalty ? ` · includes ${peso(unpaidPenalty)} penalty` : ''}`,
           reference: loan.loan_number,
           party: fullName(loan.member),
           dueDate: schedule.due_date,
           amount: outstanding,
+          details: [
+            ['Record type', 'Loan installment'],
+            ['Loan number', loan.loan_number],
+            ['Member', fullName(loan.member)],
+            ['Installment number', schedule.installment_number],
+            ['Due date', fmtDate(schedule.due_date)],
+            ['Schedule status', schedule.status],
+            ['Installment amount due', peso(due)],
+            ['Amount paid', peso(paid)],
+            ['Penalty amount', peso(schedule.penalty_amount)],
+            ['Outstanding installment', peso(unpaidInstallment)],
+            ['Outstanding penalty', peso(unpaidPenalty)],
+            ['Total outstanding', peso(outstanding)]
+          ],
           asOf
         });
       }).filter(Boolean);
 
       const receivables = [...sales, ...schedules];
       const payables = [...purchases, ...timeDeposits];
+      const agingRows = [...receivables, ...payables];
       const agingColumns = [
+        { label: 'Entry type', render: (row) => row.category },
         { label: 'Particulars', render: (row) => row.particulars },
         { label: 'Reference', render: (row) => row.reference },
         { label: 'Customer / supplier / member', render: (row) => row.party },
@@ -333,11 +396,44 @@ const Reports = () => {
         { label: 'Total outstanding', right: true, render: (row) => peso(row.total) }
       ];
       const agingFooter = (rows) => [
-        'TOTAL', '', '', '', '',
+        'TOTAL', '', '', '', '', '',
         ...AGING_BUCKETS.map(({ key }) => peso(rows.reduce((total, row) => total + row[key], 0))),
         peso(rows.reduce((total, row) => total + row.total, 0))
       ];
       const sumOutstanding = (rows) => rows.reduce((total, row) => total + row.total, 0);
+      const renderAgingEntries = (title, rows, empty) => (
+        <Section title={title}>
+          {rows.length === 0 ? (
+            <p className="rounded-lg border border-slate-200 bg-slate-50 p-4 text-sm text-slate-500">{empty}</p>
+          ) : (
+            <div className="grid gap-3 md:grid-cols-2 2xl:grid-cols-3">
+              {rows.map((row) => (
+                <button
+                  key={row.id}
+                  type="button"
+                  onClick={() => setSelectedAgingEntry(row)}
+                  className="rounded-lg border border-slate-200 bg-white p-4 text-left shadow-sm transition hover:border-blue-300 hover:bg-blue-50/40 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  aria-label={`View details for ${row.category}: ${row.reference}`}
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">{row.category}</p>
+                      <p className="mt-1 break-words text-sm font-semibold text-slate-900">{row.particulars}</p>
+                    </div>
+                    <span className="shrink-0 text-sm font-bold tabular-nums text-slate-900">{peso(row.total)}</span>
+                  </div>
+                  <dl className="mt-3 grid grid-cols-2 gap-x-4 gap-y-2 border-t border-slate-100 pt-3 text-xs">
+                    <div><dt className="text-slate-500">Reference</dt><dd className="mt-0.5 break-words font-medium text-slate-800">{row.reference}</dd></div>
+                    <div><dt className="text-slate-500">Customer / supplier / member</dt><dd className="mt-0.5 break-words font-medium text-slate-800">{row.party}</dd></div>
+                    <div><dt className="text-slate-500">Age date</dt><dd className="mt-0.5 font-medium text-slate-800">{fmtDate(row.dueDate)}</dd></div>
+                    <div><dt className="text-slate-500">Age</dt><dd className="mt-0.5 font-medium text-slate-800">{row.daysPastDue === null ? '-' : row.daysPastDue <= 0 ? 'Not due' : `${num(row.daysPastDue)} days past due`}</dd></div>
+                  </dl>
+                </button>
+              ))}
+            </div>
+          )}
+        </Section>
+      );
       return (
         <>
           <Summary items={[
@@ -347,33 +443,23 @@ const Reports = () => {
             ['Time deposits payable', peso(sumOutstanding(timeDeposits))]
           ]} />
           <p className="mt-4 text-xs text-slate-600">Aging basis: sale or purchase date, scheduled loan due date, and time-deposit maturity date.</p>
-          <Section title="Accounts Receivable — Sales and Loan Installments">
-            <DataTable
-              rows={receivables}
-              columns={agingColumns}
-              empty="No outstanding sales or loan installments as of this date."
-              footer={agingFooter(receivables)}
-              tableClassName="aging-report-table min-w-[1200px]"
-            />
-          </Section>
-          <Section title="Accounts Payable — Supplier Purchases">
-            <DataTable
-              rows={purchases}
-              columns={agingColumns}
-              empty="No outstanding supplier purchases as of this date."
-              footer={agingFooter(purchases)}
-              tableClassName="aging-report-table min-w-[1200px]"
-            />
-          </Section>
-          <Section title="Accounts Payable — Time Deposits">
-            <DataTable
-              rows={timeDeposits}
-              columns={agingColumns}
-              empty="No active time deposits with an outstanding balance."
-              footer={agingFooter(timeDeposits)}
-              tableClassName="aging-report-table min-w-[1200px]"
-            />
-          </Section>
+          <div className="aging-screen-entries">
+            {renderAgingEntries('Accounts Receivable — Sales Orders', sales, 'No outstanding sales as of this date.')}
+            {renderAgingEntries('Accounts Receivable — Loan Installments', schedules, 'No outstanding loan installments as of this date.')}
+            {renderAgingEntries('Accounts Payable — Supplier Purchases', purchases, 'No outstanding supplier purchases as of this date.')}
+            {renderAgingEntries('Accounts Payable — Time Deposits', timeDeposits, 'No active time deposits with an outstanding balance.')}
+          </div>
+          <div className="aging-print-table hidden">
+            <Section title="Accounts Receivable & Payable">
+              <DataTable
+                rows={agingRows}
+                columns={agingColumns}
+                empty="No outstanding receivables or payables as of this date."
+                footer={agingFooter(agingRows)}
+                tableClassName="aging-report-table min-w-[1200px]"
+              />
+            </Section>
+          </div>
         </>
       );
     }
@@ -552,17 +638,21 @@ const Reports = () => {
           .report-table-scroll { width: 100% !important; max-width: none !important; overflow: visible !important; }
           .aging-report-table { width: 100% !important; min-width: 0 !important; table-layout: fixed; font-size: 7.5pt; }
           .aging-report-table th, .aging-report-table td { padding: 3px 4px !important; overflow-wrap: anywhere; }
-          .aging-report-table th:nth-child(1), .aging-report-table td:nth-child(1) { width: 17%; }
-          .aging-report-table th:nth-child(2), .aging-report-table td:nth-child(2) { width: 8%; }
-          .aging-report-table th:nth-child(3), .aging-report-table td:nth-child(3) { width: 13%; }
-          .aging-report-table th:nth-child(4), .aging-report-table td:nth-child(4) { width: 7%; }
+          .aging-screen-entries { display: none !important; }
+          .aging-print-table { display: block !important; }
+          .aging-print-table .break-inside-avoid-page { break-inside: auto !important; }
+          .aging-report-table th:nth-child(1), .aging-report-table td:nth-child(1) { width: 8%; }
+          .aging-report-table th:nth-child(2), .aging-report-table td:nth-child(2) { width: 14%; }
+          .aging-report-table th:nth-child(3), .aging-report-table td:nth-child(3) { width: 8%; }
+          .aging-report-table th:nth-child(4), .aging-report-table td:nth-child(4) { width: 12%; }
           .aging-report-table th:nth-child(5), .aging-report-table td:nth-child(5) { width: 7%; }
-          .aging-report-table th:nth-child(6), .aging-report-table td:nth-child(6),
+          .aging-report-table th:nth-child(6), .aging-report-table td:nth-child(6) { width: 6%; }
           .aging-report-table th:nth-child(7), .aging-report-table td:nth-child(7),
           .aging-report-table th:nth-child(8), .aging-report-table td:nth-child(8),
           .aging-report-table th:nth-child(9), .aging-report-table td:nth-child(9),
-          .aging-report-table th:nth-child(10), .aging-report-table td:nth-child(10) { width: 7%; }
-          .aging-report-table th:nth-child(11), .aging-report-table td:nth-child(11) { width: 13%; }
+          .aging-report-table th:nth-child(10), .aging-report-table td:nth-child(10),
+          .aging-report-table th:nth-child(11), .aging-report-table td:nth-child(11) { width: 7%; }
+          .aging-report-table th:nth-child(12), .aging-report-table td:nth-child(12) { width: 10%; }
           .aging-report-table th { font-size: 7pt; }
           .break-inside-avoid-page { break-inside: avoid; }
           thead { display: table-header-group; }
@@ -638,6 +728,49 @@ const Reports = () => {
           <div><div className="border-t border-slate-800 pt-1">Noted by (Manager)</div></div>
         </footer>
       </article>
+      {reportType === 'aging' && selectedAgingEntry && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-4 print:hidden"
+          onClick={() => setSelectedAgingEntry(null)}
+        >
+          <section
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="aging-entry-details-title"
+            className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-xl bg-white shadow-2xl"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <header className="flex items-start justify-between gap-4 border-b border-slate-200 p-5">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wide text-blue-700">{selectedAgingEntry.category}</p>
+                <h2 id="aging-entry-details-title" className="mt-1 text-xl font-bold text-slate-900">Entry details</h2>
+                <p className="mt-1 text-sm text-slate-600">{selectedAgingEntry.reference}</p>
+              </div>
+              <button type="button" onClick={() => setSelectedAgingEntry(null)} className="rounded-lg px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100">
+                Close
+              </button>
+            </header>
+            <dl className="grid gap-x-6 gap-y-4 p-5 sm:grid-cols-2">
+              {(selectedAgingEntry.details || []).map(([label, value]) => (
+                <div key={label} className="min-w-0">
+                  <dt className="text-xs font-medium uppercase tracking-wide text-slate-500">{label}</dt>
+                  <dd className="mt-1 break-words text-sm font-medium text-slate-900">{value || '-'}</dd>
+                </div>
+              ))}
+              <div>
+                <dt className="text-xs font-medium uppercase tracking-wide text-slate-500">Days past due</dt>
+                <dd className="mt-1 text-sm font-medium text-slate-900">{selectedAgingEntry.daysPastDue === null ? '-' : selectedAgingEntry.daysPastDue <= 0 ? 'Not due' : num(selectedAgingEntry.daysPastDue)}</dd>
+              </div>
+              {AGING_BUCKETS.map(({ key, label }) => selectedAgingEntry[key] > 0 && (
+                <div key={key}>
+                  <dt className="text-xs font-medium uppercase tracking-wide text-slate-500">{label}</dt>
+                  <dd className="mt-1 text-sm font-medium text-slate-900">{peso(selectedAgingEntry[key])}</dd>
+                </div>
+              ))}
+            </dl>
+          </section>
+        </div>
+      )}
     </div>
   );
 };
