@@ -98,9 +98,9 @@ const Section = ({ title, children }) => (
   </section>
 );
 
-const DataTable = ({ columns, rows, empty = 'No records for this period.', footer }) => (
-  <div className="overflow-x-auto">
-    <table className="w-full border-collapse text-left text-xs">
+const DataTable = ({ columns, rows, empty = 'No records for this period.', footer, tableClassName = '' }) => (
+  <div className="report-table-scroll overflow-x-auto">
+    <table className={`w-full border-collapse text-left text-xs ${tableClassName}`}>
       <thead>
         <tr className="bg-slate-100">
           {columns.map((c) => (
@@ -327,7 +327,7 @@ const Reports = () => {
         { label: 'Particulars', render: (row) => row.particulars },
         { label: 'Reference', render: (row) => row.reference },
         { label: 'Customer / supplier / member', render: (row) => row.party },
-        { label: 'Due / age date', render: (row) => fmtDate(row.dueDate) },
+        { label: 'Age date', render: (row) => fmtDate(row.dueDate) },
         { label: 'Days past due', right: true, render: (row) => row.daysPastDue === null ? '-' : row.daysPastDue <= 0 ? 'Not due' : num(row.daysPastDue) },
         ...AGING_BUCKETS.map(({ key, label }) => ({ label, right: true, render: (row) => peso(row[key]) })),
         { label: 'Total outstanding', right: true, render: (row) => peso(row.total) }
@@ -346,15 +346,14 @@ const Reports = () => {
             ['Sales receivable', peso(sumOutstanding(sales))],
             ['Time deposits payable', peso(sumOutstanding(timeDeposits))]
           ]} />
-          <p className="mt-4 rounded border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] leading-5 text-amber-950">
-            Snapshot of current outstanding balances as of {fmtDate(asOf)}. Sales and supplier purchases are aged from their order/purchase dates because separate due dates are not recorded. Loan installments are aged from scheduled due dates; time deposits are aged from maturity dates, with deposits not yet matured or missing a maturity date shown as current.
-          </p>
+          <p className="mt-4 text-xs text-slate-600">Aging basis: sale or purchase date, scheduled loan due date, and time-deposit maturity date.</p>
           <Section title="Accounts Receivable — Sales and Loan Installments">
             <DataTable
               rows={receivables}
               columns={agingColumns}
               empty="No outstanding sales or loan installments as of this date."
               footer={agingFooter(receivables)}
+              tableClassName="aging-report-table min-w-[1200px]"
             />
           </Section>
           <Section title="Accounts Payable — Supplier Purchases">
@@ -363,6 +362,7 @@ const Reports = () => {
               columns={agingColumns}
               empty="No outstanding supplier purchases as of this date."
               footer={agingFooter(purchases)}
+              tableClassName="aging-report-table min-w-[1200px]"
             />
           </Section>
           <Section title="Accounts Payable — Time Deposits">
@@ -371,6 +371,7 @@ const Reports = () => {
               columns={agingColumns}
               empty="No active time deposits with an outstanding balance."
               footer={agingFooter(timeDeposits)}
+              tableClassName="aging-report-table min-w-[1200px]"
             />
           </Section>
         </>
@@ -544,10 +545,25 @@ const Reports = () => {
     <div className="space-y-6">
       <style>{`
         @media print {
-          @page { size: A4; margin: 14mm; }
+          @page { size: A4 landscape; margin: 10mm; }
           body * { visibility: hidden !important; }
           #report-print, #report-print * { visibility: visible !important; }
-          #report-print { position: absolute; left: 0; top: 0; width: 100%; border: 0 !important; box-shadow: none !important; padding: 0 !important; }
+          #report-print { position: absolute; left: 0; top: 0; width: 100%; max-width: none !important; border: 0 !important; box-shadow: none !important; padding: 0 !important; }
+          .report-table-scroll { width: 100% !important; max-width: none !important; overflow: visible !important; }
+          .aging-report-table { width: 100% !important; min-width: 0 !important; table-layout: fixed; font-size: 7.5pt; }
+          .aging-report-table th, .aging-report-table td { padding: 3px 4px !important; overflow-wrap: anywhere; }
+          .aging-report-table th:nth-child(1), .aging-report-table td:nth-child(1) { width: 17%; }
+          .aging-report-table th:nth-child(2), .aging-report-table td:nth-child(2) { width: 8%; }
+          .aging-report-table th:nth-child(3), .aging-report-table td:nth-child(3) { width: 13%; }
+          .aging-report-table th:nth-child(4), .aging-report-table td:nth-child(4) { width: 7%; }
+          .aging-report-table th:nth-child(5), .aging-report-table td:nth-child(5) { width: 7%; }
+          .aging-report-table th:nth-child(6), .aging-report-table td:nth-child(6),
+          .aging-report-table th:nth-child(7), .aging-report-table td:nth-child(7),
+          .aging-report-table th:nth-child(8), .aging-report-table td:nth-child(8),
+          .aging-report-table th:nth-child(9), .aging-report-table td:nth-child(9),
+          .aging-report-table th:nth-child(10), .aging-report-table td:nth-child(10) { width: 7%; }
+          .aging-report-table th:nth-child(11), .aging-report-table td:nth-child(11) { width: 13%; }
+          .aging-report-table th { font-size: 7pt; }
           .break-inside-avoid-page { break-inside: avoid; }
           thead { display: table-header-group; }
         }
@@ -605,7 +621,7 @@ const Reports = () => {
 
       {error && <p role="alert" className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{error}</p>}
 
-      <article id="report-print" className="amcoms-print-document mx-auto max-w-5xl rounded-xl border border-gray-200 bg-white p-5 shadow-sm sm:p-10">
+      <article id="report-print" className={`amcoms-print-document mx-auto rounded-xl border border-gray-200 bg-white p-5 shadow-sm sm:p-10 ${reportType === 'aging' ? 'max-w-[1600px]' : 'max-w-5xl'}`}>
         <header className="amcoms-document-header border-b-4 border-double pb-4 text-center">
           <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[#183b34]">Agay-ayan Multi-Purpose Cooperative</p>
           <h1 className="mt-2 text-2xl font-bold text-slate-900">{meta.title}</h1>
