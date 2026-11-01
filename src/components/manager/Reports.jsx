@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useLocation } from 'react-router-dom';
-import { CalendarDays, Clock3, Printer, RefreshCw, WalletCards, X } from 'lucide-react';
+import { CalendarDays, ChevronLeft, ChevronRight, Clock3, Printer, RefreshCw, WalletCards, X } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useMultipleRealtimeSubscriptions } from '../../hooks/useRealtimeSubscription';
 
@@ -100,52 +100,93 @@ const Section = ({ title, children }) => (
   </section>
 );
 
-const DataTable = ({ columns, rows, empty = 'No records for this period.', footer, tableClassName = '', onRowClick }) => (
-  <div className="report-table-scroll overflow-x-auto">
-    <table className={`w-full border-collapse text-left text-xs ${tableClassName}`}>
-      <thead>
-        <tr className="bg-slate-100">
-          {columns.map((c) => (
-            <th key={c.label} className={`border border-slate-300 px-2 py-1.5 font-semibold text-slate-800 ${c.right ? 'text-right' : ''}`}>{c.label}</th>
-          ))}
-        </tr>
-      </thead>
-      <tbody>
-        {rows.length === 0 && (
-          <tr><td colSpan={columns.length} className="border border-slate-300 px-2 py-4 text-center text-slate-500">{empty}</td></tr>
-        )}
-        {rows.map((row, i) => (
-          <tr
-            key={row.id || i}
-            tabIndex={onRowClick ? 0 : undefined}
-            aria-label={onRowClick ? `View details for ${row.category || row.reference || 'report entry'}` : undefined}
-            onClick={onRowClick ? () => onRowClick(row) : undefined}
-            onKeyDown={onRowClick ? (event) => {
-              if (event.key === 'Enter' || event.key === ' ') {
-                event.preventDefault();
-                onRowClick(row);
-              }
-            } : undefined}
-            className={`odd:bg-white even:bg-slate-50 ${onRowClick ? 'cursor-pointer hover:bg-blue-50 focus:bg-blue-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-blue-600' : ''}`}
-          >
-            {columns.map((c) => (
-              <td key={c.label} className={`border border-slate-300 px-2 py-1.5 text-slate-800 ${c.right ? 'text-right tabular-nums' : ''}`}>{c.render(row)}</td>
+const DataTable = ({ columns, rows, empty = 'No records for this period.', footer, tableClassName = '', onRowClick, pageSize }) => {
+  const [currentPage, setCurrentPage] = useState(1);
+  const pageCount = pageSize ? Math.max(1, Math.ceil(rows.length / pageSize)) : 1;
+  const page = Math.min(currentPage, pageCount);
+  const pageRows = pageSize ? rows.slice((page - 1) * pageSize, page * pageSize) : rows;
+  const firstEntry = rows.length ? (page - 1) * pageSize + 1 : 0;
+  const lastEntry = pageSize ? Math.min(page * pageSize, rows.length) : rows.length;
+
+  return (
+    <div>
+      <div className="report-table-scroll overflow-x-auto">
+        <table className={`w-full border-collapse text-left text-xs ${tableClassName}`}>
+          <thead>
+            <tr className="bg-slate-100">
+              {columns.map((c) => (
+                <th key={c.label} className={`border border-slate-300 px-2 py-1.5 font-semibold text-slate-800 ${c.right ? 'text-right' : ''}`}>{c.label}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {rows.length === 0 && (
+              <tr><td colSpan={columns.length} className="border border-slate-300 px-2 py-4 text-center text-slate-500">{empty}</td></tr>
+            )}
+            {pageRows.map((row, i) => (
+              <tr
+                key={row.id || i}
+                tabIndex={onRowClick ? 0 : undefined}
+                aria-label={onRowClick ? `View details for ${row.category || row.reference || 'report entry'}` : undefined}
+                onClick={onRowClick ? () => onRowClick(row) : undefined}
+                onKeyDown={onRowClick ? (event) => {
+                  if (event.key === 'Enter' || event.key === ' ') {
+                    event.preventDefault();
+                    onRowClick(row);
+                  }
+                } : undefined}
+                className={`odd:bg-white even:bg-slate-50 ${onRowClick ? 'cursor-pointer hover:bg-blue-50 focus:bg-blue-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-blue-600' : ''}`}
+              >
+                {columns.map((c) => (
+                  <td key={c.label} className={`border border-slate-300 px-2 py-1.5 text-slate-800 ${c.right ? 'text-right tabular-nums' : ''}`}>{c.render(row)}</td>
+                ))}
+              </tr>
             ))}
-          </tr>
-        ))}
-      </tbody>
-      {footer && rows.length > 0 && (
-        <tfoot>
-          <tr className="bg-slate-100 font-semibold">
-            {footer.map((cell, i) => (
-              <td key={i} className={`border border-slate-300 px-2 py-1.5 ${columns[i]?.right ? 'text-right tabular-nums' : ''}`}>{cell}</td>
-            ))}
-          </tr>
-        </tfoot>
+          </tbody>
+          {footer && rows.length > 0 && (
+            <tfoot>
+              <tr className="bg-slate-100 font-semibold">
+                {footer.map((cell, i) => (
+                  <td key={i} className={`border border-slate-300 px-2 py-1.5 ${columns[i]?.right ? 'text-right tabular-nums' : ''}`}>{cell}</td>
+                ))}
+              </tr>
+            </tfoot>
+          )}
+        </table>
+      </div>
+      {pageSize && rows.length > pageSize && (
+        <nav aria-label="Report table pagination" className="report-pagination flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 px-4 py-3">
+          <p className="text-xs text-slate-500">
+            Showing <span className="font-semibold text-slate-700">{num(firstEntry)}–{num(lastEntry)}</span> of <span className="font-semibold text-slate-700">{num(rows.length)}</span> entries
+          </p>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              aria-label="Previous page"
+              disabled={page <= 1}
+              onClick={() => setCurrentPage(page - 1)}
+              className="flex size-9 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              <ChevronLeft className="size-4" aria-hidden="true" />
+            </button>
+            <span aria-current="page" className="flex h-9 min-w-9 items-center justify-center rounded-lg bg-blue-800 px-3 text-sm font-semibold text-white">
+              {page} <span className="mx-1 text-blue-200">/</span> {pageCount}
+            </span>
+            <button
+              type="button"
+              aria-label="Next page"
+              disabled={page >= pageCount}
+              onClick={() => setCurrentPage(page + 1)}
+              className="flex size-9 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              <ChevronRight className="size-4" aria-hidden="true" />
+            </button>
+          </div>
+        </nav>
       )}
-    </table>
-  </div>
-);
+    </div>
+  );
+};
 
 const Summary = ({ items }) => (
   <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
@@ -410,11 +451,6 @@ const Reports = () => {
         { label: 'Entry type', render: (row) => row.category },
         ...agingColumns
       ];
-      const agingFooter = (rows) => [
-        'TOTAL', '', '', '', '',
-        ...AGING_BUCKETS.map(({ key }) => peso(rows.reduce((total, row) => total + row[key], 0))),
-        peso(rows.reduce((total, row) => total + row.total, 0))
-      ];
       const printAgingFooter = (rows) => [
         'TOTAL', '', '', '', '', '',
         ...AGING_BUCKETS.map(({ key }) => peso(rows.reduce((total, row) => total + row[key], 0))),
@@ -436,9 +472,9 @@ const Reports = () => {
                 rows={receivables}
                 columns={agingColumns}
                 empty="No outstanding sales or loan installments as of this date."
-                footer={agingFooter(receivables)}
                 tableClassName="aging-report-table min-w-[1200px]"
                 onRowClick={setSelectedAgingEntry}
+                pageSize={10}
               />
             </Section>
             <Section title="Accounts Payable — Supplier Purchases">
@@ -446,9 +482,9 @@ const Reports = () => {
                 rows={purchases}
                 columns={agingColumns}
                 empty="No outstanding supplier purchases as of this date."
-                footer={agingFooter(purchases)}
                 tableClassName="aging-report-table min-w-[1200px]"
                 onRowClick={setSelectedAgingEntry}
+                pageSize={10}
               />
             </Section>
             <Section title="Accounts Payable — Time Deposits">
@@ -456,9 +492,9 @@ const Reports = () => {
                 rows={timeDeposits}
                 columns={agingColumns}
                 empty="No active time deposits with an outstanding balance."
-                footer={agingFooter(timeDeposits)}
                 tableClassName="aging-report-table min-w-[1200px]"
                 onRowClick={setSelectedAgingEntry}
+                pageSize={10}
               />
             </Section>
           </div>
