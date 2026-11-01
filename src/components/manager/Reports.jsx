@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useLocation } from 'react-router-dom';
-import { Printer, RefreshCw } from 'lucide-react';
+import { CalendarDays, Clock3, Printer, RefreshCw, WalletCards, X } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useMultipleRealtimeSubscriptions } from '../../hooks/useRealtimeSubscription';
 
@@ -743,44 +743,111 @@ const Reports = () => {
       </article>
       {reportType === 'aging' && selectedAgingEntry && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-4 print:hidden"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/65 p-3 backdrop-blur-sm print:hidden sm:p-5"
           onClick={() => setSelectedAgingEntry(null)}
         >
           <section
             role="dialog"
             aria-modal="true"
             aria-labelledby="aging-entry-details-title"
-            className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-xl bg-white shadow-2xl"
+            className="flex max-h-[92vh] w-full max-w-3xl flex-col overflow-hidden rounded-2xl border border-white/60 bg-slate-50 shadow-2xl"
             onClick={(event) => event.stopPropagation()}
           >
-            <header className="flex items-start justify-between gap-4 border-b border-slate-200 p-5">
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-wide text-blue-700">{selectedAgingEntry.category}</p>
-                <h2 id="aging-entry-details-title" className="mt-1 text-xl font-bold text-slate-900">Entry details</h2>
-                <p className="mt-1 text-sm text-slate-600">{selectedAgingEntry.reference}</p>
+            <header className="relative overflow-hidden bg-gradient-to-br from-[#163c34] via-[#1d5145] to-[#276456] px-5 py-5 text-white sm:px-7 sm:py-6">
+              <div className="pointer-events-none absolute -right-10 -top-20 size-56 rounded-full border-[28px] border-white/5" />
+              <div className="pointer-events-none absolute -bottom-24 right-24 size-44 rounded-full bg-white/5" />
+              <div className="relative flex items-start justify-between gap-4">
+                <div className="min-w-0">
+                  <span className="inline-flex items-center rounded-full border border-white/20 bg-white/10 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-emerald-50">
+                    {selectedAgingEntry.category}
+                  </span>
+                  <h2 id="aging-entry-details-title" className="mt-3 text-2xl font-bold tracking-tight text-white">Entry details</h2>
+                  <p className="mt-1 break-all text-sm font-medium text-emerald-100">{selectedAgingEntry.reference}</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setSelectedAgingEntry(null)}
+                  aria-label="Close entry details"
+                  className="flex size-10 flex-none items-center justify-center rounded-xl border border-white/20 bg-white/10 text-white transition hover:bg-white/20 focus:outline-none focus-visible:ring-2 focus-visible:ring-white"
+                >
+                  <X className="size-5" aria-hidden="true" />
+                </button>
               </div>
-              <button type="button" onClick={() => setSelectedAgingEntry(null)} className="rounded-lg px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100">
-                Close
-              </button>
+              <div className="relative mt-5 flex flex-wrap items-end justify-between gap-3 border-t border-white/15 pt-4">
+                <div>
+                  <p className="text-xs font-medium uppercase tracking-wide text-emerald-100">Total outstanding</p>
+                  <p className="mt-1 text-3xl font-bold tabular-nums tracking-tight">{peso(selectedAgingEntry.total)}</p>
+                </div>
+                <span className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold ${selectedAgingEntry.daysPastDue > 0 ? 'bg-amber-100 text-amber-900' : 'bg-emerald-100 text-emerald-900'}`}>
+                  <Clock3 className="size-3.5" aria-hidden="true" />
+                  {selectedAgingEntry.daysPastDue === null
+                    ? 'Age not recorded'
+                    : selectedAgingEntry.daysPastDue <= 0
+                      ? 'Current · not due'
+                      : `${num(selectedAgingEntry.daysPastDue)} days past due`}
+                </span>
+              </div>
             </header>
-            <dl className="grid gap-x-6 gap-y-4 p-5 sm:grid-cols-2">
-              {(selectedAgingEntry.details || []).map(([label, value]) => (
-                <div key={label} className="min-w-0">
-                  <dt className="text-xs font-medium uppercase tracking-wide text-slate-500">{label}</dt>
-                  <dd className="mt-1 break-words text-sm font-medium text-slate-900">{value || '-'}</dd>
+            <div className="min-h-0 flex-1 space-y-4 overflow-y-auto p-4 sm:p-6">
+              <section aria-label="Aging summary" className="grid gap-3 sm:grid-cols-2">
+                <div className="flex items-center gap-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+                  <span className="flex size-10 flex-none items-center justify-center rounded-xl bg-blue-50 text-blue-700">
+                    <CalendarDays className="size-5" aria-hidden="true" />
+                  </span>
+                  <div className="min-w-0">
+                    <p className="text-xs font-medium text-slate-500">Age date</p>
+                    <p className="mt-0.5 truncate text-sm font-semibold text-slate-900">{fmtDate(selectedAgingEntry.dueDate)}</p>
+                  </div>
                 </div>
-              ))}
-              <div>
-                <dt className="text-xs font-medium uppercase tracking-wide text-slate-500">Days past due</dt>
-                <dd className="mt-1 text-sm font-medium text-slate-900">{selectedAgingEntry.daysPastDue === null ? '-' : selectedAgingEntry.daysPastDue <= 0 ? 'Not due' : num(selectedAgingEntry.daysPastDue)}</dd>
-              </div>
-              {AGING_BUCKETS.map(({ key, label }) => selectedAgingEntry[key] > 0 && (
-                <div key={key}>
-                  <dt className="text-xs font-medium uppercase tracking-wide text-slate-500">{label}</dt>
-                  <dd className="mt-1 text-sm font-medium text-slate-900">{peso(selectedAgingEntry[key])}</dd>
+                <div className="flex items-center gap-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+                  <span className="flex size-10 flex-none items-center justify-center rounded-xl bg-emerald-50 text-emerald-800">
+                    <WalletCards className="size-5" aria-hidden="true" />
+                  </span>
+                  <div className="min-w-0">
+                    <p className="text-xs font-medium text-slate-500">Customer / supplier / member</p>
+                    <p className="mt-0.5 truncate text-sm font-semibold text-slate-900">{selectedAgingEntry.party}</p>
+                  </div>
                 </div>
-              ))}
-            </dl>
+              </section>
+
+              <section className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+                <header className="border-b border-slate-100 px-4 py-3">
+                  <h3 className="text-sm font-semibold text-slate-900">Record information</h3>
+                  <p className="mt-0.5 text-xs text-slate-500">Source details linked to this aging entry</p>
+                </header>
+                <dl className="grid gap-px bg-slate-100 sm:grid-cols-2">
+                  {(selectedAgingEntry.details || []).map(([label, value]) => (
+                    <div key={label} className={`min-w-0 bg-white px-4 py-3 ${label === 'Particulars' || label === 'Notes' ? 'sm:col-span-2' : ''}`}>
+                      <dt className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">{label}</dt>
+                      <dd className="mt-1 break-words text-sm font-medium text-slate-900">{value || '-'}</dd>
+                    </div>
+                  ))}
+                </dl>
+              </section>
+
+              <section className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+                <header className="border-b border-slate-100 px-4 py-3">
+                  <h3 className="text-sm font-semibold text-slate-900">Aging breakdown</h3>
+                </header>
+                <div className="grid grid-cols-2 gap-px bg-slate-100 sm:grid-cols-5">
+                  {AGING_BUCKETS.map(({ key, label }) => {
+                    const isActive = selectedAgingEntry[key] > 0;
+                    return (
+                      <div key={key} className={`bg-white px-3 py-3 ${isActive ? 'border-t-2 border-t-emerald-600' : ''}`}>
+                        <p className="min-h-8 text-[11px] font-medium leading-4 text-slate-500">{label}</p>
+                        <p className={`mt-1 text-xs font-semibold tabular-nums ${isActive ? 'text-emerald-900' : 'text-slate-400'}`}>{peso(selectedAgingEntry[key])}</p>
+                      </div>
+                    );
+                  })}
+                </div>
+              </section>
+            </div>
+            <footer className="flex flex-none items-center justify-between gap-3 border-t border-slate-200 bg-white px-5 py-3 sm:px-6">
+              <p className="text-xs text-slate-500">Aging as of {fmtDate(asOfDate)}</p>
+              <button type="button" onClick={() => setSelectedAgingEntry(null)} className="min-h-10 rounded-lg bg-[#183b34] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#102e28] focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-700 focus-visible:ring-offset-2">
+                Done
+              </button>
+            </footer>
           </section>
         </div>
       )}
