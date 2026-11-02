@@ -7,6 +7,13 @@ import offlineDb from '../../lib/Offline/OfflineDb';
 import DashboardMetricCard from '../common/DashboardMetricCard';
 import { getDataLoadErrorMessage } from '../../lib/errorHandler';
 
+const formatPeso = (value) => new Intl.NumberFormat('en-PH', {
+  style: 'currency',
+  currency: 'PHP',
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2,
+}).format(Number(value) || 0);
+
 const savingsTransactionTitle = (transaction) => {
   const account = transaction.savings_accounts?.account_type === 'time_deposit' ? 'Time deposit' : 'Savings';
   const action = transaction.transaction_type === 'deposit' && account === 'Time deposit'
@@ -312,7 +319,7 @@ const MemberDashboard = ({ onNavigate }) => {
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4 xl:grid-cols-6">
           <DashboardMetricCard
             label="Savings"
-            value={loading ? '...' : `₱${memberData.totalSavings.toLocaleString('en-US', { minimumFractionDigits: 2 })}`}
+            value={loading ? '...' : formatPeso(memberData.totalSavings)}
             detail="Member balance"
             icon={PiggyBank}
             tone="green"
@@ -320,7 +327,7 @@ const MemberDashboard = ({ onNavigate }) => {
           />
           <DashboardMetricCard
             label="Time Deposit"
-            value={loading ? '...' : `₱${memberData.totalTimeDeposit.toLocaleString('en-US', { minimumFractionDigits: 2 })}`}
+            value={loading ? '...' : formatPeso(memberData.totalTimeDeposit)}
             detail="Current balance"
             icon={Landmark}
             tone="indigo"
@@ -328,7 +335,7 @@ const MemberDashboard = ({ onNavigate }) => {
           />
           <DashboardMetricCard
             label="Capital Share"
-            value={loading ? '...' : `₱${memberData.totalCapital.toLocaleString('en-US', { minimumFractionDigits: 2 })}`}
+            value={loading ? '...' : formatPeso(memberData.totalCapital)}
             detail="Member share capital"
             icon={Building2}
             tone="blue"
@@ -344,7 +351,7 @@ const MemberDashboard = ({ onNavigate }) => {
           />
           <DashboardMetricCard
             label="Loan Balance"
-            value={loading ? '...' : `₱${memberData.totalLoanBalance.toLocaleString('en-US', { minimumFractionDigits: 2 })}`}
+            value={loading ? '...' : formatPeso(memberData.totalLoanBalance)}
             detail="Outstanding balance"
             icon={HandCoins}
             tone="orange"
@@ -352,7 +359,7 @@ const MemberDashboard = ({ onNavigate }) => {
           />
           <DashboardMetricCard
             label="Next Payment"
-            value={loading ? '...' : `₱${memberData.nextPaymentAmount.toLocaleString('en-US', { minimumFractionDigits: 2 })}`}
+            value={loading ? '...' : formatPeso(memberData.nextPaymentAmount)}
             detail={memberData.nextPaymentDate ? `Due ${new Date(`${memberData.nextPaymentDate}T00:00:00`).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}` : 'No payment scheduled'}
             icon={CalendarClock}
             tone="red"

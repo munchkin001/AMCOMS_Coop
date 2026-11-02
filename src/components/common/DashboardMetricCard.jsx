@@ -40,7 +40,7 @@ const DashboardMetricCard = ({ label, value, icon: Icon, tone = 'teal', actionLa
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
             <p className="text-xs font-semibold uppercase text-white/80">{label}</p>
-            <p className="mt-2 break-words text-lg font-semibold tabular-nums sm:mt-3 sm:text-2xl">{value}</p>
+            <p className="mt-2 whitespace-nowrap text-lg font-semibold tabular-nums sm:mt-3 sm:text-2xl">{value}</p>
             {onClick ? (
               <span className="mt-3 inline-flex items-center gap-1 text-xs font-semibold text-white">
                 {actionLabel || 'View details'}
