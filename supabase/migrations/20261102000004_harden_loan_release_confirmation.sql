@@ -51,6 +51,30 @@ BEGIN
 END;
 $$;
 
+-- Reconcile a loan that was actually disbursed while its workflow remained
+-- awaiting release. Trust only a recorded disbursement with a posted journal.
+UPDATE public.transaction_workflows workflow
+SET status = 'completed',
+    cash_release_status = 'released',
+    accounting_status = 'posted',
+    business_record_table = 'cash_disbursements',
+    business_record_id = disbursement.id,
+    journal_entry_id = disbursement.journal_entry_id,
+    treasurer_id = COALESCE(workflow.treasurer_id, disbursement.created_by),
+    released_at = COALESCE(workflow.released_at, disbursement.updated_at, disbursement.created_at),
+    updated_at = now()
+FROM public.loans loan
+JOIN public.cash_disbursements disbursement ON disbursement.loan_id = loan.id
+JOIN public.journal_entries journal ON journal.id = disbursement.journal_entry_id
+WHERE workflow.transaction_type = 'loan_disbursement'
+  AND workflow.cash_release_required
+  AND workflow.status IN ('awaiting_release', 'on_hold', 'release_issue')
+  AND loan.id = NULLIF(workflow.approved_payload->>'loan_id', '')::UUID
+  AND loan.status = 'active'
+  AND loan.release_date IS NOT NULL
+  AND disbursement.status = 'recorded'
+  AND journal.status = 'posted';
+
 CREATE OR REPLACE FUNCTION public.confirm_transaction_workflow_release(
   p_workflow_id UUID,
   p_document_id UUID,
@@ -72,6 +96,7 @@ DECLARE
   v_business_table TEXT;
   v_loan_id UUID;
   v_posted_disbursement_id UUID;
+  v_loan_status TEXT;
 BEGIN
   IF v_staff_id IS NULL OR NOT public.has_role('treasurer') THEN
     RAISE EXCEPTION 'Only an active Treasurer can confirm cash release';
@@ -99,34 +124,71 @@ BEGIN
     IF v_loan_id IS NULL THEN
       RAISE EXCEPTION 'The approved loan is missing from this release workflow';
     END IF;
-    v_result := public.record_loan_disbursement(
-      v_loan_id,
-      p_workflow_id::TEXT,
-      COALESCE(NULLIF(v_payload->>'release_date', '')::DATE, CURRENT_DATE),
-      COALESCE(NULLIF(v_payload->>'payment_source', ''), 'cash-on-hand')
-    );
-    v_business_table := 'cash_disbursements';
-    v_business_id := NULLIF(v_result->>'disbursement_id', '')::UUID;
-    v_journal_id := NULLIF(v_result->>'journal_entry_id', '')::UUID;
+    SELECT status INTO v_loan_status
+    FROM public.loans
+    WHERE id = v_loan_id
+    FOR UPDATE;
+    IF NOT FOUND THEN
+      RAISE EXCEPTION 'The approved loan could not be found';
+    END IF;
 
-    SELECT disbursement.id
-    INTO v_posted_disbursement_id
+    SELECT disbursement.id, disbursement.journal_entry_id
+    INTO v_business_id, v_journal_id
     FROM public.cash_disbursements disbursement
     JOIN public.journal_entries journal
       ON journal.id = disbursement.journal_entry_id
-    WHERE disbursement.id = v_business_id
-      AND disbursement.loan_id = v_loan_id
+    WHERE disbursement.loan_id = v_loan_id
       AND disbursement.status = 'recorded'
-      AND disbursement.journal_entry_id = v_journal_id
-      AND journal.status = 'posted';
-    IF v_posted_disbursement_id IS NULL THEN
-      RAISE EXCEPTION 'Loan release did not create a recorded cash disbursement and posted journal entry';
-    END IF;
-    IF NOT EXISTS (
-      SELECT 1 FROM public.loans
-      WHERE id = v_loan_id AND status = 'active' AND release_date IS NOT NULL
-    ) THEN
-      RAISE EXCEPTION 'Loan release did not activate the approved loan';
+      AND journal.status = 'posted'
+    FOR UPDATE OF disbursement;
+
+    IF FOUND THEN
+      IF v_loan_status <> 'active' THEN
+        RAISE EXCEPTION 'A recorded disbursement exists, but the loan is not active. Ask an administrator to reconcile this loan.';
+      END IF;
+      v_posted_disbursement_id := v_business_id;
+      v_business_table := 'cash_disbursements';
+      v_result := jsonb_build_object(
+        'disbursement_id', v_business_id,
+        'journal_entry_id', v_journal_id,
+        'status', 'recorded',
+        'loan_id', v_loan_id,
+        'loan_number', v_payload->>'loan_number',
+        'release_date', (SELECT release_date FROM public.loans WHERE id = v_loan_id)
+      );
+    ELSE
+      IF v_loan_status = 'active' THEN
+        RAISE EXCEPTION 'This loan is already active, but no recorded cash disbursement was found. Ask an administrator to reconcile it; do not attempt another release.';
+      END IF;
+      v_result := public.record_loan_disbursement(
+        v_loan_id,
+        p_workflow_id::TEXT,
+        COALESCE(NULLIF(v_payload->>'release_date', '')::DATE, CURRENT_DATE),
+        COALESCE(NULLIF(v_payload->>'payment_source', ''), 'cash-on-hand')
+      );
+      v_business_table := 'cash_disbursements';
+      v_business_id := NULLIF(v_result->>'disbursement_id', '')::UUID;
+      v_journal_id := NULLIF(v_result->>'journal_entry_id', '')::UUID;
+
+      SELECT disbursement.id
+      INTO v_posted_disbursement_id
+      FROM public.cash_disbursements disbursement
+      JOIN public.journal_entries journal
+        ON journal.id = disbursement.journal_entry_id
+      WHERE disbursement.id = v_business_id
+        AND disbursement.loan_id = v_loan_id
+        AND disbursement.status = 'recorded'
+        AND disbursement.journal_entry_id = v_journal_id
+        AND journal.status = 'posted';
+      IF v_posted_disbursement_id IS NULL THEN
+        RAISE EXCEPTION 'Loan release did not create a recorded cash disbursement and posted journal entry';
+      END IF;
+      IF NOT EXISTS (
+        SELECT 1 FROM public.loans
+        WHERE id = v_loan_id AND status = 'active' AND release_date IS NOT NULL
+      ) THEN
+        RAISE EXCEPTION 'Loan release did not activate the approved loan';
+      END IF;
     END IF;
   ELSIF v_workflow.transaction_type IN ('savings_withdrawal', 'time_deposit_withdrawal') THEN
     v_payload := jsonb_set(

@@ -313,35 +313,12 @@ const TransactionWorkflow = ({ role }) => {
       if (result?.status !== 'completed') {
         throw new Error(result?.error || 'The server did not confirm the release.');
       }
-      const { data: confirmedWorkflow, error: workflowError } = await supabase
-        .from('transaction_workflows')
-        .select('status, cash_release_status, business_record_table, business_record_id')
-        .eq('id', selected.id)
-        .single();
-      if (workflowError) throw workflowError;
-      if (
-        confirmedWorkflow.status !== 'completed'
-        || confirmedWorkflow.cash_release_status !== 'released'
-        || confirmedWorkflow.business_record_table !== 'cash_disbursements'
-        || !confirmedWorkflow.business_record_id
-      ) {
-        throw new Error('The server did not confirm a recorded cash disbursement. The workflow was not reported as released.');
+      if (!result.business_record_id || !result.journal_entry_id) {
+        throw new Error('The server did not return the recorded disbursement and journal entry.');
       }
-      if (selected.transaction_type === 'loan_disbursement') {
-        const loanId = selected.approved_payload?.loan_id || selected.payload?.loan_id;
-        if (!loanId) throw new Error('The approved loan is missing from this release transaction.');
-        const { data: disbursement, error: disbursementError } = await supabase
-          .from('cash_disbursements')
-          .select('id, status, journal_entry_id')
-          .eq('id', confirmedWorkflow.business_record_id)
-          .eq('loan_id', loanId)
-          .maybeSingle();
-        if (disbursementError) throw disbursementError;
-        if (disbursement?.status !== 'recorded' || !disbursement.journal_entry_id) {
-          throw new Error('The loan release was not confirmed in cash disbursements and the general ledger.');
-        }
-      }
-      setNotice('Cash released. The Manager and Bookkeeper can now review the completed transaction and attached proof.');
+      setNotice(selected.transaction_type === 'loan_disbursement'
+        ? 'Loan disbursed and recorded as Cash released. The Manager and Bookkeeper can review the transaction and proof.'
+        : 'Cash released. The Manager and Bookkeeper can now review the completed transaction and attached proof.');
       setSelected(null);
       setReleaseFile(null);
       setRemarks('');

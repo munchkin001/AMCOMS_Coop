@@ -156,8 +156,8 @@ const staffNavigationConfig = {
       component: 'SavingsManagement'
     },
     {
-      id: 'approved-loans',
-      name: 'Approved Loans',
+      id: 'approved-transactions',
+      name: 'Approved Transactions',
       icon: HandCoins,
       path: '/staff/loan-requests',
       component: 'LoanRequests'
