@@ -69,6 +69,113 @@ const formatAuditValue = (value, field = '') => {
   return String(value);
 };
 
+const loanChangeLabels = {
+  collateral_type: 'Collateral type',
+  collateral_description: 'Collateral details',
+  guarantor_contact: 'Guarantor contact',
+  guarantor_name: 'Guarantor',
+  interest_rate: 'Interest rate',
+  maturity_date: 'Maturity date',
+  monthly_payment: 'Scheduled payment',
+  notes: 'Loan notes',
+  principal_amount: 'Principal amount',
+  purpose: 'Purpose',
+  release_date: 'Release date',
+  status: 'Status',
+  term_months: 'Term'
+};
+
+const requestChangeLabels = {
+  amount: 'Requested amount',
+  collateral_description: 'Collateral details',
+  collateral_type: 'Collateral type',
+  guarantor_contact: 'Guarantor contact',
+  guarantor_name: 'Guarantor',
+  loan_type: 'Loan type',
+  payment_frequency: 'Repayment frequency',
+  purpose: 'Purpose',
+  status: 'Review status',
+  term_months: 'Term'
+};
+
+const getRecordData = (log, version) => {
+  const value = log[version];
+  return value && typeof value === 'object' && !Array.isArray(value) ? value : {};
+};
+
+const getValueChanges = (oldData, newData, fields) => fields
+  .filter((field) => JSON.stringify(oldData[field]) !== JSON.stringify(newData[field]))
+  .map((field) => ({
+    field,
+    label: field,
+    oldValue: oldData[field],
+    newValue: newData[field]
+  }));
+
+const getLoanChanges = (log) => {
+  const oldData = getRecordData(log, 'old_data');
+  const newData = getRecordData(log, 'new_data');
+  const changes = getValueChanges(oldData, newData, Object.keys(loanChangeLabels));
+  const oldDetails = oldData.application_details || {};
+  const newDetails = newData.application_details || {};
+
+  return [
+    ...changes,
+    ...getValueChanges(oldDetails, newDetails, ['collateral_description', 'collateral_type', 'guarantor_contact', 'guarantor_name'])
+      .map((change) => ({ ...change, field: `application_details.${change.field}` }))
+  ];
+};
+
+const getLoanRequestChanges = (log) => {
+  const oldData = getRecordData(log, 'old_data');
+  const newData = getRecordData(log, 'new_data');
+  const oldRequest = oldData.request_data || {};
+  const newRequest = newData.request_data || {};
+  const oldDetails = oldRequest.application_details || {};
+  const newDetails = newRequest.application_details || {};
+  const changes = [
+    ...getValueChanges(oldData, newData, ['amount', 'status']),
+    ...getValueChanges(oldRequest, newRequest, ['loan_type', 'payment_frequency', 'purpose', 'term_months']),
+    ...getValueChanges(oldDetails, newDetails, ['collateral_description', 'collateral_type', 'guarantor_contact', 'guarantor_name'])
+  ];
+
+  return changes.map((change) => ({
+    ...change,
+    label: requestChangeLabels[change.field] || requestChangeLabels[change.field.replace('application_details.', '')] || change.field,
+    field: change.field
+  }));
+};
+
+const getLoanChangeLabel = (changes) => {
+  const fields = changes.map(({ field }) => field);
+  if (fields.some((field) => field.endsWith('guarantor_name') || field.endsWith('guarantor_contact'))) return 'Updated loan guarantor';
+  if (fields.some((field) => field.endsWith('collateral_type') || field.endsWith('collateral_description'))) return 'Updated loan collateral';
+  const statusChange = changes.find(({ field }) => field === 'status');
+  if (statusChange) return `Changed loan status to ${statusChange.newValue || 'unknown'}`;
+  if (fields.some((field) => ['interest_rate', 'term_months', 'monthly_payment', 'principal_amount', 'loan_product_id'].includes(field))) return 'Updated loan terms';
+  if (fields.includes('purpose')) return 'Updated loan purpose';
+  return 'Updated loan details';
+};
+
+const getLoanRequestActivityLabel = (log) => {
+  const action = log.action?.match(/^(Created|Updated|Deleted)\s+/)?.[1];
+  if (action === 'Created') return 'Submitted loan application';
+  if (action === 'Deleted') return 'Removed loan application';
+
+  const changes = getLoanRequestChanges(log);
+  const statusChange = changes.find(({ field }) => field === 'status');
+  if (statusChange) {
+    const status = String(statusChange.newValue || '').toLowerCase();
+    if (status === 'under_review') return 'Started review of loan application';
+    if (status === 'approved') return 'Approved loan application';
+    if (status === 'rejected') return 'Rejected loan application';
+    if (status === 'cancelled') return 'Cancelled loan application';
+    if (status === 'pending') return 'Returned loan application to pending';
+  }
+  if (changes.length) return getLoanChangeLabel(changes);
+  return 'Updated loan application';
+};
+
 const getDeviceInfo = (userAgent, reportedModel) => {
   const source = userAgent || '';
   let device = reportedModel || '';
@@ -125,6 +232,19 @@ const getFinancialContext = async (log) => {
     const account = await getOne('chart_of_accounts', 'account_code, account_name', accountId);
     if (account) add('Account', [account.account_code, account.account_name].filter(Boolean).join(' · '));
   };
+  const addChanges = (changes) => {
+    changes.forEach(({ field, label, oldValue, newValue }) => {
+      const fieldName = loanChangeLabels[field] || loanChangeLabels[field.split('.').at(-1)] || label;
+      const formatValue = (value) => {
+        if (value === null || value === undefined || value === '') return 'Not provided';
+        if (fieldName === 'Term') return `${value} months`;
+        if (fieldName === 'Interest rate') return `${value}%`;
+        if (/amount|scheduled payment|principal/i.test(fieldName)) return formatAuditValue(value, fieldName);
+        return String(value);
+      };
+      add(fieldName, `${formatValue(oldValue)} → ${formatValue(newValue)}`);
+    });
+  };
 
   if (['cash_receipt_lines', 'cash_disbursement_lines'].includes(log.table_name)) {
     const isReceipt = log.table_name === 'cash_receipt_lines';
@@ -160,7 +280,31 @@ const getFinancialContext = async (log) => {
       add('Received from', receipt?.received_from);
     }
   } else if (log.table_name === 'loans') {
+    add('Loan number', record.loan_number);
     await getMemberName(record.member_id);
+    if (log.action?.startsWith('Updated ')) addChanges(getLoanChanges(log));
+  } else if (log.table_name === 'requests' && record.request_type === 'loan_application') {
+    const requestData = record.request_data && typeof record.request_data === 'object' ? record.request_data : {};
+    const applicationDetails = requestData.application_details && typeof requestData.application_details === 'object'
+      ? requestData.application_details
+      : {};
+    add('Application number', record.request_number);
+    await getMemberName(record.member_id);
+
+    if (log.action?.startsWith('Created ')) {
+      add('Loan type', requestData.loan_type);
+      const requestedAmount = record.amount ?? requestData.amount;
+      if (requestedAmount !== null && requestedAmount !== undefined) {
+        add('Requested amount', formatAuditValue(requestedAmount, 'amount'));
+      }
+      add('Purpose', requestData.purpose);
+      add('Term', requestData.term_months ? `${requestData.term_months} months` : undefined);
+      add('Repayment frequency', requestData.payment_frequency || requestData.frequency);
+      add('Guarantor', [applicationDetails.guarantor_name, applicationDetails.guarantor_contact].filter(Boolean).join(' · '));
+      add('Collateral', [applicationDetails.collateral_type, applicationDetails.collateral_description].filter(Boolean).join(' · '));
+    } else {
+      addChanges(getLoanRequestChanges(log));
+    }
   } else if (log.table_name === 'cash_receipts') {
     if (record.member_id) await getMemberName(record.member_id);
     if (record.account_id) await getAccountName(record.account_id);
@@ -348,8 +492,9 @@ const AuditLog = () => {
     fetchArchiveMonths();
   }, null, [fetchArchiveMonths, fetchAuditLogs]);
 
-  const getModule = (tableName) => {
+  const getModule = (tableName, requestType) => {
     if (tableName === 'authentication') return 'Account access';
+    if (tableName === 'requests' && requestType === 'loan_application') return 'Loans';
     if (['loans', 'loan_payments', 'loan_products', 'loan_applications'].includes(tableName)) return 'Loans';
     if (['members', 'staff', 'member_applications'].includes(tableName)) return 'Members';
     if (['products', 'product_categories', 'stock_inventory', 'stock_movements', 'production_records', 'purchases', 'purchase_items', 'sales_orders', 'sales_order_items', 'suppliers'].includes(tableName)) return 'Inventory';
@@ -405,6 +550,15 @@ const AuditLog = () => {
     if (log.table_name === 'authentication') {
       return log.action || 'Account activity';
     }
+    const record = getRecordData(log, 'new_data');
+    const oldRecord = getRecordData(log, 'old_data');
+    if (log.table_name === 'requests' && (record.request_type || oldRecord.request_type) === 'loan_application') {
+      return getLoanRequestActivityLabel(log);
+    }
+    if (log.table_name === 'loans' && log.action?.startsWith('Updated ')) {
+      const changes = getLoanChanges(log);
+      if (changes.length) return getLoanChangeLabel(changes);
+    }
 
     const actionMatch = log.action?.match(/^(Created|Updated|Deleted)\s+/);
     if (!actionMatch) return log.action || 'System activity';
@@ -413,11 +567,23 @@ const AuditLog = () => {
     return `${actionVerb} ${tableLabels[tableName] || tableLabels[log.table_name] || 'system entry'}`;
   };
 
+  const hasMeaningfulLoanActivity = (log) => {
+    if (!log.action?.startsWith('Updated ')) return true;
+    if (log.table_name === 'loans') return getLoanChanges(log).length > 0;
+    const record = getRecordData(log, 'new_data');
+    if (log.table_name === 'requests' && record.request_type === 'loan_application') {
+      return getLoanRequestChanges(log).length > 0;
+    }
+    return true;
+  };
+
   const filteredLogs = auditLogs.filter((log) => {
     const actorName = getActorName(log);
     const eventDate = formatDateKeyInManila(log.created_at);
-    return (!filters.user || actorName.toLowerCase().includes(filters.user.toLowerCase()))
-      && (!filters.module || getModule(log.table_name) === filters.module)
+    const requestType = getRecordData(log, 'new_data').request_type || getRecordData(log, 'old_data').request_type;
+    return hasMeaningfulLoanActivity(log)
+      && (!filters.user || actorName.toLowerCase().includes(filters.user.toLowerCase()))
+      && (!filters.module || getModule(log.table_name, requestType) === filters.module)
       && (!filters.action || getActivityLabel(log).toLowerCase().includes(filters.action.toLowerCase()))
       && (!filters.dateFrom || eventDate >= filters.dateFrom)
       && (!filters.dateTo || eventDate <= filters.dateTo);
@@ -427,9 +593,17 @@ const AuditLog = () => {
   const currentPage = Math.min(page, pageCount);
   const pageLogs = filteredLogs.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
   const activeStaffCount = new Set(auditLogs.map((log) => getActorName(log))).size;
-  const activeAreaCount = new Set(auditLogs.map((log) => getModule(log.table_name))).size;
+  const activeAreaCount = new Set(auditLogs.map((log) => {
+    const requestType = getRecordData(log, 'new_data').request_type || getRecordData(log, 'old_data').request_type;
+    return getModule(log.table_name, requestType);
+  })).size;
   const accessEventCount = auditLogs.filter((log) => log.table_name === 'authentication').length;
   const latestActivity = auditLogs[0] ? formatDateTime(auditLogs[0].created_at) : 'No activity yet';
+  const selectedLogRecord = selectedLog
+    ? getRecordData(selectedLog, 'new_data')
+    : {};
+  const selectedLogIsLoanRequest = selectedLog?.table_name === 'requests'
+    && (selectedLogRecord.request_type || getRecordData(selectedLog, 'old_data').request_type) === 'loan_application';
   const openLogDetails = async (log) => {
     const requestId = ++relatedContextRequestRef.current;
     setSelectedLog(log);
@@ -472,7 +646,7 @@ const AuditLog = () => {
         getActorName(log),
         log.staff?.role || '',
         getActivityLabel(log),
-        getModule(log.table_name),
+        getModule(log.table_name, getRecordData(log, 'new_data').request_type || getRecordData(log, 'old_data').request_type),
         log.table_name === 'authentication' && log.action === 'Signed in' ? getDeviceInfo(log.user_agent, log.new_data?.device_model).device : '',
         log.table_name === 'authentication' && log.action === 'Signed in' ? getDeviceInfo(log.user_agent, log.new_data?.device_model).browser : '',
         log.table_name || '',
@@ -754,7 +928,7 @@ const AuditLog = () => {
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {pageLogs.map((log) => {
-                  const module = getModule(log.table_name);
+                  const module = getModule(log.table_name, getRecordData(log, 'new_data').request_type || getRecordData(log, 'old_data').request_type);
                   const deviceInfo = getDeviceInfo(log.user_agent, log.new_data?.device_model);
                   return (
                     <tr
@@ -842,7 +1016,7 @@ const AuditLog = () => {
               <div aria-hidden="true" className="pointer-events-none absolute -right-10 -top-20 size-48 rounded-full border-[24px] border-white/5" />
               <div className="relative flex items-start justify-between gap-4">
                 <div className="min-w-0">
-                  <p className="text-xs font-semibold uppercase tracking-[0.14em] text-emerald-100">Audit entry · {getModule(selectedLog.table_name)}</p>
+                  <p className="text-xs font-semibold uppercase tracking-[0.14em] text-emerald-100">Audit entry · {getModule(selectedLog.table_name, getRecordData(selectedLog, 'new_data').request_type || getRecordData(selectedLog, 'old_data').request_type)}</p>
                   <h2 id="audit-entry-title" className="mt-1 break-words text-xl font-bold">{getActivityLabel(selectedLog)}</h2>
                   <p className="mt-1 text-sm text-emerald-100">{getActorName(selectedLog)}{selectedLog.staff?.role ? ` · ${selectedLog.staff.role}` : ''}</p>
                 </div>
@@ -860,10 +1034,7 @@ const AuditLog = () => {
               <dl className="grid gap-3 sm:grid-cols-2">
                 {[
                   ['Date and time', formatDateTime(selectedLog.created_at)],
-                  ['Area', getModule(selectedLog.table_name)],
-                  ['Source table', selectedLog.table_name || 'Not recorded'],
-                  ['Record ID', selectedLog.record_id || 'Not recorded'],
-                  ['IP address', selectedLog.ip_address || 'Not recorded'],
+                  ...(selectedLog.ip_address ? [['IP address', selectedLog.ip_address]] : []),
                   ...(selectedLog.table_name === 'authentication' && selectedLog.action === 'Signed in'
                     ? [
                         ['Device used', getDeviceInfo(selectedLog.user_agent, selectedLog.new_data?.device_model).device],
@@ -888,8 +1059,16 @@ const AuditLog = () => {
               {(relatedContextLoading || relatedContextError || relatedContext.length > 0) && (
                 <section className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
                   <header className="border-b border-slate-100 px-4 py-3">
-                    <h3 className="text-sm font-semibold text-slate-900">Related transaction details</h3>
-                    <p className="mt-1 text-xs text-slate-500">Linked receipt, account, member, or journal information when available.</p>
+                    <h3 className="text-sm font-semibold text-slate-900">
+                      {selectedLogIsLoanRequest ? 'Loan application details' : selectedLog.table_name === 'loans' ? 'Loan details' : 'Related transaction details'}
+                    </h3>
+                    <p className="mt-1 text-xs text-slate-500">
+                      {selectedLogIsLoanRequest
+                        ? 'Application information and any review changes recorded for this event.'
+                        : selectedLog.table_name === 'loans'
+                          ? 'Member and loan information, plus the specific loan fields changed in this event.'
+                          : 'Linked receipt, account, member, or journal information when available.'}
+                    </p>
                   </header>
                   {relatedContextLoading ? (
                     <p className="px-4 py-5 text-sm text-slate-500">Loading linked record details…</p>
