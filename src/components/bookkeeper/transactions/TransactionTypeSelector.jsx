@@ -90,8 +90,8 @@ const TransactionTypeSelector = ({ onSelectType, onCancel }) => (
       {transactionGroups.map((group) => {
         const tone = toneClasses[group.tone];
         return (
-          <section key={group.id} className={`overflow-hidden rounded-2xl border bg-white shadow-sm ${tone.section}`}>
-            <header className={`flex items-start gap-3 border-b border-slate-200/80 px-4 py-4 sm:px-5 ${tone.header}`}>
+          <section key={group.id} className={`flex h-full flex-col overflow-hidden rounded-2xl border bg-white shadow-sm ${tone.section}`}>
+            <header className={`flex min-h-[104px] items-start gap-3 border-b border-slate-200/80 px-4 py-4 sm:px-5 ${tone.header}`}>
               <span className={`flex size-10 shrink-0 items-center justify-center rounded-xl ${tone.icon}`}>
                 <group.icon size={20} strokeWidth={2.2} aria-hidden="true" />
               </span>
@@ -105,13 +105,13 @@ const TransactionTypeSelector = ({ onSelectType, onCancel }) => (
                 <p className="mt-1 text-sm leading-5 text-slate-600">{group.description}</p>
               </div>
             </header>
-            <div className="grid gap-2.5 p-3 sm:grid-cols-2 sm:p-4">
+            <div className="grid flex-1 auto-rows-fr gap-2.5 p-3 sm:grid-cols-2 sm:p-4">
               {group.types.map((type) => (
                 <button
                   key={type.id}
                   type="button"
                   onClick={() => onSelectType(type.id)}
-                  className={`group flex min-h-[88px] items-start gap-3 rounded-xl border border-slate-200 bg-white p-3.5 text-left transition hover:shadow-sm ${tone.hover} ${tone.focus} focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-1`}
+                  className={`group flex h-full min-h-[88px] items-start gap-3 rounded-xl border border-slate-200 bg-white p-3.5 text-left transition hover:shadow-sm ${tone.hover} ${tone.focus} focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-1`}
                 >
                   <span className={`mt-0.5 flex size-9 shrink-0 items-center justify-center rounded-lg ${tone.icon}`}>
                     <type.icon size={17} strokeWidth={2} aria-hidden="true" />
