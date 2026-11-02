@@ -140,6 +140,11 @@ const TransactionWorkflow = ({ role }) => {
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
   const [remarks, setRemarks] = useState('');
+  const [correctionAmount, setCorrectionAmount] = useState('');
+  const [correctionCounterparty, setCorrectionCounterparty] = useState('');
+  const [correctionPaymentMethod, setCorrectionPaymentMethod] = useState('');
+  const [correctionDescription, setCorrectionDescription] = useState('');
+  const [correctionPayload, setCorrectionPayload] = useState('');
   const [reviewedRelease, setReviewedRelease] = useState(false);
   const [releaseFile, setReleaseFile] = useState(null);
   const registeredReleaseProof = selected?.documents
@@ -239,6 +244,51 @@ const TransactionWorkflow = ({ role }) => {
     } finally {
       setBusy(false);
     }
+  };
+
+  const openWorkflowDetails = (workflow) => {
+    setSelected(workflow);
+    setError('');
+    setRemarks('');
+    if (isBookkeeper && workflow.status === 'returned_for_correction') {
+      setCorrectionAmount(String(workflow.amount));
+      setCorrectionCounterparty(workflow.counterparty_name || '');
+      setCorrectionPaymentMethod(workflow.payment_method || '');
+      setCorrectionDescription(workflow.description || '');
+      setCorrectionPayload(JSON.stringify(workflow.payload || {}, null, 2));
+    }
+  };
+
+  const resubmitCorrection = async () => {
+    if (!selected) return;
+    let payload;
+    try {
+      payload = JSON.parse(correctionPayload);
+    } catch {
+      setError('Transaction details must be valid JSON. Correct the details and try again.');
+      return;
+    }
+    if (!payload || Array.isArray(payload) || typeof payload !== 'object') {
+      setError('Transaction details must be a JSON object.');
+      return;
+    }
+    const amount = Number(correctionAmount);
+    if (!Number.isFinite(amount) || amount <= 0 || !correctionDescription.trim()) {
+      setError('Enter a positive amount and transaction description.');
+      return;
+    }
+    await runRpc(
+      'resubmit_returned_transaction_workflow',
+      {
+        p_workflow_id: selected.id,
+        p_counterparty_name: correctionCounterparty.trim() || null,
+        p_amount: amount,
+        p_payment_method: correctionPaymentMethod || null,
+        p_description: correctionDescription.trim(),
+        p_payload: payload,
+      },
+      'Corrected transaction resubmitted for Manager review.',
+    );
   };
 
   const submitDecision = async (decisionValue) => {
@@ -350,7 +400,7 @@ const TransactionWorkflow = ({ role }) => {
   const visibleStatuses = isManager
     ? ['all', 'pending_approval', 'returned_for_correction', 'approved', 'rejected', 'completed']
     : isBookkeeper
-      ? ['all', 'approved', 'processing', 'awaiting_release', 'accounting_error', 'completed']
+      ? ['all', 'returned_for_correction', 'approved', 'processing', 'awaiting_release', 'accounting_error', 'completed']
       : ['all', 'awaiting_release', 'on_hold', 'release_issue', 'released', 'completed'];
 
   return (
@@ -366,7 +416,7 @@ const TransactionWorkflow = ({ role }) => {
               {isManager
                 ? 'Review submitted transactions and record an auditable decision before accounting begins.'
                 : isBookkeeper
-                  ? 'Incoming transactions are recorded automatically. Process Manager-approved cash-outs and track those awaiting settlement.'
+                  ? 'Incoming cash receipts are recorded automatically. Correct returned transactions and resubmit them for Manager review; process approved cash-outs and track settlement.'
                   : 'Verify the approved payee and amount, attach proof, and confirm the actual release.'}
             </p>
           </div>
@@ -461,10 +511,10 @@ const TransactionWorkflow = ({ role }) => {
                 {filteredRows.map((row) => {
                   const requester = relation(row.requester)?.full_name || 'Staff';
                   const actionable = (isManager && ['pending_approval', 'returned_for_correction'].includes(row.status))
-                    || (isBookkeeper && row.status === 'approved')
+                    || (isBookkeeper && ['returned_for_correction', 'approved'].includes(row.status))
                     || (isTreasurer && ['awaiting_release', 'on_hold', 'release_issue'].includes(row.status));
                   return (
-                    <tr key={row.id} className="cursor-pointer hover:bg-blue-50/60" onClick={() => { setSelected(row); setError(''); setRemarks(''); }}>
+                    <tr key={row.id} className="cursor-pointer hover:bg-blue-50/60" onClick={() => openWorkflowDetails(row)}>
                       <td className="px-4 py-4">
                         <p className="font-semibold text-slate-900">{TYPE_LABELS[row.transaction_type] || row.transaction_type}</p>
                         <p className="mt-1 max-w-xs truncate text-xs text-slate-500">{row.description}</p>
@@ -482,8 +532,8 @@ const TransactionWorkflow = ({ role }) => {
                         </span>
                       </td>
                       <td className="px-4 py-4">
-                        <button type="button" onClick={(event) => { event.stopPropagation(); setSelected(row); setError(''); setRemarks(''); }} className={`rounded-lg px-3 py-2 text-xs font-semibold ${actionable ? 'bg-slate-900 text-white hover:bg-slate-700' : 'border border-slate-300 text-slate-700 hover:bg-slate-50'}`}>
-                          {actionable ? isManager ? 'Review' : isBookkeeper ? 'Process' : 'Verify release' : 'View details'}
+                        <button type="button" onClick={(event) => { event.stopPropagation(); openWorkflowDetails(row); }} className={`rounded-lg px-3 py-2 text-xs font-semibold ${actionable ? 'bg-slate-900 text-white hover:bg-slate-700' : 'border border-slate-300 text-slate-700 hover:bg-slate-50'}`}>
+                          {actionable ? isManager ? 'Review' : isBookkeeper ? row.status === 'returned_for_correction' ? 'Edit & resubmit' : 'Process' : 'Verify release' : 'View details'}
                         </button>
                       </td>
                     </tr>
@@ -570,6 +620,53 @@ const TransactionWorkflow = ({ role }) => {
                   );
                 })()}
               </div>
+
+              {isBookkeeper && selected.status === 'returned_for_correction' && (
+                <section className="mt-5 space-y-4 rounded-xl border border-amber-200 bg-amber-50 p-4">
+                  <div>
+                    <h3 className="font-semibold text-amber-950">Correct and resubmit</h3>
+                    <p className="mt-1 text-sm text-amber-900">
+                      Update the transaction details requested by the Manager. Resubmission creates a new review record and keeps the returned transaction in the audit history.
+                    </p>
+                  </div>
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <label className="text-sm font-medium text-slate-700">
+                      Payee / counterparty
+                      <input value={correctionCounterparty} onChange={(event) => setCorrectionCounterparty(event.target.value)} className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2" />
+                    </label>
+                    <label className="text-sm font-medium text-slate-700">
+                      Amount
+                      <input type="number" min="0.01" step="0.01" value={correctionAmount} onChange={(event) => setCorrectionAmount(event.target.value)} className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2" />
+                    </label>
+                    <label className="text-sm font-medium text-slate-700">
+                      Payment method
+                      <select value={correctionPaymentMethod} onChange={(event) => setCorrectionPaymentMethod(event.target.value)} className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2">
+                        <option value="">Not specified</option>
+                        {['cash', 'check', 'bank_transfer', 'gcash', 'paymaya', 'other'].map((method) => (
+                          <option key={method} value={method}>{method.replaceAll('_', ' ')}</option>
+                        ))}
+                      </select>
+                    </label>
+                    <label className="text-sm font-medium text-slate-700 sm:col-span-2">
+                      Description
+                      <textarea value={correctionDescription} onChange={(event) => setCorrectionDescription(event.target.value)} rows={2} className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2" />
+                    </label>
+                    <details className="sm:col-span-2">
+                      <summary className="cursor-pointer text-sm font-medium text-slate-700">Advanced transaction details</summary>
+                      <label className="mt-2 block text-sm font-medium text-slate-700">
+                        Transaction data (JSON)
+                        <textarea value={correctionPayload} onChange={(event) => setCorrectionPayload(event.target.value)} rows={10} spellCheck="false" className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 font-mono text-xs" />
+                        <span className="mt-1 block text-xs font-normal text-slate-600">Change only the fields requested by the Manager. The server validates these details against the transaction type and amount.</span>
+                      </label>
+                    </details>
+                  </div>
+                  <div className="flex justify-end">
+                    <button type="button" disabled={busy} onClick={resubmitCorrection} className="rounded-lg bg-amber-900 px-4 py-2.5 text-sm font-semibold text-white hover:bg-amber-950 disabled:opacity-50">
+                      {busy ? 'Resubmitting…' : 'Resubmit for Manager review'}
+                    </button>
+                  </div>
+                </section>
+              )}
 
               <div className="mt-4 grid gap-4 lg:grid-cols-2">
                 <section className="rounded-xl border border-slate-200 p-4">
