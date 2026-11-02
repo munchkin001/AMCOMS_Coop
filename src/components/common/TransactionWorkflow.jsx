@@ -146,7 +146,7 @@ const TransactionWorkflow = ({ role }) => {
     let query = supabase
       .from('transaction_workflows')
       .select(`
-        id, transaction_type, direction, source_module, source_record_id, member_id,
+        id, transaction_type, direction, source_module, source_record_id, superseded_by, member_id,
         counterparty_name, amount, payment_method, description, payload, approved_payload,
         status, cash_release_required, cash_release_status, accounting_status,
         manager_id, manager_decision_at, manager_remarks, bookkeeper_id, processed_at,
@@ -157,6 +157,7 @@ const TransactionWorkflow = ({ role }) => {
         events:transaction_workflow_events(id, event_type, previous_status, next_status, actor_staff_id, remarks, created_at),
         documents:transaction_workflow_documents(id, document_type, object_name, file_name, mime_type, uploaded_at)
       `)
+      .is('superseded_by', null)
       .order('created_at', { ascending: false })
       .limit(500);
 
@@ -485,7 +486,7 @@ const TransactionWorkflow = ({ role }) => {
                   ['Direction', selected.direction.replace('_', ' ')],
                   ['Payment method', selected.payment_method || 'Not specified'],
                   ['Workflow status', workflowStatusLabel(selected)],
-                  ['Manager', relation(selected.approver)?.full_name || 'Not yet assigned'],
+                  ['Approved by', relation(selected.approver)?.full_name || 'Not yet approved'],
                   ['Manager decision', dateTime(selected.manager_decision_at)],
                   ['Bookkeeper processing', selected.processed_at ? dateTime(selected.processed_at) : selected.accounting_status.replace('_', ' ')],
                   ['Cash release', selected.cash_release_required

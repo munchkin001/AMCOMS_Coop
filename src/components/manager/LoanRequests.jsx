@@ -589,7 +589,7 @@ export const LegacyLoanRequests = () => {
                 <div className="pointer-events-none absolute -right-10 -top-20 size-48 rounded-full border-[24px] border-white/5" />
                 <div className="relative flex items-start justify-between gap-4">
                   <div className="min-w-0">
-                    <p className="text-xs font-semibold uppercase tracking-[0.14em] text-emerald-100">Loan application</p>
+                    <p className="text-xs font-semibold text-emerald-100">Loan application</p>
                     <h2 id="loan-request-details-title" className="mt-1 text-2xl font-bold tracking-tight">Application details</h2>
                     <p className="mt-1 break-all text-sm text-emerald-100">{selectedRequest.request_number} · Submitted {new Date(selectedRequest.created_at).toLocaleDateString('en-PH')}</p>
                   </div>
@@ -599,7 +599,7 @@ export const LegacyLoanRequests = () => {
                 </div>
                 <div className="relative mt-4 flex flex-wrap items-end justify-between gap-3 border-t border-white/15 pt-4">
                   <div>
-                    <p className="text-xs font-medium uppercase tracking-wide text-emerald-100">Requested amount</p>
+                    <p className="text-xs font-medium text-emerald-100">Requested amount</p>
                     <p className="mt-1 text-3xl font-bold tabular-nums">{formatMoney(selectedRequest.amount)}</p>
                     <p className="mt-1 text-sm text-emerald-100">{fullName(memberOf(selectedRequest))}</p>
                   </div>
@@ -612,25 +612,25 @@ export const LegacyLoanRequests = () => {
                 <section className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
                   <header className="border-b border-slate-100 px-4 py-3">
                     <h3 className="text-sm font-semibold text-slate-900">Request information</h3>
-                    <p className="mt-0.5 text-xs text-slate-500">Terms and details provided with the application</p>
+                    <p className="mt-0.5 text-xs text-slate-500">Loan terms and information provided by the member</p>
                   </header>
                   <dl className="grid gap-px bg-slate-100 sm:grid-cols-2">
                     {[
                       ['Member', fullName(memberOf(selectedRequest))],
                       ['Loan type', data.loan_type || 'Not specified'],
-                      ['Proposed terms', `${data.term_months || '—'} months · ${data.payment_frequency || 'monthly'}`],
+                      ['Loan term and payment schedule', `${data.term_months || '—'} months · ${data.payment_frequency || 'monthly'} payments`],
                       ['Purpose', data.purpose || 'Not provided'],
-                      ['Quoted interest', formatMoney(data.total_interest)],
-                      ['Estimated total payable', formatMoney(data.total_payable)],
-                      ['Installment', formatMoney(data.installment_amount)],
+                      ['Total interest', formatMoney(data.total_interest)],
+                      ['Total amount to repay', formatMoney(data.total_payable)],
+                      ['Payment amount per installment', formatMoney(data.installment_amount)],
                       ['Annual interest rate', `${data.annual_rate ?? '—'}%`],
-                      ['Late-payment penalty rate', `${data.penalty_rate ?? '—'}%`],
-                      ['Fees (processing / service)', `${formatMoney(applicationDetails.processing_fee)} / ${formatMoney(applicationDetails.service_fee)}`],
+                      ['Late payment penalty rate', `${data.penalty_rate ?? '—'}%`],
+                      ['Processing fee / service fee', `${formatMoney(applicationDetails.processing_fee)} / ${formatMoney(applicationDetails.service_fee)}`],
                       ['Collateral', [applicationDetails.collateral_type, applicationDetails.collateral_description].filter(Boolean).join(' — ') || 'Not provided'],
-                      ['Co-maker / guarantor', [applicationDetails.guarantor_name, applicationDetails.guarantor_contact].filter(Boolean).join(' · ') || 'Not provided']
+                      ['Guarantor', [applicationDetails.guarantor_name, applicationDetails.guarantor_contact].filter(Boolean).join(' · ') || 'Not provided']
                     ].map(([label, value]) => (
-                      <div key={label} className={`min-w-0 bg-white px-4 py-3 ${['Purpose', 'Collateral', 'Co-maker / guarantor'].includes(label) ? 'sm:col-span-2' : ''}`}>
-                        <dt className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">{label}</dt>
+                      <div key={label} className={`min-w-0 bg-white px-4 py-3 ${['Purpose', 'Collateral', 'Guarantor'].includes(label) ? 'sm:col-span-2' : ''}`}>
+                        <dt className="text-[11px] font-semibold text-slate-500">{label}</dt>
                         <dd className="mt-1 break-words text-sm font-medium text-slate-900">{value || 'Not provided'}</dd>
                       </div>
                     ))}
