@@ -152,38 +152,42 @@ Deno.serve(async (request: Request) => {
 
     const payload = await request.json();
     if (payload?.action === 'balance') {
-      const apiKey = Deno.env.get('SEMAPHORE_API_KEY');
-      if (!apiKey) return jsonResponse({ error: 'Semaphore SMS is not configured on the server.' }, 503, origin);
+      const apiToken = Deno.env.get('MOCEAN_API_KEY');
+      if (!apiToken) return jsonResponse({ error: 'Mocean SMS is not configured on the server.' }, 503, origin);
 
       let accountResponse: Response;
       try {
-        const accountUrl = new URL('https://api.semaphore.co/api/v4/account');
-        accountUrl.searchParams.set('apikey', apiKey);
-        accountResponse = await fetch(accountUrl, { signal: AbortSignal.timeout(12000) });
+        accountResponse = await fetch('https://rest.moceanapi.com/rest/2/account/balance', {
+          headers: { Authorization: apiToken },
+          signal: AbortSignal.timeout(12000)
+        });
       } catch {
-        return jsonResponse({ error: 'Semaphore account balance is temporarily unavailable.' }, 502, origin);
+        return jsonResponse({ error: 'Mocean account balance is temporarily unavailable.' }, 502, origin);
       }
 
-      let accountData: unknown;
+      let accountData: Record<string, unknown> | null;
       try {
-        accountData = await accountResponse.json();
+        const responseBody: unknown = await accountResponse.json();
+        accountData = responseBody && typeof responseBody === 'object' && !Array.isArray(responseBody)
+          ? responseBody as Record<string, unknown>
+          : null;
       } catch {
         accountData = null;
       }
-      const account = Array.isArray(accountData) ? accountData[0] : accountData;
-      const rawCreditBalance = account?.credit_balance;
-      const creditBalance = typeof rawCreditBalance === 'number'
-        || (typeof rawCreditBalance === 'string' && rawCreditBalance.trim() !== '')
-        ? Number(rawCreditBalance)
+      const rawBalance = accountData?.value;
+      const balance = typeof rawBalance === 'number'
+        || (typeof rawBalance === 'string' && rawBalance.trim() !== '')
+        ? Number(rawBalance)
         : Number.NaN;
-      if (!accountResponse.ok || !Number.isFinite(creditBalance) || creditBalance < 0) {
-        return jsonResponse({ error: 'Semaphore did not return an account credit balance.' }, 502, origin);
+      const status = Number(accountData?.status);
+      const unit = typeof accountData?.unit === 'string' ? accountData.unit.trim() : '';
+      if (!accountResponse.ok || status !== 0 || !Number.isFinite(balance) || balance < 0 || !unit) {
+        return jsonResponse({ error: 'Mocean did not return a valid account balance.' }, 502, origin);
       }
 
       return jsonResponse({
-        account_name: typeof account?.account_name === 'string' ? account.account_name : null,
-        status: typeof account?.status === 'string' ? account.status : null,
-        credit_balance: creditBalance
+        balance,
+        unit
       }, 200, origin);
     }
 

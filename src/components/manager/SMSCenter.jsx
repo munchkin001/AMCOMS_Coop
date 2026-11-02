@@ -16,8 +16,8 @@ const SMSCenter = () => {
   const [loadingHistory, setLoadingHistory] = useState(true);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState('');
-  const [creditBalance, setCreditBalance] = useState(null);
-  const [accountName, setAccountName] = useState('');
+  const [accountBalance, setAccountBalance] = useState(null);
+  const [balanceUnit, setBalanceUnit] = useState('');
   const [balanceError, setBalanceError] = useState('');
   const [loadingBalance, setLoadingBalance] = useState(false);
   const balanceRequestInProgressRef = useRef(false);
@@ -43,15 +43,15 @@ const SMSCenter = () => {
         throw new Error(serverMessage || balanceLoadError.message || 'SMS credits could not be loaded.');
       }
 
-      const rawBalance = data?.credit_balance;
+      const rawBalance = data?.balance;
       const balance = typeof rawBalance === 'number' || (typeof rawBalance === 'string' && rawBalance.trim() !== '')
         ? Number(rawBalance)
         : Number.NaN;
-      if (Number.isFinite(balance) && balance >= 0) {
-        setCreditBalance(balance);
-        setAccountName(data.account_name || '');
+      if (Number.isFinite(balance) && balance >= 0 && typeof data?.unit === 'string' && data.unit.trim()) {
+        setAccountBalance(balance);
+        setBalanceUnit(data.unit.trim());
       } else {
-        throw new Error('Invalid response from SMS service.');
+        throw new Error('Mocean returned an invalid account balance.');
       }
     } catch (balanceLoadError) {
       console.error('Error loading SMS balance:', balanceLoadError);
@@ -142,11 +142,14 @@ const SMSCenter = () => {
       <dl className="grid gap-3 sm:grid-cols-3">
         <div className="flex items-center justify-between gap-3 rounded-lg border border-gray-200 bg-white p-4 sm:col-span-3">
           <div>
-            <dt className="text-sm text-gray-600">SMS credits remaining</dt>
+            <dt className="text-sm text-gray-600">Mocean account balance</dt>
             <dd className="mt-1 text-2xl font-semibold text-gray-950">
-              {loadingBalance && creditBalance === null ? 'Loading…' : creditBalance !== null ? creditBalance.toLocaleString() : 'Unavailable'}
+              {loadingBalance && accountBalance === null
+                ? 'Loading…'
+                : accountBalance !== null
+                  ? `${balanceUnit} ${accountBalance.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                  : 'Unavailable'}
             </dd>
-            {accountName && <p className="mt-0.5 text-xs text-gray-500">{accountName}</p>}
             {balanceError && <p role="alert" className="mt-1 text-sm text-red-700">{balanceError}</p>}
           </div>
           <button type="button" onClick={loadCreditBalance} disabled={loadingBalance} aria-label="Refresh SMS credit balance" title="Refresh SMS credit balance" className="inline-flex size-10 shrink-0 items-center justify-center rounded-md border border-gray-300 text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50">
