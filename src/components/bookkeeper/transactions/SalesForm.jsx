@@ -29,6 +29,7 @@ const SalesForm = ({ onSave, onCancel }) => {
     date: today(),
     reference: createReference(),
     customerName: '',
+    customerContactNumber: '',
     memberId: '',
     productId: '',
     itemDescription: '',
@@ -271,10 +272,12 @@ const SalesForm = ({ onSave, onCancel }) => {
     const customerName = customerMode === 'member'
       ? getMemberName(members.find((member) => member.id === form.memberId) || {})
       : form.customerName.trim();
+    const customerContactNumber = customerMode === 'member' ? '' : form.customerContactNumber.trim();
 
     if (!form.date || !form.reference.trim() || !customerName || !itemDescription || !form.revenueAccount
+        || (customerMode === 'other' && !customerContactNumber)
         || !Number.isInteger(quantity) || quantity <= 0 || !Number.isFinite(amount) || amount <= 0) {
-      setError('Enter the date, sale reference, customer, product or service, whole-number quantity, revenue account, and a positive amount.');
+      setError('Enter the date, sale reference, customer and contact number, product or service, whole-number quantity, revenue account, and a positive amount.');
       return;
     }
     if (form.paymentType === 'cash' && !form.paymentMethod) {
@@ -289,6 +292,7 @@ const SalesForm = ({ onSave, onCancel }) => {
           transaction_date: form.date,
           reference_number: form.reference.trim(),
           customer_name: customerName,
+          customer_contact_number: customerContactNumber || null,
           member_id: customerMode === 'member' ? form.memberId : null,
           product_id: form.productId || null,
           item_description: itemDescription,
@@ -463,7 +467,21 @@ const SalesForm = ({ onSave, onCancel }) => {
                 ))}
               </select>
               {customerMode === 'other' && (
-                <input value={form.customerName} onChange={(event) => setForm({ ...form, customerName: event.target.value })} placeholder="Customer name" required className="mt-2 w-full rounded-lg border border-gray-300 px-3 py-2" />
+                <>
+                  <input value={form.customerName} onChange={(event) => setForm({ ...form, customerName: event.target.value })} placeholder="Customer name" required className="mt-2 w-full rounded-lg border border-gray-300 px-3 py-2" />
+                  <input
+                    type="tel"
+                    inputMode="tel"
+                    autoComplete="tel"
+                    value={form.customerContactNumber}
+                    onChange={(event) => setForm((current) => ({ ...current, customerContactNumber: event.target.value }))}
+                    placeholder="Contact number"
+                    aria-label="Non-member customer contact number"
+                    maxLength={24}
+                    required
+                    className="mt-2 w-full rounded-lg border border-gray-300 px-3 py-2"
+                  />
+                </>
               )}
             </label>
             <label className="text-sm font-medium text-gray-700">
