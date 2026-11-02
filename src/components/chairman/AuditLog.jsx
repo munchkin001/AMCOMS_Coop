@@ -57,24 +57,23 @@ const formatDateTime = (date) => new Date(date).toLocaleString('en-PH', {
   second: '2-digit'
 });
 
-const getDeviceInfo = (userAgent) => {
-  if (!userAgent) return { device: 'Not recorded', browser: 'Not recorded' };
+const getDeviceInfo = (userAgent, reportedModel) => {
+  const source = userAgent || '';
+  let device = reportedModel || '';
 
-  const device = /iPad|Tablet/i.test(userAgent)
-    ? 'Tablet'
-    : /iPhone|iPod|Android.*Mobile|Mobile/i.test(userAgent)
-      ? 'Smartphone'
-      : /Android/i.test(userAgent)
-        ? 'Android device'
-        : /Windows NT/i.test(userAgent)
-          ? 'Windows computer'
-          : /Macintosh|Mac OS X/i.test(userAgent)
-            ? 'Mac computer'
-            : /CrOS/i.test(userAgent)
-              ? 'Chromebook'
-              : /Linux/i.test(userAgent)
-                ? 'Linux computer'
-                : 'Other device';
+  if (!device && /iPhone/i.test(source)) device = 'iPhone (exact model not shared by browser)';
+  else if (!device && /iPad/i.test(source)) device = 'iPad (model not shared by browser)';
+  else if (!device && /iPod/i.test(source)) device = 'iPod (model not shared by browser)';
+  else if (!device && /Android.*Mobile|Mobile/i.test(source)) device = 'Android smartphone (model not shared by browser)';
+  else if (!device && /Android/i.test(source)) device = 'Android device';
+  else if (!device && /Windows NT/i.test(source)) device = 'Windows computer';
+  else if (!device && /Macintosh|Mac OS X/i.test(source)) device = 'Mac computer';
+  else if (!device && /CrOS/i.test(source)) device = 'Chromebook';
+  else if (!device && /Linux/i.test(source)) device = 'Linux computer';
+  else if (!device) device = userAgent ? 'Other device' : 'Not recorded';
+
+  if (!userAgent) return { device, browser: 'Not recorded' };
+
   const browser = /Edg\//i.test(userAgent)
     ? 'Microsoft Edge'
     : /OPR\//i.test(userAgent)
@@ -373,8 +372,8 @@ const AuditLog = () => {
         log.staff?.role || '',
         getActivityLabel(log),
         getModule(log.table_name),
-        log.table_name === 'authentication' && log.action === 'Signed in' ? getDeviceInfo(log.user_agent).device : '',
-        log.table_name === 'authentication' && log.action === 'Signed in' ? getDeviceInfo(log.user_agent).browser : '',
+        log.table_name === 'authentication' && log.action === 'Signed in' ? getDeviceInfo(log.user_agent, log.new_data?.device_model).device : '',
+        log.table_name === 'authentication' && log.action === 'Signed in' ? getDeviceInfo(log.user_agent, log.new_data?.device_model).browser : '',
         log.table_name || '',
         log.record_id || ''
       ]),
@@ -655,7 +654,7 @@ const AuditLog = () => {
               <tbody className="divide-y divide-slate-100">
                 {pageLogs.map((log) => {
                   const module = getModule(log.table_name);
-                  const deviceInfo = getDeviceInfo(log.user_agent);
+                  const deviceInfo = getDeviceInfo(log.user_agent, log.new_data?.device_model);
                   return (
                     <tr
                       key={log.id}
@@ -766,8 +765,8 @@ const AuditLog = () => {
                   ['IP address', selectedLog.ip_address || 'Not recorded'],
                   ...(selectedLog.table_name === 'authentication' && selectedLog.action === 'Signed in'
                     ? [
-                        ['Device used', getDeviceInfo(selectedLog.user_agent).device],
-                        ['Browser', getDeviceInfo(selectedLog.user_agent).browser]
+                        ['Device used', getDeviceInfo(selectedLog.user_agent, selectedLog.new_data?.device_model).device],
+                        ['Browser', getDeviceInfo(selectedLog.user_agent, selectedLog.new_data?.device_model).browser]
                       ]
                     : [])
                 ].map(([label, value]) => (

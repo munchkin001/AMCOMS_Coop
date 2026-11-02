@@ -9,6 +9,19 @@ const AuthContext = createContext({});
 const SESSION_IDLE_TIMEOUT_MS = 15 * 60 * 1000;
 const SESSION_ACTIVITY_THROTTLE_MS = 10 * 1000;
 
+const getClientDeviceModel = async () => {
+  const userAgentData = navigator.userAgentData;
+  if (!userAgentData?.getHighEntropyValues) return null;
+
+  try {
+    const { model } = await userAgentData.getHighEntropyValues(['model']);
+    return typeof model === 'string' ? model.trim().slice(0, 100) || null : null;
+  } catch (error) {
+    console.warn('Browser did not provide a device model for the sign-in audit event:', error);
+    return null;
+  }
+};
+
 export const useAuth = () => {
   const context = useContext(AuthContext);
   if (!context) {
@@ -28,10 +41,14 @@ export const AuthProvider = ({ children }) => {
   const suppressLocalSignOutRef = useRef(false);
 
   const logAuthEvent = useCallback(async (event) => {
+    const deviceModel = event === 'sign in' ? await getClientDeviceModel() : null;
     let lastError = null;
 
     for (let attempt = 1; attempt <= 3; attempt += 1) {
-      const { error } = await supabase.rpc('record_auth_event', { p_event: event });
+      const { error } = await supabase.rpc('record_auth_event', {
+        p_event: event,
+        p_device_model: deviceModel
+      });
       if (!error) return true;
 
       lastError = error;
