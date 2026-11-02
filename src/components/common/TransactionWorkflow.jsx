@@ -167,6 +167,7 @@ const TransactionWorkflow = ({ role }) => {
       .order('created_at', { ascending: false })
       .limit(500);
 
+    if (isManager) query = query.neq('direction', 'cash_in');
     if (dateFrom) query = query.gte('created_at', `${dateFrom}T00:00:00`);
     if (dateTo) query = query.lt('created_at', `${dateTo}T23:59:59.999`);
 
@@ -178,7 +179,7 @@ const TransactionWorkflow = ({ role }) => {
       setRows(data || []);
     }
     setLoading(false);
-  }, [dateFrom, dateTo]);
+  }, [dateFrom, dateTo, isManager]);
 
   useEffect(() => {
     load();
