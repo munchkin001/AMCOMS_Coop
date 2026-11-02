@@ -838,7 +838,7 @@ const AuditLog = () => {
             className="flex max-h-[92vh] w-full max-w-3xl flex-col overflow-hidden rounded-2xl border border-white/60 bg-slate-50 shadow-2xl"
             onClick={(event) => event.stopPropagation()}
           >
-            <header className="relative overflow-hidden bg-gradient-to-br from-slate-950 via-[#173b35] to-emerald-800 px-5 py-5 text-white sm:px-7">
+            <header className="relative shrink-0 overflow-hidden bg-gradient-to-br from-slate-950 via-[#173b35] to-emerald-800 px-5 py-5 text-white sm:px-7">
               <div aria-hidden="true" className="pointer-events-none absolute -right-10 -top-20 size-48 rounded-full border-[24px] border-white/5" />
               <div className="relative flex items-start justify-between gap-4">
                 <div className="min-w-0">
