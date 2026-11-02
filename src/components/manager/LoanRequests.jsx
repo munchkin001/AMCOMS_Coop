@@ -549,7 +549,7 @@ export const LegacyLoanRequests = () => {
       let releasedLoanIds = new Set();
       if (loans.length) {
         const loanIds = loans.map((loan) => loan.id);
-        const [disbursementResult, workflowResult] = await Promise.all([
+        const [disbursementResult, workflowResult, paymentResult] = await Promise.all([
           supabase.from('cash_disbursements')
             .select('loan_id')
             .in('loan_id', loanIds)
@@ -560,10 +560,15 @@ export const LegacyLoanRequests = () => {
             .eq('source_module', 'loan_application')
             .in('source_record_id', loanIds)
             .eq('status', 'completed')
-            .eq('cash_release_status', 'released')
+            .eq('cash_release_status', 'released'),
+          supabase.from('loan_payments')
+            .select('loan_id')
+            .in('loan_id', loanIds)
+            .eq('status', 'recorded')
         ]);
         if (disbursementResult.error) throw disbursementResult.error;
         if (workflowResult.error) throw workflowResult.error;
+        if (paymentResult.error) throw paymentResult.error;
         const recordedLoanIds = new Set(
           (disbursementResult.data || []).map((row) => row.loan_id).filter(Boolean)
         );
@@ -572,6 +577,9 @@ export const LegacyLoanRequests = () => {
             .map((row) => row.source_record_id)
             .filter((loanId) => loanId && recordedLoanIds.has(loanId))
         );
+        for (const payment of paymentResult.data || []) {
+          if (payment.loan_id) releasedLoanIds.add(payment.loan_id);
+        }
       }
       setRequests(requestResult.data || []);
       setApprovedLoans(loans.map((loan) => ({
@@ -592,7 +600,7 @@ export const LegacyLoanRequests = () => {
   }, [load]);
 
   useMultipleRealtimeSubscriptions(
-    ['requests', 'loans', 'cash_disbursements', 'transaction_workflows'].map((table) => ({ table, onUpdate: load })),
+    ['requests', 'loans', 'loan_payments', 'cash_disbursements', 'transaction_workflows'].map((table) => ({ table, onUpdate: load })),
     [load]
   );
 
