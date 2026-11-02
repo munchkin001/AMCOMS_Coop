@@ -532,10 +532,6 @@ const TransactionWorkflow = ({ role }) => {
                     </section>
                   );
                 })()}
-                <details className="mt-4">
-                  <summary className="cursor-pointer text-sm font-semibold text-blue-800">View transaction snapshot</summary>
-                  <pre className="mt-2 max-h-64 overflow-auto rounded-lg bg-slate-950 p-3 text-xs text-slate-100">{JSON.stringify(selected.approved_payload || selected.payload, null, 2)}</pre>
-                </details>
               </div>
 
               <div className="mt-4 grid gap-4 lg:grid-cols-2">
@@ -564,11 +560,20 @@ const TransactionWorkflow = ({ role }) => {
                 <section className="rounded-xl border border-slate-200 p-4">
                   <h3 className="font-semibold text-slate-900">Workflow history</h3>
                   {!selected.events?.length ? <p className="mt-2 text-sm text-slate-500">No event history available.</p> : (
-                    <ol className="mt-3 space-y-3">
-                      {selected.events.map((event) => (
-                        <li key={event.id} className="flex gap-3 text-sm">
-                          <span className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-blue-50 text-blue-800"><Clock3 size={13} /></span>
-                          <span><strong className="block capitalize text-slate-800">{event.event_type.replaceAll('_', ' ')}</strong><span className="text-xs text-slate-500">{dateTime(event.created_at)}</span>{event.remarks && <span className="mt-1 block text-slate-700">{event.remarks}</span>}</span>
+                    <ol className="mt-4">
+                      {[...selected.events]
+                        .sort((left, right) => new Date(left.created_at) - new Date(right.created_at))
+                        .map((event, index, events) => (
+                        <li key={event.id} className="relative flex gap-3 pb-5 text-sm last:pb-0">
+                          {index < events.length - 1 && <span aria-hidden="true" className="absolute bottom-0 left-[5px] top-3 w-px bg-slate-200" />}
+                          <span aria-hidden="true" className="relative mt-1.5 size-[11px] shrink-0 rounded-full border-2 border-blue-500 bg-white" />
+                          <span className="min-w-0 flex-1">
+                            <span className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+                              <strong className="font-semibold capitalize text-slate-800">{event.event_type.replaceAll('_', ' ')}</strong>
+                              <time className="text-xs text-slate-500">{dateTime(event.created_at)}</time>
+                            </span>
+                            {event.remarks && <span className="mt-1 block whitespace-pre-wrap text-slate-600">{event.remarks}</span>}
+                          </span>
                         </li>
                       ))}
                     </ol>
