@@ -864,7 +864,7 @@ const Reports = () => {
             role="dialog"
             aria-modal="true"
             aria-labelledby="aging-entry-details-title"
-            className="flex max-h-[92vh] w-full max-w-3xl flex-col overflow-hidden rounded-2xl border border-white/60 bg-slate-50 shadow-2xl"
+            className="flex h-[min(92vh,48rem)] max-h-[92vh] w-full max-w-3xl flex-col overflow-hidden rounded-2xl border border-white/60 bg-slate-50 shadow-2xl"
             onClick={(event) => event.stopPropagation()}
           >
             <header className="relative flex-none overflow-hidden bg-gradient-to-br from-[#163c34] via-[#1d5145] to-[#276456] px-5 py-5 text-white sm:px-7 sm:py-6">
@@ -887,28 +887,25 @@ const Reports = () => {
                   <X className="size-5" aria-hidden="true" />
                 </button>
               </div>
-              <div className="relative mt-5 flex flex-wrap items-end justify-between gap-3 border-t border-white/15 pt-4">
-                <div>
-                  <p className="text-xs font-medium uppercase tracking-wide text-emerald-100">{selectedAgingEntry.isAgingEntry ? 'Total outstanding' : 'Record reference'}</p>
-                  <p className="mt-1 text-2xl font-bold tabular-nums tracking-tight">
-                    {selectedAgingEntry.isAgingEntry || selectedAgingEntry.total !== undefined
-                      ? peso(selectedAgingEntry.total)
-                      : selectedAgingEntry.reference || 'Record details'}
-                  </p>
-                </div>
-                {selectedAgingEntry.isAgingEntry && (
-                  <span className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold ${selectedAgingEntry.daysPastDue > 0 ? 'bg-amber-100 text-amber-900' : 'bg-emerald-100 text-emerald-900'}`}>
-                    <Clock3 className="size-3.5" aria-hidden="true" />
-                    {selectedAgingEntry.daysPastDue === null
-                      ? 'Age not recorded'
-                      : selectedAgingEntry.daysPastDue <= 0
-                        ? 'Current · not due'
-                        : `${num(selectedAgingEntry.daysPastDue)} days past due`}
-                  </span>
-                )}
-              </div>
             </header>
             <div className="min-h-0 flex-1 space-y-4 overflow-y-auto overscroll-contain p-4 sm:p-6">
+              {selectedAgingEntry.isAgingEntry && (
+              <section aria-label="Outstanding summary" className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-emerald-200 bg-gradient-to-r from-emerald-50 to-white p-4 shadow-sm">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-wide text-emerald-800">Total outstanding</p>
+                  <p className="mt-1 text-2xl font-bold tabular-nums tracking-tight text-slate-900">{peso(selectedAgingEntry.total)}</p>
+                </div>
+                <span className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold ${selectedAgingEntry.daysPastDue > 0 ? 'bg-amber-100 text-amber-900' : 'bg-emerald-100 text-emerald-900'}`}>
+                  <Clock3 className="size-3.5" aria-hidden="true" />
+                  {selectedAgingEntry.daysPastDue === null
+                    ? 'Age not recorded'
+                    : selectedAgingEntry.daysPastDue <= 0
+                      ? 'Current · not due'
+                      : `${num(selectedAgingEntry.daysPastDue)} days past due`}
+                </span>
+              </section>
+              )}
+
               {selectedAgingEntry.isAgingEntry && (
               <section aria-label="Aging summary" className="grid gap-3 sm:grid-cols-2">
                 <div className="flex items-center gap-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
