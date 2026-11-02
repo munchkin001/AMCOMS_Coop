@@ -56,6 +56,19 @@ const formatDateTime = (date) => new Date(date).toLocaleString('en-PH', {
   second: '2-digit'
 });
 
+const formatAuditValue = (value, field = '') => {
+  if (value === null || value === undefined || value === '') return '—';
+  if (/amount|balance|principal|interest|penalty|debit|credit|total/i.test(field) && Number.isFinite(Number(value))) {
+    return new Intl.NumberFormat('en-PH', {
+      style: 'currency',
+      currency: 'PHP',
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2
+    }).format(Number(value));
+  }
+  return String(value);
+};
+
 const getDeviceInfo = (userAgent, reportedModel) => {
   const source = userAgent || '';
   let device = reportedModel || '';
