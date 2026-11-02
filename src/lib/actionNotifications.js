@@ -152,7 +152,7 @@ export const withActionNotifications = (client) => new Proxy(client, {
               && response.data?.stored === true
             ) {
               emitActionNotification('Offline change synced successfully!');
-            } else if (functionName === 'sms-api-ph' && ['send', 'send-group'].includes(action)) {
+            } else if (functionName === 'mocean-sms' && ['send', 'send-group'].includes(action)) {
               const { data } = response;
               if (data?.failed_count) {
                 emitActionNotification(

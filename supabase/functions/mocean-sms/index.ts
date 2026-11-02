@@ -35,44 +35,6 @@ const normalizePhone = (value: string) => {
   return digits;
 };
 
-const parseMoceanResponse = (rawResponse: string): Record<string, unknown> | null => {
-  try {
-    const parsed: unknown = JSON.parse(rawResponse);
-    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
-      return parsed as Record<string, unknown>;
-    }
-  } catch {
-    // Mocean may return XML unless JSON is explicitly requested.
-  }
-
-  const getTag = (source: string, tag: string) => {
-    const match = source.match(new RegExp(`<${tag}(?:\\s[^>]*)?>([\\s\\S]*?)<\\/${tag}>`, 'i'));
-    return match?.[1]?.replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, '$1')
-      .replace(/&amp;/g, '&')
-      .replace(/&lt;/g, '<')
-      .replace(/&gt;/g, '>')
-      .replace(/&quot;/g, '"')
-      .replace(/&apos;/g, "'")
-      .trim();
-  };
-  const messages = Array.from(rawResponse.matchAll(/<message(?:\s[^>]*)?>([\s\S]*?)<\/message>/gi))
-    .map(([, message]) => ({
-      status: getTag(message, 'status'),
-      receiver: getTag(message, 'receiver'),
-      msgid: getTag(message, 'msgid'),
-      err_msg: getTag(message, 'err_msg')
-    }));
-
-  if (!/<(?:xml|result|response|account|messages)\b/i.test(rawResponse)) return null;
-  return {
-    status: getTag(rawResponse, 'status'),
-    value: getTag(rawResponse, 'value'),
-    unit: getTag(rawResponse, 'unit'),
-    err_msg: getTag(rawResponse, 'err_msg'),
-    messages
-  };
-};
-
 const getRecipients = async (admin: ReturnType<typeof createClient>, groups: string[]) => {
   const allowedGroups = new Set(['allMembers', 'recentMembers', 'manager', 'treasurer', 'bookkeeper', 'inventoryStaff']);
   if (!groups.length || groups.some((group) => !allowedGroups.has(group))) {
@@ -182,31 +144,11 @@ Deno.serve(async (request: Request) => {
     }
 
     const payload = await request.json();
-    const apiToken = Deno.env.get('MOCEAN_API_KEY');
-    if (!apiToken) return jsonResponse({ error: 'Mocean SMS is not configured on the server.' }, 503, origin);
+    const apiToken = Deno.env.get('SMSPH_API_KEY');
+    if (!apiToken) return jsonResponse({ error: 'SMS API PH is not configured on the server.' }, 503, origin);
 
     if (payload?.action === 'balance') {
-      let response: Response;
-      try {
-        response = await fetch('https://rest.moceanapi.com/rest/2/account/balance', {
-          headers: { Authorization: apiToken },
-          signal: AbortSignal.timeout(12000)
-        });
-      } catch {
-        return jsonResponse({ error: 'Mocean account balance is temporarily unavailable.' }, 502, origin);
-      }
-
-      const account = parseMoceanResponse(await response.text().catch(() => ''));
-      const balance = Number(account?.value);
-      const unit = typeof account?.unit === 'string' ? account.unit.trim() : '';
-      if (!response.ok || Number(account?.status) !== 0 || !Number.isFinite(balance) || balance < 0 || !unit) {
-        return jsonResponse({
-          error: typeof account?.err_msg === 'string' && account.err_msg
-            ? `Mocean balance lookup failed: ${account.err_msg}`
-            : 'Mocean did not return a valid account balance.'
-        }, 502, origin);
-      }
-      return jsonResponse({ balance, unit }, 200, origin);
+      return jsonResponse({ error: 'SMS API PH does not provide a credit-balance endpoint.' }, 400, origin);
     }
 
     const message = String(payload?.message || '').trim();
@@ -226,102 +168,78 @@ Deno.serve(async (request: Request) => {
     }
 
     if (!recipients.length) return jsonResponse({ error: 'No active recipients have valid mobile numbers.' }, 400, origin);
-    if (recipients.length > 500) return jsonResponse({ error: 'Mocean supports at most 500 recipients per request.' }, 400, origin);
+    if (recipients.length > 500) return jsonResponse({ error: 'SMS API PH supports at most 500 recipients per request.' }, 400, origin);
 
-    const senderName = Deno.env.get('MOCEAN_SENDER_NAME')?.trim() || 'AMCOMS';
+    const senderName = Deno.env.get('SMSPH_SENDER_NAME')?.trim() || 'AMCOMS';
     const { data: logRows, error: logError } = await admin.from('sms_logs').insert(recipients.map((recipient) => ({
       recipient_name: recipient.name || null,
       phone_number: recipient.phone,
       message,
       notification_type: payload.action === 'send-group' ? 'announcement' : 'manual',
       status: 'pending',
-      provider: 'mocean'
+      provider: 'sms_api_ph'
     }))).select('id, phone_number');
     if (logError || !logRows?.length) {
       console.error('Unable to create SMS audit rows.');
       return jsonResponse({ error: 'SMS could not be recorded, so it was not sent.' }, 500, origin);
     }
 
-    let providerResponse: Response;
-    try {
-      providerResponse = await fetch('https://rest.moceanapi.com/rest/2/sms', {
-        method: 'POST',
-        headers: {
-          Authorization: apiToken,
-          'Content-Type': 'application/x-www-form-urlencoded'
-        },
-        body: new URLSearchParams({
-          'mocean-from': senderName,
-          'mocean-to': recipients.map((recipient) => recipient.phone).join(','),
-          'mocean-text': message,
-          'mocean-resp-format': 'json'
-        }),
-        signal: AbortSignal.timeout(20000)
-      });
-    } catch {
-      await admin.from('sms_logs').update({
-        status: 'failed',
-        provider_response: { error: 'Mocean request failed before a response was received.' }
-      }).in('id', logRows.map((row) => row.id));
-      return jsonResponse({ error: 'Mocean could not be reached. The message was not confirmed as sent.' }, 502, origin);
-    }
-
-    const responseObject = parseMoceanResponse(await providerResponse.text().catch(() => ''));
-    const results = Array.isArray(responseObject?.messages) ? responseObject.messages : [];
-    if (providerResponse.status !== 202 || !results.length) {
-      await admin.from('sms_logs').update({
-        status: 'failed',
-        provider_response: {
-          http_status: providerResponse.status,
-          error: responseObject?.messages || responseObject?.err_msg || 'provider_rejected'
+    let sentCount = 0;
+    let failedCount = 0;
+    let firstProviderError = '';
+    for (const row of logRows) {
+      let httpStatus: number | null = null;
+      let providerBody: Record<string, unknown> | null = null;
+      let sendError = '';
+      try {
+        const response = await fetch('https://smsapiph.onrender.com/api/v1/send/sms', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-api-key': apiToken
+          },
+          body: JSON.stringify({
+            recipient: row.phone_number.startsWith('+') ? row.phone_number : `+${row.phone_number}`,
+            message,
+            sender: senderName
+          }),
+          signal: AbortSignal.timeout(20000)
+        });
+        httpStatus = response.status;
+        const responseBody: unknown = await response.json().catch(() => null);
+        providerBody = responseBody && typeof responseBody === 'object' && !Array.isArray(responseBody)
+          ? responseBody as Record<string, unknown>
+          : null;
+        if (!response.ok || providerBody?.success !== true) {
+          sendError = typeof providerBody?.error === 'string'
+            ? providerBody.error
+            : 'SMS API PH rejected the SMS request.';
         }
-      }).in('id', logRows.map((row) => row.id));
-      const firstResult = results[0] as Record<string, unknown> | undefined;
-      return jsonResponse({
-        error: typeof firstResult?.err_msg === 'string'
-          ? `Mocean rejected the SMS request: ${firstResult.err_msg}`
-          : 'Mocean rejected the SMS request. Check the Mocean API token and sender configuration.'
-      }, 502, origin);
+      } catch {
+        sendError = 'SMS API PH could not be reached. The message was not confirmed as sent.';
+      }
+
+      const wasSent = !sendError;
+      const { error: updateError } = await admin.from('sms_logs').update({
+        status: wasSent ? 'sent' : 'failed',
+        provider_response: { http_status: httpStatus, response: providerBody, error: sendError || null }
+      }).eq('id', row.id);
+      if (updateError) {
+        console.error('Unable to update SMS log status.');
+        return jsonResponse({ error: 'SMS delivery was attempted, but its result could not be recorded.' }, 500, origin);
+      }
+
+      if (wasSent) sentCount++;
+      else {
+        failedCount++;
+        if (!firstProviderError) firstProviderError = sendError;
+      }
     }
 
-    const acceptedNumbers = new Set<string>();
-    const failedNumbers = new Set<string>();
-    for (const rawResult of results) {
-      if (!rawResult || typeof rawResult !== 'object') continue;
-      const result = rawResult as Record<string, unknown>;
-      const phone = normalizePhone(String(result.receiver || ''));
-      if (!phone) continue;
-      if (Number(result.status) === 0) acceptedNumbers.add(phone);
-      else failedNumbers.add(phone);
-    }
-    const acceptedLogIds = logRows.filter((row) => acceptedNumbers.has(row.phone_number)).map((row) => row.id);
-    const failedLogIds = logRows.filter((row) => !acceptedNumbers.has(row.phone_number)).map((row) => row.id);
-    const providerMetadata = results.map((rawResult) => {
-      const result = rawResult as Record<string, unknown>;
-      return { message_id: result.msgid ?? null, status: result.status ?? null, error: result.err_msg ?? null };
-    });
-
-    if (acceptedLogIds.length) {
-      const { error } = await admin.from('sms_logs').update({
-        status: 'sent',
-        provider_response: { http_status: providerResponse.status, messages: providerMetadata }
-      }).in('id', acceptedLogIds);
-      if (error) console.error('Unable to update successful SMS log status.');
-    }
-    if (failedLogIds.length) {
-      const { error } = await admin.from('sms_logs').update({
-        status: 'failed',
-        provider_response: { http_status: providerResponse.status, messages: providerMetadata }
-      }).in('id', failedLogIds);
-      if (error) console.error('Unable to update failed SMS log status.');
-    }
-
-    return jsonResponse({
-      sent_count: acceptedLogIds.length,
-      failed_count: failedLogIds.length
-    }, 200, origin);
+    if (sentCount === 0) return jsonResponse({ error: firstProviderError || 'SMS delivery failed.' }, 502, origin);
+    return jsonResponse({ sent_count: sentCount, failed_count: failedCount }, 200, origin);
   } catch (error) {
-    console.error('Mocean SMS action failed.');
+    console.error('SMS API PH action failed.');
     return jsonResponse({ error: error instanceof Error ? error.message : 'The SMS request could not be completed.' }, 400, origin);
   }
 });

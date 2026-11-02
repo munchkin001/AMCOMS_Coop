@@ -42,7 +42,7 @@ const SMSCenter = () => {
     setSending(true);
 
     try {
-      const { data, error: sendError } = await supabase.functions.invoke('sms-api-ph', {
+      const { data, error: sendError } = await supabase.functions.invoke('mocean-sms', {
         body: { action: 'send', phone, message }
       });
       if (sendError) {
