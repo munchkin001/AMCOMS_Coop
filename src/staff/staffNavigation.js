@@ -84,7 +84,7 @@ const staffNavigationConfig = {
     },
     {
       id: 'transaction-approvals',
-      name: 'Transaction Approvals',
+      name: 'Transactions Management',
       icon: ClipboardList,
       path: '/staff/transaction-approvals',
       component: 'TransactionApprovals'
@@ -157,7 +157,7 @@ const staffNavigationConfig = {
     },
     {
       id: 'approved-transactions',
-      name: 'Approved Transactions',
+      name: 'Transactions Management',
       icon: HandCoins,
       path: '/staff/loan-requests',
       component: 'LoanRequests'

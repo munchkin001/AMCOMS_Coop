@@ -356,7 +356,7 @@ const TransactionWorkflow = ({ role }) => {
         <div className="mt-2 flex flex-wrap items-end justify-between gap-4">
           <div>
             <h1 className="text-2xl font-bold sm:text-3xl">
-              {isManager ? 'Transaction Approvals' : isBookkeeper ? 'Accounting Processing' : 'Cash Release & Verification'}
+              {isManager ? 'Transactions Management' : isBookkeeper ? 'Accounting Processing' : 'Cash Release & Verification'}
             </h1>
             <p className="mt-2 max-w-3xl text-sm text-slate-300">
               {isManager
