@@ -27,6 +27,7 @@ const SalesForm = ({ onSave, onCancel }) => {
   const [returnQuantities, setReturnQuantities] = useState({});
   const [form, setForm] = useState({
     date: today(),
+    dueDate: '',
     reference: createReference(),
     customerName: '',
     customerContactNumber: '',
@@ -276,8 +277,9 @@ const SalesForm = ({ onSave, onCancel }) => {
 
     if (!form.date || !form.reference.trim() || !customerName || !itemDescription || !form.revenueAccount
         || (customerMode === 'other' && !customerContactNumber)
+        || (form.paymentType === 'credit' && (!form.dueDate || form.dueDate < form.date))
         || !Number.isInteger(quantity) || quantity <= 0 || !Number.isFinite(amount) || amount <= 0) {
-      setError('Enter the date, sale reference, customer and contact number, product or service, whole-number quantity, revenue account, and a positive amount.');
+      setError('Enter valid sale and customer details, a positive amount, and a credit-sale due date that is on or after the sale date.');
       return;
     }
     if (form.paymentType === 'cash' && !form.paymentMethod) {
@@ -290,6 +292,7 @@ const SalesForm = ({ onSave, onCancel }) => {
       await onSave({
         p_sale: {
           transaction_date: form.date,
+          due_date: form.paymentType === 'credit' ? form.dueDate : null,
           reference_number: form.reference.trim(),
           customer_name: customerName,
           customer_contact_number: customerContactNumber || null,
@@ -584,6 +587,20 @@ const SalesForm = ({ onSave, onCancel }) => {
                   </select>
                 </label>
               </>
+            )}
+            {form.paymentType === 'credit' && (
+              <label className="text-sm font-medium text-gray-700">
+                Due date *
+                <input
+                  type="date"
+                  min={form.date}
+                  value={form.dueDate}
+                  onChange={(event) => setForm((current) => ({ ...current, dueDate: event.target.value }))}
+                  required
+                  className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2"
+                />
+                <span className="mt-1 block text-xs font-normal text-gray-500">The amount due will be aged from this date.</span>
+              </label>
             )}
               </>
             )}

@@ -72,14 +72,31 @@ const money = (value) => `₱${Number(value || 0).toLocaleString('en-PH', {
 const dateTime = (value) => value
   ? new Date(value).toLocaleString('en-PH', { dateStyle: 'medium', timeStyle: 'short' })
   : '—';
+const dateLabel = (value) => value
+  ? new Date(`${String(value).slice(0, 10)}T00:00:00`).toLocaleDateString('en-PH', { dateStyle: 'medium' })
+  : '—';
 
 const relation = (value) => Array.isArray(value) ? value[0] : value;
+const isCreditSale = (workflow) => (
+  workflow.transaction_type === 'sale' && workflow.payload?.p_sale?.payment_type === 'credit'
+);
 const workflowStatusLabel = (workflow) => (
   workflow.transaction_type === 'loan_disbursement' && workflow.status === 'completed'
     ? 'Cash released'
+    : isCreditSale(workflow) && workflow.status === 'completed'
+      && !['paid', 'cancelled'].includes(workflow.saleRecord?.payment_status)
+      ? 'Cash payable'
+    : isCreditSale(workflow) && workflow.status === 'completed' && workflow.saleRecord?.payment_status === 'paid'
+      ? 'Paid'
     : workflow.direction === 'cash_in' && workflow.status === 'completed'
       ? 'Cash received'
     : STATUS_LABELS[workflow.status] || workflow.status
+);
+const workflowStatusStyle = (workflow) => (
+  isCreditSale(workflow) && workflow.status === 'completed'
+    && !['paid', 'cancelled'].includes(workflow.saleRecord?.payment_status)
+    ? 'bg-amber-100 text-amber-900'
+    : STATUS_STYLES[workflow.status] || 'bg-slate-100 text-slate-800'
 );
 const isCompletedCashIn = (workflow) => workflow.direction === 'cash_in' && workflow.status === 'completed';
 
@@ -181,7 +198,29 @@ const TransactionWorkflow = ({ role }) => {
       console.error('Unable to load transaction workflow:', loadError);
       setError(`Unable to load transactions: ${loadError.message}`);
     } else {
-      setRows(data || []);
+      const workflows = data || [];
+      const saleIds = workflows
+        .filter((workflow) => workflow.transaction_type === 'sale' && workflow.business_record_table === 'sales_orders' && workflow.business_record_id)
+        .map((workflow) => workflow.business_record_id);
+      if (saleIds.length) {
+        const { data: sales, error: salesError } = await supabase
+          .from('sales_orders')
+          .select('id, order_number, due_date, net_amount, amount_paid, payment_status')
+          .in('id', saleIds);
+        if (salesError) {
+          console.error('Unable to load credit sale due details:', salesError);
+          setError(`Unable to load credit sale due details: ${salesError.message}`);
+          setRows(workflows);
+        } else {
+          const salesById = new Map((sales || []).map((sale) => [sale.id, sale]));
+          setRows(workflows.map((workflow) => ({
+            ...workflow,
+            saleRecord: salesById.get(workflow.business_record_id) || null,
+          })));
+        }
+      } else {
+        setRows(workflows);
+      }
     }
     setLoading(false);
   }, [dateFrom, dateTo, isManager]);
@@ -216,7 +255,7 @@ const TransactionWorkflow = ({ role }) => {
 
   const todayRows = rows.filter((row) => row.created_at?.slice(0, 10) === new Date().toISOString().slice(0, 10));
   const pendingCount = rows.filter((row) => ['pending_approval', 'returned_for_correction'].includes(row.status)).length;
-  const approvedToday = todayRows.filter((row) => row.status === 'approved' || row.status === 'completed').length;
+  const approvedToday = todayRows.filter((row) => row.manager_id && (row.status === 'approved' || row.status === 'completed')).length;
   const rejectedToday = todayRows.filter((row) => row.status === 'rejected').length;
   const pendingAmount = rows
     .filter((row) => ['pending_approval', 'returned_for_correction'].includes(row.status))
@@ -469,7 +508,7 @@ const TransactionWorkflow = ({ role }) => {
           <label className="min-w-0 text-sm text-slate-600">
             Status
             <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} className="mt-1 min-h-11 w-full min-w-0 rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-900">
-              {visibleStatuses.map((status) => <option key={status} value={status}>{status === 'all' ? 'All statuses' : status === 'completed' ? 'Completed / Cash released' : STATUS_LABELS[status]}</option>)}
+              {visibleStatuses.map((status) => <option key={status} value={status}>{status === 'all' ? 'All statuses' : status === 'completed' ? 'Completed / Cash payable / Cash released' : STATUS_LABELS[status]}</option>)}
             </select>
           </label>
           <label className="min-w-0 text-sm text-slate-600">
@@ -527,7 +566,7 @@ const TransactionWorkflow = ({ role }) => {
                       <td className="whitespace-nowrap px-4 py-4 text-sm font-semibold text-slate-900">{money(row.amount)}</td>
                       <td className="whitespace-nowrap px-4 py-4 text-sm text-slate-600">{dateTime(row.created_at)}</td>
                       <td className="px-4 py-4">
-                        <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${STATUS_STYLES[row.status] || 'bg-slate-100 text-slate-800'}`}>
+                        <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${workflowStatusStyle(row)}`}>
                             {workflowStatusLabel(row)}
                         </span>
                       </td>
@@ -579,6 +618,13 @@ const TransactionWorkflow = ({ role }) => {
                     ['Cash release', selected.cash_release_required
                       ? selected.cash_release_status === 'released' ? 'Cash released' : selected.cash_release_status.replaceAll('_', ' ')
                       : 'Not required'],
+                    ...(isCreditSale(selected) ? [
+                      ['Due date', dateLabel(selected.saleRecord?.due_date || selected.payload?.p_sale?.due_date)],
+                      ['Outstanding balance', money(Math.max(
+                        Number(selected.saleRecord?.net_amount ?? selected.amount) - Number(selected.saleRecord?.amount_paid || 0),
+                        0,
+                      ))],
+                    ] : []),
                   ]).map(([label, value]) => (
                   <div key={label} className="rounded-xl border border-slate-200 bg-slate-50 p-3">
                     <p className="text-xs font-medium text-slate-500">{label}</p>

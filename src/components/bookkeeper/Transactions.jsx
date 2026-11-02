@@ -237,7 +237,10 @@ const Transactions = ({ initialType = null, startNewTransaction = false }) => {
       const { data: result, error } = await supabase.rpc('submit_transaction_workflow', submission);
       if (error) throw error;
       if (!result?.workflow_id) throw new Error('The server did not confirm the transaction workflow.');
-      setActionNotice(direction === 'cash_in'
+      const isCreditSale = transactionType === 'sale' && data.p_sale?.payment_type === 'credit';
+      setActionNotice(isCreditSale
+        ? `Cash payable recorded · ${result.workflow_id.slice(0, 8).toUpperCase()}. Due ${data.p_sale.due_date}. Manager approval is not required.`
+        : direction === 'cash_in'
         ? transactionType === 'loan_payment'
           ? `Loan payment recorded · ${result.workflow_id.slice(0, 8).toUpperCase()}. The loan balance and payment schedule have been updated.`
           : `Incoming transaction recorded automatically · ${result.workflow_id.slice(0, 8).toUpperCase()}. Manager approval is not required.`

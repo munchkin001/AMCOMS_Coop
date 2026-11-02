@@ -237,7 +237,7 @@ const Reports = () => {
       } else if (reportType === 'aging') {
         const [sales, purchases, disbursements, timeDeposits, schedules] = await Promise.all([
           fetchAllRows(() => supabase.from('sales_orders')
-            .select('id, order_number, order_date, customer_name, net_amount, amount_paid, payment_status, order_status, notes, member:members(first_name, middle_name, last_name), sales_order_items(id, item_description, quantity, product:products(product_name))')
+            .select('id, order_number, order_date, due_date, customer_name, net_amount, amount_paid, payment_status, order_status, notes, member:members(first_name, middle_name, last_name), sales_order_items(id, item_description, quantity, product:products(product_name))')
             .in('payment_status', ['pending', 'partial'])
             .neq('order_status', 'cancelled')
             .order('order_date', { ascending: true })),
@@ -330,12 +330,13 @@ const Reports = () => {
           particulars: items || sale.notes || 'Sales order',
           reference: sale.order_number,
           party: sale.member ? fullName(sale.member) : sale.customer_name || 'Customer',
-          dueDate: sale.order_date,
+          dueDate: sale.due_date || sale.order_date,
           amount: Math.max(netAmount - amountPaid, 0),
           details: [
             ['Record type', 'Sales order'],
             ['Order number', sale.order_number],
             ['Order date', fmtDate(sale.order_date)],
+            ['Due date', fmtDate(sale.due_date || sale.order_date)],
             ['Customer', sale.member ? fullName(sale.member) : sale.customer_name || 'Customer'],
             ['Payment status', sale.payment_status],
             ['Order status', sale.order_status],
