@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { CalendarDays, Check, ChevronLeft, ChevronRight, Clock3, ExternalLink, FileText, Filter, RefreshCw, Search, X } from 'lucide-react';
+import { CalendarDays, Check, ChevronLeft, ChevronRight, Clock3, ExternalLink, Filter, RefreshCw, Search, X } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import { useMultipleRealtimeSubscriptions } from '../../hooks/useRealtimeSubscription';
@@ -345,14 +345,6 @@ const TreasurerApprovedTransactions = () => {
 
               {selected.source === 'workflow' && (
                 <>
-                  <section className="rounded-xl border border-slate-200 p-4">
-                    <h3 className="flex items-center gap-2 text-sm font-bold text-slate-800"><FileText size={16} /> Transaction details</h3>
-                    <details className="mt-3">
-                      <summary className="cursor-pointer text-sm font-semibold text-blue-800">View submitted details</summary>
-                      <pre className="mt-3 max-h-72 overflow-auto rounded-lg bg-slate-950 p-4 text-xs leading-5 text-slate-100">{JSON.stringify(selected.approved_payload || selected.payload || {}, null, 2)}</pre>
-                    </details>
-                  </section>
-
                   {!!selected.documents?.length && (
                     <section className="rounded-xl border border-slate-200 p-4">
                       <h3 className="text-sm font-bold text-slate-800">Attachments</h3>

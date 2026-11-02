@@ -88,7 +88,10 @@ const Transactions = ({ initialType = null, startNewTransaction = false }) => {
       summary,
       details: { ...details, localRecordedAt: new Date().toISOString() },
     });
-    setActionNotice("Pending Sync: saved on this device only. It will remain unposted until the server validates it and the Manager reviews it.");
+    const message = payload?.p_direction === 'cash_in'
+      ? 'It will be available for Bookkeeper processing after server validation. Manager approval is not required.'
+      : 'It will remain unposted until the server validates it and the Manager reviews it.';
+    setActionNotice(`Pending Sync: saved on this device only. ${message}`);
   };
 
   const handleSaveTransaction = async (data) => {
@@ -227,14 +230,16 @@ const Transactions = ({ initialType = null, startNewTransaction = false }) => {
         type: 'transaction_workflow',
         payload: submission,
         entityId: memberId,
-        summary: `${transactionType.replaceAll('_', ' ')} submitted for approval`,
+        summary: `${transactionType.replaceAll('_', ' ')} ${direction === 'cash_in' ? 'queued for processing' : 'submitted for approval'}`,
         details: { amount, type: transactionType },
       });
     } else {
       const { data: result, error } = await supabase.rpc('submit_transaction_workflow', submission);
       if (error) throw error;
-      if (!result?.workflow_id) throw new Error('The server did not confirm the approval request.');
-      setActionNotice(`Transaction submitted for Manager approval · ${result.workflow_id.slice(0, 8).toUpperCase()}. No accounting entry or cash movement has been finalized.`);
+      if (!result?.workflow_id) throw new Error('The server did not confirm the transaction workflow.');
+      setActionNotice(direction === 'cash_in'
+        ? `Incoming transaction is ready for Bookkeeper processing · ${result.workflow_id.slice(0, 8).toUpperCase()}. Manager approval is not required.`
+        : `Transaction submitted for Manager approval · ${result.workflow_id.slice(0, 8).toUpperCase()}. No accounting entry or cash movement has been finalized.`);
     }
 
     setView('list');

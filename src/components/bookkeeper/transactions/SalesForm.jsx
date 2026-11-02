@@ -352,12 +352,12 @@ const SalesForm = ({ onSave, onCancel }) => {
                   <input type="date" value={form.date} onChange={(event) => setForm({ ...form, date: event.target.value })} required className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2" />
                 </label>
                 <label className="text-sm font-medium text-gray-700">
-                  {flow === 'sale' ? 'Sale reference / invoice number *' : 'Collection reference *'}
-                  <input value={form.reference} onChange={(event) => setForm({ ...form, reference: event.target.value })} required className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2" />
+                  {flow === 'sale' ? 'Sale reference *' : 'Collection reference *'}
+                  <input value={form.reference} readOnly required className="mt-1 w-full rounded-lg border border-gray-300 bg-slate-50 px-3 py-2 text-slate-700" />
                   <span className="mt-1 block text-xs text-gray-500">
                     {flow === 'sale' && form.paymentType === 'credit'
-                      ? 'This identifies the sale record. An official receipt number is issued when payment is collected.'
-                      : 'This identifies the sale or collection record. The official receipt number is issued by the server after recording.'}
+                      ? 'Generated automatically to identify the sale. An official receipt number is issued when payment is collected.'
+                      : 'Generated automatically to identify the sale or collection. The official receipt number is issued by the server after recording.'}
                   </span>
                 </label>
               </>

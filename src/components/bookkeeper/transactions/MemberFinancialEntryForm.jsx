@@ -98,7 +98,6 @@ const MemberFinancialEntryForm = ({
   const [membersLoading, setMembersLoading] = useState(false);
   const [membersError, setMembersError] = useState('');
   const [date, setDate] = useState(currentDate());
-  const [reference, setReference] = useState('');
   const [amount, setAmount] = useState('');
   const [cashAccount, setCashAccount] = useState('Cash on Hand');
   const [accountId, setAccountId] = useState('');
@@ -387,10 +386,8 @@ const MemberFinancialEntryForm = ({
     event.preventDefault();
     setError('');
     const numericAmount = Number(amount);
-    if (!selectedMember || !date || (!selectedEntry?.receipt && !reference.trim()) || (!selectedEntry?.dividend && !particulars.trim())) {
-      setError(selectedEntry?.receipt
-        ? 'Select a member and enter a date and particulars.'
-        : 'Select a member and enter a date, reference number, and particulars.');
+    if (!selectedMember || !date || (!selectedEntry?.dividend && !particulars.trim())) {
+      setError('Select a member and enter a date and particulars.');
       return;
     }
     if (!selectedEntry?.dividend && (!Number.isFinite(numericAmount) || numericAmount <= 0)) {
@@ -444,7 +441,6 @@ const MemberFinancialEntryForm = ({
     const pDisbursement = selectedEntry.receipt ? null : {
       ...common,
       disbursement_date: date,
-      voucher_number: reference.trim(),
       payee: [selectedMember.first_name, selectedMember.middle_name, selectedMember.last_name].filter(Boolean).join(' '),
       payment_source: cashAccount === 'Cash on Hand' ? 'cash-on-hand' : 'cash-in-bank',
       status: 'recorded'
@@ -458,7 +454,6 @@ const MemberFinancialEntryForm = ({
           p_distribution: {
             member_id: memberId,
             distribution_date: date,
-            reference_number: reference.trim(),
             ...Object.fromEntries(Object.entries(dividendValues).map(([key, value]) => [key, Number(value || 0)])),
             loan_id: Number(dividendValues.loan_payment_amount) > 0 ? loanId : null,
             savings_account_id: Number(dividendValues.savings_amount) > 0 ? accountId || null : null
@@ -530,7 +525,7 @@ const MemberFinancialEntryForm = ({
         <section className="rounded-xl border border-slate-200 bg-slate-50/60 p-4 sm:p-5">
           <div className="mb-4 border-b border-slate-200 pb-3">
             <h3 className="text-base font-bold text-slate-900">Member transaction details</h3>
-            <p className="mt-0.5 text-xs text-slate-500">Member, transaction type, amount, and reference information.</p>
+            <p className="mt-0.5 text-xs text-slate-500">Member, transaction type, amount, and particulars. Receipt and voucher numbers are generated automatically.</p>
           </div>
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <label className="text-sm font-medium text-gray-700">
@@ -576,7 +571,6 @@ const MemberFinancialEntryForm = ({
                   setParticulars(event.target.value === 'loan_payment'
                     ? loanPaymentParticulars[0]
                     : nextType?.label || '');
-                  setReference('');
                   setAccountId('');
                 }}
                 className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2"
@@ -589,12 +583,6 @@ const MemberFinancialEntryForm = ({
             Date *
             <input type="date" value={date} onChange={(event) => setDate(event.target.value)} required className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2" />
           </label>
-          {(!selectedEntry?.receipt || selectedEntry?.dividend) && (
-            <label className="text-sm font-medium text-gray-700">
-              {selectedEntry?.dividend ? 'Distribution reference *' : 'Voucher number *'}
-              <input value={reference} onChange={(event) => setReference(event.target.value)} required className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2" />
-            </label>
-          )}
             {entryType !== 'capital_contribution' && !selectedEntry?.dividend && (
             <label className="text-sm font-medium text-gray-700">
               Amount (₱) *
