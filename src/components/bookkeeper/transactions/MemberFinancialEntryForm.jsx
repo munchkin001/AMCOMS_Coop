@@ -3,6 +3,7 @@ import { supabase } from '../../../lib/supabase';
 import { useAuth } from '../../../contexts/AuthContext';
 import offlineDb from '../../../lib/Offline/OfflineDb';
 import { getDataLoadErrorMessage } from '../../../lib/errorHandler';
+import { ArrowDownLeft, ArrowLeft, ArrowUpRight } from 'lucide-react';
 
 const entryTypes = [
   { value: 'savings_deposit', label: 'Savings deposit', receipt: true, account: 'regular' },
@@ -450,10 +451,27 @@ const MemberFinancialEntryForm = ({
   };
 
   return (
-    <div className="mx-auto max-w-4xl space-y-5">
-      <div>
-        <h2 className="text-xl font-bold text-gray-900">{title}</h2>
-      </div>
+    <div className="mx-auto max-w-5xl space-y-5">
+      <header className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-slate-200 bg-white px-5 py-5 shadow-sm sm:px-7">
+        <div className="flex items-center gap-4">
+          <span className={`flex size-11 shrink-0 items-center justify-center rounded-xl ${selectedEntry?.receipt ? 'bg-emerald-50 text-emerald-700' : 'bg-rose-50 text-rose-700'}`}>
+            {selectedEntry?.receipt
+              ? <ArrowDownLeft size={22} strokeWidth={2.2} aria-hidden="true" />
+              : <ArrowUpRight size={22} strokeWidth={2.2} aria-hidden="true" />}
+          </span>
+          <div>
+            <p className={`text-xs font-bold uppercase tracking-[0.15em] ${selectedEntry?.receipt ? 'text-emerald-700' : 'text-rose-700'}`}>
+              {selectedEntry?.receipt ? 'Cash in · member receipt' : 'Cash out · member disbursement'}
+            </p>
+            <h2 className="mt-1 text-xl font-bold tracking-tight text-slate-950 sm:text-2xl">{title}</h2>
+            <p className="mt-1 text-sm text-slate-600">Enter the member and payment details. The system will apply the appropriate account rules.</p>
+          </div>
+        </div>
+        <button type="button" onClick={onCancel} className="inline-flex items-center gap-2 rounded-lg border border-slate-200 px-3.5 py-2 text-sm font-semibold text-slate-700 transition hover:border-slate-300 hover:bg-slate-50">
+          <ArrowLeft size={16} aria-hidden="true" />
+          Back to transaction types
+        </button>
+      </header>
 
       {error && <p role="alert" className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{error}</p>}
       {membersError && (
@@ -472,7 +490,12 @@ const MemberFinancialEntryForm = ({
         </div>
       )}
 
-      <form onSubmit={handleSubmit} className="space-y-5 rounded-lg border border-gray-200 bg-white p-4 sm:p-6">
+      <form onSubmit={handleSubmit} className="space-y-5 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-7">
+        <section className="rounded-xl border border-slate-200 bg-slate-50/60 p-4 sm:p-5">
+          <div className="mb-4 border-b border-slate-200 pb-3">
+            <h3 className="text-base font-bold text-slate-900">Member transaction details</h3>
+            <p className="mt-0.5 text-xs text-slate-500">Member, transaction type, amount, and reference information.</p>
+          </div>
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <label className="text-sm font-medium text-gray-700">
             Member *
@@ -552,6 +575,7 @@ const MemberFinancialEntryForm = ({
             )}
           </label>}
         </div>
+        </section>
 
         {selectedEntry?.dividend && (
           <div className="space-y-4 rounded-lg border border-indigo-200 bg-indigo-50 p-4">
@@ -747,9 +771,12 @@ const MemberFinancialEntryForm = ({
           </label>
         )}
 
-        <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
-          <button type="button" onClick={onCancel} className="rounded-lg border border-gray-300 px-5 py-2 font-medium text-gray-700 hover:bg-gray-50">Cancel</button>
-          <button type="submit" disabled={saving || loadingMemberData} className="rounded-lg bg-indigo-600 px-5 py-2 font-medium text-white hover:bg-indigo-700 disabled:opacity-60">
+        <div className="flex flex-col-reverse gap-3 border-t border-slate-200 pt-5 sm:flex-row sm:justify-end">
+          <button type="button" onClick={onCancel} className="inline-flex items-center justify-center gap-2 rounded-lg border border-slate-300 px-5 py-2.5 font-semibold text-slate-700 transition hover:bg-slate-50">
+            <ArrowLeft size={16} aria-hidden="true" />
+            Back to transaction types
+          </button>
+          <button type="submit" disabled={saving || loadingMemberData} className="rounded-lg bg-indigo-700 px-5 py-2.5 font-semibold text-white shadow-sm transition hover:bg-indigo-800 disabled:opacity-60">
             {saving ? 'Recording...' : 'Record member entry'}
           </button>
         </div>

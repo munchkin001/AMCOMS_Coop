@@ -67,6 +67,14 @@ const Transactions = ({ initialType = null, startNewTransaction = false }) => {
     setSelectedTransaction(null);
   };
 
+  const handleCancelForm = () => {
+    operationId.current = crypto.randomUUID();
+    setView('type-selector');
+    setSelectedType(null);
+    setSelectedEntryType(null);
+    setSelectedTransaction(null);
+  };
+
   const queueOfflineOperation = async ({ type, payload, entityId = null, summary, details = {} }) => {
     await queueOperation({
       type,
@@ -302,7 +310,7 @@ const Transactions = ({ initialType = null, startNewTransaction = false }) => {
       {view === 'type-selector' && (
         <TransactionTypeSelector 
           onSelectType={handleSelectType}
-          onCancel={handleCancel}
+          onCancel={handleCancelForm}
         />
       )}
 
@@ -311,7 +319,7 @@ const Transactions = ({ initialType = null, startNewTransaction = false }) => {
           transaction={selectedTransaction}
           title={selectedEntryType === 'other-receipt' ? 'Other Receipt' : 'Cash Receipt'}
           onSave={handleSaveTransaction}
-          onCancel={handleCancel}
+          onCancel={handleCancelForm}
         />
       )}
 
@@ -329,18 +337,18 @@ const Transactions = ({ initialType = null, startNewTransaction = false }) => {
             ? () => setSelectedType('bank-transfer')
             : undefined}
           onSave={handleSaveTransaction}
-          onCancel={handleCancel}
+          onCancel={handleCancelForm}
         />
       )}
 
       {view === 'form' && selectedType === 'bank-transfer' && (
-        <BankTransferForm onSave={handleSaveTransaction} onCancel={handleCancel} />
+        <BankTransferForm onSave={handleSaveTransaction} onCancel={handleCancelForm} />
       )}
 
       {view === 'form' && selectedType === 'sales' && (
         <SalesForm
           onSave={handleSaveTransaction}
-          onCancel={handleCancel}
+          onCancel={handleCancelForm}
         />
       )}
 
@@ -350,7 +358,7 @@ const Transactions = ({ initialType = null, startNewTransaction = false }) => {
           allowedEntryTypes={selectedEntryType ? [selectedEntryType] : ['loan_payment']}
           title="Loan Payment"
           onSave={handleSaveTransaction}
-          onCancel={handleCancel}
+          onCancel={handleCancelForm}
         />
       )}
 
@@ -365,7 +373,7 @@ const Transactions = ({ initialType = null, startNewTransaction = false }) => {
             time_deposit_withdrawal: 'Time Deposit Withdrawal',
           }[selectedEntryType] || 'Savings / Deposit'}
           onSave={handleSaveTransaction}
-          onCancel={handleCancel}
+          onCancel={handleCancelForm}
         />
       )}
 
@@ -375,7 +383,7 @@ const Transactions = ({ initialType = null, startNewTransaction = false }) => {
           allowedEntryTypes={selectedEntryType ? [selectedEntryType] : ['capital_contribution', 'dividend_distribution']}
           title={selectedEntryType === 'dividend_distribution' ? 'Approved Dividends' : 'Capital Contribution'}
           onSave={handleSaveTransaction}
-          onCancel={handleCancel}
+          onCancel={handleCancelForm}
         />
       )}
 

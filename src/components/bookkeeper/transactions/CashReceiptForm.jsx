@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useAuth } from '../../../contexts/AuthContext';
 import { supabase } from '../../../lib/supabase';
 import offlineDb from '../../../lib/Offline/OfflineDb';
+import { ArrowDownLeft, ArrowLeft, FileText } from 'lucide-react';
 
 const getDefaultSide = (account) => ['Cash on Hand', 'Cash in Bank'].includes(account) ? 'debit' : 'credit';
 const receiptParticularsOptions = [
@@ -170,26 +171,39 @@ const CashReceiptForm = ({ onSave, onCancel, transaction = null, title = 'Cash R
   ];
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-xl lg:text-2xl font-bold text-gray-900">{title}</h2>
+    <div className="mx-auto max-w-5xl space-y-5">
+      <header className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-slate-200 bg-white px-5 py-5 shadow-sm sm:px-7">
+        <div className="flex items-center gap-4">
+          <span className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-emerald-50 text-emerald-700">
+            <ArrowDownLeft size={22} strokeWidth={2.2} aria-hidden="true" />
+          </span>
+          <div>
+            <p className="text-xs font-bold uppercase tracking-[0.15em] text-emerald-700">Cash in · receipt</p>
+            <h2 className="mt-1 text-xl font-bold tracking-tight text-slate-950 sm:text-2xl">{title}</h2>
+            <p className="mt-1 text-sm text-slate-600">Enter the receipt details and confirm how the amount is distributed.</p>
+          </div>
         </div>
         <button
+          type="button"
           onClick={onCancel}
-          className="p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg"
+          className="inline-flex items-center gap-2 rounded-lg border border-slate-200 px-3.5 py-2 text-sm font-semibold text-slate-700 transition hover:border-slate-300 hover:bg-slate-50"
         >
-          <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-          </svg>
+          <ArrowLeft size={16} aria-hidden="true" />
+          Back to transaction types
         </button>
-      </div>
+      </header>
 
-      <form onSubmit={(e) => handleSubmit(e, e.nativeEvent.submitter?.value || 'recorded')} className="space-y-6">
+      <form onSubmit={(e) => handleSubmit(e, e.nativeEvent.submitter?.value || 'recorded')} className="space-y-5">
         {formError && <p role="alert" className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{formError}</p>}
         {/* Transaction Information */}
-        <div className="bg-white rounded-lg border border-gray-200 p-4 lg:p-6">
-          <h3 className="text-base lg:text-lg font-semibold text-gray-900 mb-4">Transaction Information</h3>
+        <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+          <div className="mb-5 flex items-center gap-3 border-b border-slate-100 pb-4">
+            <span className="flex size-9 items-center justify-center rounded-lg bg-slate-100 text-slate-700"><FileText size={17} aria-hidden="true" /></span>
+            <div>
+              <h3 className="text-base font-bold text-slate-900">Receipt details</h3>
+              <p className="mt-0.5 text-xs text-slate-500">Who paid, when it was received, and the reason for the receipt.</p>
+            </div>
+          </div>
           
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
@@ -285,18 +299,21 @@ const CashReceiptForm = ({ onSave, onCancel, transaction = null, title = 'Cash R
               )}
             </div>
           </div>
-        </div>
+        </section>
 
         {/* Account Distribution */}
-        <div className="bg-white rounded-lg border border-gray-200 p-4 lg:p-6">
+        <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
           <div className="flex items-center justify-between mb-4">
-            <h3 className="text-base lg:text-lg font-semibold text-gray-900">Account Distribution</h3>
+            <div>
+              <h3 className="text-base font-bold text-slate-900">Account distribution</h3>
+              <p className="mt-1 text-xs text-slate-500">Allocate the receipt across the accounts affected by this transaction.</p>
+            </div>
             <button
               type="button"
               onClick={addAccount}
-              className="px-3 py-1 text-sm text-purple-600 hover:text-purple-700 font-medium"
+              className="rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-2 text-sm font-semibold text-indigo-800 transition hover:bg-indigo-100"
             >
-              + Add Account
+              + Add account
             </button>
           </div>
 
@@ -371,22 +388,23 @@ const CashReceiptForm = ({ onSave, onCancel, transaction = null, title = 'Cash R
               {' '}| Credits ₱{accountDistribution.filter((item) => item.side === 'credit').reduce((sum, item) => sum + (Number(item.amount) || 0), 0).toFixed(2)}
             </p>
           </div>
-        </div>
+        </section>
 
         {/* Actions */}
-        <div className="flex flex-col sm:flex-row gap-3 justify-end">
+        <div className="flex flex-col-reverse gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:flex-row sm:justify-end sm:p-5">
           <button
             type="button"
             onClick={onCancel}
-            className="px-6 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 font-medium"
+            className="inline-flex items-center justify-center gap-2 rounded-lg border border-slate-300 px-5 py-2.5 font-semibold text-slate-700 transition hover:bg-slate-50"
           >
-            Cancel
+            <ArrowLeft size={16} aria-hidden="true" />
+            Back to transaction types
           </button>
           <button
             type="submit"
             value="draft"
             disabled={saving}
-            className="px-6 py-2 border border-purple-300 text-purple-700 rounded-lg hover:bg-purple-50 font-medium disabled:opacity-60"
+            className="rounded-lg border border-indigo-200 bg-white px-5 py-2.5 font-semibold text-indigo-800 transition hover:bg-indigo-50 disabled:opacity-60"
           >
             {saving ? 'Saving...' : 'Save as Draft'}
           </button>
@@ -394,7 +412,7 @@ const CashReceiptForm = ({ onSave, onCancel, transaction = null, title = 'Cash R
             type="submit"
             value="recorded"
             disabled={saving}
-            className="px-6 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 font-medium disabled:opacity-60"
+            className="rounded-lg bg-indigo-700 px-5 py-2.5 font-semibold text-white shadow-sm transition hover:bg-indigo-800 disabled:opacity-60"
           >
             {saving ? 'Recording...' : 'Record Transaction'}
           </button>

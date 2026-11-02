@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useAuth } from '../../../contexts/AuthContext';
 import { supabase } from '../../../lib/supabase';
 import offlineDb from '../../../lib/Offline/OfflineDb';
-import { Upload, Plus, X, AlertCircle } from 'lucide-react';
+import { ArrowLeft, ArrowUpRight, FileText, Upload, Plus, X, AlertCircle } from 'lucide-react';
 
 const CashDisbursementForm = ({
   onSave,
@@ -332,23 +332,41 @@ const CashDisbursementForm = ({
   const isBalanced = Math.abs(allocationTotal - paymentAmount) < 0.01;
 
   return (
-    <div className="max-w-5xl mx-auto">
-      <form onSubmit={(event) => handleSubmit(event, event.nativeEvent.submitter?.value !== 'recorded')} className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-        {errors.save && <p role="alert" className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{errors.save}</p>}
-        <h2 className="text-xl font-semibold text-gray-900 mb-6">
-          {title}
-        </h2>
+    <div className="mx-auto max-w-5xl space-y-5">
+      <header className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-slate-200 bg-white px-5 py-5 shadow-sm sm:px-7">
+        <div className="flex items-center gap-4">
+          <span className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-rose-50 text-rose-700">
+            <ArrowUpRight size={22} strokeWidth={2.2} aria-hidden="true" />
+          </span>
+          <div>
+            <p className="text-xs font-bold uppercase tracking-[0.15em] text-rose-700">Cash out · disbursement</p>
+            <h2 className="mt-1 text-xl font-bold tracking-tight text-slate-950 sm:text-2xl">{title}</h2>
+            <p className="mt-1 text-sm text-slate-600">Enter the payee, payment source, and accounts affected by this disbursement.</p>
+          </div>
+        </div>
+        <button type="button" onClick={onCancel} className="inline-flex items-center gap-2 rounded-lg border border-slate-200 px-3.5 py-2 text-sm font-semibold text-slate-700 transition hover:border-slate-300 hover:bg-slate-50">
+          <ArrowLeft size={16} aria-hidden="true" />
+          Back to transaction types
+        </button>
+      </header>
+      <form onSubmit={(event) => handleSubmit(event, event.nativeEvent.submitter?.value !== 'recorded')} className="space-y-5 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-7">
+        {errors.save && <p role="alert" className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{errors.save}</p>}
         {onSelectInternalTransfer && (
-          <div className="mb-6 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-indigo-100 bg-indigo-50 px-4 py-3">
+          <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-indigo-100 bg-indigo-50 px-4 py-3">
             <p className="text-sm text-indigo-900">Transferring between Cash on Hand and Cash in Bank?</p>
-            <button type="button" onClick={onSelectInternalTransfer} className="text-sm font-semibold text-indigo-800 underline underline-offset-2 hover:text-indigo-950">
+            <button type="button" onClick={onSelectInternalTransfer} className="rounded-md px-2 py-1 text-sm font-semibold text-indigo-800 underline underline-offset-2 hover:bg-indigo-100 hover:text-indigo-950">
               Record journal-only transfer
             </button>
           </div>
         )}
 
         {/* Basic Information */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+        <section className="rounded-xl border border-slate-200 bg-slate-50/60 p-4 sm:p-5">
+        <div className="mb-4 flex items-center gap-3 border-b border-slate-200 pb-3">
+          <span className="flex size-9 items-center justify-center rounded-lg bg-white text-slate-700 shadow-sm"><FileText size={17} aria-hidden="true" /></span>
+          <div><h3 className="text-base font-bold text-slate-900">Disbursement details</h3><p className="mt-0.5 text-xs text-slate-500">Recipient, date, and transaction description.</p></div>
+        </div>
+        <div className="grid grid-cols-1 gap-5 md:grid-cols-3">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
               Date <span className="text-red-500">*</span>
@@ -405,6 +423,7 @@ const CashDisbursementForm = ({
             </div>
           )}
         </div>
+        </section>
 
         {hasLoanPayable && (
           <div className="mb-6 grid grid-cols-1 gap-4 rounded-lg border border-blue-200 bg-blue-50 p-4 md:grid-cols-2">
@@ -429,7 +448,7 @@ const CashDisbursementForm = ({
           </div>
         )}
         {openPurchases.length > 0 && (
-          <div className="mb-6">
+          <div className="rounded-xl border border-slate-200 p-4 sm:p-5">
             <label htmlFor="linked-purchase" className="block text-sm font-medium text-gray-700 mb-2">
               Paying a supplier purchase? (optional)
             </label>
@@ -449,9 +468,9 @@ const CashDisbursementForm = ({
           </div>
         )}
         {/* Particulars */}
-        <div className="mb-6">
-          <label className="block text-sm font-medium text-gray-700 mb-2">
-            Particulars <span className="text-red-500">*</span>
+        <section className="rounded-xl border border-slate-200 bg-white p-4 sm:p-5">
+          <label className="block text-sm font-semibold text-slate-800 mb-2">
+            What is this payment for? <span className="text-red-500">*</span>
           </label>
           <textarea
             value={formData.particulars}
@@ -465,34 +484,39 @@ const CashDisbursementForm = ({
           {errors.particulars && (
             <p className="mt-1 text-sm text-red-600">{errors.particulars}</p>
           )}
-        </div>
+        </section>
 
         {/* Payment Source and Amount */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+        <section className="rounded-xl border border-slate-200 bg-slate-50/60 p-4 sm:p-5">
+          <div className="mb-4 border-b border-slate-200 pb-3">
+            <h3 className="text-base font-bold text-slate-900">Payment details</h3>
+            <p className="mt-0.5 text-xs text-slate-500">Choose the source of funds and enter the amount paid.</p>
+          </div>
+        <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
               Payment Source <span className="text-red-500">*</span>
             </label>
-            <div className="space-y-2">
-              <label className="flex items-center">
+            <div className="grid gap-2 sm:grid-cols-2">
+              <label className={`flex cursor-pointer items-center gap-2 rounded-lg border px-3 py-3 transition ${formData.paymentSource === 'cash-on-hand' ? 'border-blue-300 bg-blue-50 text-blue-900' : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'}`}>
                 <input
                   type="radio"
                   value="cash-on-hand"
                   checked={formData.paymentSource === 'cash-on-hand'}
                   onChange={(e) => handleInputChange('paymentSource', e.target.value)}
-                  className="mr-2"
+                  className="accent-blue-700"
                 />
                 <span className="text-sm text-gray-700">Cash on Hand</span>
               </label>
-              <label className="flex items-center">
+              <label className={`flex cursor-pointer items-center gap-2 rounded-lg border px-3 py-3 transition ${formData.paymentSource === 'cash-in-bank' ? 'border-blue-300 bg-blue-50 text-blue-900' : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'}`}>
                 <input
                   type="radio"
                   value="cash-in-bank"
                   checked={formData.paymentSource === 'cash-in-bank'}
                   onChange={(e) => handleInputChange('paymentSource', e.target.value)}
-                  className="mr-2"
+                  className="accent-blue-700"
                 />
-                <span className="text-sm text-gray-700">Cash in Bank</span>
+                <span className="text-sm font-medium">Cash in Bank</span>
               </label>
             </div>
           </div>
@@ -520,17 +544,16 @@ const CashDisbursementForm = ({
             )}
           </div>
         </div>
+        </section>
 
         {/* Account Allocation Table */}
-        <div className="mb-6">
+        <section className="rounded-xl border border-slate-200 bg-white p-4 sm:p-5">
           <div className="flex justify-between items-center mb-3">
-            <label className="block text-sm font-medium text-gray-700">
-              Account Allocation <span className="text-red-500">*</span>
-            </label>
+            <div><h3 className="text-base font-bold text-slate-900">Account allocation <span className="text-red-500">*</span></h3><p className="mt-0.5 text-xs text-slate-500">Allocate the disbursement across the accounts affected.</p></div>
             <button
               type="button"
               onClick={addAllocationRow}
-              className="flex items-center gap-1 text-sm text-blue-600 hover:text-blue-700"
+              className="rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-sm font-semibold text-blue-800 transition hover:bg-blue-100"
             >
               <Plus className="w-4 h-4" />
               Add Account
@@ -638,14 +661,12 @@ const CashDisbursementForm = ({
               </div>
             </div>
           )}
-        </div>
+        </section>
 
         {/* Supporting Documents */}
-        <div className="mb-6">
-          <label className="block text-sm font-medium text-gray-700 mb-2">
-            Supporting Documents
-          </label>
-          <div className="border-2 border-dashed border-gray-300 rounded-lg p-4">
+        <section className="rounded-xl border border-slate-200 bg-white p-4 sm:p-5">
+          <div className="mb-3"><h3 className="text-base font-bold text-slate-900">Supporting documents</h3><p className="mt-0.5 text-xs text-slate-500">Attach invoices or other relevant records, if available.</p></div>
+          <div className="rounded-xl border-2 border-dashed border-slate-300 bg-slate-50 p-5 transition hover:border-blue-300 hover:bg-blue-50/40">
             <input
               type="file"
               id="file-upload"
@@ -689,15 +710,15 @@ const CashDisbursementForm = ({
               ))}
             </div>
           )}
-        </div>
+        </section>
 
         {/* Action Buttons */}
-        <div className="flex flex-col sm:flex-row gap-3 pt-4 border-t border-gray-200">
+        <div className="flex flex-col-reverse gap-3 border-t border-slate-200 pt-5 sm:flex-row sm:items-center">
           <button
             type="submit"
             value="draft"
             disabled={saving}
-            className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-60"
+            className="rounded-lg border border-slate-300 bg-white px-5 py-2.5 font-semibold text-slate-700 transition hover:bg-slate-50 disabled:opacity-60 sm:mr-auto"
           >
             {saving && isDraft ? 'Saving...' : 'Save as Draft'}
           </button>
@@ -705,16 +726,17 @@ const CashDisbursementForm = ({
             type="submit"
             value="recorded"
             disabled={saving}
-            className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-60"
+            className="rounded-lg bg-blue-700 px-5 py-2.5 font-semibold text-white shadow-sm transition hover:bg-blue-800 disabled:opacity-60"
           >
             {saving && !isDraft ? 'Recording...' : 'Record Disbursement'}
           </button>
           <button
             type="button"
             onClick={onCancel}
-            className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+            className="inline-flex items-center justify-center gap-2 rounded-lg border border-slate-300 px-5 py-2.5 font-semibold text-slate-700 transition hover:bg-slate-50"
           >
-            Cancel
+            <ArrowLeft size={16} aria-hidden="true" />
+            Back to transaction types
           </button>
         </div>
       </form>

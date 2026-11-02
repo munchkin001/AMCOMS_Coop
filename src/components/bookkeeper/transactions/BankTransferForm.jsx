@@ -104,7 +104,7 @@ const BankTransferForm = ({ onSave, onCancel }) => {
         </div>
 
         <div className="flex justify-end gap-3 border-t border-slate-100 pt-4">
-          <button type="button" onClick={onCancel} disabled={saving} className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">Cancel</button>
+          <button type="button" onClick={onCancel} disabled={saving} className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">Back to transaction types</button>
           <button type="submit" disabled={saving} className="rounded-lg bg-indigo-700 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-800 disabled:opacity-60">
             {saving ? 'Submitting…' : 'Submit for Approval'}
           </button>

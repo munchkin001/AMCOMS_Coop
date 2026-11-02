@@ -3,6 +3,7 @@ import { useAuth } from '../../../contexts/AuthContext';
 import { supabase } from '../../../lib/supabase';
 import offlineDb from '../../../lib/Offline/OfflineDb';
 import { getDataLoadErrorMessage } from '../../../lib/errorHandler';
+import { ArrowLeft, ShoppingCart } from 'lucide-react';
 
 const today = () => new Date().toISOString().slice(0, 10);
 
@@ -300,13 +301,29 @@ const SalesForm = ({ onSave, onCancel }) => {
   };
 
   return (
-    <div className="mx-auto max-w-4xl space-y-5">
-      <div>
-        <h2 className="text-xl font-bold text-gray-900">Sales</h2>
-      </div>
+    <div className="mx-auto max-w-5xl space-y-5">
+      <header className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-slate-200 bg-white px-5 py-5 shadow-sm sm:px-7">
+        <div className="flex items-center gap-4">
+          <span className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-emerald-50 text-emerald-700"><ShoppingCart size={21} strokeWidth={2.2} aria-hidden="true" /></span>
+          <div>
+            <p className="text-xs font-bold uppercase tracking-[0.15em] text-emerald-700">Cash in · sales</p>
+            <h2 className="mt-1 text-xl font-bold tracking-tight text-slate-950 sm:text-2xl">Sales</h2>
+            <p className="mt-1 text-sm text-slate-600">Record a sale, collect a credit balance, or cancel an unpaid credit sale.</p>
+          </div>
+        </div>
+        <button type="button" onClick={onCancel} disabled={saving} className="inline-flex items-center gap-2 rounded-lg border border-slate-200 px-3.5 py-2 text-sm font-semibold text-slate-700 transition hover:border-slate-300 hover:bg-slate-50 disabled:opacity-60">
+          <ArrowLeft size={16} aria-hidden="true" />
+          Back to transaction types
+        </button>
+      </header>
       {error && <p role="alert" className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{error}</p>}
       {loading ? <p className="py-8 text-center text-gray-500">Loading sales options…</p> : (
-        <form onSubmit={handleSubmit} className="space-y-5 rounded-lg border border-gray-200 bg-white p-4 sm:p-6">
+        <form onSubmit={handleSubmit} className="space-y-5 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-7">
+          <section className="rounded-xl border border-slate-200 bg-slate-50/60 p-4 sm:p-5">
+            <div className="mb-4 border-b border-slate-200 pb-3">
+              <h3 className="text-base font-bold text-slate-900">Sale details</h3>
+              <p className="mt-0.5 text-xs text-slate-500">Choose the sales action and enter the related customer and transaction information.</p>
+            </div>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <label className="text-sm font-medium text-gray-700 sm:col-span-2">
               Sales action *
@@ -500,9 +517,13 @@ const SalesForm = ({ onSave, onCancel }) => {
               </>
             )}
           </div>
-          <div className="flex justify-end gap-3">
-            <button type="button" onClick={onCancel} disabled={saving} className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">Cancel</button>
-            <button type="submit" disabled={saving || loading || (flow === 'sale' && !revenueAccounts.length) || (flow === 'collection' && !outstandingSales.length) || (flow === 'cancel' && (!cancellableSales.length || !navigator.onLine || offlineMode))} className="rounded-lg bg-orange-600 px-5 py-2 text-sm font-medium text-white hover:bg-orange-700 disabled:opacity-60">{saving ? 'Recording…' : flow === 'sale' ? 'Record Sale' : flow === 'collection' ? 'Record Collection' : 'Cancel Credit Sale'}</button>
+          </section>
+          <div className="flex flex-col-reverse gap-3 border-t border-slate-200 pt-5 sm:flex-row sm:justify-end">
+            <button type="button" onClick={onCancel} disabled={saving} className="inline-flex items-center justify-center gap-2 rounded-lg border border-slate-300 px-5 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:opacity-60">
+              <ArrowLeft size={16} aria-hidden="true" />
+              Back to transaction types
+            </button>
+            <button type="submit" disabled={saving || loading || (flow === 'sale' && !revenueAccounts.length) || (flow === 'collection' && !outstandingSales.length) || (flow === 'cancel' && (!cancellableSales.length || !navigator.onLine || offlineMode))} className="rounded-lg bg-emerald-700 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-800 disabled:opacity-60">{saving ? 'Recording…' : flow === 'sale' ? 'Record Sale' : flow === 'collection' ? 'Record Collection' : 'Cancel Credit Sale'}</button>
           </div>
         </form>
       )}
