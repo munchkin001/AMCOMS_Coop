@@ -41,11 +41,18 @@ const SalesForm = ({ onSave, onCancel }) => {
   });
 
   const selectedProduct = products.find((product) => product.id === form.productId);
+  const productAvailableQuantity = selectedProduct
+    ? (Array.isArray(selectedProduct.stock_inventory)
+      ? selectedProduct.stock_inventory
+      : selectedProduct.stock_inventory ? [selectedProduct.stock_inventory] : [])
+      .reduce((total, inventory) => total + Number(inventory.quantity_available || 0), 0)
+    : 0;
   const unitPrice = useMemo(() => {
+    if (selectedProduct) return Number(selectedProduct.unit_price) || 0;
     const quantity = Number(form.quantity);
     const amount = Number(form.amount);
     return quantity > 0 && amount > 0 ? amount / quantity : 0;
-  }, [form.amount, form.quantity]);
+  }, [form.amount, form.quantity, selectedProduct]);
 
   useEffect(() => {
     let active = true;
@@ -75,7 +82,7 @@ const SalesForm = ({ onSave, onCancel }) => {
       }
       const [productResult, memberResult, accountResult, saleResult] = await Promise.all([
         supabase.from('products')
-          .select('id, product_name, product_code, unit_of_measure')
+          .select('id, product_name, product_code, unit_of_measure, unit_price, stock_inventory(quantity_available)')
           .eq('is_active', true)
           .order('product_name'),
         supabase.from('members')
@@ -465,7 +472,23 @@ const SalesForm = ({ onSave, onCancel }) => {
                 value={form.productId}
                 onChange={(event) => {
                   const product = products.find((item) => item.id === event.target.value);
-                  setForm({ ...form, productId: event.target.value, itemDescription: product?.product_name || '' });
+                  const availableQuantity = product
+                    ? (Array.isArray(product.stock_inventory)
+                      ? product.stock_inventory
+                      : product.stock_inventory ? [product.stock_inventory] : [])
+                      .reduce((total, inventory) => total + Number(inventory.quantity_available || 0), 0)
+                    : 1;
+                  const quantity = product ? availableQuantity : 1;
+                  const amount = product
+                    ? (Math.round((Number(product.unit_price) || 0) * quantity * 100) / 100).toFixed(2)
+                    : '';
+                  setForm((current) => ({
+                    ...current,
+                    productId: event.target.value,
+                    itemDescription: product?.product_name || '',
+                    quantity: String(quantity),
+                    amount
+                  }));
                 }}
                 className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2"
               >
@@ -476,11 +499,36 @@ const SalesForm = ({ onSave, onCancel }) => {
             </label>
             <label className="text-sm font-medium text-gray-700">
               Quantity *
-              <input type="number" min="1" step="1" value={form.quantity} onChange={(event) => setForm({ ...form, quantity: event.target.value })} required className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2" />
+              <input
+                type="number"
+                min="1"
+                max={selectedProduct ? productAvailableQuantity : undefined}
+                step="1"
+                value={form.quantity}
+                onChange={(event) => {
+                  const quantity = event.target.value;
+                  const amount = selectedProduct && Number.isInteger(Number(quantity)) && Number(quantity) > 0
+                    ? (Math.round(Number(selectedProduct.unit_price) * Number(quantity) * 100) / 100).toFixed(2)
+                    : selectedProduct ? '' : form.amount;
+                  setForm((current) => ({ ...current, quantity, amount }));
+                }}
+                required
+                className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2"
+              />
+              {selectedProduct && <span className="mt-1 block text-xs text-gray-500">Available quantity: {productAvailableQuantity}</span>}
             </label>
             <label className="text-sm font-medium text-gray-700">
               Total amount (₱) *
-              <input type="number" min="0.01" step="0.01" value={form.amount} onChange={(event) => setForm({ ...form, amount: event.target.value })} required className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2" />
+              <input
+                type="number"
+                min="0.01"
+                step="0.01"
+                value={form.amount}
+                onChange={(event) => setForm((current) => ({ ...current, amount: event.target.value }))}
+                readOnly={Boolean(selectedProduct)}
+                required
+                className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 read-only:bg-gray-50"
+              />
               <span className="mt-1 block text-xs text-gray-500">Unit amount: ₱{unitPrice.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
             </label>
             <label className="text-sm font-medium text-gray-700">
