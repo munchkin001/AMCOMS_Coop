@@ -77,6 +77,8 @@ const relation = (value) => Array.isArray(value) ? value[0] : value;
 const workflowStatusLabel = (workflow) => (
   workflow.transaction_type === 'loan_disbursement' && workflow.status === 'completed'
     ? 'Cash released'
+    : workflow.direction === 'cash_in' && workflow.status === 'completed'
+      ? 'Cash received'
     : STATUS_LABELS[workflow.status] || workflow.status
 );
 const isCompletedCashIn = (workflow) => workflow.direction === 'cash_in' && workflow.status === 'completed';
@@ -511,9 +513,9 @@ const TransactionWorkflow = ({ role }) => {
                     ['Requested amount', money(selected.amount)],
                     ['Direction', selected.direction.replace('_', ' ')],
                     ['Payment method', selected.payment_method || 'Not specified'],
-                    ['Status', 'Completed'],
+                    ['Status', 'Cash received'],
                     ['Submitted', dateTime(selected.created_at)],
-                    ['Completed', dateTime(selected.processed_at)],
+                    ['Cash received', dateTime(selected.processed_at)],
                   ]
                   : [
                     ['Approved / requested amount', money(selected.amount)],
@@ -613,7 +615,7 @@ const TransactionWorkflow = ({ role }) => {
                             <span className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
                               <strong className="font-semibold capitalize text-slate-800">
                                 {isCompletedCashIn(selected) && event.event_type === 'processed'
-                                  ? 'Completed'
+                                  ? 'Cash received'
                                   : event.event_type.replaceAll('_', ' ')}
                               </strong>
                               <time className="text-xs text-slate-500">{dateTime(event.created_at)}</time>
