@@ -223,22 +223,22 @@ const BookkeeperDashboard = ({ onSelectTransaction, onViewBooks }) => {
             <span className="text-sm font-medium text-gray-900">New Transaction</span>
           </button>
           <button
-            onClick={() => onSelectTransaction?.('cash-receipt')}
+            onClick={() => onSelectTransaction?.('other-receipt')}
             className="flex flex-col items-center justify-center p-4 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
           >
             <svg className="w-8 h-8 text-green-600 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 8h6m-5 0a3 3 0 110 6H9l3 3m-3-6h6m6 1a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
-            <span className="text-sm font-medium text-gray-900">Cash Receipt</span>
+            <span className="text-sm font-medium text-gray-900">Other Receipt</span>
           </button>
           <button
-            onClick={() => onSelectTransaction?.('cash-disbursement')}
+            onClick={() => onSelectTransaction?.('other-disbursement')}
             className="flex flex-col items-center justify-center p-4 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
           >
             <svg className="w-8 h-8 text-red-600 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" />
             </svg>
-            <span className="text-sm font-medium text-gray-900">Cash Disbursement</span>
+            <span className="text-sm font-medium text-gray-900">Other Disbursement</span>
           </button>
           <button
             onClick={() => onSelectTransaction?.('sales')}

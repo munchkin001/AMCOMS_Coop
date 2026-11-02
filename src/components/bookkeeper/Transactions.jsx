@@ -1,5 +1,5 @@
 import React, { useRef, useState } from 'react';
-import { useLocation } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { supabase } from '../../lib/supabase';
 import { queueOperation } from '../../lib/Offline/syncQueue';
@@ -13,11 +13,13 @@ import TransactionDetail from './transactions/TransactionDetail';
 
 const Transactions = ({ initialType = null, startNewTransaction = false }) => {
   const location = useLocation();
+  const navigate = useNavigate();
   const { user, staff, offlineMode } = useAuth();
   const requestedType = initialType || location.state?.initialTransactionType || null;
   const shouldStartNew = startNewTransaction || location.state?.startNewTransaction;
   const [view, setView] = useState(requestedType ? 'form' : shouldStartNew ? 'type-selector' : 'list'); // 'list', 'type-selector', 'form', 'detail'
   const [selectedType, setSelectedType] = useState(requestedType);
+  const [selectedEntryType, setSelectedEntryType] = useState(null);
   const [selectedTransaction, setSelectedTransaction] = useState(null);
   const [actionError, setActionError] = useState('');
   const [actionNotice, setActionNotice] = useState('');
@@ -25,12 +27,34 @@ const Transactions = ({ initialType = null, startNewTransaction = false }) => {
 
   const handleNewTransaction = () => {
     operationId.current = crypto.randomUUID();
+    setSelectedType(null);
+    setSelectedEntryType(null);
     setView('type-selector');
   };
 
   const handleSelectType = (type) => {
     operationId.current = crypto.randomUUID();
-    setSelectedType(type);
+    if (type === 'loan-disbursement') {
+      navigate('/staff/loan-requests');
+      return;
+    }
+
+    const formTypes = {
+      sales: { form: 'sales' },
+      'loan-payment': { form: 'loan-payment', entry: 'loan_payment' },
+      'savings-deposit': { form: 'savings-deposit', entry: 'savings_deposit' },
+      'time-deposit': { form: 'savings-deposit', entry: 'time_deposit' },
+      'savings-withdrawal': { form: 'savings-deposit', entry: 'savings_withdrawal' },
+      'time-deposit-withdrawal': { form: 'savings-deposit', entry: 'time_deposit_withdrawal' },
+      'capital-contribution': { form: 'other-transaction', entry: 'capital_contribution' },
+      'approved-dividend': { form: 'other-transaction', entry: 'dividend_distribution' },
+      'other-receipt': { form: 'cash-receipt', entry: 'other-receipt' },
+      'operating-expense': { form: 'cash-disbursement', entry: 'operating-expense' },
+      'other-disbursement': { form: 'cash-disbursement', entry: 'other-disbursement' },
+    };
+    const selection = formTypes[type] || { form: type };
+    setSelectedType(selection.form);
+    setSelectedEntryType(selection.entry || null);
     setView('form');
   };
 
@@ -38,6 +62,7 @@ const Transactions = ({ initialType = null, startNewTransaction = false }) => {
     operationId.current = crypto.randomUUID();
     setView('list');
     setSelectedType(null);
+    setSelectedEntryType(null);
     setSelectedTransaction(null);
   };
 
@@ -176,6 +201,7 @@ const Transactions = ({ initialType = null, startNewTransaction = false }) => {
       const payload = {
         p_disbursement: {
           disbursement_date: data.date,
+          payee: data.payee,
           member_id: data.memberId,
           term_months: data.termMonths ? Number(data.termMonths) : null,
           payment_frequency: data.paymentFrequency,
@@ -219,6 +245,7 @@ const Transactions = ({ initialType = null, startNewTransaction = false }) => {
     setView('list');
     operationId.current = crypto.randomUUID();
     setSelectedType(null);
+    setSelectedEntryType(null);
     setSelectedTransaction(null);
   };
 
@@ -231,6 +258,7 @@ const Transactions = ({ initialType = null, startNewTransaction = false }) => {
     operationId.current = crypto.randomUUID();
     setSelectedTransaction(transaction);
     setSelectedType(transaction.type);
+    setSelectedEntryType(null);
     setView('form');
   };
 
@@ -294,6 +322,7 @@ const Transactions = ({ initialType = null, startNewTransaction = false }) => {
       {view === 'form' && selectedType === 'cash-receipt' && (
         <CashReceiptForm 
           transaction={selectedTransaction}
+          title={selectedEntryType === 'other-receipt' ? 'Other Receipt' : 'Cash Receipt'}
           onSave={handleSaveTransaction}
           onCancel={handleCancel}
         />
@@ -302,6 +331,13 @@ const Transactions = ({ initialType = null, startNewTransaction = false }) => {
       {view === 'form' && selectedType === 'cash-disbursement' && (
         <CashDisbursementForm 
           transaction={selectedTransaction}
+          title={selectedEntryType === 'operating-expense'
+            ? 'Operating Expenses'
+            : selectedEntryType === 'other-disbursement'
+              ? 'Other Disbursements'
+              : 'Cash Disbursement Entry'}
+          allowExternalPayee={Boolean(selectedEntryType)}
+          allowLoanPayable={false}
           onSave={handleSaveTransaction}
           onCancel={handleCancel}
         />
@@ -316,8 +352,8 @@ const Transactions = ({ initialType = null, startNewTransaction = false }) => {
 
       {view === 'form' && selectedType === 'loan-payment' && (
         <MemberFinancialEntryForm
-          initialEntryType="loan_payment"
-          allowedEntryTypes={['loan_payment']}
+          initialEntryType={selectedEntryType || 'loan_payment'}
+          allowedEntryTypes={selectedEntryType ? [selectedEntryType] : ['loan_payment']}
           title="Loan Payment"
           onSave={handleSaveTransaction}
           onCancel={handleCancel}
@@ -326,9 +362,14 @@ const Transactions = ({ initialType = null, startNewTransaction = false }) => {
 
       {view === 'form' && selectedType === 'savings-deposit' && (
         <MemberFinancialEntryForm
-          initialEntryType="savings_deposit"
-          allowedEntryTypes={['savings_deposit', 'savings_withdrawal', 'time_deposit', 'time_deposit_withdrawal']}
-          title="Savings / Deposit"
+          initialEntryType={selectedEntryType || 'savings_deposit'}
+          allowedEntryTypes={selectedEntryType ? [selectedEntryType] : ['savings_deposit', 'savings_withdrawal', 'time_deposit', 'time_deposit_withdrawal']}
+          title={{
+            savings_deposit: 'Savings Deposit',
+            time_deposit: 'Time Deposit',
+            savings_withdrawal: 'Savings Withdrawal',
+            time_deposit_withdrawal: 'Time Deposit Withdrawal',
+          }[selectedEntryType] || 'Savings / Deposit'}
           onSave={handleSaveTransaction}
           onCancel={handleCancel}
         />
@@ -336,9 +377,9 @@ const Transactions = ({ initialType = null, startNewTransaction = false }) => {
 
       {view === 'form' && selectedType === 'other-transaction' && (
         <MemberFinancialEntryForm
-          initialEntryType="capital_contribution"
-          allowedEntryTypes={['capital_contribution', 'dividend_distribution']}
-          title="Other Transaction"
+          initialEntryType={selectedEntryType || 'capital_contribution'}
+          allowedEntryTypes={selectedEntryType ? [selectedEntryType] : ['capital_contribution', 'dividend_distribution']}
+          title={selectedEntryType === 'dividend_distribution' ? 'Approved Dividends' : 'Capital Contribution'}
           onSave={handleSaveTransaction}
           onCancel={handleCancel}
         />

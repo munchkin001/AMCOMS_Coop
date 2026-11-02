@@ -11,7 +11,7 @@ const receiptParticularsOptions = [
   'Other Income'
 ];
 
-const CashReceiptForm = ({ onSave, onCancel, transaction = null }) => {
+const CashReceiptForm = ({ onSave, onCancel, transaction = null, title = 'Cash Receipt' }) => {
   const { user, offlineMode } = useAuth();
   const [members, setMembers] = useState([]);
   const [otherMode, setOtherMode] = useState(false);
@@ -173,7 +173,7 @@ const CashReceiptForm = ({ onSave, onCancel, transaction = null }) => {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-xl lg:text-2xl font-bold text-gray-900">Cash Receipt</h2>
+          <h2 className="text-xl lg:text-2xl font-bold text-gray-900">{title}</h2>
         </div>
         <button
           onClick={onCancel}

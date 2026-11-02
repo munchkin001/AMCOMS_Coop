@@ -4,12 +4,20 @@ import { supabase } from '../../../lib/supabase';
 import offlineDb from '../../../lib/Offline/OfflineDb';
 import { Upload, Plus, X, AlertCircle } from 'lucide-react';
 
-const CashDisbursementForm = ({ onSave, onCancel, transaction = null }) => {
+const CashDisbursementForm = ({
+  onSave,
+  onCancel,
+  transaction = null,
+  title = 'Cash Disbursement Entry',
+  allowExternalPayee = false,
+  allowLoanPayable = false
+}) => {
   const { user, offlineMode } = useAuth();
   const [formData, setFormData] = useState(transaction ? {
     date: transaction.date,
     particulars: transaction.particulars || '',
     memberId: transaction.memberId || '',
+    payee: transaction.payee || transaction.member || '',
     termMonths: transaction.termMonths || '12',
     paymentFrequency: transaction.paymentFrequency || 'monthly',
     paymentSource: transaction.paymentSource || 'cash-on-hand',
@@ -20,6 +28,7 @@ const CashDisbursementForm = ({ onSave, onCancel, transaction = null }) => {
     date: new Date().toISOString().split('T')[0],
     particulars: '',
     memberId: '',
+    payee: '',
     termMonths: '12',
     paymentFrequency: 'monthly',
     paymentSource: 'cash-on-hand',
@@ -136,7 +145,7 @@ const CashDisbursementForm = ({ onSave, onCancel, transaction = null }) => {
   }, [offlineMode, user?.id]);
 
   const memberName = (m) => [m.first_name, m.middle_name, m.last_name].filter(Boolean).join(' ');
-  const hasLoanPayable = formData.accountAllocations.some(
+  const hasLoanPayable = allowLoanPayable && formData.accountAllocations.some(
     (a) => a.account === 'Loan Payable' && parseFloat(a.amount) > 0
   );
 
@@ -173,6 +182,10 @@ const CashDisbursementForm = ({ onSave, onCancel, transaction = null }) => {
     'Depreciation',
     'Other Expenses'
   ].sort();
+  const visibleAccountCategories = allowLoanPayable
+    ? accountCategories
+    : accountCategories.filter((account) => account !== 'Loan Payable');
+  const selectedMember = members.find((member) => member.id === formData.memberId);
 
   const handleInputChange = (field, value) => {
     setFormData(prev => ({
@@ -246,7 +259,11 @@ const CashDisbursementForm = ({ onSave, onCancel, transaction = null }) => {
 
     if (!formData.date) newErrors.date = 'Date is required';
     if (!formData.particulars.trim()) newErrors.particulars = 'Particulars are required';
-    if (!formData.memberId) newErrors.memberId = 'Select a member';
+    if (allowExternalPayee ? !formData.payee.trim() : !formData.memberId) {
+      newErrors[allowExternalPayee ? 'payee' : 'memberId'] = allowExternalPayee
+        ? 'Payee is required'
+        : 'Select a member';
+    }
     if (!formData.paymentAmount || parseFloat(formData.paymentAmount) <= 0) {
       newErrors.paymentAmount = 'Valid payment amount is required';
     }
@@ -287,6 +304,11 @@ const CashDisbursementForm = ({ onSave, onCancel, transaction = null }) => {
 
       const submissionData = {
         ...formData,
+        payee: allowExternalPayee
+          ? formData.payee.trim()
+          : selectedMember
+            ? memberName(selectedMember)
+            : '',
         accountAllocations: validAllocations,
         status: asDraft ? 'draft' : 'recorded',
         type: 'cash-disbursement',
@@ -313,7 +335,7 @@ const CashDisbursementForm = ({ onSave, onCancel, transaction = null }) => {
       <form onSubmit={(event) => handleSubmit(event, event.nativeEvent.submitter?.value !== 'recorded')} className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
         {errors.save && <p role="alert" className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{errors.save}</p>}
         <h2 className="text-xl font-semibold text-gray-900 mb-6">
-          Cash Disbursement Entry
+          {title}
         </h2>
 
         {/* Basic Information */}
@@ -335,26 +357,44 @@ const CashDisbursementForm = ({ onSave, onCancel, transaction = null }) => {
             )}
           </div>
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Member <span className="text-red-500">*</span>
-            </label>
-            <select
-              value={formData.memberId}
-              onChange={(e) => handleInputChange('memberId', e.target.value)}
-              className={`w-full px-3 py-2 border rounded-lg bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
-                errors.memberId ? 'border-red-500' : 'border-gray-300'
-              }`}
-            >
-              <option value="">Select member</option>
-              {members.map((m) => (
-                <option key={m.id} value={m.id}>{memberName(m)}</option>
-              ))}
-            </select>
-            {errors.memberId && (
-              <p className="mt-1 text-sm text-red-600">{errors.memberId}</p>
-            )}
-          </div>
+          {allowExternalPayee ? (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Payee <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="text"
+                value={formData.payee}
+                onChange={(event) => handleInputChange('payee', event.target.value)}
+                placeholder="Supplier, employee, or other recipient"
+                className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+                  errors.payee ? 'border-red-500' : 'border-gray-300'
+                }`}
+              />
+              {errors.payee && <p className="mt-1 text-sm text-red-600">{errors.payee}</p>}
+            </div>
+          ) : (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Member <span className="text-red-500">*</span>
+              </label>
+              <select
+                value={formData.memberId}
+                onChange={(e) => handleInputChange('memberId', e.target.value)}
+                className={`w-full px-3 py-2 border rounded-lg bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+                  errors.memberId ? 'border-red-500' : 'border-gray-300'
+                }`}
+              >
+                <option value="">Select member</option>
+                {members.map((m) => (
+                  <option key={m.id} value={m.id}>{memberName(m)}</option>
+                ))}
+              </select>
+              {errors.memberId && (
+                <p className="mt-1 text-sm text-red-600">{errors.memberId}</p>
+              )}
+            </div>
+          )}
         </div>
 
         {hasLoanPayable && (
@@ -514,7 +554,7 @@ const CashDisbursementForm = ({ onSave, onCancel, transaction = null }) => {
                           className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
                         >
                           <option value="">Select Account</option>
-                          {accountCategories.map(account => (
+                          {visibleAccountCategories.map(account => (
                             <option key={account} value={account}>{account}</option>
                           ))}
                         </select>
