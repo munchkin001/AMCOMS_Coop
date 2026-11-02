@@ -306,9 +306,9 @@ const SalesForm = ({ onSave, onCancel }) => {
         <div className="flex items-center gap-4">
           <span className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-emerald-50 text-emerald-700"><ShoppingCart size={21} strokeWidth={2.2} aria-hidden="true" /></span>
           <div>
-            <p className="text-xs font-bold uppercase tracking-[0.15em] text-emerald-700">Cash in · sales</p>
+            <p className="text-xs font-bold uppercase tracking-[0.15em] text-emerald-700">Sales · cash received only when paid</p>
             <h2 className="mt-1 text-xl font-bold tracking-tight text-slate-950 sm:text-2xl">Sales</h2>
-            <p className="mt-1 text-sm text-slate-600">Record a sale, collect a credit balance, or cancel an unpaid credit sale.</p>
+            <p className="mt-1 text-sm text-slate-600">Record a sale, collect a credit balance, or cancel an unpaid credit sale. A credit sale records an amount due, not money received.</p>
           </div>
         </div>
         <button type="button" onClick={onCancel} disabled={saving} className="inline-flex items-center gap-2 rounded-lg border border-slate-200 px-3.5 py-2 text-sm font-semibold text-slate-700 transition hover:border-slate-300 hover:bg-slate-50 disabled:opacity-60">
@@ -491,11 +491,16 @@ const SalesForm = ({ onSave, onCancel }) => {
               </select>
             </label>
             <label className="text-sm font-medium text-gray-700">
-              Sale terms *
+              Payment status *
               <select value={form.paymentType} onChange={(event) => setForm({ ...form, paymentType: event.target.value })} className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2">
-                <option value="cash">Paid now</option>
-                <option value="credit">On credit</option>
+                <option value="cash">Paid now — money received</option>
+                <option value="credit">On credit — amount due</option>
               </select>
+              {form.paymentType === 'credit' && (
+                <span className="mt-1 block text-xs text-gray-600">
+                  This records a receivable, not a cash receipt. Use “Collect against a credit sale” when payment is received.
+                </span>
+              )}
             </label>
             {form.paymentType === 'cash' && (
               <>

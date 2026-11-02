@@ -24,7 +24,7 @@ const transactionGroups = [
     icon: ArrowDownLeft,
     tone: 'emerald',
     types: [
-      { id: 'sales', name: 'Sales', description: 'Product or service sales, including credit sales.', icon: ShoppingCart },
+      { id: 'sales', name: 'Sales', description: 'Record a cash sale or an amount due for a credit sale. Credit collections are recorded when paid.', icon: ShoppingCart },
       { id: 'loan-payment', name: 'Loan Payments', description: 'Apply payments to principal, interest, and penalties.', icon: HandCoins },
       { id: 'savings-deposit', name: 'Savings Deposits', description: 'Deposit to a member’s regular savings account.', icon: Wallet },
       { id: 'time-deposit', name: 'Time Deposits', description: 'Create a time deposit with maturity terms.', icon: Landmark },
