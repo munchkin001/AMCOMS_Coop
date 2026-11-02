@@ -387,28 +387,32 @@ const TransactionWorkflow = ({ role }) => {
       )}
 
       <section className="space-y-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-6">
-        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
-          <label className="relative block xl:col-span-2">
+        <div className="grid min-w-0 gap-4 md:grid-cols-2 xl:grid-cols-6">
+          <label className="relative block min-w-0 xl:col-span-2">
             <span className="sr-only">Search transactions</span>
             <Search size={17} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" aria-hidden="true" />
-            <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search reference, requester, payee…" className="w-full rounded-lg border border-slate-300 py-2.5 pl-9 pr-3 text-sm focus:border-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-100" />
+            <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search reference, requester, payee…" className="min-h-11 w-full rounded-lg border border-slate-300 py-2.5 pl-9 pr-3 text-sm focus:border-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-100" />
           </label>
-          <label className="text-sm text-slate-600">
+          <label className="min-w-0 text-sm text-slate-600">
             Status
-            <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-900">
+            <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} className="mt-1 min-h-11 w-full min-w-0 rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-900">
               {visibleStatuses.map((status) => <option key={status} value={status}>{status === 'all' ? 'All statuses' : status === 'completed' ? 'Completed / Cash released' : STATUS_LABELS[status]}</option>)}
             </select>
           </label>
-          <label className="text-sm text-slate-600">
+          <label className="min-w-0 text-sm text-slate-600">
             Type
-            <select value={typeFilter} onChange={(event) => setTypeFilter(event.target.value)} className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-900">
+            <select value={typeFilter} onChange={(event) => setTypeFilter(event.target.value)} className="mt-1 min-h-11 w-full min-w-0 rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-900">
               <option value="all">All types</option>
               {Object.entries(TYPE_LABELS).map(([type, label]) => <option key={type} value={type}>{label}</option>)}
             </select>
           </label>
-          <div className="grid grid-cols-2 gap-2">
-            <label className="text-sm text-slate-600">From<input type="date" value={dateFrom} onChange={(event) => setDateFrom(event.target.value)} className="mt-1 w-full rounded-lg border border-slate-300 px-2 py-2 text-sm text-slate-900" /></label>
-            <label className="text-sm text-slate-600">To<input type="date" value={dateTo} onChange={(event) => setDateTo(event.target.value)} className="mt-1 w-full rounded-lg border border-slate-300 px-2 py-2 text-sm text-slate-900" /></label>
+          <div className="grid min-w-0 grid-cols-2 gap-3 md:col-span-2 xl:col-span-2">
+            <label className="min-w-0 text-sm text-slate-600">From
+              <input type="date" value={dateFrom} onChange={(event) => setDateFrom(event.target.value)} className="mt-1 min-h-11 w-full min-w-0 rounded-lg border border-slate-300 px-3 py-2.5 text-sm text-slate-900" />
+            </label>
+            <label className="min-w-0 text-sm text-slate-600">To
+              <input type="date" value={dateTo} onChange={(event) => setDateTo(event.target.value)} className="mt-1 min-h-11 w-full min-w-0 rounded-lg border border-slate-300 px-3 py-2.5 text-sm text-slate-900" />
+            </label>
           </div>
         </div>
 
