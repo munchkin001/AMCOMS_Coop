@@ -7,7 +7,6 @@ import { supabase } from '../../lib/supabase';
 import { useRealtimeSubscription } from '../../hooks/useRealtimeSubscription';
 
 const PAGE_SIZE = 20;
-const SENSITIVE_FIELD = /password|token|secret|api.?key|credential/i;
 
 const getCurrentMonthKey = () => {
   const parts = new Intl.DateTimeFormat('en', {
@@ -89,72 +88,6 @@ const getDeviceInfo = (userAgent, reportedModel) => {
               : 'Browser not identified';
 
   return { device, browser };
-};
-
-const fieldLabels = {
-  amount: 'Amount',
-  amount_paid: 'Amount paid',
-  balance: 'Balance',
-  balance_after: 'Balance after',
-  cash_disbursement_id: 'Cash disbursement ID',
-  cash_receipt_id: 'Cash receipt ID',
-  credit_amount: 'Credit amount',
-  debit_amount: 'Debit amount',
-  entry_number: 'Journal entry number',
-  account_id: 'Account',
-  journal_entry_id: 'Journal entry',
-  loan_id: 'Loan',
-  member_id: 'Member',
-  payment_method: 'Payment method',
-  payment_number: 'Payment number',
-  receipt_number: 'Receipt number',
-  reference_number: 'Reference number',
-  received_from: 'Received from',
-  voucher_number: 'Voucher number'
-};
-
-const formatFieldLabel = (field) => fieldLabels[field] || field
-  .replaceAll('_', ' ')
-  .replace(/\b\w/g, (letter) => letter.toUpperCase());
-
-const sanitizeAuditValue = (value) => {
-  if (Array.isArray(value)) return value.map(sanitizeAuditValue);
-  if (!value || typeof value !== 'object') return value;
-  return Object.fromEntries(Object.entries(value).map(([key, nestedValue]) => [
-    key,
-    SENSITIVE_FIELD.test(key) ? '[Redacted]' : sanitizeAuditValue(nestedValue)
-  ]));
-};
-
-const MONEY_FIELD = /(^amount$|amount_|_amount$|^balance$|balance_after|^principal|^interest|^penalty|^total_|^debit_|^credit_)/i;
-
-const formatAuditValue = (value, field = '') => {
-  if (value === null || value === undefined || value === '') return '—';
-  if (MONEY_FIELD.test(field) && Number.isFinite(Number(value))) {
-    return new Intl.NumberFormat('en-PH', {
-      style: 'currency',
-      currency: 'PHP',
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2
-    }).format(Number(value));
-  }
-  if (typeof value === 'object') return JSON.stringify(sanitizeAuditValue(value), null, 2);
-  return String(value);
-};
-
-const getChangedFields = (log) => {
-  const oldData = log.old_data && typeof log.old_data === 'object' ? log.old_data : {};
-  const newData = log.new_data && typeof log.new_data === 'object' ? log.new_data : {};
-  const fields = new Set([...Object.keys(oldData), ...Object.keys(newData)]);
-
-  return Array.from(fields)
-    .filter((field) => !SENSITIVE_FIELD.test(field))
-    .filter((field) => JSON.stringify(oldData[field]) !== JSON.stringify(newData[field]))
-    .map((field) => ({
-      field,
-      oldValue: Object.prototype.hasOwnProperty.call(oldData, field) ? formatAuditValue(oldData[field], field) : 'Not present',
-      newValue: Object.prototype.hasOwnProperty.call(newData, field) ? formatAuditValue(newData[field], field) : 'Not present'
-    }));
 };
 
 const getFinancialContext = async (log) => {
@@ -484,20 +417,6 @@ const AuditLog = () => {
   const activeAreaCount = new Set(auditLogs.map((log) => getModule(log.table_name))).size;
   const accessEventCount = auditLogs.filter((log) => log.table_name === 'authentication').length;
   const latestActivity = auditLogs[0] ? formatDateTime(auditLogs[0].created_at) : 'No activity yet';
-  const selectedChanges = selectedLog ? getChangedFields(selectedLog) : [];
-  const resolvedRelationLabels = {
-    account_id: ['Account'],
-    cash_disbursement_id: ['Voucher number'],
-    cash_receipt_id: ['Receipt number'],
-    journal_entry_id: ['Journal entry'],
-    loan_id: ['Loan number'],
-    member_id: ['Member'],
-    receipt_id: ['Receipt number']
-  };
-  const visibleSelectedChanges = selectedChanges.filter(({ field }) => (
-    !resolvedRelationLabels[field]?.some((label) => relatedContext.some((item) => item.label === label))
-  ));
-
   const openLogDetails = async (log) => {
     const requestId = ++relatedContextRequestRef.current;
     setSelectedLog(log);
@@ -510,7 +429,7 @@ const AuditLog = () => {
     } catch (error) {
       console.error('Unable to load related audit details:', error);
       if (requestId === relatedContextRequestRef.current) {
-        setRelatedContextError('Related record details could not be loaded. The recorded field changes are still available below.');
+        setRelatedContextError('Related record details could not be loaded. Please review the event summary above.');
       }
     } finally {
       if (requestId === relatedContextRequestRef.current) setRelatedContextLoading(false);
@@ -976,36 +895,6 @@ const AuditLog = () => {
                 </section>
               )}
 
-              <section className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-                <header className="border-b border-slate-100 px-4 py-3">
-                  <h3 className="text-sm font-semibold text-slate-900">What changed</h3>
-                  <p className="mt-1 text-xs text-slate-500">Financial amounts show in Philippine pesos. Sensitive credential fields are hidden.</p>
-                </header>
-                {visibleSelectedChanges.length === 0 ? (
-                  <p className="px-4 py-6 text-center text-sm text-slate-500">No field-level changes were recorded for this event.</p>
-                ) : (
-                  <div className="overflow-x-auto">
-                    <table className="w-full min-w-[520px] text-left text-sm">
-                      <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
-                        <tr>
-                          <th scope="col" className="px-4 py-2.5 font-semibold">Field</th>
-                          <th scope="col" className="px-4 py-2.5 font-semibold">Previous value</th>
-                          <th scope="col" className="px-4 py-2.5 font-semibold">New value</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-100">
-                        {visibleSelectedChanges.map(({ field, oldValue, newValue }) => (
-                          <tr key={field} className="align-top">
-                            <th scope="row" className="whitespace-nowrap px-4 py-3 text-left font-semibold text-slate-700">{formatFieldLabel(field)}</th>
-                            <td className="max-w-64 break-words px-4 py-3 text-slate-600"><pre className="whitespace-pre-wrap break-words font-sans text-xs">{oldValue}</pre></td>
-                            <td className="max-w-64 break-words px-4 py-3 text-slate-900"><pre className="whitespace-pre-wrap break-words font-sans text-xs">{newValue}</pre></td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                )}
-              </section>
             </div>
             <footer className="flex justify-end border-t border-slate-200 bg-white px-5 py-4 sm:px-6">
               <button
