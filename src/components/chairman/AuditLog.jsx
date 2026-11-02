@@ -57,6 +57,41 @@ const formatDateTime = (date) => new Date(date).toLocaleString('en-PH', {
   second: '2-digit'
 });
 
+const getDeviceInfo = (userAgent) => {
+  if (!userAgent) return { device: 'Not recorded', browser: 'Not recorded' };
+
+  const device = /iPad|Tablet/i.test(userAgent)
+    ? 'Tablet'
+    : /iPhone|iPod|Android.*Mobile|Mobile/i.test(userAgent)
+      ? 'Smartphone'
+      : /Android/i.test(userAgent)
+        ? 'Android device'
+        : /Windows NT/i.test(userAgent)
+          ? 'Windows computer'
+          : /Macintosh|Mac OS X/i.test(userAgent)
+            ? 'Mac computer'
+            : /CrOS/i.test(userAgent)
+              ? 'Chromebook'
+              : /Linux/i.test(userAgent)
+                ? 'Linux computer'
+                : 'Other device';
+  const browser = /Edg\//i.test(userAgent)
+    ? 'Microsoft Edge'
+    : /OPR\//i.test(userAgent)
+      ? 'Opera'
+      : /SamsungBrowser/i.test(userAgent)
+        ? 'Samsung Internet'
+        : /Firefox\//i.test(userAgent)
+          ? 'Firefox'
+          : /CriOS|Chrome\//i.test(userAgent)
+            ? 'Chrome'
+            : /Safari\//i.test(userAgent)
+              ? 'Safari'
+              : 'Browser not identified';
+
+  return { device, browser };
+};
+
 const formatFieldLabel = (field) => field
   .replaceAll('_', ' ')
   .replace(/\b\w/g, (letter) => letter.toUpperCase());
@@ -331,13 +366,15 @@ const AuditLog = () => {
 
   const handleExport = () => {
     const rows = [
-      ['Date and time (Manila)', 'Staff', 'Role', 'Activity', 'Area', 'Table', 'Record ID'],
+      ['Date and time (Manila)', 'Staff', 'Role', 'Activity', 'Area', 'Device', 'Browser', 'Table', 'Record ID'],
       ...filteredLogs.map((log) => [
         formatDateTime(log.created_at),
         getActorName(log),
         log.staff?.role || '',
         getActivityLabel(log),
         getModule(log.table_name),
+        log.table_name === 'authentication' && log.action === 'Signed in' ? getDeviceInfo(log.user_agent).device : '',
+        log.table_name === 'authentication' && log.action === 'Signed in' ? getDeviceInfo(log.user_agent).browser : '',
         log.table_name || '',
         log.record_id || ''
       ]),
@@ -603,13 +640,14 @@ const AuditLog = () => {
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[760px] text-left text-sm">
+            <table className="w-full min-w-[900px] text-left text-sm">
               <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
                 <tr>
                   <th scope="col" className="px-5 py-3 font-semibold">Date &amp; time</th>
                   <th scope="col" className="px-5 py-3 font-semibold">Staff</th>
                   <th scope="col" className="px-5 py-3 font-semibold">Activity</th>
                   <th scope="col" className="px-5 py-3 font-semibold">Area</th>
+                  <th scope="col" className="px-5 py-3 font-semibold">Device / browser</th>
                   <th scope="col" className="px-5 py-3 font-semibold">Record</th>
                   <th scope="col" className="px-5 py-3"><span className="sr-only">Details</span></th>
                 </tr>
@@ -617,6 +655,7 @@ const AuditLog = () => {
               <tbody className="divide-y divide-slate-100">
                 {pageLogs.map((log) => {
                   const module = getModule(log.table_name);
+                  const deviceInfo = getDeviceInfo(log.user_agent);
                   return (
                     <tr
                       key={log.id}
@@ -639,6 +678,14 @@ const AuditLog = () => {
                       <td className="px-5 py-4 font-medium text-slate-800">{getActivityLabel(log)}</td>
                       <td className="px-5 py-4">
                         <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${getModuleColor(module)}`}>{module}</span>
+                      </td>
+                      <td className="px-5 py-4 text-slate-700">
+                        {log.table_name === 'authentication' && log.action === 'Signed in' ? (
+                          <>
+                            <p className="font-medium">{deviceInfo.device}</p>
+                            <p className="mt-0.5 text-xs text-slate-500">{deviceInfo.browser}</p>
+                          </>
+                        ) : <span className="text-slate-400">—</span>}
                       </td>
                       <td className="max-w-48 truncate px-5 py-4 font-mono text-xs text-slate-500" title={log.record_id || log.table_name || ''}>
                         {log.record_id || log.table_name || '—'}
@@ -716,7 +763,13 @@ const AuditLog = () => {
                   ['Area', getModule(selectedLog.table_name)],
                   ['Source table', selectedLog.table_name || 'Not recorded'],
                   ['Record ID', selectedLog.record_id || 'Not recorded'],
-                  ['IP address', selectedLog.ip_address || 'Not recorded']
+                  ['IP address', selectedLog.ip_address || 'Not recorded'],
+                  ...(selectedLog.table_name === 'authentication' && selectedLog.action === 'Signed in'
+                    ? [
+                        ['Device used', getDeviceInfo(selectedLog.user_agent).device],
+                        ['Browser', getDeviceInfo(selectedLog.user_agent).browser]
+                      ]
+                    : [])
                 ].map(([label, value]) => (
                   <div key={label} className="min-w-0 rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
                     <dt className="text-xs font-medium text-slate-500">{label}</dt>
