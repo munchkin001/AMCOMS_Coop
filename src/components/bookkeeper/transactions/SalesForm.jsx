@@ -493,8 +493,8 @@ const SalesForm = ({ onSave, onCancel }) => {
             <label className="text-sm font-medium text-gray-700">
               Payment status *
               <select value={form.paymentType} onChange={(event) => setForm({ ...form, paymentType: event.target.value })} className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2">
-                <option value="cash">Paid now — money received</option>
-                <option value="credit">On credit — amount due</option>
+                <option value="cash">Money received</option>
+                <option value="credit">Amount due</option>
               </select>
               {form.paymentType === 'credit' && (
                 <span className="mt-1 block text-xs text-gray-600">
