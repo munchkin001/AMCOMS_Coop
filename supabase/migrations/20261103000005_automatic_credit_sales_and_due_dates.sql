@@ -144,15 +144,47 @@ BEGIN
 END;
 $$;
 
+UPDATE public.transaction_workflows AS workflow
+SET payload = jsonb_set(
+      workflow.payload,
+      '{p_sale,due_date}',
+      to_jsonb(COALESCE(
+        NULLIF(workflow.payload #>> '{p_sale,due_date}', ''),
+        NULLIF(workflow.payload #>> '{p_sale,transaction_date}', ''),
+        (now() AT TIME ZONE 'Asia/Manila')::DATE::TEXT
+      )),
+      true
+    ),
+    approved_payload = CASE
+      WHEN workflow.approved_payload IS NULL THEN NULL
+      ELSE jsonb_set(
+        workflow.approved_payload,
+        '{p_sale,due_date}',
+        to_jsonb(COALESCE(
+          NULLIF(workflow.approved_payload #>> '{p_sale,due_date}', ''),
+          NULLIF(workflow.approved_payload #>> '{p_sale,transaction_date}', ''),
+          (now() AT TIME ZONE 'Asia/Manila')::DATE::TEXT
+        )),
+        true
+      )
+    END,
+    updated_at = now()
+FROM public.staff AS creator
+WHERE creator.id = workflow.created_by
+  AND creator.role = 'bookkeeper'
+  AND workflow.transaction_type = 'sale'
+  AND workflow.payload #>> '{p_sale,payment_type}' = 'credit'
+  AND workflow.status IN ('pending_approval', 'approved')
+  AND COALESCE(workflow.payload #>> '{p_sale,due_date}', '') = '';
+
 DO $$
 DECLARE
   v_workflow RECORD;
-  v_payload JSONB;
   v_result JSONB;
 BEGIN
   FOR v_workflow IN
     SELECT workflow.id, workflow.created_by_auth_id, workflow.created_by,
-           workflow.payload, staff.role
+           workflow.payload
     FROM public.transaction_workflows AS workflow
     JOIN public.staff AS staff ON staff.id = workflow.created_by
     WHERE workflow.transaction_type = 'sale'
@@ -165,22 +197,9 @@ BEGIN
     ORDER BY workflow.created_at
   LOOP
     PERFORM set_config('request.jwt.claim.sub', v_workflow.created_by_auth_id::TEXT, true);
-    v_payload := v_workflow.payload;
-    IF COALESCE(v_payload #>> '{p_sale,due_date}', '') = '' THEN
-      v_payload := jsonb_set(
-        v_payload,
-        '{p_sale,due_date}',
-        to_jsonb(COALESCE(
-          NULLIF(v_payload #>> '{p_sale,transaction_date}', '')::DATE,
-          (now() AT TIME ZONE 'Asia/Manila')::DATE
-        )::TEXT),
-        true
-      );
-    END IF;
 
     UPDATE public.transaction_workflows
-    SET payload = v_payload,
-        approved_payload = v_payload,
+    SET approved_payload = payload,
         status = 'approved',
         updated_at = now()
     WHERE id = v_workflow.id
@@ -194,7 +213,7 @@ BEGIN
         v_workflow.id, 'approved', 'pending_approval', 'approved',
         v_workflow.created_by_auth_id, v_workflow.created_by,
         'Credit sale recorded automatically; Manager approval is not required.',
-        jsonb_build_object('payload', v_payload)
+        jsonb_build_object('payload', v_workflow.payload)
       );
 
       v_result := public.process_transaction_workflow(v_workflow.id);
