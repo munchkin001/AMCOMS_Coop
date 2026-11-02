@@ -25,6 +25,53 @@ const roleLabels = {
   inventory: 'Inventory Staff'
 };
 
+const announcementTemplates = [
+  {
+    subject: 'General Assembly Reminder',
+    message: '<p>Dear Members,</p><p>This is a reminder that our General Assembly will be held on <strong>[date]</strong> at <strong>[time]</strong> at <strong>[venue]</strong>.</p><p>Please arrive on time and bring your membership identification. The meeting will cover cooperative updates, reports, and matters requiring member participation.</p><p>We look forward to seeing you.</p><p>Regards,<br>Agay-ayan Multi-Purpose Cooperative</p>'
+  },
+  {
+    subject: 'Board Meeting Notice',
+    message: '<p>Dear Board Members,</p><p>Please be informed that a board meeting is scheduled for <strong>[date]</strong> at <strong>[time]</strong> at <strong>[venue or meeting link]</strong>.</p><p>Agenda: <strong>[briefly list agenda items]</strong>. Please review any relevant materials in advance and confirm your attendance with the office.</p><p>Thank you,<br>Agay-ayan Multi-Purpose Cooperative</p>'
+  },
+  {
+    subject: 'Annual Membership Meeting',
+    message: '<p>Dear Members,</p><p>You are invited to attend the Annual Membership Meeting on <strong>[date]</strong> at <strong>[time]</strong> at <strong>[venue]</strong>.</p><p>The meeting will include cooperative updates, annual reports, and an opportunity to raise questions and discuss member concerns. Please bring your membership identification and arrive a few minutes early for registration.</p><p>We value your participation.</p><p>Regards,<br>Agay-ayan Multi-Purpose Cooperative</p>'
+  },
+  {
+    subject: 'Dividend Distribution Schedule',
+    message: '<p>Dear Members,</p><p>Dividend distribution is scheduled to begin on <strong>[start date]</strong> and will be available until <strong>[end date]</strong> at <strong>[office or distribution location]</strong>.</p><p>Please bring a valid membership identification. For your distribution date or eligibility details, contact the cooperative office at <strong>[contact information]</strong>.</p><p>Thank you for your continued support.</p><p>Regards,<br>Agay-ayan Multi-Purpose Cooperative</p>'
+  },
+  {
+    subject: 'Membership Orientation',
+    message: '<p>Dear Member,</p><p>We invite you to attend a membership orientation on <strong>[date]</strong> at <strong>[time]</strong> at <strong>[venue]</strong>.</p><p>The session will introduce the cooperative, explain member rights and responsibilities, and provide an overview of available services. Please confirm your attendance by <strong>[RSVP date/contact]</strong>.</p><p>We look forward to welcoming you.</p><p>Regards,<br>Agay-ayan Multi-Purpose Cooperative</p>'
+  },
+  {
+    subject: 'Loan Program Announcement',
+    message: '<p>Dear Members,</p><p>Information about the cooperative’s <strong>[loan program name]</strong> is now available. The program is intended for <strong>[brief eligibility summary]</strong> and applications may be submitted from <strong>[opening date]</strong> to <strong>[closing date]</strong>.</p><p>To review eligibility, requirements, rates, and repayment terms, please contact the cooperative office or visit <strong>[office/location]</strong>. Approval is subject to the cooperative’s policies and assessment process.</p><p>Regards,<br>Agay-ayan Multi-Purpose Cooperative</p>'
+  },
+  {
+    subject: 'Training and Seminar Invitation',
+    message: '<p>Dear Members and Staff,</p><p>You are invited to a <strong>[training/seminar topic]</strong> on <strong>[date]</strong> from <strong>[start time]</strong> to <strong>[end time]</strong> at <strong>[venue]</strong>.</p><p>The session will cover <strong>[brief description of topics]</strong>. Please confirm your attendance with <strong>[contact person or office]</strong> by <strong>[RSVP date]</strong>. Kindly arrive on time.</p><p>We hope you can join us.</p><p>Regards,<br>Agay-ayan Multi-Purpose Cooperative</p>'
+  },
+  {
+    subject: 'Product Promotion',
+    message: '<p>Dear Members,</p><p>We are pleased to share information about <strong>[product or service]</strong>, available from <strong>[start date]</strong> to <strong>[end date]</strong>.</p><p><strong>Offer details:</strong> [describe the offer, price, or applicable terms]. For availability and inquiries, please contact <strong>[contact information]</strong> or visit <strong>[location]</strong>.</p><p>Please review any eligibility requirements and terms before participating.</p><p>Regards,<br>Agay-ayan Multi-Purpose Cooperative</p>'
+  },
+  {
+    subject: 'Office Closure Notice',
+    message: '<p>Dear Members,</p><p>Please be advised that the cooperative office will be closed on <strong>[date(s)]</strong> due to <strong>[reason, if appropriate]</strong>.</p><p>Regular office hours will resume on <strong>[reopening date and time]</strong>. Please plan your transactions accordingly. For urgent concerns during the closure, contact <strong>[approved contact details]</strong>.</p><p>We apologize for any inconvenience.</p><p>Regards,<br>Agay-ayan Multi-Purpose Cooperative</p>'
+  },
+  {
+    subject: 'Emergency Advisory',
+    message: '<p><strong>Important advisory for members and staff</strong></p><p>Due to <strong>[verified situation]</strong>, please follow this guidance: <strong>[official instruction or action to take]</strong>.</p><p>Updates will be shared through <strong>[official communication channel]</strong>. For assistance, contact <strong>[verified emergency or office contact]</strong>. Please rely on official cooperative updates and avoid sharing unverified information.</p><p>Please take care and follow guidance from the appropriate authorities.</p><p>Agay-ayan Multi-Purpose Cooperative</p>'
+  },
+  {
+    subject: 'Holiday Schedule',
+    message: '<p>Dear Members,</p><p>Please note the cooperative’s holiday operating schedule: the office will be <strong>[open/closed]</strong> on <strong>[date(s)]</strong>.</p><p>Regular business hours will resume on <strong>[date and time]</strong>. Kindly complete time-sensitive transactions before the holiday schedule begins. For questions, contact <strong>[office contact information]</strong>.</p><p>We wish you a safe and pleasant holiday.</p><p>Regards,<br>Agay-ayan Multi-Purpose Cooperative</p>'
+  }
+];
+
 const Announcements = () => {
   const { staff } = useAuth();
   const [subject, setSubject] = useState('');
@@ -88,20 +135,6 @@ const Announcements = () => {
     setAnnouncementToDiscard(null);
     loadAnnouncements();
   };
-
-  const templates = [
-    'General Assembly Reminder',
-    'Board Meeting Notice',
-    'Annual Membership Meeting',
-    'Dividend Distribution Schedule',
-    'Membership Orientation',
-    'Loan Program Announcement',
-    'Training and Seminar Invitation',
-    'Product Promotion',
-    'Office Closure Notice',
-    'Emergency Advisory',
-    'Holiday Schedule'
-  ];
 
   const handleRecipientChange = (key) => {
     setRecipients({
@@ -183,7 +216,8 @@ const Announcements = () => {
   };
 
   const handleTemplateClick = (template) => {
-    setSubject(template);
+    setSubject(template.subject);
+    setMessage(template.message);
   };
 
   return (
@@ -334,13 +368,16 @@ const Announcements = () => {
           <div className="bg-white rounded-lg shadow border border-gray-200 p-6">
             <h4 className="text-lg font-semibold text-gray-900 mb-4">Quick Templates</h4>
             <div className="space-y-2">
-              {templates.map((template, idx) => (
+              {announcementTemplates.map((template) => (
                 <button
-                  key={idx}
+                  key={template.subject}
                   onClick={() => handleTemplateClick(template)}
-                  className="w-full text-left px-4 py-3 bg-gray-50 hover:bg-blue-50 border border-gray-200 hover:border-blue-300 rounded-lg transition-colors text-sm text-gray-700 hover:text-blue-700"
+                  className="w-full rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 text-left transition-colors hover:border-blue-300 hover:bg-blue-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600"
                 >
-                  {template}
+                  <span className="block text-sm font-medium text-gray-800">{template.subject}</span>
+                  <span className="mt-1 line-clamp-2 block text-xs leading-5 text-gray-500">
+                    {richTextToPlainText(template.message)}
+                  </span>
                 </button>
               ))}
             </div>
