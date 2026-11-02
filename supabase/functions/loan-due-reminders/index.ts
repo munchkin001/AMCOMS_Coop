@@ -31,9 +31,9 @@ Deno.serve(async (request) => {
   }
 
   const admin = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!);
-  const apiKey = Deno.env.get('SEMAPHORE_API_KEY');
-  const senderName = Deno.env.get('SEMAPHORE_SENDER_NAME') || 'AMCOMS';
-  if (!apiKey) return new Response(JSON.stringify({ error: 'SMS not configured' }), { status: 503 });
+  const apiToken = Deno.env.get('MOCEAN_API_KEY');
+  const senderName = Deno.env.get('MOCEAN_SENDER_NAME') || 'AMCOMS';
+  if (!apiToken) return new Response(JSON.stringify({ error: 'Mocean SMS not configured' }), { status: 503 });
 
   const { data: penalties } = await admin.rpc('apply_loan_penalties');
 
@@ -78,26 +78,45 @@ Deno.serve(async (request) => {
         message,
         notification_type: type,
         status: 'pending',
-        provider: 'semaphore',
+        provider: 'mocean',
         related_table: 'loan_schedule',
         related_id: row.id
       }).select('id').single();
       if (!log) continue;
 
       try {
-        const res = await fetch('https://api.semaphore.co/api/v4/messages', {
+        const res = await fetch('https://rest.moceanapi.com/rest/2/sms', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-          body: new URLSearchParams({ apikey: apiKey, number: phone, message, sendername: senderName }),
+          headers: {
+            Authorization: apiToken,
+            'Content-Type': 'application/x-www-form-urlencoded'
+          },
+          body: new URLSearchParams({
+            'mocean-from': senderName,
+            'mocean-to': phone,
+            'mocean-text': message
+          }),
           signal: AbortSignal.timeout(20000)
         });
-        const body = await res.json().catch(() => null);
-        const ok = res.ok && Array.isArray(body) && !/fail|error|invalid/i.test(String(body[0]?.status || ''));
+        const body: unknown = await res.json().catch(() => null);
+        const responseBody = body && typeof body === 'object' && !Array.isArray(body)
+          ? body as Record<string, unknown>
+          : null;
+        const messages = Array.isArray(responseBody?.messages) ? responseBody.messages : [];
+        const result = messages[0] && typeof messages[0] === 'object'
+          ? messages[0] as Record<string, unknown>
+          : null;
+        const ok = res.status === 202 && Number(result?.status) === 0;
         await admin.from('sms_logs').update({
           status: ok ? 'sent' : 'failed',
-          provider_response: { http_status: res.status }
+          provider_response: {
+            http_status: res.status,
+            message_id: result?.msgid ?? null,
+            error: result?.err_msg ?? null
+          }
         }).eq('id', log.id);
-        ok ? sent++ : failed++;
+        if (ok) sent++;
+        else failed++;
       } catch {
         await admin.from('sms_logs').update({ status: 'failed', provider_response: { error: 'request failed' } }).eq('id', log.id);
         failed++;

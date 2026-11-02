@@ -29,7 +29,7 @@ const SMSCenter = () => {
     setBalanceError('');
 
     try {
-      const { data, error: balanceLoadError } = await supabase.functions.invoke('semaphore-sms', {
+      const { data, error: balanceLoadError } = await supabase.functions.invoke('mocean-sms', {
         body: { action: 'balance' }
       });
 
@@ -40,7 +40,7 @@ const SMSCenter = () => {
         } catch {
           serverMessage = null;
         }
-        throw new Error(serverMessage || balanceLoadError.message || 'SMS credits could not be loaded.');
+        throw new Error(serverMessage || balanceLoadError.message || 'Mocean account balance could not be loaded.');
       }
 
       const rawBalance = data?.balance;
@@ -51,11 +51,11 @@ const SMSCenter = () => {
         setAccountBalance(balance);
         setBalanceUnit(data.unit.trim());
       } else {
-        throw new Error('Mocean returned an invalid account balance.');
+        throw new Error('The deployed Mocean SMS function returned an unsupported balance response. Deploy the mocean-sms Edge Function and try again.');
       }
     } catch (balanceLoadError) {
       console.error('Error loading SMS balance:', balanceLoadError);
-      setBalanceError(balanceLoadError.message || 'SMS credits could not be loaded.');
+      setBalanceError(balanceLoadError.message || 'Mocean account balance could not be loaded.');
     } finally {
       balanceRequestInProgressRef.current = false;
       setLoadingBalance(false);
@@ -104,7 +104,7 @@ const SMSCenter = () => {
     setSending(true);
 
     try {
-      const { error: sendError } = await supabase.functions.invoke('semaphore-sms', {
+      const { error: sendError } = await supabase.functions.invoke('mocean-sms', {
         body: { action: 'send', phone, message }
       });
       if (sendError) {
