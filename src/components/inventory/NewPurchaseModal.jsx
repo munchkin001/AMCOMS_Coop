@@ -3,6 +3,7 @@ import { Plus, Trash2 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { createPurchase } from '../../lib/inventoryService';
 import { toDateString } from '../../lib/dashboardAccounting';
+import { useAuth } from '../../contexts/AuthContext';
 
 const inputClass = 'w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-500/30';
 const emptyLine = () => ({ key: Math.random().toString(36).slice(2), itemName: '', unit: '', quantity: '', unitCost: '' });
@@ -11,6 +12,7 @@ const formatMoney = (value) => `₱${Number(value || 0).toLocaleString('en-PH', 
 const Required = () => <span className="text-red-600" aria-hidden="true"> *</span>;
 
 const NewPurchaseModal = ({ onClose, onSaved }) => {
+  const { offlineMode, user, staff } = useAuth();
   const [suppliers, setSuppliers] = useState([]);
   const [form, setForm] = useState({
     supplier: '',
@@ -56,6 +58,8 @@ const NewPurchaseModal = ({ onClose, onSaved }) => {
       next.lines = 'Quantities must be whole numbers greater than zero.';
     } else if (lines.some((line) => line.unitCost === '' || !(Number(line.unitCost) >= 0))) {
       next.lines = 'Enter a unit cost for every line.';
+    } else if (lines.reduce((sum, line) => sum + Number(line.quantity) * Number(line.unitCost), 0) <= 0) {
+      next.lines = 'The purchase total must be greater than zero.';
     }
     setErrors(next);
     return Object.keys(next).length === 0;
@@ -68,15 +72,18 @@ const NewPurchaseModal = ({ onClose, onSaved }) => {
 
     setSaving(true);
     try {
-      await createPurchase({
+      const result = await createPurchase({
         supplierName: form.supplier,
         purchaseNumber: form.purchaseNumber,
         date: form.date,
         notes: form.notes,
         receiveNow: form.receiveNow,
+        offlineMode,
+        user,
+        staff,
         items: lines.map((line) => ({ itemName: line.itemName, unit: line.unit, quantity: Number(line.quantity), unitCost: Number(line.unitCost) }))
       });
-      onSaved(form.receiveNow);
+      onSaved(result);
     } catch (error) {
       setFormError(`Unable to save purchase: ${error.message}`);
       setSaving(false);
@@ -144,13 +151,16 @@ const NewPurchaseModal = ({ onClose, onSaved }) => {
 
         <label className="mt-4 flex items-start gap-2 text-sm text-gray-700">
           <input type="checkbox" checked={form.receiveNow} onChange={(event) => setForm((current) => ({ ...current, receiveNow: event.target.checked }))} className="mt-0.5" />
-          <span>Receive items now</span>
+          <span>Mark items received after approval and Bookkeeper processing</span>
         </label>
+        <p className="mt-3 rounded-lg border border-blue-100 bg-blue-50 px-3 py-2 text-xs leading-5 text-blue-900">
+          This purchase will not be recorded until the Manager approves it and the Bookkeeper processes it. Supplier payments are submitted separately as Cash Out transactions.
+        </p>
 
         <div className="mt-6 flex justify-end gap-3">
           <button type="button" onClick={onClose} disabled={saving} className="rounded-lg bg-gray-200 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-300">Cancel</button>
           <button type="submit" disabled={saving} className="rounded-lg bg-orange-600 px-4 py-2 text-sm font-medium text-white hover:bg-orange-700 disabled:opacity-60">
-            {saving ? 'Saving…' : 'Save Purchase'}
+            {saving ? 'Submitting…' : 'Submit for Approval'}
           </button>
         </div>
       </form>

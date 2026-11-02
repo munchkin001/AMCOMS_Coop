@@ -8,6 +8,7 @@ import { getDataLoadErrorMessage } from '../../lib/errorHandler';
 import { queueOperation, getOperation } from '../../lib/Offline/syncQueue';
 import { syncPendingOperations } from '../../lib/Offline/syncOperations';
 import offlineDb from '../../lib/Offline/OfflineDb';
+import TransactionWorkflow from '../common/TransactionWorkflow';
 
 const today = () => new Date().toISOString().slice(0, 10);
 const formatMoney = (value) => `₱${Number(value || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })}`;
@@ -81,7 +82,7 @@ const LoanReleaseCard = ({ loan, onRelease, busy }) => {
   );
 };
 
-const LoanRequests = () => {
+export const LegacyLoanRequests = () => {
   const { user, staff, offlineMode } = useAuth();
   const canReview = staff?.role === 'manager';
   const canRelease = staff?.role === 'bookkeeper';
@@ -927,6 +928,20 @@ const LoanRequests = () => {
           </div>
         </div>
       )}
+    </div>
+  );
+};
+
+const LoanRequests = () => {
+  const { staff } = useAuth();
+
+  if (staff?.role === 'manager' || staff?.role === 'bookkeeper') {
+    return <TransactionWorkflow role={staff.role} />;
+  }
+
+  return (
+    <div role="alert" className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+      Loan approval and release actions are available to Managers and Bookkeepers through the transaction workflow.
     </div>
   );
 };

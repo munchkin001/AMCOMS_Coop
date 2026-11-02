@@ -5,6 +5,7 @@ import StaffLayout from './StaffLayout';
 import LoadingSpinner from '../components/common/LoadingSpinner';
 import StaffProfile from './StaffProfile';
 import PublishedPolicies from '../components/common/PublishedPolicies';
+import TransactionWorkflow from '../components/common/TransactionWorkflow';
 
 // Dashboard Components
 import ChairmanDashboard from '../components/chairman/ChairmanDashboard';
@@ -114,6 +115,18 @@ const StaffPortal = () => {
         <Route
           path="/loan-requests"
           element={['manager', 'bookkeeper', 'treasurer'].includes(staff.role) ? <LoanRequests /> : <Navigate to="/staff/dashboard" replace />}
+        />
+        <Route
+          path="/transaction-approvals"
+          element={staff.role === 'manager' ? <TransactionWorkflow role="manager" /> : <Navigate to="/staff/dashboard" replace />}
+        />
+        <Route
+          path="/approved-transactions"
+          element={staff.role === 'bookkeeper' ? <TransactionWorkflow role="bookkeeper" /> : <Navigate to="/staff/dashboard" replace />}
+        />
+        <Route
+          path="/cash-release"
+          element={staff.role === 'treasurer' ? <TransactionWorkflow role="treasurer" /> : <Navigate to="/staff/dashboard" replace />}
         />
         <Route path="/savings" element={<MemberAccounts />} />
         <Route path="/inventory" element={<OperationsMonitoring />} />

@@ -45,13 +45,6 @@ export const getQuantityOnHand = (product) => {
   return rows.reduce((total, row) => total + Number(row.quantity_on_hand || 0), 0);
 };
 
-const getStaffId = async () => {
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return null;
-  const { data } = await supabase.from('staff').select('id').eq('user_id', user.id).maybeSingle();
-  return data?.id || null;
-};
-
 /**
  * Records a stock movement and its FIFO layer in one database transaction.
  * `quantity` is a positive magnitude; `direction` is 1 (in) or -1 (out).
@@ -136,66 +129,65 @@ export const restockProduct = async ({ productId, quantity, unitCost, supplier, 
   });
 };
 
-const getSupplierId = async (name) => {
-  const trimmed = name?.trim();
-  if (!trimmed) return null;
-
-  const { data: existing, error } = await supabase
-    .from('suppliers')
-    .select('id')
-    .ilike('supplier_name', trimmed.replace(/[%_]/g, '\\$&'))
-    .limit(1);
-  if (error) throw error;
-  if (existing?.[0]) return existing[0].id;
-
-  const code = `SUP-${Date.now().toString(36).toUpperCase()}`;
-  const { data, error: insertError } = await supabase
-    .from('suppliers')
-    .insert({ supplier_code: code, supplier_name: trimmed })
-    .select('id')
-    .single();
-  if (insertError) throw insertError;
-  return data.id;
-};
-
 export const generatePurchaseNumber = (date) => {
   const day = (date || toDateString(new Date())).replace(/-/g, '');
   return `PO-${day}-${Date.now().toString(36).slice(-4).toUpperCase()}`;
 };
 
-export const receivePurchase = async (purchaseId) => {
-  const { data: purchase, error } = await supabase
-    .from('purchases')
-    .select('id, status, purchase_items(id, quantity)')
-    .eq('id', purchaseId)
-    .single();
-  if (error) throw error;
-  if (purchase.status === 'received') throw new Error('This purchase has already been received.');
-  if (purchase.status === 'cancelled') throw new Error('A cancelled purchase cannot be received.');
-
-  // Purchased items are raw materials and supplies, so receiving one does not
-  // change finished-product stock.
-  for (const item of purchase.purchase_items || []) {
-    const { error: itemError } = await supabase
-      .from('purchase_items')
-      .update({ received_quantity: item.quantity })
-      .eq('id', item.id);
-    if (itemError) throw itemError;
+const submitPurchaseWorkflow = async ({
+  action,
+  amount,
+  purchase,
+  sourceRecordId = null,
+  offlineMode = false,
+  user,
+  staff
+}) => {
+  if (!user?.id || !staff?.role) {
+    throw new Error('An authenticated staff profile is required to submit a purchase workflow.');
   }
 
-  const { error: statusError } = await supabase.from('purchases').update({ status: 'received' }).eq('id', purchaseId);
-  if (statusError) throw statusError;
-};
+  const operationId = crypto.randomUUID();
+  const purchaseNumber = purchase.purchase_number;
+  const submission = {
+    p_submission_key: operationId,
+    p_transaction_type: 'purchase',
+    p_direction: 'noncash',
+    p_source_module: 'inventory.purchases',
+    p_source_record_id: sourceRecordId,
+    p_member_id: null,
+    p_counterparty_name: purchase.supplier_name || null,
+    p_amount: Number(amount),
+    p_payment_method: null,
+    p_description: action === 'create'
+      ? `Purchase order ${purchaseNumber}`
+      : `${action === 'receive' ? 'Receive' : 'Cancel'} purchase ${purchaseNumber}`,
+    p_payload: { action, amount: Number(amount), purchase }
+  };
+  if (!Number.isFinite(submission.p_amount) || submission.p_amount <= 0) {
+    throw new Error('The purchase amount must be greater than zero.');
+  }
 
-export const cancelPurchase = async (purchaseId) => {
-  const { data, error } = await supabase
-    .from('purchases')
-    .update({ status: 'cancelled' })
-    .eq('id', purchaseId)
-    .neq('status', 'received')
-    .select('id');
+  if (!navigator.onLine || offlineMode) {
+    await queueOperation({
+      type: 'transaction_workflow',
+      payload: submission,
+      userId: user.id,
+      actorRole: staff.role,
+      actorName: staff.full_name,
+      allowLocalQueue: true,
+      operationId,
+      entityId: sourceRecordId,
+      summary: `${submission.p_description} submitted for approval`,
+      details: { amount: submission.p_amount, type: 'purchase' }
+    });
+    return { pendingSync: true, workflowId: null };
+  }
+
+  const { data, error } = await supabase.rpc('submit_transaction_workflow', submission);
   if (error) throw error;
-  if (!data?.length) throw new Error('Only purchases that have not been received can be cancelled.');
+  if (!data?.workflow_id) throw new Error('The server did not confirm the purchase approval request.');
+  return { pendingApproval: true, workflowId: data.workflow_id };
 };
 
 /**
@@ -203,7 +195,18 @@ export const cancelPurchase = async (purchaseId) => {
  * unit) and are not linked to finished products. With `receiveNow` the order is
  * marked received immediately.
  */
-export const createPurchase = async ({ supplierName, purchaseNumber, date, expectedDate, notes, items, receiveNow }) => {
+export const createPurchase = async ({
+  supplierName,
+  purchaseNumber,
+  date,
+  expectedDate,
+  notes,
+  items,
+  receiveNow,
+  offlineMode = false,
+  user,
+  staff
+}) => {
   const purchaseDate = date || toDateString(new Date());
   const lines = (items || []).filter((item) => item.itemName?.trim());
   if (lines.length === 0) throw new Error('Add at least one item to the purchase.');
@@ -215,53 +218,96 @@ export const createPurchase = async ({ supplierName, purchaseNumber, date, expec
   }
 
   const number = purchaseNumber?.trim() || generatePurchaseNumber(purchaseDate);
-  const { data: duplicate, error: duplicateError } = await supabase
-    .from('purchases')
-    .select('id')
-    .eq('purchase_number', number)
-    .limit(1);
-  if (duplicateError) throw duplicateError;
-  if (duplicate?.length) throw new Error(`Purchase / invoice number ${number} is already recorded.`);
-
   const total = lines.reduce((sum, line) => sum + Number(line.quantity) * Number(line.unitCost), 0);
-  const supplierId = await getSupplierId(supplierName);
-
-  const { data: purchase, error } = await supabase
-    .from('purchases')
-    .insert({
+  if (!Number.isFinite(total) || total <= 0) throw new Error('The purchase total must be greater than zero.');
+  return submitPurchaseWorkflow({
+    action: 'create',
+    amount: total,
+    offlineMode,
+    user,
+    staff,
+    purchase: {
       purchase_number: number,
-      supplier_id: supplierId,
+      supplier_name: supplierName.trim(),
       purchase_date: purchaseDate,
       expected_delivery_date: expectedDate || null,
-      total_amount: total,
-      net_amount: total,
-      status: 'ordered',
-      payment_status: 'pending',
       notes: notes?.trim() || null,
-      created_by: await getStaffId()
-    })
-    .select('id, purchase_number')
-    .single();
-  if (error) throw error;
+      receive_now: Boolean(receiveNow),
+      items: lines.map((line) => ({
+        item_name: line.itemName.trim(),
+        unit: line.unit?.trim() || null,
+        quantity: Number(line.quantity),
+        unit_cost: Number(line.unitCost)
+      }))
+    }
+  });
+};
 
-  const { error: itemsError } = await supabase.from('purchase_items').insert(
-    lines.map((line) => ({
-      purchase_id: purchase.id,
-      item_name: line.itemName.trim(),
-      unit: line.unit?.trim() || null,
-      quantity: Number(line.quantity),
-      unit_cost: Number(line.unitCost),
-      line_total: Number(line.quantity) * Number(line.unitCost),
-      received_quantity: 0
-    }))
-  );
-  if (itemsError) {
-    await supabase.from('purchases').delete().eq('id', purchase.id);
-    throw itemsError;
+export const receivePurchase = async (purchaseId, {
+  offlineMode = false,
+  user,
+  staff,
+  purchase: suppliedPurchase
+} = {}) => {
+  let purchase = suppliedPurchase;
+  if (!purchase) {
+    const { data, error } = await supabase
+      .from('purchases')
+      .select('id, purchase_number, net_amount, status, suppliers(supplier_name)')
+      .eq('id', purchaseId)
+      .single();
+    if (error) throw error;
+    purchase = data;
   }
+  if (purchase.status === 'received') throw new Error('This purchase has already been received.');
+  if (purchase.status === 'cancelled') throw new Error('A cancelled purchase cannot be received.');
+  return submitPurchaseWorkflow({
+    action: 'receive',
+    amount: purchase.net_amount,
+    sourceRecordId: purchase.id,
+    offlineMode,
+    user,
+    staff,
+    purchase: {
+      purchase_id: purchase.id,
+      purchase_number: purchase.purchase_number,
+      supplier_name: purchase.suppliers?.supplier_name || ''
+    }
+  });
+};
 
-  if (receiveNow) await receivePurchase(purchase.id, purchaseDate);
-  return purchase;
+export const cancelPurchase = async (purchaseId, {
+  offlineMode = false,
+  user,
+  staff,
+  purchase: suppliedPurchase
+} = {}) => {
+  let purchase = suppliedPurchase;
+  if (!purchase) {
+    const { data, error } = await supabase
+      .from('purchases')
+      .select('id, purchase_number, net_amount, status, suppliers(supplier_name)')
+      .eq('id', purchaseId)
+      .single();
+    if (error) throw error;
+    purchase = data;
+  }
+  if (['received', 'cancelled'].includes(purchase.status)) {
+    throw new Error('Only unreceived purchases can be cancelled.');
+  }
+  return submitPurchaseWorkflow({
+    action: 'cancel',
+    amount: purchase.net_amount,
+    sourceRecordId: purchase.id,
+    offlineMode,
+    user,
+    staff,
+    purchase: {
+      purchase_id: purchase.id,
+      purchase_number: purchase.purchase_number,
+      supplier_name: purchase.suppliers?.supplier_name || ''
+    }
+  });
 };
 
 export const csvEscape = (value) => {

@@ -9,6 +9,7 @@ import CashReceiptForm from './transactions/CashReceiptForm';
 import CashDisbursementForm from './transactions/CashDisbursementForm';
 import MemberFinancialEntryForm from './transactions/MemberFinancialEntryForm';
 import SalesForm from './transactions/SalesForm';
+import BankTransferForm from './transactions/BankTransferForm';
 import TransactionDetail from './transactions/TransactionDetail';
 
 const Transactions = ({ initialType = null, startNewTransaction = false }) => {
@@ -79,167 +80,153 @@ const Transactions = ({ initialType = null, startNewTransaction = false }) => {
       summary,
       details: { ...details, localRecordedAt: new Date().toISOString() },
     });
-    setActionNotice("Pending Sync: saved on this device, not yet posted. The server will validate it and issue any official receipt number after reconnecting.");
+    setActionNotice("Pending Sync: saved on this device only. It will remain unposted until the server validates it and the Manager reviews it.");
   };
 
   const handleSaveTransaction = async (data) => {
     setActionError('');
     setActionNotice('');
     const shouldQueue = !navigator.onLine || offlineMode;
-    let issuedReceiptNumber = null;
-    let issuedVoucherNumber = null;
-    const saveIdempotently = async (type, payload) => {
-      const { data: response, error } = await supabase.rpc('sync_offline_operation', {
-        p_operation_id: operationId.current,
-        p_operation_type: type,
-        p_payload: payload,
-      });
-      if (error) throw error;
-      if (!response?.accepted || response.operationId !== operationId.current || !('result' in response)) {
-        throw new Error('The server did not confirm this transaction. Retry without starting a new transaction.');
-      }
-      return response.result;
-    };
+    if (data.action === 'cancel-credit-sale' && shouldQueue) {
+      throw new Error('Reconnect before submitting a sales return for approval. Nothing was saved.');
+    }
 
-    if (selectedType === 'sales') {
-      if (data.action === 'cancel-credit-sale') {
-        if (shouldQueue) throw new Error('Reconnect before cancelling a credit sale. Nothing was changed.');
-        const { data: result, error } = await supabase.rpc('cancel_credit_sale', {
-          p_sales_order_id: data.p_sales_order_id,
-          p_reason: data.p_reason,
-          p_returned_items: data.p_returned_items,
-        });
-        if (error) throw error;
-        setActionNotice(result?.already_cancelled
-          ? 'This credit sale was already cancelled; no additional reversal or inventory return was created.'
-          : `Credit sale ${result?.order_number || ''} was cancelled. Only confirmed returned quantities were restored.`);
-      } else if (shouldQueue) {
-        const sale = data.p_sale;
-        await queueOfflineOperation({
-          type: 'cooperative_sale',
-          payload: data,
-          entityId: sale.sales_order_id || sale.product_id || null,
-          summary: sale.flow === 'collection' ? 'Credit sale collection queued' : 'Cooperative sale queued',
-          details: { amount: sale.amount, reference: sale.reference_number },
-        });
-      } else {
-        const result = await saveIdempotently('cooperative_sale', data);
-        issuedReceiptNumber = result?.receipt_number || null;
-      }
-    } else if (['loan-payment', 'savings-deposit', 'other-transaction'].includes(selectedType)) {
-      if (shouldQueue) {
-        if (staff?.role !== 'bookkeeper') {
-          throw new Error('Only a bookkeeper can queue this operation. Nothing was saved.');
-        }
-        const entry = data.p_entry;
-        const memberId = data.p_receipt?.member_id || data.p_disbursement?.member_id;
-        const entryLabels = {
-          savings_deposit: 'Savings deposit',
-          savings_withdrawal: 'Savings withdrawal',
-          time_deposit: 'Time deposit placement',
-          time_deposit_withdrawal: 'Time deposit withdrawal',
-          loan_payment: 'Loan payment',
-          capital_contribution: 'Capital contribution',
-        };
-        const dividend = Boolean(data.dividend);
-        await queueOfflineOperation({
-          type: dividend ? 'member_dividend' : 'member_financial_entry',
-          payload: dividend ? { p_distribution: data.p_distribution } : data,
-          entityId: memberId,
-          summary: dividend
-            ? 'Approved member dividend distribution queued'
-            : `${entryLabels[entry?.entry_type] || 'Member financial entry'} queued`,
-          details: {
-            entryType: dividend ? 'dividend_distribution' : entry?.entry_type,
-            amount: dividend
-              ? Number(data.p_distribution?.dividend_amount || 0) + Number(data.p_distribution?.patronage_amount || 0)
-              : data.p_receipt?.amount ?? data.p_disbursement?.amount ?? null,
-            reference: dividend
-              ? data.p_distribution?.reference_number
-              : data.p_disbursement?.voucher_number ?? null,
-          },
-        });
-      } else {
-        const result = await saveIdempotently(
-          data.dividend ? 'member_dividend' : 'member_financial_entry',
-          data.dividend ? { p_distribution: data.p_distribution } : data
-        );
-        issuedReceiptNumber = result?.receipt_number || null;
-      }
+    let transactionType = selectedEntryType;
+    let direction = 'cash_in';
+    let amount = 0;
+    let memberId = null;
+    let counterpartyName = null;
+    let paymentMethod = null;
+    let description = '';
+
+    if (data.type === 'bank-transfer') {
+      transactionType = 'bank_transfer';
+      direction = 'noncash';
+      amount = Number(data.amount);
+      counterpartyName = `${data.fromAccount} to ${data.toAccount}`;
+      description = data.particulars?.trim() || '';
+      data = {
+        transfer_date: data.date,
+        from_account: data.fromAccount,
+        to_account: data.toAccount,
+        amount,
+        reference_number: data.referenceNumber || null,
+        description,
+      };
+    } else if (selectedType === 'sales') {
+      transactionType = data.action === 'cancel-credit-sale' ? 'sales_return' : 'sale';
+      const sale = data.p_sale;
+      amount = Number(data.amount || sale?.amount || 0);
+      direction = data.action === 'cancel-credit-sale' || sale?.payment_type === 'credit'
+        ? 'noncash'
+        : 'cash_in';
+      memberId = sale?.member_id || null;
+      counterpartyName = sale?.customer_name || null;
+      paymentMethod = sale?.payment_method || null;
+      description = data.action === 'cancel-credit-sale'
+        ? `Return/cancel sale ${data.p_sales_order_id}`
+        : sale?.flow === 'collection'
+          ? `Collection for credit sale ${sale.reference_number}`
+          : `Sale to ${sale?.customer_name || 'customer'}`;
+    } else if (data.dividend) {
+      transactionType = 'approved_dividend';
+      direction = 'noncash';
+      amount = Number(data.p_distribution?.dividend_amount || 0) + Number(data.p_distribution?.patronage_amount || 0);
+      memberId = data.p_distribution?.member_id || null;
+      description = 'Approved dividend and patronage distribution';
+    } else if (data.p_entry) {
+      const entryType = data.p_entry.entry_type;
+      transactionType = entryType;
+      direction = ['savings_withdrawal', 'time_deposit_withdrawal'].includes(entryType)
+        ? 'cash_out'
+        : 'cash_in';
+      amount = Number(data.p_receipt?.amount || data.p_disbursement?.amount || 0);
+      memberId = data.p_receipt?.member_id || data.p_disbursement?.member_id || null;
+      counterpartyName = data.p_receipt?.received_from || data.p_disbursement?.payee || null;
+      paymentMethod = data.p_receipt?.payment_method || null;
+      description = data.p_receipt?.description || data.p_disbursement?.description || entryType.replaceAll('_', ' ');
     } else if (selectedType === 'cash-receipt' || data.type === 'cash-receipt') {
-      const payload = {
+      transactionType = 'other_receipt';
+      amount = Number(data.amount);
+      memberId = data.memberId || null;
+      counterpartyName = data.member?.trim() || null;
+      paymentMethod = data.paymentMethod || null;
+      description = data.particulars?.trim() || '';
+      data = {
         p_receipt: {
           receipt_date: data.date,
           received_from: data.member.trim(),
           member_id: data.memberId || null,
-          amount: Number(data.amount),
+          amount,
           payment_method: data.paymentMethod,
-          description: data.particulars.trim(),
-          status: data.status
+          description,
+          status: 'recorded',
         },
         p_allocations: data.accountDistribution.map((allocation) => ({
           account: allocation.account,
           amount: Number(allocation.amount),
           side: allocation.side,
-          description: allocation.description?.trim() || null
-        }))
+          description: allocation.description?.trim() || null,
+        })),
       };
-
-      if (shouldQueue) {
-        await queueOfflineOperation({
-          type: 'cash_receipt',
-          payload,
-          entityId: data.memberId || null,
-          summary: 'Cash receipt queued for server-issued receipt number',
-          details: { amount: Number(data.amount) },
-        });
-      } else {
-        const result = await saveIdempotently('cash_receipt', payload);
-        issuedReceiptNumber = result?.receipt_number || null;
-      }
     } else if (selectedType === 'cash-disbursement' || data.type === 'cash-disbursement') {
-      const payload = {
+      transactionType = selectedEntryType === 'operating-expense' ? 'operating_expense' : 'other_disbursement';
+      direction = 'cash_out';
+      amount = Number(data.paymentAmount);
+      memberId = data.memberId || null;
+      counterpartyName = data.payee || null;
+      paymentMethod = data.paymentSource === 'cash-in-bank' ? 'bank_transfer' : 'cash';
+      description = data.particulars?.trim() || '';
+      data = {
         p_disbursement: {
           disbursement_date: data.date,
           payee: data.payee,
-          member_id: data.memberId,
-          term_months: data.termMonths ? Number(data.termMonths) : null,
-          payment_frequency: data.paymentFrequency,
-          amount: Number(data.paymentAmount),
+          member_id: data.memberId || null,
+          amount,
           payment_source: data.paymentSource,
-          description: data.particulars.trim(),
-          status: data.status
+          description,
+          status: 'recorded',
         },
         p_allocations: data.accountAllocations.map((allocation) => ({
           account: allocation.account,
-          amount: Number(allocation.amount)
-        }))
+          amount: Number(allocation.amount),
+        })),
       };
-
-      if (shouldQueue) {
-        await queueOfflineOperation({
-          type: 'cash_disbursement',
-          payload,
-          entityId: data.memberId || null,
-          summary: 'Cash disbursement queued for server-issued voucher number',
-          details: { amount: Number(data.paymentAmount) },
-        });
-      } else {
-        const result = await saveIdempotently('cash_disbursement', payload);
-        issuedVoucherNumber = result?.voucher_number || null;
-      }
     } else {
       throw new Error('Unsupported transaction type.');
     }
 
-    if (issuedReceiptNumber) {
-      setActionNotice(`Official receipt ${issuedReceiptNumber} was issued.`);
-    } else if (issuedVoucherNumber) {
-      setActionNotice(`Voucher number ${issuedVoucherNumber} was assigned.`);
-    } else if (!shouldQueue && data.type === 'cash-receipt' && data.status === 'draft') {
-      setActionNotice('Draft saved. An official receipt number will be issued when the receipt is recorded.');
-    } else if (!shouldQueue && data.type === 'cash-disbursement' && data.status === 'draft') {
-      setActionNotice('Draft saved. An official voucher number will be assigned when the disbursement is recorded.');
+    if (!transactionType || !Number.isFinite(amount) || amount <= 0 || !description) {
+      throw new Error('Transaction details are incomplete; nothing was submitted.');
+    }
+
+    const submission = {
+      p_submission_key: operationId.current,
+      p_transaction_type: transactionType,
+      p_direction: direction,
+      p_source_module: 'bookkeeper.transactions',
+      p_source_record_id: data.action === 'cancel-credit-sale' ? data.p_sales_order_id : null,
+      p_member_id: memberId,
+      p_counterparty_name: counterpartyName,
+      p_amount: amount,
+      p_payment_method: paymentMethod,
+      p_description: description,
+      p_payload: data,
+    };
+
+    if (shouldQueue) {
+      await queueOfflineOperation({
+        type: 'transaction_workflow',
+        payload: submission,
+        entityId: memberId,
+        summary: `${transactionType.replaceAll('_', ' ')} submitted for approval`,
+        details: { amount, type: transactionType },
+      });
+    } else {
+      const { data: result, error } = await supabase.rpc('submit_transaction_workflow', submission);
+      if (error) throw error;
+      if (!result?.workflow_id) throw new Error('The server did not confirm the approval request.');
+      setActionNotice(`Transaction submitted for Manager approval · ${result.workflow_id.slice(0, 8).toUpperCase()}. No accounting entry or cash movement has been finalized.`);
     }
 
     setView('list');
@@ -338,9 +325,16 @@ const Transactions = ({ initialType = null, startNewTransaction = false }) => {
               : 'Cash Disbursement Entry'}
           allowExternalPayee={Boolean(selectedEntryType)}
           allowLoanPayable={false}
+          onSelectInternalTransfer={selectedEntryType === 'other-disbursement'
+            ? () => setSelectedType('bank-transfer')
+            : undefined}
           onSave={handleSaveTransaction}
           onCancel={handleCancel}
         />
+      )}
+
+      {view === 'form' && selectedType === 'bank-transfer' && (
+        <BankTransferForm onSave={handleSaveTransaction} onCancel={handleCancel} />
       )}
 
       {view === 'form' && selectedType === 'sales' && (

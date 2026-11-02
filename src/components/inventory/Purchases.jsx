@@ -5,6 +5,7 @@ import { cancelPurchase, receivePurchase } from '../../lib/inventoryService';
 import NewPurchaseModal from './NewPurchaseModal';
 import { useMultipleRealtimeSubscriptions } from '../../hooks/useRealtimeSubscription';
 import { getDataLoadErrorMessage } from '../../lib/errorHandler';
+import { useAuth } from '../../contexts/AuthContext';
 
 const STATUS_STYLES = {
   draft: 'bg-gray-100 text-gray-700',
@@ -34,6 +35,7 @@ const Badge = ({ value, styles }) => (
 );
 
 const Purchases = () => {
+  const { offlineMode, user, staff } = useAuth();
   const [purchases, setPurchases] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -94,8 +96,12 @@ const Purchases = () => {
     setError('');
     setNotice('');
     try {
-      await action(purchase.id);
-      setNotice(message);
+      const result = await action(purchase.id, { offlineMode, user, staff, purchase });
+      setNotice(result?.pendingSync
+        ? 'Purchase approval request saved on this device only. It will not be recorded until the server validates it and the Manager approves it.'
+        : result?.pendingApproval
+          ? 'Purchase request submitted for Manager approval. The purchase record has not been created yet.'
+          : message);
       fetchPurchases();
     } catch (actionError) {
       setError(actionError.message);
@@ -160,9 +166,11 @@ const Purchases = () => {
       {showForm && (
         <NewPurchaseModal
           onClose={() => setShowForm(false)}
-          onSaved={(received) => {
+          onSaved={(result) => {
             setShowForm(false);
-            setNotice(received ? 'Purchase recorded as received.' : 'Purchase order recorded. Mark it received when the items arrive.');
+            setNotice(result?.pendingSync
+              ? 'Purchase approval request saved on this device only. It will not be recorded until the server validates it and the Manager approves it.'
+              : 'Purchase order submitted for Manager approval. It will be recorded after Bookkeeper processing.');
             fetchPurchases();
           }}
         />

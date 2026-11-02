@@ -217,6 +217,7 @@ const SalesForm = ({ onSave, onCancel }) => {
         await onSave({
           action: 'cancel-credit-sale',
           p_sales_order_id: sale.id,
+          amount: Number(sale.net_amount),
           p_reason: cancellationReason.trim(),
           p_returned_items: returnedItems,
         });

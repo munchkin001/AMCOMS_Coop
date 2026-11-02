@@ -17,6 +17,7 @@ const operationTypes = new Set([
   "cash_disbursement_delete",
   "cooperative_sale",
   "member_dividend",
+  "transaction_workflow",
   "loan_application",
   "bookkeeper_loan_application",
   "production_record",
@@ -109,6 +110,8 @@ Deno.serve(async (req) => {
       p_operation_id: operation.operationId,
       p_payload: operation.payload,
     })
+    : operation.type === "transaction_workflow"
+    ? await supabase.rpc("submit_transaction_workflow", operation.payload)
     : await supabase.rpc("sync_offline_operation", {
       p_operation_id: operation.operationId,
       p_operation_type: operation.type,

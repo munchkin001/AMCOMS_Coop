@@ -10,7 +10,8 @@ const CashDisbursementForm = ({
   transaction = null,
   title = 'Cash Disbursement Entry',
   allowExternalPayee = false,
-  allowLoanPayable = false
+  allowLoanPayable = false,
+  onSelectInternalTransfer
 }) => {
   const { user, offlineMode } = useAuth();
   const [formData, setFormData] = useState(transaction ? {
@@ -337,6 +338,14 @@ const CashDisbursementForm = ({
         <h2 className="text-xl font-semibold text-gray-900 mb-6">
           {title}
         </h2>
+        {onSelectInternalTransfer && (
+          <div className="mb-6 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-indigo-100 bg-indigo-50 px-4 py-3">
+            <p className="text-sm text-indigo-900">Transferring between Cash on Hand and Cash in Bank?</p>
+            <button type="button" onClick={onSelectInternalTransfer} className="text-sm font-semibold text-indigo-800 underline underline-offset-2 hover:text-indigo-950">
+              Record journal-only transfer
+            </button>
+          </div>
+        )}
 
         {/* Basic Information */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">

@@ -83,6 +83,13 @@ const staffNavigationConfig = {
       component: 'LoanRequests'
     },
     {
+      id: 'transaction-approvals',
+      name: 'Transaction Approvals',
+      icon: ClipboardList,
+      path: '/staff/transaction-approvals',
+      component: 'TransactionApprovals'
+    },
+    {
       id: 'inventory',
       name: 'Operations Monitoring',
       icon: '📦',
@@ -156,6 +163,13 @@ const staffNavigationConfig = {
       component: 'LoanRequests'
     },
     {
+      id: 'cash-release',
+      name: 'Cash Release',
+      icon: Banknote,
+      path: '/staff/cash-release',
+      component: 'CashRelease'
+    },
+    {
       id: 'loan-collections',
       name: 'Loan Collections',
       icon: '📥',
@@ -206,6 +220,13 @@ const staffNavigationConfig = {
       icon: '💳',
       path: '/staff/transactions',
       component: 'Transactions'
+    },
+    {
+      id: 'approved-transactions',
+      name: 'Approved Transactions',
+      icon: ClipboardList,
+      path: '/staff/approved-transactions',
+      component: 'ApprovedTransactions'
     },
     {
       id: 'loan-requests',

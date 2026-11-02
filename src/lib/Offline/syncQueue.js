@@ -9,6 +9,7 @@ const OPERATION_METADATA = {
   member_contact_update: { module: "profile", operation: "profile update" },
   member_financial_entry: { module: "member-finance", operation: "financial entry" },
   member_dividend: { module: "member-finance", operation: "dividend distribution" },
+  transaction_workflow: { module: "transactions", operation: "approval request" },
   cash_receipt: { module: "accounting", operation: "cash receipt" },
   cash_disbursement: { module: "accounting", operation: "cash disbursement" },
   cash_receipt_delete: { module: "accounting", operation: "cash receipt deletion" },
