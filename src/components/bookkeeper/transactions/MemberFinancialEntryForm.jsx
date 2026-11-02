@@ -144,9 +144,18 @@ const MemberFinancialEntryForm = ({
     const loadMembers = async () => {
       setMembersLoading(true);
       setMembersError('');
+      const loanPaymentOnly = entryType === 'loan_payment';
       const cacheKey = `financial-members:${user?.id}`;
       try {
         if (!navigator.onLine || offlineMode) {
+          if (loanPaymentOnly) {
+            if (active) {
+              setMembers([]);
+              setMemberId('');
+              setMembersError('Reconnect to check which members currently have an active loan balance to pay.');
+            }
+            return;
+          }
           const cached = user?.id ? await offlineDb.cachedData.get(cacheKey) : null;
           if (active && cached?.data) {
             setMembers(cached.data);
@@ -157,15 +166,39 @@ const MemberFinancialEntryForm = ({
           return;
         }
 
-        const { data, error: queryError } = await supabase
+        let eligibleMemberIds = null;
+        if (loanPaymentOnly) {
+          setMembers([]);
+          setMemberId('');
+          const { data: activeLoans, error: loanQueryError } = await supabase
+            .from('loans')
+            .select('member_id')
+            .eq('status', 'active')
+            .gt('balance', 0);
+          if (loanQueryError) {
+            if (active) setMembersError(getDataLoadErrorMessage(loanQueryError, 'loans'));
+            return;
+          }
+          eligibleMemberIds = [...new Set((activeLoans || []).map((loan) => loan.member_id).filter(Boolean))];
+          if (eligibleMemberIds.length === 0) {
+            if (active) {
+              setMembers([]);
+              setMembersError('No members currently have an active loan balance to pay.');
+            }
+            return;
+          }
+        }
+
+        let memberQuery = supabase
           .from('members')
           .select('id, member_number, first_name, middle_name, last_name, date_joined')
           .eq('membership_status', 'active')
-          .is('archived_at', null)
-          .order('last_name');
+          .is('archived_at', null);
+        if (eligibleMemberIds) memberQuery = memberQuery.in('id', eligibleMemberIds);
+        const { data, error: queryError } = await memberQuery.order('last_name');
         if (!active) return;
         if (queryError) {
-          const cached = user?.id ? await offlineDb.cachedData.get(cacheKey) : null;
+          const cached = !loanPaymentOnly && user?.id ? await offlineDb.cachedData.get(cacheKey) : null;
           if (cached?.data) {
             setMembers(cached.data);
             setMembersError('Showing saved member information. Balances and eligibility will be checked when the entry syncs.');
@@ -174,7 +207,10 @@ const MemberFinancialEntryForm = ({
           setMembersError(getDataLoadErrorMessage(queryError, 'members'));
         } else {
           setMembers(data || []);
-          if (user?.id) {
+          if (loanPaymentOnly && !data?.length) {
+            setMembersError('No active members currently have an outstanding loan balance to pay.');
+          }
+          if (!loanPaymentOnly && user?.id) {
             await offlineDb.cachedData.put({
               key: cacheKey,
               data: data || [],
@@ -184,12 +220,12 @@ const MemberFinancialEntryForm = ({
         }
       } catch (loadError) {
         if (!active) return;
-        const cached = user?.id ? await offlineDb.cachedData.get(cacheKey) : null;
+        const cached = !loanPaymentOnly && user?.id ? await offlineDb.cachedData.get(cacheKey) : null;
         if (cached?.data) {
           setMembers(cached.data);
           setMembersError('Showing saved member information. Balances and eligibility will be checked when the entry syncs.');
         } else {
-          setMembersError(getDataLoadErrorMessage(loadError, 'members'));
+          setMembersError(getDataLoadErrorMessage(loadError, loanPaymentOnly ? 'loans' : 'members'));
         }
       } finally {
         if (active) setMembersLoading(false);
@@ -211,7 +247,7 @@ const MemberFinancialEntryForm = ({
       window.removeEventListener('offline', handleOffline);
       window.removeEventListener('online', handleOnline);
     };
-  }, [memberLoadAttempt, offlineMode, user?.id]);
+  }, [entryType, memberLoadAttempt, offlineMode, user?.id]);
 
   useEffect(() => {
     if (!memberId) return undefined;
@@ -514,7 +550,13 @@ const MemberFinancialEntryForm = ({
               required
               className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2"
             >
-              <option value="">{membersLoading ? 'Loading members...' : 'Select member'}</option>
+              <option value="">
+                {membersLoading
+                  ? 'Loading members...'
+                  : entryType === 'loan_payment' && !members.length
+                    ? 'No members with loans due'
+                    : 'Select member'}
+              </option>
               {members.map((member) => (
                 <option key={member.id} value={member.id}>
                   {[member.first_name, member.middle_name, member.last_name].filter(Boolean).join(' ')}{member.member_number ? ` (${member.member_number})` : ''}
