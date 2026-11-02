@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { RefreshCw, Send } from 'lucide-react';
+import { useCallback, useEffect, useState } from 'react';
+import { Send } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 
 const templates = [
@@ -16,52 +16,6 @@ const SMSCenter = () => {
   const [loadingHistory, setLoadingHistory] = useState(true);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState('');
-  const [accountBalance, setAccountBalance] = useState(null);
-  const [balanceUnit, setBalanceUnit] = useState('');
-  const [balanceError, setBalanceError] = useState('');
-  const [loadingBalance, setLoadingBalance] = useState(false);
-  const balanceRequestInProgressRef = useRef(false);
-
-  const loadCreditBalance = useCallback(async () => {
-    if (balanceRequestInProgressRef.current) return;
-    balanceRequestInProgressRef.current = true;
-    setLoadingBalance(true);
-    setBalanceError('');
-
-    try {
-      const { data, error: balanceLoadError } = await supabase.functions.invoke('mocean-sms', {
-        body: { action: 'balance' }
-      });
-
-      if (balanceLoadError) {
-        let serverMessage;
-        try {
-          serverMessage = (await balanceLoadError.context?.clone?.().json())?.error;
-        } catch {
-          serverMessage = null;
-        }
-        throw new Error(serverMessage || balanceLoadError.message || 'Mocean account balance could not be loaded.');
-      }
-
-      const rawBalance = data?.balance;
-      const balance = typeof rawBalance === 'number' || (typeof rawBalance === 'string' && rawBalance.trim() !== '')
-        ? Number(rawBalance)
-        : Number.NaN;
-      if (Number.isFinite(balance) && balance >= 0 && typeof data?.unit === 'string' && data.unit.trim()) {
-        setAccountBalance(balance);
-        setBalanceUnit(data.unit.trim());
-      } else {
-        throw new Error('The deployed Mocean SMS function returned an unsupported balance response. Deploy the mocean-sms Edge Function and try again.');
-      }
-    } catch (balanceLoadError) {
-      console.error('Error loading SMS balance:', balanceLoadError);
-      setBalanceError(balanceLoadError.message || 'Mocean account balance could not be loaded.');
-    } finally {
-      balanceRequestInProgressRef.current = false;
-      setLoadingBalance(false);
-    }
-  }, []);
-
   const loadHistory = useCallback(async () => {
     setLoadingHistory(true);
     const { data, error: historyError } = await supabase
@@ -82,29 +36,13 @@ const SMSCenter = () => {
     loadHistory();
   }, [loadHistory]);
 
-  useEffect(() => {
-    loadCreditBalance();
-    const refreshWhenVisible = () => {
-      if (document.visibilityState === 'visible') loadCreditBalance();
-    };
-    const interval = setInterval(refreshWhenVisible, 30000);
-    window.addEventListener('focus', refreshWhenVisible);
-    document.addEventListener('visibilitychange', refreshWhenVisible);
-
-    return () => {
-      clearInterval(interval);
-      window.removeEventListener('focus', refreshWhenVisible);
-      document.removeEventListener('visibilitychange', refreshWhenVisible);
-    };
-  }, [loadCreditBalance]);
-
   const handleSendSMS = async (event) => {
     event.preventDefault();
     setError('');
     setSending(true);
 
     try {
-      const { error: sendError } = await supabase.functions.invoke('mocean-sms', {
+      const { data, error: sendError } = await supabase.functions.invoke('sms-api-ph', {
         body: { action: 'send', phone, message }
       });
       if (sendError) {
@@ -116,11 +54,11 @@ const SMSCenter = () => {
         }
         throw new Error(messageFromServer || 'The SMS could not be sent. Please try again.');
       }
+      if (!data?.sent_count) throw new Error('SMS API PH did not confirm delivery.');
 
       setPhone('');
       setMessage('');
       await loadHistory();
-      await loadCreditBalance();
     } catch (sendError) {
       setError(sendError.message || 'The SMS could not be sent. Please try again.');
       await loadHistory();
@@ -142,19 +80,9 @@ const SMSCenter = () => {
       <dl className="grid gap-3 sm:grid-cols-3">
         <div className="flex items-center justify-between gap-3 rounded-lg border border-gray-200 bg-white p-4 sm:col-span-3">
           <div>
-            <dt className="text-sm text-gray-600">Mocean account balance</dt>
-            <dd className="mt-1 text-2xl font-semibold text-gray-950">
-              {loadingBalance && accountBalance === null
-                ? 'Loading…'
-                : accountBalance !== null
-                  ? `${balanceUnit} ${accountBalance.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-                  : 'Unavailable'}
-            </dd>
-            {balanceError && <p role="alert" className="mt-1 text-sm text-red-700">{balanceError}</p>}
+            <dt className="text-sm text-gray-600">SMS API PH credit balance</dt>
+            <dd className="mt-1 text-sm font-medium text-gray-700">Not available through the provider API</dd>
           </div>
-          <button type="button" onClick={loadCreditBalance} disabled={loadingBalance} aria-label="Refresh SMS credit balance" title="Refresh SMS credit balance" className="inline-flex size-10 shrink-0 items-center justify-center rounded-md border border-gray-300 text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50">
-            <RefreshCw size={17} aria-hidden="true" className={loadingBalance ? 'animate-spin' : ''} />
-          </button>
         </div>
         <div className="rounded-lg border border-gray-200 bg-white p-4"><dt className="text-sm text-gray-600">Sent today</dt><dd className="mt-1 text-2xl font-semibold text-gray-950">{sentToday}</dd></div>
         <div className="rounded-lg border border-gray-200 bg-white p-4"><dt className="text-sm text-gray-600">Failed today</dt><dd className="mt-1 text-2xl font-semibold text-gray-950">{failedToday}</dd></div>

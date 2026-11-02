@@ -163,7 +163,7 @@ const Announcements = () => {
       try {
         const groups = Object.entries(recipients).filter(([, selected]) => selected).map(([group]) => group);
         if (groups.length === 0) throw new Error('Select at least one member or staff group to send SMS.');
-        const { data, error: smsError } = await supabase.functions.invoke('mocean-sms', {
+        const { data, error: smsError } = await supabase.functions.invoke('sms-api-ph', {
           body: { action: 'send-group', groups, message: `${subject.trim()}\n\n${plainMessage}` }
         });
         if (smsError) {
