@@ -5,6 +5,7 @@ import {
   BadgeDollarSign,
   Banknote,
   Building2,
+  ChevronRight,
   CircleDollarSign,
   FileText,
   HandCoins,
@@ -12,6 +13,7 @@ import {
   ReceiptText,
   ShoppingCart,
   Wallet,
+  X,
 } from 'lucide-react';
 
 const transactionGroups = [
@@ -35,7 +37,7 @@ const transactionGroups = [
     title: 'Cash Out / Disbursement',
     description: 'Record money paid out while preserving the proper approval and account rules.',
     icon: ArrowUpRight,
-    tone: 'rose',
+    tone: 'blue',
     types: [
       { id: 'loan-disbursement', name: 'Loan Disbursements', description: 'Release an approved loan through the existing loan-release workflow.', icon: HandCoins },
       { id: 'savings-withdrawal', name: 'Savings Withdrawals', description: 'Withdraw from a member’s regular savings account.', icon: Wallet },
@@ -49,71 +51,76 @@ const transactionGroups = [
 
 const toneClasses = {
   emerald: {
-    section: 'border-emerald-200 bg-emerald-50/70',
+    section: 'border-emerald-200',
+    header: 'bg-emerald-50/80',
     badge: 'bg-emerald-100 text-emerald-800',
-    icon: 'text-emerald-700',
+    icon: 'bg-emerald-50 text-emerald-700',
+    hover: 'hover:border-emerald-300 hover:bg-emerald-50/50',
     focus: 'focus-visible:ring-emerald-600',
   },
-  rose: {
-    section: 'border-rose-200 bg-rose-50/70',
-    badge: 'bg-rose-100 text-rose-800',
-    icon: 'text-rose-700',
-    focus: 'focus-visible:ring-rose-600',
+  blue: {
+    section: 'border-blue-200',
+    header: 'bg-blue-50/80',
+    badge: 'bg-blue-100 text-blue-800',
+    icon: 'bg-blue-50 text-blue-700',
+    hover: 'hover:border-blue-300 hover:bg-blue-50/50',
+    focus: 'focus-visible:ring-blue-700',
   },
 };
 
 const TransactionTypeSelector = ({ onSelectType, onCancel }) => (
-  <div className="space-y-6">
-    <div className="flex items-start justify-between gap-4">
+  <div className="mx-auto max-w-[1500px] space-y-5">
+    <header className="flex items-start justify-between gap-4 rounded-2xl border border-slate-200 bg-white px-5 py-5 shadow-sm sm:px-7">
       <div>
-        <p className="text-sm font-semibold uppercase tracking-wide text-indigo-700">Bookkeeper workspace</p>
-        <h2 className="mt-1 text-2xl font-bold tracking-tight text-slate-950">New Transaction</h2>
-        <p className="mt-1 text-sm text-slate-600">Choose a direction, then select the transaction type.</p>
+        <p className="text-xs font-bold uppercase tracking-[0.16em] text-slate-500">Bookkeeper workspace</p>
+        <h2 className="mt-1 text-2xl font-bold tracking-tight text-slate-950 sm:text-[28px]">New transaction</h2>
+        <p className="mt-1 text-sm text-slate-600">Choose whether funds are coming in or going out, then select a transaction type.</p>
       </div>
       <button
         type="button"
         onClick={onCancel}
-        aria-label="Close transaction type selection"
-        className="rounded-lg p-2 text-slate-500 hover:bg-slate-100 hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-600"
+        className="inline-flex shrink-0 items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium text-slate-600 transition hover:border-slate-300 hover:bg-slate-50 hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-600"
       >
-        <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-        </svg>
+        <X size={16} aria-hidden="true" />
+        Close
       </button>
-    </div>
+    </header>
 
-    <div className="grid gap-5 xl:grid-cols-2">
+    <div className="grid items-start gap-5 xl:grid-cols-2">
       {transactionGroups.map((group) => {
         const tone = toneClasses[group.tone];
         return (
-          <section key={group.id} className={`overflow-hidden rounded-2xl border ${tone.section}`}>
-            <header className="flex items-start gap-3 border-b border-white/80 px-5 py-4">
-              <span className={`rounded-xl bg-white p-2.5 shadow-sm ${tone.icon}`}>
-                <group.icon size={22} aria-hidden="true" />
+          <section key={group.id} className={`overflow-hidden rounded-2xl border bg-white shadow-sm ${tone.section}`}>
+            <header className={`flex items-start gap-3 border-b border-slate-200/80 px-4 py-4 sm:px-5 ${tone.header}`}>
+              <span className={`flex size-10 shrink-0 items-center justify-center rounded-xl ${tone.icon}`}>
+                <group.icon size={20} strokeWidth={2.2} aria-hidden="true" />
               </span>
-              <div>
-                <h3 className="text-lg font-bold text-slate-950">{group.title}</h3>
-                <p className="mt-1 text-sm text-slate-600">{group.description}</p>
+              <div className="min-w-0 flex-1">
+                <div className="flex flex-wrap items-center gap-2">
+                  <h3 className="text-base font-bold tracking-tight text-slate-950 sm:text-lg">{group.title}</h3>
+                  <span className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${tone.badge}`}>
+                    {group.types.length} options
+                  </span>
+                </div>
+                <p className="mt-1 text-sm leading-5 text-slate-600">{group.description}</p>
               </div>
-              <span className={`ml-auto hidden rounded-full px-2.5 py-1 text-xs font-semibold sm:inline-flex ${tone.badge}`}>
-                {group.types.length} types
-              </span>
             </header>
-            <div className="grid gap-3 p-4 sm:grid-cols-2">
+            <div className="grid gap-2.5 p-3 sm:grid-cols-2 sm:p-4">
               {group.types.map((type) => (
                 <button
                   key={type.id}
                   type="button"
                   onClick={() => onSelectType(type.id)}
-                  className={`group flex min-h-28 items-start gap-3 rounded-xl border border-white bg-white p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-md ${tone.focus} focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2`}
+                  className={`group flex min-h-[88px] items-start gap-3 rounded-xl border border-slate-200 bg-white p-3.5 text-left transition hover:shadow-sm ${tone.hover} ${tone.focus} focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-1`}
                 >
-                  <span className={`mt-0.5 rounded-lg bg-slate-50 p-2 ${tone.icon}`}>
-                    <type.icon size={19} aria-hidden="true" />
+                  <span className={`mt-0.5 flex size-9 shrink-0 items-center justify-center rounded-lg ${tone.icon}`}>
+                    <type.icon size={17} strokeWidth={2} aria-hidden="true" />
                   </span>
-                  <span>
-                    <span className="block font-semibold text-slate-900 group-hover:text-slate-950">{type.name}</span>
-                    <span className="mt-1 block text-xs leading-5 text-slate-600">{type.description}</span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block text-sm font-semibold leading-5 text-slate-900">{type.name}</span>
+                    <span className="mt-1 block text-xs leading-[1.35rem] text-slate-600">{type.description}</span>
                   </span>
+                  <ChevronRight size={17} className="mt-1 shrink-0 text-slate-400 transition group-hover:translate-x-0.5 group-hover:text-slate-700" aria-hidden="true" />
                 </button>
               ))}
             </div>
@@ -122,23 +129,12 @@ const TransactionTypeSelector = ({ onSelectType, onCancel }) => (
       })}
     </div>
 
-    <div className="flex flex-col gap-3 rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-900 sm:flex-row sm:items-center">
-      <Banknote size={19} className="shrink-0 text-blue-700" aria-hidden="true" />
-      <p>
-        Transactions are posted through the existing server-validated workflows. Credit sales remain receivables;
-        loan releases require an approved loan and are completed in the loan-release workflow.
+    <aside className="flex items-start gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3.5 text-sm text-slate-700 shadow-sm">
+      <Banknote size={18} className="mt-0.5 shrink-0 text-slate-500" aria-hidden="true" />
+      <p className="leading-6">
+        Transactions are validated through the approval workflow. Credit sales remain receivables; loan cash releases require an approved loan and Treasurer proof.
       </p>
-    </div>
-
-    <div className="flex justify-end">
-      <button
-        type="button"
-        onClick={onCancel}
-        className="rounded-lg border border-slate-300 bg-white px-5 py-2.5 font-medium text-slate-700 hover:bg-slate-50"
-      >
-        Cancel
-      </button>
-    </div>
+    </aside>
   </div>
 );
 
