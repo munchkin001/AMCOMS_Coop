@@ -375,9 +375,6 @@ const Announcements = () => {
                   className="w-full rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 text-left transition-colors hover:border-blue-300 hover:bg-blue-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600"
                 >
                   <span className="block text-sm font-medium text-gray-800">{template.subject}</span>
-                  <span className="mt-1 line-clamp-2 block text-xs leading-5 text-gray-500">
-                    {richTextToPlainText(template.message)}
-                  </span>
                 </button>
               ))}
             </div>
