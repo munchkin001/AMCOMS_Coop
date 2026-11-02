@@ -8,7 +8,6 @@ import { getDataLoadErrorMessage } from '../../lib/errorHandler';
 import { queueOperation, getOperation } from '../../lib/Offline/syncQueue';
 import { syncPendingOperations } from '../../lib/Offline/syncOperations';
 import offlineDb from '../../lib/Offline/OfflineDb';
-import { Link } from 'react-router-dom';
 
 const formatMoney = (value) => `₱${Number(value || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })}`;
 const fullName = (member) => [member?.first_name, member?.middle_name, member?.last_name].filter(Boolean).join(' ') || 'Member';
@@ -1054,16 +1053,6 @@ export const LegacyLoanRequests = () => {
             <Search aria-hidden="true" size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
             <input type="search" value={loanSearch} onChange={(event) => setLoanSearch(event.target.value)} placeholder="Search member or loan" aria-label="Search approved loans by member or loan number" className="w-full rounded-lg border border-gray-300 py-2 pl-9 pr-3 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200" />
           </label>
-        </div>
-        <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-950">
-          <p>Manager approval does not release cash. A loan remains <strong>Awaiting for release</strong> until the Treasurer confirms and records the disbursement as <strong>Cash released</strong>.</p>
-          {staff?.role === 'treasurer' ? (
-            <Link to="/staff/cash-release" className="font-semibold text-blue-800 underline underline-offset-2">Open Cash Release</Link>
-          ) : staff?.role === 'manager' ? (
-            <Link to="/staff/transaction-approvals" className="font-semibold text-blue-800 underline underline-offset-2">Review release proof</Link>
-          ) : staff?.role === 'bookkeeper' ? (
-            <Link to="/staff/approved-transactions" className="font-semibold text-blue-800 underline underline-offset-2">Prepare approved loan</Link>
-          ) : null}
         </div>
         {approvedLoans.length === 0 ? (
           <p className="rounded-xl border border-gray-200 bg-white p-6 text-sm text-gray-600">No approved loans to show.</p>
