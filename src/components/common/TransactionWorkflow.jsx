@@ -139,6 +139,9 @@ const TransactionWorkflow = ({ role }) => {
   const [remarks, setRemarks] = useState('');
   const [reviewedRelease, setReviewedRelease] = useState(false);
   const [releaseFile, setReleaseFile] = useState(null);
+  const registeredReleaseProof = selected?.documents
+    ?.filter((document) => document.document_type === 'cash_release_acknowledgment')
+    .sort((left, right) => new Date(right.uploaded_at) - new Date(left.uploaded_at))[0];
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -290,7 +293,7 @@ const TransactionWorkflow = ({ role }) => {
   };
 
   const confirmRelease = async () => {
-    if (!selected || !reviewedRelease || !releaseFile) {
+    if (!selected || !reviewedRelease || (!releaseFile && !registeredReleaseProof)) {
       setError('Review the recipient and approved amount, and attach proof before releasing.');
       return;
     }
@@ -298,7 +301,9 @@ const TransactionWorkflow = ({ role }) => {
     setError('');
     setNotice('');
     try {
-      const documentId = await uploadReleaseProof(selected, releaseFile);
+      const documentId = releaseFile
+        ? await uploadReleaseProof(selected, releaseFile)
+        : registeredReleaseProof.id;
       const { data: result, error: confirmError } = await supabase.rpc('confirm_transaction_workflow_release', {
         p_workflow_id: selected.id,
         p_document_id: documentId,
@@ -307,6 +312,34 @@ const TransactionWorkflow = ({ role }) => {
       if (confirmError) throw confirmError;
       if (result?.status !== 'completed') {
         throw new Error(result?.error || 'The server did not confirm the release.');
+      }
+      const { data: confirmedWorkflow, error: workflowError } = await supabase
+        .from('transaction_workflows')
+        .select('status, cash_release_status, business_record_table, business_record_id')
+        .eq('id', selected.id)
+        .single();
+      if (workflowError) throw workflowError;
+      if (
+        confirmedWorkflow.status !== 'completed'
+        || confirmedWorkflow.cash_release_status !== 'released'
+        || confirmedWorkflow.business_record_table !== 'cash_disbursements'
+        || !confirmedWorkflow.business_record_id
+      ) {
+        throw new Error('The server did not confirm a recorded cash disbursement. The workflow was not reported as released.');
+      }
+      if (selected.transaction_type === 'loan_disbursement') {
+        const loanId = selected.approved_payload?.loan_id || selected.payload?.loan_id;
+        if (!loanId) throw new Error('The approved loan is missing from this release transaction.');
+        const { data: disbursement, error: disbursementError } = await supabase
+          .from('cash_disbursements')
+          .select('id, status, journal_entry_id')
+          .eq('id', confirmedWorkflow.business_record_id)
+          .eq('loan_id', loanId)
+          .maybeSingle();
+        if (disbursementError) throw disbursementError;
+        if (disbursement?.status !== 'recorded' || !disbursement.journal_entry_id) {
+          throw new Error('The loan release was not confirmed in cash disbursements and the general ledger.');
+        }
       }
       setNotice('Cash released. The Manager and Bookkeeper can now review the completed transaction and attached proof.');
       setSelected(null);
@@ -367,7 +400,7 @@ const TransactionWorkflow = ({ role }) => {
         </div>
       </header>
 
-      {error && <p role="alert" className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{error}</p>}
+      {error && !selected && <p role="alert" className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{error}</p>}
       {notice && <p role="status" className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">{notice}</p>}
 
       {isManager && (
@@ -493,6 +526,7 @@ const TransactionWorkflow = ({ role }) => {
               <button type="button" onClick={() => setSelected(null)} disabled={busy} aria-label="Close transaction details" className="rounded-lg p-2 text-slate-300 hover:bg-slate-800 hover:text-white">×</button>
             </header>
             <div className="overflow-y-auto p-5 sm:p-7">
+              {error && <p role="alert" className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{error}</p>}
               <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
                 {[
                   ['Approved / requested amount', money(selected.amount)],
@@ -565,8 +599,13 @@ const TransactionWorkflow = ({ role }) => {
                   )}
                   {isTreasurer && selected.cash_release_required && ['awaiting_release', 'on_hold', 'release_issue'].includes(selected.status) && (
                     <label className="mt-4 block text-sm font-medium text-slate-700">
-                      Photo or proof of release (PDF, JPG, PNG; up to 10 MB) *
+                      Photo or proof of release (PDF, JPG, PNG; up to 10 MB){registeredReleaseProof ? ' — proof already attached' : ' *'}
                       <input type="file" accept="application/pdf,image/jpeg,image/png" capture="environment" onChange={(event) => setReleaseFile(event.target.files?.[0] || null)} className="mt-2 block w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" />
+                      {registeredReleaseProof && !releaseFile && (
+                        <span className="mt-1 block text-xs font-normal text-emerald-800">
+                          Using the attached proof: {registeredReleaseProof.file_name}
+                        </span>
+                      )}
                     </label>
                   )}
                 </section>
@@ -626,13 +665,25 @@ const TransactionWorkflow = ({ role }) => {
                     <input type="checkbox" checked={reviewedRelease} onChange={(event) => setReviewedRelease(event.target.checked)} className="mt-1" />
                     I verified the recipient and approved amount of <strong>{money(selected.amount)}</strong>.
                   </label>
-                  <label className="block text-sm font-medium text-slate-700">Release note (optional)
-                    <input value={remarks} onChange={(event) => setRemarks(event.target.value)} className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2" />
+                  <label className="block text-sm font-medium text-slate-700">Release note or issue reason
+                    <span className="ml-1 font-normal text-slate-500">(required for hold or issue; optional for release)</span>
+                    <input
+                      value={remarks}
+                      onChange={(event) => {
+                        setRemarks(event.target.value);
+                        if (error) setError('');
+                      }}
+                      aria-describedby="release-note-help"
+                      className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2"
+                    />
+                    <span id="release-note-help" className="mt-1 block text-xs font-normal text-slate-500">
+                      Explain why the release is on hold or what discrepancy you found.
+                    </span>
                   </label>
                   <div className="flex flex-wrap justify-end gap-2">
-                    <button type="button" disabled={busy} onClick={() => { setDecision('on_hold'); if (!remarks.trim()) setError('Enter a reason before placing this release on hold.'); else runRpc('place_transaction_workflow_on_hold', { p_workflow_id: selected.id, p_reason: remarks.trim() }, 'Transaction placed on hold.'); }} className="rounded-lg border border-slate-400 bg-white px-4 py-2 text-sm font-semibold text-slate-800 disabled:opacity-50">Place on hold</button>
-                    <button type="button" disabled={busy} onClick={() => { if (!remarks.trim()) { setError('Enter a discrepancy reason.'); return; } runRpc('report_transaction_workflow_release_issue', { p_workflow_id: selected.id, p_reason: remarks.trim() }, 'Release issue recorded for review.'); }} className="inline-flex items-center gap-2 rounded-lg border border-red-300 bg-white px-4 py-2 text-sm font-semibold text-red-800 disabled:opacity-50"><AlertTriangle size={16} /> Report issue</button>
-                    <button type="button" disabled={busy || !reviewedRelease || !releaseFile} onClick={confirmRelease} className="rounded-lg bg-emerald-800 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-900 disabled:opacity-50">{busy ? 'Releasing…' : 'Release'}</button>
+                    <button type="button" disabled={busy} onClick={() => { if (!remarks.trim()) { setError('Enter a reason before placing this release on hold.'); return; } runRpc('place_transaction_workflow_on_hold', { p_workflow_id: selected.id, p_reason: remarks.trim() }, 'Transaction placed on hold.'); }} className="rounded-lg border border-slate-400 bg-white px-4 py-2 text-sm font-semibold text-slate-800 disabled:opacity-50">Place on hold</button>
+                    <button type="button" disabled={busy} onClick={() => { if (!remarks.trim()) { setError('Enter the discrepancy before reporting this issue.'); return; } runRpc('report_transaction_workflow_release_issue', { p_workflow_id: selected.id, p_reason: remarks.trim() }, 'Release issue recorded for review.'); }} className="inline-flex items-center gap-2 rounded-lg border border-red-300 bg-white px-4 py-2 text-sm font-semibold text-red-800 disabled:opacity-50"><AlertTriangle size={16} /> Report issue</button>
+                    <button type="button" disabled={busy || !reviewedRelease || (!releaseFile && !registeredReleaseProof)} onClick={confirmRelease} className="rounded-lg bg-emerald-800 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-900 disabled:opacity-50">{busy ? 'Releasing…' : 'Release'}</button>
                   </div>
                 </section>
               )}
