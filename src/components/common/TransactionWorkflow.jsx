@@ -388,10 +388,19 @@ const TransactionWorkflow = ({ role }) => {
 
       <section className="space-y-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-6">
         <div className="grid min-w-0 gap-4 md:grid-cols-2 xl:grid-cols-6">
-          <label className="relative block min-w-0 xl:col-span-2">
-            <span className="sr-only">Search transactions</span>
-            <Search size={17} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" aria-hidden="true" />
-            <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search reference, requester, payee…" className="min-h-11 w-full rounded-lg border border-slate-300 py-2.5 pl-9 pr-3 text-sm focus:border-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-100" />
+          <label className="block min-w-0 text-sm text-slate-600 md:col-span-2 xl:col-span-2">
+            Search
+            <span className="relative mt-1 block">
+              <Search size={17} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" aria-hidden="true" />
+              <input
+                type="search"
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+                placeholder="Reference, requester, or payee"
+                aria-label="Search transactions by reference, requester, or payee"
+                className="min-h-11 w-full min-w-0 rounded-lg border border-slate-300 py-2.5 pl-9 pr-3 text-sm text-slate-900 placeholder:text-slate-400 focus:border-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-100"
+              />
+            </span>
           </label>
           <label className="min-w-0 text-sm text-slate-600">
             Status

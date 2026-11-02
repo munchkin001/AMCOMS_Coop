@@ -181,8 +181,34 @@ export const LegacyLoanRequests = () => {
       if (requestResult.error) throw requestResult.error;
       if (loanResult.error) throw loanResult.error;
       if (termResult.error) throw termResult.error;
+      const loans = loanResult.data || [];
+      let releasedLoanIds = new Set();
+      if (loans.length) {
+        const loanIds = loans.map((loan) => loan.id);
+        const [disbursementResult, workflowResult] = await Promise.all([
+          supabase.from('cash_disbursements')
+            .select('loan_id')
+            .in('loan_id', loanIds),
+          supabase.from('transaction_workflows')
+            .select('source_record_id')
+            .eq('transaction_type', 'loan_disbursement')
+            .eq('source_module', 'loan_application')
+            .in('source_record_id', loanIds)
+            .eq('status', 'completed')
+            .eq('cash_release_status', 'released')
+        ]);
+        if (disbursementResult.error) throw disbursementResult.error;
+        if (workflowResult.error) throw workflowResult.error;
+        releasedLoanIds = new Set([
+          ...(disbursementResult.data || []).map((row) => row.loan_id),
+          ...(workflowResult.data || []).map((row) => row.source_record_id)
+        ].filter(Boolean));
+      }
       setRequests(requestResult.data || []);
-      setApprovedLoans(loanResult.data || []);
+      setApprovedLoans(loans.map((loan) => ({
+        ...loan,
+        cashReleased: releasedLoanIds.has(loan.id)
+      })));
       setTerms(termResult.data || []);
     } catch (loadError) {
       console.error('Unable to load loan requests:', loadError);
@@ -197,7 +223,7 @@ export const LegacyLoanRequests = () => {
   }, [load]);
 
   useMultipleRealtimeSubscriptions(
-    ['requests', 'loans', 'cash_disbursements'].map((table) => ({ table, onUpdate: load })),
+    ['requests', 'loans', 'cash_disbursements', 'transaction_workflows'].map((table) => ({ table, onUpdate: load })),
     [load]
   );
 
@@ -660,7 +686,7 @@ export const LegacyLoanRequests = () => {
           </label>
         </div>
         <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-950">
-          <p>Manager approval does not release cash. A loan is marked <strong>Cash released</strong> only after the Treasurer verifies the payment and attaches proof.</p>
+          <p>Manager approval does not release cash. A loan remains <strong>Awaiting for release</strong> until the Treasurer confirms the release.</p>
           {staff?.role === 'treasurer' ? (
             <Link to="/staff/cash-release" className="font-semibold text-blue-800 underline underline-offset-2">Open Cash Release</Link>
           ) : staff?.role === 'manager' ? (
@@ -707,7 +733,7 @@ export const LegacyLoanRequests = () => {
                     <td className="whitespace-nowrap px-5 py-4 text-sm text-gray-700">{formatMoney(loan.principal_amount)}</td>
                     <td className="whitespace-nowrap px-5 py-4 text-sm text-gray-700">{formatMoney(loan.installment_amount ?? loan.monthly_payment)} · {loan.payment_frequency}</td>
                     <td className="whitespace-nowrap px-5 py-4 text-sm text-gray-700">{formatMoney(loan.balance)}</td>
-                    <td className="whitespace-nowrap px-5 py-4 text-sm text-gray-700">{loan.status === 'active' ? 'Cash released' : 'Awaiting Treasurer release'}</td>
+                    <td className="whitespace-nowrap px-5 py-4 text-sm text-gray-700">{loan.cashReleased ? 'Cash released' : 'Awaiting for release'}</td>
                   </tr>
                 ))}
               </tbody>
@@ -728,7 +754,7 @@ export const LegacyLoanRequests = () => {
             {(() => {
               const application = requestData(selectedLoan.request);
               const member = memberOf(selectedLoan);
-              const loanStatus = selectedLoan.status === 'active' ? 'Cash released' : 'Awaiting Treasurer release';
+              const loanStatus = selectedLoan.cashReleased ? 'Cash released' : 'Awaiting for release';
               const detailRows = [
                 ['Loan type', application.loan_type || 'Not specified'],
                 ['Repayment term', `${selectedLoan.term_months} months`],
@@ -766,8 +792,8 @@ export const LegacyLoanRequests = () => {
                         <X aria-hidden="true" size={20} />
                       </button>
                     </div>
-                    <span className={`mt-4 inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-semibold ${selectedLoan.status === 'active' ? 'bg-emerald-400/15 text-emerald-100 ring-1 ring-emerald-200/30' : 'bg-amber-300/15 text-amber-100 ring-1 ring-amber-200/30'}`}>
-                      <span className={`h-2 w-2 rounded-full ${selectedLoan.status === 'active' ? 'bg-emerald-300' : 'bg-amber-300'}`} />
+                    <span className={`mt-4 inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-semibold ${selectedLoan.cashReleased ? 'bg-emerald-400/15 text-emerald-100 ring-1 ring-emerald-200/30' : 'bg-amber-300/15 text-amber-100 ring-1 ring-amber-200/30'}`}>
+                      <span className={`h-2 w-2 rounded-full ${selectedLoan.cashReleased ? 'bg-emerald-300' : 'bg-amber-300'}`} />
                       {loanStatus}
                     </span>
                   </header>
