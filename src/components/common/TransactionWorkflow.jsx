@@ -633,7 +633,7 @@ const TransactionWorkflow = ({ role }) => {
                 <section className="mt-5 rounded-xl border border-amber-200 bg-amber-50 p-4">
                   <h3 className="font-semibold text-amber-950">Manager decision</h3>
                   <p className="mt-1 text-sm text-amber-900">Approval will lock the submitted amount and transaction details. Changes after approval must be returned for correction and reviewed again.</p>
-                  <label className="mt-3 block text-sm font-medium text-slate-700">Remarks {decision !== 'approved' && <span className="text-red-700">*</span>}
+                  <label className="mt-3 block text-sm font-medium text-slate-700">Remarks (required to reject or return for correction)
                     <textarea value={remarks} onChange={(event) => setRemarks(event.target.value)} rows={3} className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2" placeholder="Reason, approval notes, or correction instructions" />
                   </label>
                   <div className="mt-3 flex flex-wrap justify-end gap-2">
