@@ -23,7 +23,7 @@ const STATUS_LABELS = {
   awaiting_release: 'Awaiting Release',
   on_hold: 'On Hold',
   release_issue: 'Release Issue',
-  released: 'Released',
+  released: 'Cash released',
   completed: 'Completed',
   rejected: 'Rejected',
   accounting_error: 'Accounting Error',
@@ -74,6 +74,52 @@ const dateTime = (value) => value
   : '—';
 
 const relation = (value) => Array.isArray(value) ? value[0] : value;
+const workflowStatusLabel = (workflow) => (
+  workflow.transaction_type === 'loan_disbursement' && workflow.status === 'completed'
+    ? 'Cash released'
+    : STATUS_LABELS[workflow.status] || workflow.status
+);
+
+const WorkflowEvidence = ({ document, onOpen }) => {
+  const [signedUrl, setSignedUrl] = useState('');
+  const [previewError, setPreviewError] = useState('');
+  const isImage = document.mime_type === 'image/jpeg' || document.mime_type === 'image/png';
+
+  useEffect(() => {
+    let active = true;
+    supabase.storage
+      .from('transaction-evidence')
+      .createSignedUrl(document.object_name, 60)
+      .then(({ data, error }) => {
+        if (!active) return;
+        if (error) {
+          setPreviewError(error.message);
+          return;
+        }
+        setSignedUrl(data.signedUrl);
+      })
+      .catch((error) => {
+        if (active) setPreviewError(error.message || 'The evidence preview could not be loaded.');
+      });
+    return () => { active = false; };
+  }, [document.object_name]);
+
+  return (
+    <div className="mt-2">
+      {isImage && signedUrl && (
+        <a href={signedUrl} target="_blank" rel="noreferrer" className="block overflow-hidden rounded-lg border border-slate-200 bg-slate-100">
+          <img src={signedUrl} alt={`Release proof: ${document.file_name}`} className="max-h-72 w-full object-contain" />
+        </a>
+      )}
+      {!signedUrl && previewError && <p className="text-xs text-amber-800">Preview unavailable: {previewError}</p>}
+      {(!isImage || !signedUrl) && (
+        <button type="button" onClick={() => onOpen(document)} className="text-xs font-semibold text-blue-800 underline underline-offset-2">
+          {isImage ? 'Open proof image' : 'Open attached proof'}
+        </button>
+      )}
+    </div>
+  );
+};
 
 const TransactionWorkflow = ({ role }) => {
   const isManager = role === 'manager';
@@ -243,8 +289,8 @@ const TransactionWorkflow = ({ role }) => {
   };
 
   const confirmRelease = async () => {
-    if (!selected || !reviewedRelease) {
-      setError('Review the recipient and approved amount before confirming release.');
+    if (!selected || !reviewedRelease || !releaseFile) {
+      setError('Review the recipient and approved amount, and attach proof before releasing.');
       return;
     }
     setBusy(true);
@@ -261,7 +307,7 @@ const TransactionWorkflow = ({ role }) => {
       if (result?.status !== 'completed') {
         throw new Error(result?.error || 'The server did not confirm the release.');
       }
-      setNotice('Release confirmed. The server recorded the release and updated the workflow.');
+      setNotice('Cash released. The Manager and Bookkeeper can now review the completed transaction and attached proof.');
       setSelected(null);
       setReleaseFile(null);
       setRemarks('');
@@ -349,7 +395,7 @@ const TransactionWorkflow = ({ role }) => {
           <label className="text-sm text-slate-600">
             Status
             <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-900">
-              {visibleStatuses.map((status) => <option key={status} value={status}>{status === 'all' ? 'All statuses' : STATUS_LABELS[status]}</option>)}
+              {visibleStatuses.map((status) => <option key={status} value={status}>{status === 'all' ? 'All statuses' : status === 'completed' ? 'Completed / Cash released' : STATUS_LABELS[status]}</option>)}
             </select>
           </label>
           <label className="text-sm text-slate-600">
@@ -404,7 +450,7 @@ const TransactionWorkflow = ({ role }) => {
                       <td className="whitespace-nowrap px-4 py-4 text-sm text-slate-600">{dateTime(row.created_at)}</td>
                       <td className="px-4 py-4">
                         <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${STATUS_STYLES[row.status] || 'bg-slate-100 text-slate-800'}`}>
-                          {STATUS_LABELS[row.status] || row.status}
+                            {workflowStatusLabel(row)}
                         </span>
                       </td>
                       <td className="px-4 py-4">
@@ -438,11 +484,13 @@ const TransactionWorkflow = ({ role }) => {
                   ['Approved / requested amount', money(selected.amount)],
                   ['Direction', selected.direction.replace('_', ' ')],
                   ['Payment method', selected.payment_method || 'Not specified'],
-                  ['Workflow status', STATUS_LABELS[selected.status] || selected.status],
+                  ['Workflow status', workflowStatusLabel(selected)],
                   ['Manager', relation(selected.approver)?.full_name || 'Not yet assigned'],
                   ['Manager decision', dateTime(selected.manager_decision_at)],
                   ['Bookkeeper processing', selected.processed_at ? dateTime(selected.processed_at) : selected.accounting_status.replace('_', ' ')],
-                  ['Cash release', selected.cash_release_required ? selected.cash_release_status.replace('_', ' ') : 'Not required'],
+                  ['Cash release', selected.cash_release_required
+                    ? selected.cash_release_status === 'released' ? 'Cash released' : selected.cash_release_status.replaceAll('_', ' ')
+                    : 'Not required'],
                 ].map(([label, value]) => (
                   <div key={label} className="rounded-xl border border-slate-200 bg-slate-50 p-3">
                     <p className="text-xs font-medium text-slate-500">{label}</p>
@@ -455,6 +503,34 @@ const TransactionWorkflow = ({ role }) => {
                 <p className="mt-2 whitespace-pre-wrap text-sm text-slate-700">{selected.description}</p>
                 {selected.manager_remarks && <p className="mt-3 rounded-lg bg-amber-50 p-3 text-sm text-amber-950"><strong>Manager remarks:</strong> {selected.manager_remarks}</p>}
                 {selected.journal_entry_id && <p className="mt-3 text-sm text-slate-600">Journal entry: <span className="font-mono">{selected.journal_entry_id}</span></p>}
+                {selected.transaction_type === 'loan_disbursement' && (() => {
+                  const loan = selected.approved_payload || selected.payload || {};
+                  const application = loan.request_data || {};
+                  return (
+                    <section className="mt-4 rounded-lg border border-blue-100 bg-blue-50/60 p-4">
+                      <h3 className="font-semibold text-slate-900">Approved loan details</h3>
+                      <dl className="mt-3 grid gap-3 sm:grid-cols-2">
+                        {[
+                          ['Loan number', loan.loan_number],
+                          ['Principal', money(loan.principal_amount || selected.amount)],
+                          ['Term', loan.term_months ? `${loan.term_months} months` : null],
+                          ['Payment frequency', loan.payment_frequency],
+                          ['Installment amount', loan.installment_amount ? money(loan.installment_amount) : null],
+                          ['Total interest', loan.total_interest ? money(loan.total_interest) : null],
+                          ['Total payable', loan.total_amount ? money(loan.total_amount) : null],
+                          ['Purpose', application.purpose || loan.notes],
+                          ['Collateral', [application.application_details?.collateral_type, application.application_details?.collateral_description].filter(Boolean).join(' — ')],
+                          ['Co-maker / guarantor', [application.application_details?.guarantor_name, application.application_details?.guarantor_contact].filter(Boolean).join(' · ')],
+                        ].filter(([, value]) => value).map(([label, value]) => (
+                          <div key={label}>
+                            <dt className="text-xs font-medium text-slate-500">{label}</dt>
+                            <dd className="mt-1 whitespace-pre-wrap text-sm font-semibold text-slate-900">{value}</dd>
+                          </div>
+                        ))}
+                      </dl>
+                    </section>
+                  );
+                })()}
                 <details className="mt-4">
                   <summary className="cursor-pointer text-sm font-semibold text-blue-800">View transaction snapshot</summary>
                   <pre className="mt-2 max-h-64 overflow-auto rounded-lg bg-slate-950 p-3 text-xs text-slate-100">{JSON.stringify(selected.approved_payload || selected.payload, null, 2)}</pre>
@@ -467,17 +543,20 @@ const TransactionWorkflow = ({ role }) => {
                   {!selected.documents?.length ? <p className="mt-2 text-sm text-slate-500">No documents attached.</p> : (
                     <ul className="mt-2 space-y-2">
                       {selected.documents.map((document) => (
-                        <li key={document.id} className="flex items-center justify-between gap-2 rounded-lg bg-slate-50 px-3 py-2">
-                          <span className="flex min-w-0 items-center gap-2 text-sm text-slate-700"><FileText size={16} className="shrink-0 text-slate-500" /><span className="truncate">{document.file_name}</span></span>
-                          <button type="button" onClick={() => createDocumentLink(document)} className="rounded p-1 text-blue-800 hover:bg-blue-50" aria-label={`Open ${document.file_name}`}><Download size={16} /></button>
+                        <li key={document.id} className="rounded-lg bg-slate-50 p-3">
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="flex min-w-0 items-center gap-2 text-sm text-slate-700"><FileText size={16} className="shrink-0 text-slate-500" /><span className="truncate">{document.file_name}</span></span>
+                            <button type="button" onClick={() => createDocumentLink(document)} className="rounded p-1 text-blue-800 hover:bg-blue-50" aria-label={`Open ${document.file_name}`}><Download size={16} /></button>
+                          </div>
+                          <WorkflowEvidence document={document} onOpen={createDocumentLink} />
                         </li>
                       ))}
                     </ul>
                   )}
                   {isTreasurer && selected.cash_release_required && ['awaiting_release', 'on_hold', 'release_issue'].includes(selected.status) && (
                     <label className="mt-4 block text-sm font-medium text-slate-700">
-                      Proof of release (PDF, JPG, PNG; up to 10 MB) *
-                      <input type="file" accept="application/pdf,image/jpeg,image/png" onChange={(event) => setReleaseFile(event.target.files?.[0] || null)} className="mt-2 block w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" />
+                      Photo or proof of release (PDF, JPG, PNG; up to 10 MB) *
+                      <input type="file" accept="application/pdf,image/jpeg,image/png" capture="environment" onChange={(event) => setReleaseFile(event.target.files?.[0] || null)} className="mt-2 block w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" />
                     </label>
                   )}
                 </section>
@@ -522,7 +601,7 @@ const TransactionWorkflow = ({ role }) => {
                 <section className="mt-5 space-y-3 rounded-xl border border-emerald-200 bg-emerald-50 p-4">
                   <div className="flex gap-3">
                     <ShieldCheck className="mt-0.5 shrink-0 text-emerald-800" size={20} />
-                    <div><h3 className="font-semibold text-emerald-950">Confirm physical release</h3><p className="mt-1 text-sm text-emerald-900">Confirm the recipient and approved amount below. The server uses the approved amount; this confirmation cannot change it. Proof is required.</p></div>
+                    <div><h3 className="font-semibold text-emerald-950">Release approved loan</h3><p className="mt-1 text-sm text-emerald-900">Verify the recipient and approved amount, attach a photo or proof, then select Release. The server uses the approved amount and will not release without a registered attachment.</p></div>
                   </div>
                   <label className="flex items-start gap-2 text-sm text-slate-800">
                     <input type="checkbox" checked={reviewedRelease} onChange={(event) => setReviewedRelease(event.target.checked)} className="mt-1" />
@@ -534,7 +613,7 @@ const TransactionWorkflow = ({ role }) => {
                   <div className="flex flex-wrap justify-end gap-2">
                     <button type="button" disabled={busy} onClick={() => { setDecision('on_hold'); if (!remarks.trim()) setError('Enter a reason before placing this release on hold.'); else runRpc('place_transaction_workflow_on_hold', { p_workflow_id: selected.id, p_reason: remarks.trim() }, 'Transaction placed on hold.'); }} className="rounded-lg border border-slate-400 bg-white px-4 py-2 text-sm font-semibold text-slate-800 disabled:opacity-50">Place on hold</button>
                     <button type="button" disabled={busy} onClick={() => { if (!remarks.trim()) { setError('Enter a discrepancy reason.'); return; } runRpc('report_transaction_workflow_release_issue', { p_workflow_id: selected.id, p_reason: remarks.trim() }, 'Release issue recorded for review.'); }} className="inline-flex items-center gap-2 rounded-lg border border-red-300 bg-white px-4 py-2 text-sm font-semibold text-red-800 disabled:opacity-50"><AlertTriangle size={16} /> Report issue</button>
-                    <button type="button" disabled={busy || !reviewedRelease || !releaseFile} onClick={confirmRelease} className="rounded-lg bg-emerald-800 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-900 disabled:opacity-50">{busy ? 'Confirming…' : 'Confirm release'}</button>
+                    <button type="button" disabled={busy || !reviewedRelease || !releaseFile} onClick={confirmRelease} className="rounded-lg bg-emerald-800 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-900 disabled:opacity-50">{busy ? 'Releasing…' : 'Release'}</button>
                   </div>
                 </section>
               )}

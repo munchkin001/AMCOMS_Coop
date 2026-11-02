@@ -8,8 +8,8 @@ import { getDataLoadErrorMessage } from '../../lib/errorHandler';
 import { queueOperation, getOperation } from '../../lib/Offline/syncQueue';
 import { syncPendingOperations } from '../../lib/Offline/syncOperations';
 import offlineDb from '../../lib/Offline/OfflineDb';
+import { Link } from 'react-router-dom';
 
-const today = () => new Date().toISOString().slice(0, 10);
 const formatMoney = (value) => `₱${Number(value || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })}`;
 const fullName = (member) => [member?.first_name, member?.middle_name, member?.last_name].filter(Boolean).join(' ') || 'Member';
 const memberOf = (record) => (Array.isArray(record?.member) ? record.member[0] : record?.member);
@@ -21,70 +21,12 @@ const matchesMemberSearch = (record, query, identifier) => {
     .some((value) => String(value || '').toLocaleLowerCase().includes(search));
 };
 const requestData = (request) => request.request_data || {};
-const createVoucher = () => `LR-${today().replace(/-/g, '')}-${globalThis.crypto.randomUUID().slice(0, 8).toUpperCase()}`;
 const loanTypes = ['Regular', 'Agricultural', 'Emergency'];
-
-const LoanReleaseCard = ({ loan, onRelease, busy }) => {
-  const [date, setDate] = useState(today());
-  const [voucher, setVoucher] = useState(createVoucher);
-  const [paymentSource, setPaymentSource] = useState('cash-on-hand');
-  const [error, setError] = useState('');
-  const member = memberOf(loan);
-
-  const submit = async (event) => {
-    event.preventDefault();
-    setError('');
-    try {
-      await onRelease({ loanId: loan.id, date, voucher: voucher.trim(), paymentSource });
-    } catch (releaseError) {
-      setError(releaseError.message || 'The loan disbursement could not be recorded.');
-    }
-  };
-
-  return (
-    <article className="rounded-xl border border-amber-200 bg-white p-5 shadow-sm">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h3 className="text-lg font-semibold text-gray-900">{fullName(member)}</h3>
-          <p className="mt-1 text-sm text-gray-600">{loan.loan_number} · Approved {loan.approval_date || 'date unavailable'}</p>
-        </div>
-        <span className="rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-900">Awaiting disbursement</span>
-      </div>
-      <div className="mt-4 grid gap-3 sm:grid-cols-3">
-        <p className="text-sm text-gray-600">Principal <strong className="block text-gray-900">{formatMoney(loan.principal_amount)}</strong></p>
-        <p className="text-sm text-gray-600">Total payable <strong className="block text-gray-900">{formatMoney(loan.total_amount)}</strong></p>
-        <p className="text-sm text-gray-600">Term <strong className="block text-gray-900">{loan.term_months} months · {loan.payment_frequency}</strong></p>
-      </div>
-      <form onSubmit={submit} className="mt-4 grid gap-3 border-t border-gray-100 pt-4 sm:grid-cols-2">
-        <label className="text-sm font-medium text-gray-700">
-          Release date
-          <input type="date" required value={date} onChange={(event) => setDate(event.target.value)} className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2" />
-        </label>
-        <label className="text-sm font-medium text-gray-700">
-          Disbursement voucher *
-          <input required value={voucher} onChange={(event) => setVoucher(event.target.value)} className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2" />
-        </label>
-        <label className="text-sm font-medium text-gray-700 sm:col-span-2">
-          Pay from
-          <select value={paymentSource} onChange={(event) => setPaymentSource(event.target.value)} className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2">
-            <option value="cash-on-hand">Cash on Hand</option>
-            <option value="cash-in-bank">Cash in Bank</option>
-          </select>
-        </label>
-        {error && <p role="alert" className="sm:col-span-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">{error}</p>}
-        <button type="submit" disabled={busy} className="inline-flex items-center justify-center gap-2 rounded-lg bg-blue-700 px-4 py-2 font-semibold text-white hover:bg-blue-800 disabled:opacity-50 sm:col-span-2">
-          <Check aria-hidden="true" size={17} />
-          {busy ? 'Recording...' : `Record cash release of ${formatMoney(loan.principal_amount)}`}
-        </button>
-      </form>
-    </article>
-  );
-};
 
 export const LegacyLoanRequests = () => {
   const { user, staff, offlineMode } = useAuth();
   const canReview = staff?.role === 'manager';
-  const canRelease = staff?.role === 'bookkeeper';
+  const canSubmitApplication = staff?.role === 'bookkeeper';
   const canViewQueue = ['manager', 'bookkeeper'].includes(staff?.role);
   const userId = user?.id;
   const [members, setMembers] = useState([]);
@@ -133,7 +75,7 @@ export const LegacyLoanRequests = () => {
     : null;
 
   useEffect(() => {
-    if (!canRelease) {
+    if (!canSubmitApplication) {
       setMembersLoading(false);
       return undefined;
     }
@@ -205,7 +147,7 @@ export const LegacyLoanRequests = () => {
 
     loadMembers();
     return () => { active = false; };
-  }, [canRelease, memberLoadAttempt, offlineMode, userId]);
+  }, [canSubmitApplication, memberLoadAttempt, offlineMode, userId]);
 
   const load = useCallback(async () => {
     setError('');
@@ -219,7 +161,7 @@ export const LegacyLoanRequests = () => {
           .order('created_at', { ascending: true })
           .limit(500)
         : Promise.resolve({ data: [], error: null });
-      const termQuery = canRelease
+      const termQuery = canSubmitApplication
         ? supabase.from('loan_term_options')
           .select('id, term_months, payment_frequency, annual_rate, penalty_rate')
           .eq('is_active', true)
@@ -248,7 +190,7 @@ export const LegacyLoanRequests = () => {
     } finally {
       setLoading(false);
     }
-  }, [canRelease, canViewQueue]);
+  }, [canSubmitApplication, canViewQueue]);
 
   useEffect(() => {
     load();
@@ -264,10 +206,22 @@ export const LegacyLoanRequests = () => {
     setBusyId(decision.id);
     setError('');
     try {
-      const { error: reviewError } = await supabase.rpc('review_loan_request', {
-        p_request_id: decision.id,
+      const { data: workflow, error: workflowError } = await supabase
+        .from('transaction_workflows')
+        .select('id')
+        .eq('transaction_type', 'loan_application')
+        .eq('source_module', 'loan_application')
+        .eq('source_record_id', decision.id)
+        .maybeSingle();
+      if (workflowError) throw workflowError;
+      if (!workflow?.id) {
+        throw new Error('This loan application has no approval workflow. Enable the centralized transaction workflow migrations before approving or rejecting loans.');
+      }
+
+      const { error: reviewError } = await supabase.rpc('review_transaction_workflow', {
+        p_workflow_id: workflow.id,
         p_decision: decision.status,
-        p_notes: notes.trim()
+        p_remarks: notes.trim()
       });
       if (reviewError) throw reviewError;
       setDecision(null);
@@ -279,22 +233,6 @@ export const LegacyLoanRequests = () => {
         ? 'The loan-approval database function is not installed yet. Apply migration 20261013000015_repair_loan_application_approval_rpc.sql, then refresh this page. No decision was saved.'
         : reviewError.message;
       setError(`The decision could not be saved: ${message}`);
-    } finally {
-      setBusyId(null);
-    }
-  };
-
-  const releaseLoan = async ({ loanId, date, voucher, paymentSource }) => {
-    setBusyId(loanId);
-    try {
-      const { error: releaseError } = await supabase.rpc('record_loan_disbursement', {
-        p_loan_id: loanId,
-        p_voucher_number: voucher,
-        p_disbursement_date: date,
-        p_payment_source: paymentSource
-      });
-      if (releaseError) throw releaseError;
-      await load();
     } finally {
       setBusyId(null);
     }
@@ -461,7 +399,7 @@ export const LegacyLoanRequests = () => {
 
       {error && <p role="alert" className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{error}</p>}
       {notice && <p role="status" className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">{notice}</p>}
-      {canRelease && membersError && (
+      {canSubmitApplication && membersError && (
         <div role={members.length > 0 ? 'status' : 'alert'} className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
           <span>{membersError}</span>
           {navigator.onLine && !offlineMode && (
@@ -472,7 +410,7 @@ export const LegacyLoanRequests = () => {
         </div>
       )}
 
-      {canRelease && (
+      {canSubmitApplication && (
         <section className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
           <h2 className="text-lg font-semibold text-gray-900">Enter a loan application</h2>
           <form onSubmit={submitApplication} className="mt-4 grid gap-4 sm:grid-cols-2">
@@ -716,24 +654,23 @@ export const LegacyLoanRequests = () => {
             <Check aria-hidden="true" className="text-blue-700" size={20} />
             <h2 className="text-lg font-semibold text-gray-900">Approved loans ({approvedLoans.length})</h2>
           </div>
-          {!canRelease && (
-            <label className="relative block w-full sm:w-72">
-              <Search aria-hidden="true" size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-              <input type="search" value={loanSearch} onChange={(event) => setLoanSearch(event.target.value)} placeholder="Search member or loan" aria-label="Search approved loans by member or loan number" className="w-full rounded-lg border border-gray-300 py-2 pl-9 pr-3 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200" />
-            </label>
-          )}
+          <label className="relative block w-full sm:w-72">
+            <Search aria-hidden="true" size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+            <input type="search" value={loanSearch} onChange={(event) => setLoanSearch(event.target.value)} placeholder="Search member or loan" aria-label="Search approved loans by member or loan number" className="w-full rounded-lg border border-gray-300 py-2 pl-9 pr-3 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200" />
+          </label>
+        </div>
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-950">
+          <p>Manager approval does not release cash. A loan is marked <strong>Cash released</strong> only after the Treasurer verifies the payment and attaches proof.</p>
+          {staff?.role === 'treasurer' ? (
+            <Link to="/staff/cash-release" className="font-semibold text-blue-800 underline underline-offset-2">Open Cash Release</Link>
+          ) : staff?.role === 'manager' ? (
+            <Link to="/staff/transaction-approvals" className="font-semibold text-blue-800 underline underline-offset-2">Review release proof</Link>
+          ) : staff?.role === 'bookkeeper' ? (
+            <Link to="/staff/approved-transactions" className="font-semibold text-blue-800 underline underline-offset-2">Prepare approved loan</Link>
+          ) : null}
         </div>
         {approvedLoans.length === 0 ? (
           <p className="rounded-xl border border-gray-200 bg-white p-6 text-sm text-gray-600">No approved loans to show.</p>
-        ) : canRelease ? (
-          approvedLoans.map((loan) => loan.status === 'approved' ? (
-            <LoanReleaseCard key={loan.id} loan={loan} busy={busyId === loan.id} onRelease={releaseLoan} />
-          ) : (
-            <article key={loan.id} className="rounded-xl border border-gray-200 bg-white p-5">
-              <h3 className="font-semibold text-gray-900">{fullName(memberOf(loan))} · {loan.loan_number}</h3>
-              <p className="mt-1 text-sm text-gray-600">Cash released · Principal {formatMoney(loan.principal_amount)} · Term {loan.term_months} months</p>
-            </article>
-          ))
         ) : (
           <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white shadow-sm">
             <table className="w-full min-w-[760px] divide-y divide-gray-200 text-left">
@@ -770,7 +707,7 @@ export const LegacyLoanRequests = () => {
                     <td className="whitespace-nowrap px-5 py-4 text-sm text-gray-700">{formatMoney(loan.principal_amount)}</td>
                     <td className="whitespace-nowrap px-5 py-4 text-sm text-gray-700">{formatMoney(loan.installment_amount ?? loan.monthly_payment)} · {loan.payment_frequency}</td>
                     <td className="whitespace-nowrap px-5 py-4 text-sm text-gray-700">{formatMoney(loan.balance)}</td>
-                    <td className="whitespace-nowrap px-5 py-4 text-sm capitalize text-gray-700">{loan.status === 'active' ? 'Cash released' : 'Awaiting disbursement'}</td>
+                    <td className="whitespace-nowrap px-5 py-4 text-sm text-gray-700">{loan.status === 'active' ? 'Cash released' : 'Awaiting Treasurer release'}</td>
                   </tr>
                 ))}
               </tbody>
@@ -791,7 +728,7 @@ export const LegacyLoanRequests = () => {
             {(() => {
               const application = requestData(selectedLoan.request);
               const member = memberOf(selectedLoan);
-              const loanStatus = selectedLoan.status === 'active' ? 'Cash released' : 'Awaiting disbursement';
+              const loanStatus = selectedLoan.status === 'active' ? 'Cash released' : 'Awaiting Treasurer release';
               const detailRows = [
                 ['Loan type', application.loan_type || 'Not specified'],
                 ['Repayment term', `${selectedLoan.term_months} months`],

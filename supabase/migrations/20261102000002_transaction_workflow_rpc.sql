@@ -433,6 +433,7 @@ DECLARE
   v_workflow public.transaction_workflows%ROWTYPE;
   v_next_status TEXT;
   v_loan RECORD;
+  v_loan_request_data JSONB;
   v_release_workflow_id UUID;
 BEGIN
   IF v_staff_id IS NULL OR NOT public.has_role('manager') THEN
@@ -493,6 +494,9 @@ BEGIN
     IF NOT FOUND THEN
       RAISE EXCEPTION 'Approved loan record was not created';
     END IF;
+    SELECT request_data INTO v_loan_request_data
+    FROM public.requests
+    WHERE id = v_loan.request_id;
     INSERT INTO public.transaction_workflows (
       transaction_type, direction, source_module, source_record_id, member_id,
       counterparty_name, amount, payment_method, description, payload,
@@ -505,11 +509,31 @@ BEGIN
       'Loan release ' || v_loan.loan_number,
       jsonb_build_object(
         'loan_id', v_loan.id,
+        'loan_number', v_loan.loan_number,
+        'principal_amount', v_loan.principal_amount,
+        'term_months', v_loan.term_months,
+        'payment_frequency', v_loan.payment_frequency,
+        'installments', v_loan.installments,
+        'installment_amount', v_loan.installment_amount,
+        'total_interest', v_loan.total_interest,
+        'total_amount', v_loan.total_amount,
+        'notes', v_loan.notes,
+        'request_data', COALESCE(v_loan_request_data, '{}'::JSONB),
         'release_date', NULL,
         'payment_source', 'cash-on-hand'
       ),
       jsonb_build_object(
         'loan_id', v_loan.id,
+        'loan_number', v_loan.loan_number,
+        'principal_amount', v_loan.principal_amount,
+        'term_months', v_loan.term_months,
+        'payment_frequency', v_loan.payment_frequency,
+        'installments', v_loan.installments,
+        'installment_amount', v_loan.installment_amount,
+        'total_interest', v_loan.total_interest,
+        'total_amount', v_loan.total_amount,
+        'notes', v_loan.notes,
+        'request_data', COALESCE(v_loan_request_data, '{}'::JSONB),
         'release_date', NULL,
         'payment_source', 'cash-on-hand'
       ),
@@ -1001,11 +1025,15 @@ BEGIN
     IF position(v_old IN v_definition) > 0 THEN
       v_definition := replace(v_definition, v_old, v_new);
       v_replaced := true;
+    ELSIF position(v_new IN v_definition) > 0 THEN
+      v_replaced := true;
     END IF;
     v_old := 'IF v_staff_id IS NULL OR NOT public.has_role(''bookkeeper'') THEN';
     v_new := 'IF v_staff_id IS NULL OR (NOT public.has_role(''bookkeeper'') AND NOT public.workflow_disbursement_authorized(p_disbursement)) THEN';
     IF position(v_old IN v_definition) > 0 THEN
       v_definition := replace(v_definition, v_old, v_new);
+      v_replaced := true;
+    ELSIF position(v_new IN v_definition) > 0 THEN
       v_replaced := true;
     END IF;
     IF NOT v_replaced THEN
@@ -1018,19 +1046,21 @@ BEGIN
   SELECT pg_get_functiondef(v_signature::REGPROCEDURE) INTO v_definition;
   v_old := 'IF NOT public.has_role(''bookkeeper'') THEN';
   v_new := 'IF NOT public.has_role(''bookkeeper'') AND NOT public.workflow_member_entry_authorized(p_entry, p_disbursement) THEN';
-  IF position(v_old IN v_definition) = 0 THEN
+  IF position(v_old IN v_definition) > 0 THEN
+    EXECUTE replace(v_definition, v_old, v_new);
+  ELSIF position(v_new IN v_definition) = 0 THEN
     RAISE EXCEPTION 'Could not safely extend member financial entry authorization';
   END IF;
-  EXECUTE replace(v_definition, v_old, v_new);
 
   v_signature := 'public.record_loan_disbursement(uuid,text,date,text)';
   SELECT pg_get_functiondef(v_signature::REGPROCEDURE) INTO v_definition;
   v_old := 'IF NOT public.has_role(''bookkeeper'') THEN';
   v_new := 'IF NOT public.has_role(''bookkeeper'') AND NOT public.workflow_loan_release_authorized(p_loan_id) THEN';
-  IF position(v_old IN v_definition) = 0 THEN
+  IF position(v_old IN v_definition) > 0 THEN
+    EXECUTE replace(v_definition, v_old, v_new);
+  ELSIF position(v_new IN v_definition) = 0 THEN
     RAISE EXCEPTION 'Could not safely extend loan release authorization';
   END IF;
-  EXECUTE replace(v_definition, v_old, v_new);
 END;
 $$;
 
