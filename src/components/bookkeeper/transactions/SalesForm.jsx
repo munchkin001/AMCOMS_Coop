@@ -22,6 +22,7 @@ const SalesForm = ({ onSave, onCancel }) => {
   const [customerMode, setCustomerMode] = useState('other');
   const [flow, setFlow] = useState('sale');
   const [collectionOrderId, setCollectionOrderId] = useState('');
+  const [collectionPayeeKey, setCollectionPayeeKey] = useState('');
   const [cancellationOrderId, setCancellationOrderId] = useState('');
   const [cancellationReason, setCancellationReason] = useState('');
   const [returnQuantities, setReturnQuantities] = useState({});
@@ -75,6 +76,12 @@ const SalesForm = ({ onSave, onCancel }) => {
         setOutstandingSales(options.outstandingSales || []);
         setCancellableSales([]);
         setCollectionOrderId(options.outstandingSales?.[0]?.id || '');
+        const firstSale = options.outstandingSales?.[0];
+        setCollectionPayeeKey(firstSale
+          ? firstSale.member_id
+            ? `member:${firstSale.member_id}`
+            : `customer:${(firstSale.customer_name || '').trim().toLocaleLowerCase()}`
+          : '');
         setError(`${message} Showing the saved options; the server will validate stock, balances, and eligibility when this operation syncs.`);
         setLoading(false);
       };
@@ -98,7 +105,7 @@ const SalesForm = ({ onSave, onCancel }) => {
           .eq('is_active', true)
           .order('account_name'),
         supabase.from('sales_orders')
-          .select('id, order_number, customer_name, net_amount, amount_paid, payment_status, order_status, cash_receipt_id, sales_order_items(id, product_id, item_description, quantity, product:products(product_name))')
+          .select('id, order_number, member_id, customer_name, net_amount, amount_paid, payment_status, order_status, cash_receipt_id, sales_order_items(id, product_id, item_description, quantity, product:products(product_name))')
           .in('payment_status', ['pending', 'partial'])
           .order('order_date', { ascending: true })
       ]);
@@ -158,8 +165,17 @@ const SalesForm = ({ onSave, onCancel }) => {
         setProducts(productResult.data || []);
         setMembers(memberResult.data || []);
         setRevenueAccounts(accountResult.data || []);
-        setOutstandingSales(openSales.filter((sale) => Number(sale.net_amount) > Number(sale.amount_paid || 0)));
-        setCollectionOrderId(openSales.find((sale) => Number(sale.net_amount) > Number(sale.amount_paid || 0))?.id || '');
+        const outstandingCreditSales = openSales.filter((sale) =>
+          sale.order_status !== 'cancelled'
+          && Number(sale.net_amount) - Number(sale.amount_paid || 0) > 0.01
+        );
+        setOutstandingSales(outstandingCreditSales);
+        setCollectionOrderId(outstandingCreditSales[0]?.id || '');
+        setCollectionPayeeKey(outstandingCreditSales[0]
+          ? outstandingCreditSales[0].member_id
+            ? `member:${outstandingCreditSales[0].member_id}`
+            : `customer:${(outstandingCreditSales[0].customer_name || '').trim().toLocaleLowerCase()}`
+          : '');
         setCancellableSales(salesWithReturnableItems);
         setCancellationOrderId(salesWithReturnableItems[0]?.id || '');
         if ((accountResult.data || []).some((account) => account.account_name === 'Sales')) {
@@ -175,9 +191,7 @@ const SalesForm = ({ onSave, onCancel }) => {
                 products: productResult.data || [],
                 members: memberResult.data || [],
                 revenueAccounts: accountResult.data || [],
-                outstandingSales: (saleResult.data || []).filter(
-                  (sale) => Number(sale.net_amount) > Number(sale.amount_paid || 0)
-                ),
+                outstandingSales: outstandingCreditSales,
               },
               updatedAt: new Date().toISOString(),
             });
@@ -197,6 +211,32 @@ const SalesForm = ({ onSave, onCancel }) => {
   }, [offlineMode, user?.id]);
 
   const getMemberName = (member) => [member.first_name, member.middle_name, member.last_name].filter(Boolean).join(' ');
+  const creditPayees = useMemo(() => {
+    const payees = new Map();
+    for (const sale of outstandingSales) {
+      const key = sale.member_id
+        ? `member:${sale.member_id}`
+        : `customer:${(sale.customer_name || '').trim().toLocaleLowerCase()}`;
+      const current = payees.get(key) || { key, saleCount: 0, balance: 0, memberId: sale.member_id || null, name: sale.customer_name || 'Non-member customer' };
+      current.saleCount += 1;
+      current.balance += Math.max(Number(sale.net_amount || 0) - Number(sale.amount_paid || 0), 0);
+      payees.set(key, current);
+    }
+    return [...payees.values()].map((payee) => {
+      const member = members.find((item) => item.id === payee.memberId);
+      return {
+        ...payee,
+        name: member ? getMemberName(member) : payee.name,
+        label: `${payee.memberId ? 'Member' : 'Non-member'} · ${member ? getMemberName(member) : payee.name}`,
+      };
+    }).sort((left, right) => left.name.localeCompare(right.name));
+  }, [members, outstandingSales]);
+  const filteredOutstandingSales = useMemo(() => outstandingSales.filter((sale) => {
+    const key = sale.member_id
+      ? `member:${sale.member_id}`
+      : `customer:${(sale.customer_name || '').trim().toLocaleLowerCase()}`;
+    return key === collectionPayeeKey;
+  }), [collectionPayeeKey, outstandingSales]);
 
   const handleSubmit = async (event) => {
     event.preventDefault();
@@ -415,16 +455,43 @@ const SalesForm = ({ onSave, onCancel }) => {
             ) : flow === 'collection' ? (
               <>
                 <label className="text-sm font-medium text-gray-700 sm:col-span-2">
+                  Member / non-member with payable sales *
+                  <select
+                    value={collectionPayeeKey}
+                    onChange={(event) => {
+                      const payeeKey = event.target.value;
+                      setCollectionPayeeKey(payeeKey);
+                      const firstSale = outstandingSales.find((sale) => {
+                        const key = sale.member_id
+                          ? `member:${sale.member_id}`
+                          : `customer:${(sale.customer_name || '').trim().toLocaleLowerCase()}`;
+                        return key === payeeKey;
+                      });
+                      setCollectionOrderId(firstSale?.id || '');
+                    }}
+                    required
+                    className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2"
+                  >
+                    <option value="">Select a member or non-member payee</option>
+                    {creditPayees.map((payee) => (
+                      <option key={payee.key} value={payee.key}>
+                        {payee.label} · {payee.saleCount} credit sale(s) · ₱{payee.balance.toLocaleString('en-PH', { minimumFractionDigits: 2 })}
+                      </option>
+                    ))}
+                  </select>
+                  {creditPayees.length === 0 && <span className="mt-1 block text-xs text-gray-500">Only members/payees with an outstanding credit sale are listed.</span>}
+                </label>
+                <label className="text-sm font-medium text-gray-700 sm:col-span-2">
                   Outstanding credit sale *
-                  <select value={collectionOrderId} onChange={(event) => setCollectionOrderId(event.target.value)} required className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2">
+                  <select value={collectionOrderId} onChange={(event) => setCollectionOrderId(event.target.value)} required disabled={!filteredOutstandingSales.length} className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 disabled:bg-slate-100">
                     <option value="">Select a credit sale</option>
-                    {outstandingSales.map((sale) => (
+                    {filteredOutstandingSales.map((sale) => (
                       <option key={sale.id} value={sale.id}>
                         {sale.order_number} — {sale.customer_name} — due ₱{(Number(sale.net_amount) - Number(sale.amount_paid || 0)).toLocaleString('en-PH', { minimumFractionDigits: 2 })}
                       </option>
                     ))}
                   </select>
-                  {outstandingSales.length === 0 && <span className="mt-1 block text-xs text-gray-500">There are no outstanding credit sales.</span>}
+                  {!filteredOutstandingSales.length && <span className="mt-1 block text-xs text-gray-500">Select a member/payee with an outstanding credit sale.</span>}
                 </label>
                 <label className="text-sm font-medium text-gray-700">
                   Collection amount (₱) *

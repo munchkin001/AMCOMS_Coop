@@ -549,8 +549,10 @@ const TransactionWorkflow = ({ role }) => {
               <tbody className="divide-y divide-slate-100">
                 {filteredRows.map((row) => {
                   const requester = relation(row.requester)?.full_name || 'Staff';
+                  const requiresProcessing = isBookkeeper && row.status === 'approved' && !isCreditSale(row);
                   const actionable = (isManager && ['pending_approval', 'returned_for_correction'].includes(row.status))
-                    || (isBookkeeper && ['returned_for_correction', 'approved'].includes(row.status))
+                    || (isBookkeeper && row.status === 'returned_for_correction')
+                    || requiresProcessing
                     || (isTreasurer && ['awaiting_release', 'on_hold', 'release_issue'].includes(row.status));
                   return (
                     <tr key={row.id} className="cursor-pointer hover:bg-blue-50/60" onClick={() => openWorkflowDetails(row)}>
