@@ -253,7 +253,7 @@ const TransactionWorkflow = ({ role }) => {
     if (isBookkeeper && workflow.status === 'returned_for_correction') {
       setCorrectionAmount(String(workflow.amount));
       setCorrectionCounterparty(workflow.counterparty_name || '');
-      setCorrectionPaymentMethod(workflow.payment_method || '');
+      setCorrectionPaymentMethod(workflow.payment_method === 'bank_transfer' ? 'bank_transfer' : 'cash');
       setCorrectionDescription(workflow.description || '');
       setCorrectionPayload(JSON.stringify(workflow.payload || {}, null, 2));
     }
@@ -639,12 +639,10 @@ const TransactionWorkflow = ({ role }) => {
                       <input type="number" min="0.01" step="0.01" value={correctionAmount} onChange={(event) => setCorrectionAmount(event.target.value)} className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2" />
                     </label>
                     <label className="text-sm font-medium text-slate-700">
-                      Payment method
+                      Cash account
                       <select value={correctionPaymentMethod} onChange={(event) => setCorrectionPaymentMethod(event.target.value)} className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2">
-                        <option value="">Not specified</option>
-                        {['cash', 'check', 'bank_transfer', 'gcash', 'paymaya', 'other'].map((method) => (
-                          <option key={method} value={method}>{method.replaceAll('_', ' ')}</option>
-                        ))}
+                        <option value="cash">Cash on Hand</option>
+                        <option value="bank_transfer">Cash in Bank</option>
                       </select>
                     </label>
                     <label className="text-sm font-medium text-slate-700 sm:col-span-2">

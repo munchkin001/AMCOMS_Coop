@@ -38,6 +38,9 @@ BEGIN
   IF v_workflow.direction = 'cash_in' THEN
     RAISE EXCEPTION 'Automatically recorded cash-in transactions cannot be resubmitted for Manager approval';
   END IF;
+  IF p_payment_method NOT IN ('cash', 'bank_transfer') THEN
+    RAISE EXCEPTION 'Choose Cash on Hand or Cash in Bank';
+  END IF;
 
   UPDATE public.transaction_workflows
   SET source_record_id = NULL,
