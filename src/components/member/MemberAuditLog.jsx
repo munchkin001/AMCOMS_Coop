@@ -1,5 +1,8 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { Activity, CalendarDays, Clock3, Monitor, RefreshCw, ShieldCheck } from 'lucide-react';
+import {
+  Activity, CalendarDays, ChevronLeft, ChevronRight, Clock3, Monitor, RefreshCw,
+  Search, ShieldCheck, X
+} from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useRealtimeSubscription } from '../../hooks/useRealtimeSubscription';
 import { supabase } from '../../lib/supabase';
@@ -58,13 +61,30 @@ const formatDate = (value) => {
   };
 };
 
+const PAGE_SIZE = 10;
+
 const MemberAuditLog = () => {
   const { user } = useAuth();
   const [logs, setLogs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [search, setSearch] = useState('');
+  const [activityFilter, setActivityFilter] = useState('all');
+  const [page, setPage] = useState(1);
+  const [selectedLog, setSelectedLog] = useState(null);
   const signInCount = logs.filter((log) => log.table_name === 'authentication' && log.action === 'Signed in').length;
   const accountChangeCount = logs.filter((log) => log.table_name === 'authentication' && log.action !== 'Signed in' && log.action !== 'Signed out').length;
+  const filteredLogs = logs.filter((log) => {
+    const isSignIn = log.table_name === 'authentication' && log.action === 'Signed in';
+    const matchesType = activityFilter === 'all'
+      || (activityFilter === 'sign-ins' && isSignIn)
+      || (activityFilter === 'account' && !isSignIn);
+    const searchableText = `${getActivityLabel(log)} ${log.table_name || ''} ${log.action || ''} ${describeDevice(log.user_agent)} ${formatDate(log.created_at).date} ${formatDate(log.created_at).time}`.toLowerCase();
+    return matchesType && searchableText.includes(search.trim().toLowerCase());
+  });
+  const pageCount = Math.max(1, Math.ceil(filteredLogs.length / PAGE_SIZE));
+  const currentPage = Math.min(page, pageCount);
+  const pageLogs = filteredLogs.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
 
   const loadLogs = useCallback(async () => {
     if (!user?.id) {
@@ -155,21 +175,48 @@ const MemberAuditLog = () => {
         </article>
       </div>
 
-      <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+      <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
         <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 px-5 py-4 sm:px-6">
           <div>
             <h3 className="font-semibold text-slate-900">Recent activity</h3>
-            <p className="mt-1 text-xs text-slate-500">Newest events appear first</p>
+            <p className="mt-1 text-xs text-slate-500">Newest events appear first. Select a row to inspect its details.</p>
           </div>
           {!loading && logs.length > 0 && (
             <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-800">
-              {logs.length} {logs.length === 1 ? 'event' : 'events'}
+              {filteredLogs.length} of {logs.length} events
             </span>
           )}
         </div>
+        <div className="grid gap-3 border-b border-slate-100 p-4 sm:grid-cols-[minmax(0,1fr)_12rem] sm:px-6">
+          <label className="text-sm font-medium text-slate-700">
+            Search activity
+            <span className="relative mt-1 block">
+              <Search aria-hidden="true" className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-400" />
+              <input
+                type="search"
+                value={search}
+                onChange={(event) => { setSearch(event.target.value); setPage(1); }}
+                placeholder="Search action, date, or device"
+                className="min-h-11 w-full rounded-lg border border-slate-300 bg-white pl-10 pr-3 text-sm text-slate-900 placeholder:text-slate-400 focus:border-emerald-700 focus:outline-none focus:ring-2 focus:ring-emerald-700/20"
+              />
+            </span>
+          </label>
+          <label className="text-sm font-medium text-slate-700">
+            Activity type
+            <select
+              value={activityFilter}
+              onChange={(event) => { setActivityFilter(event.target.value); setPage(1); }}
+              className="mt-1 block min-h-11 w-full rounded-lg border border-slate-300 bg-white px-3 text-sm text-slate-900 focus:border-emerald-700 focus:outline-none focus:ring-2 focus:ring-emerald-700/20"
+            >
+              <option value="all">All activity</option>
+              <option value="sign-ins">Sign-ins</option>
+              <option value="account">Account changes</option>
+            </select>
+          </label>
+        </div>
         {loading ? (
-          <div className="space-y-4 p-6" aria-label="Loading account activity">
-            {[1, 2, 3].map((item) => <div key={item} className="h-20 animate-pulse rounded-xl bg-slate-100" />)}
+          <div className="space-y-3 p-6" aria-label="Loading account activity">
+            {[1, 2, 3].map((item) => <div key={item} className="h-14 animate-pulse rounded-xl bg-slate-100" />)}
           </div>
         ) : logs.length === 0 ? (
           <div className="px-6 py-14 text-center">
@@ -179,55 +226,166 @@ const MemberAuditLog = () => {
             <p className="mt-4 text-base font-semibold text-slate-900">You’re all caught up</p>
             <p className="mx-auto mt-1 max-w-sm text-sm leading-6 text-slate-500">Your sign-ins and account changes will show up here when they’re recorded.</p>
           </div>
-        ) : (
-          <div className="divide-y divide-slate-100">
-            {logs.map((log) => {
-              const { date, time } = formatDate(log.created_at);
-              const isSignIn = log.table_name === 'authentication' && log.action === 'Signed in';
-              return (
-                <article key={log.id} className="flex gap-4 px-5 py-5 transition-colors hover:bg-emerald-50/40 sm:px-6">
-                  <div className="relative flex w-10 shrink-0 justify-center">
-                    <span className={`relative z-10 flex size-10 items-center justify-center rounded-xl ${isSignIn ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-700'}`}>
-                      {isSignIn ? <Monitor aria-hidden="true" className="size-5" /> : <Activity aria-hidden="true" className="size-5" />}
-                    </span>
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
-                      <div>
-                        <p className="font-semibold text-slate-900">{getActivityLabel(log)}</p>
-                        <p className="mt-1 flex items-center gap-1.5 text-xs text-slate-500">
-                          <CalendarDays aria-hidden="true" className="size-3.5" />
-                          {date}
-                          <span className="px-0.5">·</span>
-                          <Clock3 aria-hidden="true" className="size-3.5" />
-                          {time}
-                        </p>
-                      </div>
-                      <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${isSignIn ? 'bg-emerald-50 text-emerald-800' : 'bg-slate-100 text-slate-700'}`}>
-                        {isSignIn ? 'Sign-in' : 'Account'}
-                      </span>
-                    </div>
-                    <div className="mt-3 flex min-w-0 items-start gap-2.5 rounded-xl bg-slate-50 p-3">
-                      <Monitor aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-slate-500" />
-                      <div className="min-w-0">
-                        <p className="text-sm font-medium text-slate-700">{describeDevice(log.user_agent)}</p>
-                        {log.user_agent && (
-                          <details className="mt-1">
-                            <summary className="w-fit cursor-pointer text-xs font-medium text-emerald-800 underline decoration-emerald-300 underline-offset-2 hover:text-emerald-950">
-                              View browser details
-                            </summary>
-                            <p className="mt-2 break-all text-xs leading-5 text-slate-500">{log.user_agent}</p>
-                          </details>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                </article>
-              );
-            })}
+        ) : filteredLogs.length === 0 ? (
+          <div className="px-6 py-14 text-center">
+            <span className="mx-auto flex size-14 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-800">
+              <Search aria-hidden="true" className="size-6" />
+            </span>
+            <p className="mt-4 text-base font-semibold text-slate-900">No matching activity</p>
+            <p className="mt-1 text-sm text-slate-500">Try another search or activity type.</p>
           </div>
+        ) : (
+          <>
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[640px] text-left text-sm">
+                <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
+                  <tr>
+                    <th scope="col" className="px-5 py-3 font-semibold">Date &amp; time</th>
+                    <th scope="col" className="px-5 py-3 font-semibold">Activity</th>
+                    <th scope="col" className="px-5 py-3 font-semibold">Type</th>
+                    <th scope="col" className="px-5 py-3 font-semibold">Device / browser</th>
+                    <th scope="col" className="px-5 py-3"><span className="sr-only">Details</span></th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {pageLogs.map((log) => {
+                    const { date, time } = formatDate(log.created_at);
+                    const isSignIn = log.table_name === 'authentication' && log.action === 'Signed in';
+                    return (
+                      <tr
+                        key={log.id}
+                        tabIndex={0}
+                        aria-label={`View details: ${getActivityLabel(log)}`}
+                        onClick={() => setSelectedLog(log)}
+                        onKeyDown={(event) => {
+                          if (event.key === 'Enter' || event.key === ' ') {
+                            event.preventDefault();
+                            setSelectedLog(log);
+                          }
+                        }}
+                        className="cursor-pointer bg-white transition-colors hover:bg-emerald-50/60 focus:bg-emerald-50/60 focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-emerald-700"
+                      >
+                        <td className="whitespace-nowrap px-5 py-4 text-slate-600">
+                          <span className="flex items-center gap-1.5"><CalendarDays aria-hidden="true" className="size-3.5 text-slate-400" />{date}</span>
+                          <span className="mt-1 flex items-center gap-1.5 text-xs"><Clock3 aria-hidden="true" className="size-3.5 text-slate-400" />{time}</span>
+                        </td>
+                        <td className="px-5 py-4 font-semibold text-slate-900">{getActivityLabel(log)}</td>
+                        <td className="px-5 py-4">
+                          <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${isSignIn ? 'bg-emerald-50 text-emerald-800' : 'bg-slate-100 text-slate-700'}`}>
+                            {isSignIn ? 'Sign-in' : 'Account'}
+                          </span>
+                        </td>
+                        <td className="px-5 py-4 text-slate-700">{describeDevice(log.user_agent)}</td>
+                        <td className="px-5 py-4 text-right text-xs font-semibold text-emerald-800">View</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+            {filteredLogs.length > PAGE_SIZE && (
+              <footer className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 px-5 py-3 sm:px-6">
+                <p className="text-sm text-slate-500">
+                  Showing {(currentPage - 1) * PAGE_SIZE + 1}–{Math.min(currentPage * PAGE_SIZE, filteredLogs.length)} of {filteredLogs.length}
+                </p>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setPage((current) => Math.max(1, current - 1))}
+                    disabled={currentPage === 1}
+                    aria-label="Previous page"
+                    className="flex size-9 items-center justify-center rounded-lg border border-slate-300 text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
+                  >
+                    <ChevronLeft aria-hidden="true" className="size-4" />
+                  </button>
+                  <span className="px-2 text-sm font-medium text-slate-700">Page {currentPage} of {pageCount}</span>
+                  <button
+                    type="button"
+                    onClick={() => setPage((current) => Math.min(pageCount, current + 1))}
+                    disabled={currentPage === pageCount}
+                    aria-label="Next page"
+                    className="flex size-9 items-center justify-center rounded-lg border border-slate-300 text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
+                  >
+                    <ChevronRight aria-hidden="true" className="size-4" />
+                  </button>
+                </div>
+              </footer>
+            )}
+          </>
         )}
-      </div>
+      </section>
+
+      {selectedLog && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-sm" onClick={() => setSelectedLog(null)}>
+          <section
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="member-activity-title"
+            className="flex max-h-[92vh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-white/60 bg-slate-50 shadow-2xl"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <header className="relative overflow-hidden bg-gradient-to-br from-emerald-950 via-emerald-900 to-green-800 px-5 py-5 text-white sm:px-7">
+              <div aria-hidden="true" className="pointer-events-none absolute -right-10 -top-20 size-48 rounded-full border-[24px] border-white/5" />
+              <div className="relative flex items-start justify-between gap-4">
+                <div className="min-w-0">
+                  <p className="text-xs font-semibold uppercase tracking-[0.14em] text-emerald-100">
+                    Account activity · {selectedLog.table_name === 'authentication' ? 'Account access' : 'Account details'}
+                  </p>
+                  <h2 id="member-activity-title" className="mt-1 break-words text-xl font-bold">{getActivityLabel(selectedLog)}</h2>
+                  <p className="mt-1 text-sm text-emerald-100">{formatDate(selectedLog.created_at).date} · {formatDate(selectedLog.created_at).time}</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setSelectedLog(null)}
+                  aria-label="Close activity details"
+                  className="flex size-9 shrink-0 items-center justify-center rounded-lg border border-white/20 bg-white/10 text-white hover:bg-white/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
+                >
+                  <X aria-hidden="true" className="size-5" />
+                </button>
+              </div>
+            </header>
+            <div className="min-h-0 space-y-4 overflow-y-auto p-5 sm:p-6">
+              <dl className="grid gap-3 sm:grid-cols-2">
+                <div className="rounded-xl border border-slate-200 bg-white p-4">
+                  <dt className="text-xs font-medium uppercase tracking-wide text-slate-500">Activity</dt>
+                  <dd className="mt-1 font-semibold text-slate-900">{getActivityLabel(selectedLog)}</dd>
+                </div>
+                <div className="rounded-xl border border-slate-200 bg-white p-4">
+                  <dt className="text-xs font-medium uppercase tracking-wide text-slate-500">Date and time</dt>
+                  <dd className="mt-1 font-semibold text-slate-900">{formatDate(selectedLog.created_at).date} · {formatDate(selectedLog.created_at).time}</dd>
+                </div>
+                <div className="rounded-xl border border-slate-200 bg-white p-4">
+                  <dt className="text-xs font-medium uppercase tracking-wide text-slate-500">Activity type</dt>
+                  <dd className="mt-1 font-semibold text-slate-900">{selectedLog.table_name === 'authentication' && selectedLog.action === 'Signed in' ? 'Sign-in' : 'Account'}</dd>
+                </div>
+                <div className="rounded-xl border border-slate-200 bg-white p-4">
+                  <dt className="text-xs font-medium uppercase tracking-wide text-slate-500">Source</dt>
+                  <dd className="mt-1 font-semibold text-slate-900">{selectedLog.table_name || 'Not recorded'}</dd>
+                </div>
+              </dl>
+              <div className="rounded-xl bg-white p-4">
+                <div className="flex items-start gap-3">
+                  <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-emerald-50 text-emerald-800">
+                    <Monitor aria-hidden="true" className="size-5" />
+                  </span>
+                  <div className="min-w-0">
+                    <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Device / browser</p>
+                    <p className="mt-1 font-semibold text-slate-900">{describeDevice(selectedLog.user_agent)}</p>
+                    {selectedLog.user_agent && (
+                      <details className="mt-2">
+                        <summary className="w-fit cursor-pointer text-xs font-medium text-emerald-800 underline decoration-emerald-300 underline-offset-2 hover:text-emerald-950">
+                          View browser details
+                        </summary>
+                        <p className="mt-2 break-all text-xs leading-5 text-slate-500">{selectedLog.user_agent}</p>
+                      </details>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </section>
+        </div>
+      )}
     </section>
   );
 };
