@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Archive, Eye, KeyRound, Pencil, Plus, RotateCcw, Search, Trash2, Users } from 'lucide-react';
+import { Archive, ChevronLeft, ChevronRight, Eye, KeyRound, Pencil, Plus, RotateCcw, Search, Trash2, Users } from 'lucide-react';
 import { useRealtimeSubscription } from '../../hooks/useRealtimeSubscription';
 import { supabase } from '../../lib/supabase';
 import { getAppUrl } from '../../lib/appUrl';
@@ -13,6 +13,7 @@ const emptyForm = {
 };
 
 const money = (value) => `₱${(Number(value) || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })}`;
+const MEMBER_PAGE_SIZE = 10;
 const fullName = (member) => [member.first_name, member.middle_name, member.last_name].filter(Boolean).join(' ');
 const memberNameCollator = new Intl.Collator(undefined, { sensitivity: 'base', numeric: true });
 const compareMembersByName = (left, right) =>
@@ -59,6 +60,7 @@ const MemberManagement = ({ canManageMembers = true }) => {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [view, setView] = useState('all');
+  const [memberPage, setMemberPage] = useState(1);
   const [modal, setModal] = useState('');
   const [selectedMember, setSelectedMember] = useState(null);
   const [form, setForm] = useState(emptyForm);
@@ -186,6 +188,12 @@ const MemberManagement = ({ canManageMembers = true }) => {
       return matchesSearch && matchesStatus && matchesType;
     }).sort(compareMembersByName);
   }, [activeMembers, archivedMembers, search, statusFilter, view]);
+  const memberPageCount = Math.max(1, Math.ceil(filteredMembers.length / MEMBER_PAGE_SIZE));
+  const currentMemberPage = Math.min(memberPage, memberPageCount);
+  const visibleMembers = filteredMembers.slice(
+    (currentMemberPage - 1) * MEMBER_PAGE_SIZE,
+    currentMemberPage * MEMBER_PAGE_SIZE
+  );
 
   const startAdd = () => {
     if (!canManageMembers) return;
@@ -537,7 +545,7 @@ const MemberManagement = ({ canManageMembers = true }) => {
               key={id}
               type="button"
               aria-pressed={view === id}
-              onClick={() => { setView(id); setStatusFilter('all'); }}
+              onClick={() => { setView(id); setStatusFilter('all'); setMemberPage(1); }}
               className={`inline-flex items-center gap-2 whitespace-nowrap rounded-lg px-3 py-2.5 text-sm font-bold transition-colors ${view === id ? 'bg-blue-950 text-white shadow-sm' : 'text-slate-600 hover:bg-slate-100 hover:text-slate-950'}`}
             >
               {label}
@@ -548,7 +556,7 @@ const MemberManagement = ({ canManageMembers = true }) => {
         {view !== 'archived' && (
           <label className="flex shrink-0 items-center gap-2 px-2 text-xs font-bold uppercase tracking-wide text-slate-500">
             Status
-            <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold normal-case tracking-normal text-slate-800 focus:border-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-600/20">
+            <select value={statusFilter} onChange={(event) => { setStatusFilter(event.target.value); setMemberPage(1); }} className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold normal-case tracking-normal text-slate-800 focus:border-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-600/20">
               <option value="all">All active statuses</option>
               <option value="active">Active</option>
               <option value="suspended">Suspended</option>
@@ -560,7 +568,7 @@ const MemberManagement = ({ canManageMembers = true }) => {
       <label className="flex items-center gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-sm transition focus-within:border-blue-400 focus-within:ring-2 focus-within:ring-blue-600/15">
         <Search size={19} className="shrink-0 text-blue-700" aria-hidden="true" />
         <span className="sr-only">Search members</span>
-        <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search name, member ID, contact, or email" className="min-w-0 flex-1 border-0 bg-transparent text-sm font-medium text-slate-800 outline-none placeholder:font-normal placeholder:text-slate-400 focus:ring-0" />
+        <input value={search} onChange={(event) => { setSearch(event.target.value); setMemberPage(1); }} placeholder="Search name, member ID, contact, or email" className="min-w-0 flex-1 border-0 bg-transparent text-sm font-medium text-slate-800 outline-none placeholder:font-normal placeholder:text-slate-400 focus:ring-0" />
         <span className="hidden rounded-md bg-slate-100 px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-slate-500 sm:inline">Search</span>
       </label>
 
@@ -568,6 +576,13 @@ const MemberManagement = ({ canManageMembers = true }) => {
       {portalNotice && <p role="status" className="whitespace-pre-line rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">{portalNotice}</p>}
       {loading ? <div className="rounded-lg border border-gray-200 bg-white p-8 text-center text-sm text-gray-500">Loading members...</div> : (
         <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 px-4 py-3">
+            <h2 className="text-sm font-semibold text-slate-800">Member directory</h2>
+            <p className="text-sm text-slate-500">
+              {filteredMembers.length} {filteredMembers.length === 1 ? 'member' : 'members'}
+              {filteredMembers.length > 0 && <span className="ml-1 text-slate-400">· {MEMBER_PAGE_SIZE} per page</span>}
+            </p>
+          </div>
           <div className="overflow-x-auto">
             <table className="min-w-[1120px] divide-y divide-slate-200">
               <thead className="bg-slate-100">
@@ -586,7 +601,7 @@ const MemberManagement = ({ canManageMembers = true }) => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {filteredMembers.map((member) => (
+                {visibleMembers.map((member) => (
                   <tr key={member.id} className="align-top transition-colors odd:bg-white even:bg-slate-50/40 hover:bg-blue-50/70">
                     <td className="px-4 py-3.5">
                       <p className="text-sm font-bold text-slate-950">{fullName(member)}</p>
@@ -625,6 +640,39 @@ const MemberManagement = ({ canManageMembers = true }) => {
               </tbody>
             </table>
           </div>
+          {filteredMembers.length > 0 && (
+            <footer className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-200 bg-white px-4 py-3">
+              <p className="text-sm text-slate-500">
+                Showing <span className="font-semibold text-slate-800">{(currentMemberPage - 1) * MEMBER_PAGE_SIZE + 1}–{Math.min(currentMemberPage * MEMBER_PAGE_SIZE, filteredMembers.length)}</span>
+                {' '}of {filteredMembers.length} members
+              </p>
+              <nav aria-label="Member directory pages" className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setMemberPage((page) => Math.max(1, page - 1))}
+                  disabled={currentMemberPage === 1}
+                  aria-label="Previous member page"
+                  className="inline-flex min-h-9 items-center gap-1 rounded-lg border border-slate-300 px-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  <ChevronLeft size={16} aria-hidden="true" />
+                  Previous
+                </button>
+                <span aria-live="polite" className="min-w-20 text-center text-sm font-semibold tabular-nums text-slate-700">
+                  {currentMemberPage} / {memberPageCount}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setMemberPage((page) => Math.min(memberPageCount, page + 1))}
+                  disabled={currentMemberPage === memberPageCount}
+                  aria-label="Next member page"
+                  className="inline-flex min-h-9 items-center gap-1 rounded-lg border border-slate-300 px-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  Next
+                  <ChevronRight size={16} aria-hidden="true" />
+                </button>
+              </nav>
+            </footer>
+          )}
         </div>
       )}
 
