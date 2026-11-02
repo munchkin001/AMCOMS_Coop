@@ -35,6 +35,44 @@ const normalizePhone = (value: string) => {
   return digits;
 };
 
+const parseMoceanResponse = (rawResponse: string): Record<string, unknown> | null => {
+  try {
+    const parsed: unknown = JSON.parse(rawResponse);
+    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+      return parsed as Record<string, unknown>;
+    }
+  } catch {
+    // Mocean may return XML unless JSON is explicitly requested.
+  }
+
+  const getTag = (source: string, tag: string) => {
+    const match = source.match(new RegExp(`<${tag}(?:\\s[^>]*)?>([\\s\\S]*?)<\\/${tag}>`, 'i'));
+    return match?.[1]?.replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, '$1')
+      .replace(/&amp;/g, '&')
+      .replace(/&lt;/g, '<')
+      .replace(/&gt;/g, '>')
+      .replace(/&quot;/g, '"')
+      .replace(/&apos;/g, "'")
+      .trim();
+  };
+  const messages = Array.from(rawResponse.matchAll(/<message(?:\s[^>]*)?>([\s\S]*?)<\/message>/gi))
+    .map(([, message]) => ({
+      status: getTag(message, 'status'),
+      receiver: getTag(message, 'receiver'),
+      msgid: getTag(message, 'msgid'),
+      err_msg: getTag(message, 'err_msg')
+    }));
+
+  if (!/<(?:xml|result|response|account|messages)\b/i.test(rawResponse)) return null;
+  return {
+    status: getTag(rawResponse, 'status'),
+    value: getTag(rawResponse, 'value'),
+    unit: getTag(rawResponse, 'unit'),
+    err_msg: getTag(rawResponse, 'err_msg'),
+    messages
+  };
+};
+
 const getRecipients = async (admin: ReturnType<typeof createClient>, groups: string[]) => {
   const allowedGroups = new Set(['allMembers', 'recentMembers', 'manager', 'treasurer', 'bookkeeper', 'inventoryStaff']);
   if (!groups.length || groups.some((group) => !allowedGroups.has(group))) {
@@ -158,14 +196,15 @@ Deno.serve(async (request: Request) => {
         return jsonResponse({ error: 'Mocean account balance is temporarily unavailable.' }, 502, origin);
       }
 
-      const body: unknown = await response.json().catch(() => null);
-      const account = body && typeof body === 'object' && !Array.isArray(body)
-        ? body as Record<string, unknown>
-        : null;
+      const account = parseMoceanResponse(await response.text().catch(() => ''));
       const balance = Number(account?.value);
       const unit = typeof account?.unit === 'string' ? account.unit.trim() : '';
       if (!response.ok || Number(account?.status) !== 0 || !Number.isFinite(balance) || balance < 0 || !unit) {
-        return jsonResponse({ error: 'Mocean did not return a valid account balance.' }, 502, origin);
+        return jsonResponse({
+          error: typeof account?.err_msg === 'string' && account.err_msg
+            ? `Mocean balance lookup failed: ${account.err_msg}`
+            : 'Mocean did not return a valid account balance.'
+        }, 502, origin);
       }
       return jsonResponse({ balance, unit }, 200, origin);
     }
@@ -214,7 +253,8 @@ Deno.serve(async (request: Request) => {
         body: new URLSearchParams({
           'mocean-from': senderName,
           'mocean-to': recipients.map((recipient) => recipient.phone).join(','),
-          'mocean-text': message
+          'mocean-text': message,
+          'mocean-resp-format': 'json'
         }),
         signal: AbortSignal.timeout(20000)
       });
@@ -226,10 +266,7 @@ Deno.serve(async (request: Request) => {
       return jsonResponse({ error: 'Mocean could not be reached. The message was not confirmed as sent.' }, 502, origin);
     }
 
-    const providerBody: unknown = await providerResponse.json().catch(() => null);
-    const responseObject = providerBody && typeof providerBody === 'object' && !Array.isArray(providerBody)
-      ? providerBody as Record<string, unknown>
-      : null;
+    const responseObject = parseMoceanResponse(await providerResponse.text().catch(() => ''));
     const results = Array.isArray(responseObject?.messages) ? responseObject.messages : [];
     if (providerResponse.status !== 202 || !results.length) {
       await admin.from('sms_logs').update({
