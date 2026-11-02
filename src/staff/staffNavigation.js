@@ -223,7 +223,7 @@ const staffNavigationConfig = {
     },
     {
       id: 'approved-transactions',
-      name: 'Approved Transactions',
+      name: 'Transactions Management',
       icon: ClipboardList,
       path: '/staff/approved-transactions',
       component: 'ApprovedTransactions'

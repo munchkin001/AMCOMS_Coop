@@ -79,6 +79,7 @@ const workflowStatusLabel = (workflow) => (
     ? 'Cash released'
     : STATUS_LABELS[workflow.status] || workflow.status
 );
+const isCompletedCashIn = (workflow) => workflow.direction === 'cash_in' && workflow.status === 'completed';
 
 const WorkflowEvidence = ({ document, onOpen }) => {
   const [signedUrl, setSignedUrl] = useState('');
@@ -362,7 +363,7 @@ const TransactionWorkflow = ({ role }) => {
               {isManager
                 ? 'Review submitted transactions and record an auditable decision before accounting begins.'
                 : isBookkeeper
-                  ? 'Process manager-approved transactions and track those awaiting settlement.'
+                  ? 'Incoming transactions are recorded automatically. Process Manager-approved cash-outs and track those awaiting settlement.'
                   : 'Verify the approved payee and amount, attach proof, and confirm the actual release.'}
             </p>
           </div>
@@ -505,18 +506,27 @@ const TransactionWorkflow = ({ role }) => {
             <div className="overflow-y-auto p-5 sm:p-7">
               {error && <p role="alert" className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{error}</p>}
               <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                {[
-                  ['Approved / requested amount', money(selected.amount)],
-                  ['Direction', selected.direction.replace('_', ' ')],
-                  ['Payment method', selected.payment_method || 'Not specified'],
-                  ['Workflow status', workflowStatusLabel(selected)],
-                  ['Approved by', relation(selected.approver)?.full_name || 'Not yet approved'],
-                  ['Manager decision', dateTime(selected.manager_decision_at)],
-                  ['Bookkeeper processing', selected.processed_at ? dateTime(selected.processed_at) : selected.accounting_status.replace('_', ' ')],
-                  ['Cash release', selected.cash_release_required
-                    ? selected.cash_release_status === 'released' ? 'Cash released' : selected.cash_release_status.replaceAll('_', ' ')
-                    : 'Not required'],
-                ].map(([label, value]) => (
+                {(isCompletedCashIn(selected)
+                  ? [
+                    ['Requested amount', money(selected.amount)],
+                    ['Direction', selected.direction.replace('_', ' ')],
+                    ['Payment method', selected.payment_method || 'Not specified'],
+                    ['Status', 'Completed'],
+                    ['Submitted', dateTime(selected.created_at)],
+                    ['Completed', dateTime(selected.processed_at)],
+                  ]
+                  : [
+                    ['Approved / requested amount', money(selected.amount)],
+                    ['Direction', selected.direction.replace('_', ' ')],
+                    ['Payment method', selected.payment_method || 'Not specified'],
+                    ['Workflow status', workflowStatusLabel(selected)],
+                    ['Approved by', relation(selected.approver)?.full_name || 'Not yet approved'],
+                    ['Manager decision', dateTime(selected.manager_decision_at)],
+                    ['Bookkeeper processing', selected.processed_at ? dateTime(selected.processed_at) : selected.accounting_status.replace('_', ' ')],
+                    ['Cash release', selected.cash_release_required
+                      ? selected.cash_release_status === 'released' ? 'Cash released' : selected.cash_release_status.replaceAll('_', ' ')
+                      : 'Not required'],
+                  ]).map(([label, value]) => (
                   <div key={label} className="rounded-xl border border-slate-200 bg-slate-50 p-3">
                     <p className="text-xs font-medium text-slate-500">{label}</p>
                     <p className="mt-1 text-sm font-semibold capitalize text-slate-900">{value}</p>
@@ -592,13 +602,20 @@ const TransactionWorkflow = ({ role }) => {
                     <ol className="mt-4">
                       {[...selected.events]
                         .sort((left, right) => new Date(left.created_at) - new Date(right.created_at))
+                        .filter((event) => !isCompletedCashIn(selected)
+                          || event.event_type === 'submitted'
+                          || (event.event_type === 'processed' && event.next_status === 'completed'))
                         .map((event, index, events) => (
                         <li key={event.id} className="relative flex gap-3 pb-5 text-sm last:pb-0">
                           {index < events.length - 1 && <span aria-hidden="true" className="absolute bottom-0 left-[5px] top-3 w-px bg-slate-200" />}
                           <span aria-hidden="true" className="relative mt-1.5 size-[11px] shrink-0 rounded-full border-2 border-blue-500 bg-white" />
                           <span className="min-w-0 flex-1">
                             <span className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
-                              <strong className="font-semibold capitalize text-slate-800">{event.event_type.replaceAll('_', ' ')}</strong>
+                              <strong className="font-semibold capitalize text-slate-800">
+                                {isCompletedCashIn(selected) && event.event_type === 'processed'
+                                  ? 'Completed'
+                                  : event.event_type.replaceAll('_', ' ')}
+                              </strong>
                               <time className="text-xs text-slate-500">{dateTime(event.created_at)}</time>
                             </span>
                             {event.remarks && <span className="mt-1 block whitespace-pre-wrap text-slate-600">{event.remarks}</span>}

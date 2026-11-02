@@ -203,7 +203,7 @@ const TreasurerApprovedTransactions = () => {
       <header className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <p className="text-xs font-semibold uppercase tracking-[0.16em] text-blue-700">Treasurer · Cash control</p>
-          <h1 className="mt-1 text-2xl font-bold text-gray-900">Approved Transactions</h1>
+          <h1 className="mt-1 text-2xl font-bold text-gray-900">Transactions Management</h1>
           <p className="mt-1 text-sm text-gray-600">Cash-out transactions confirmed and recorded as released.</p>
         </div>
         <button type="button" onClick={load} className="inline-flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">

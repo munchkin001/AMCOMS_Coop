@@ -89,7 +89,7 @@ const Transactions = ({ initialType = null, startNewTransaction = false }) => {
       details: { ...details, localRecordedAt: new Date().toISOString() },
     });
     const message = payload?.p_direction === 'cash_in'
-      ? 'It will be available for Bookkeeper processing after server validation. Manager approval is not required.'
+      ? 'It will be recorded automatically after server validation. Manager approval is not required.'
       : 'It will remain unposted until the server validates it and the Manager reviews it.';
     setActionNotice(`Pending Sync: saved on this device only. ${message}`);
   };
@@ -238,7 +238,9 @@ const Transactions = ({ initialType = null, startNewTransaction = false }) => {
       if (error) throw error;
       if (!result?.workflow_id) throw new Error('The server did not confirm the transaction workflow.');
       setActionNotice(direction === 'cash_in'
-        ? `Incoming transaction is ready for Bookkeeper processing · ${result.workflow_id.slice(0, 8).toUpperCase()}. Manager approval is not required.`
+        ? transactionType === 'loan_payment'
+          ? `Loan payment recorded · ${result.workflow_id.slice(0, 8).toUpperCase()}. The loan balance and payment schedule have been updated.`
+          : `Incoming transaction recorded automatically · ${result.workflow_id.slice(0, 8).toUpperCase()}. Manager approval is not required.`
         : `Transaction submitted for Manager approval · ${result.workflow_id.slice(0, 8).toUpperCase()}. No accounting entry or cash movement has been finalized.`);
     }
 
