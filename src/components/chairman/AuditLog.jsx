@@ -91,7 +91,29 @@ const getDeviceInfo = (userAgent, reportedModel) => {
   return { device, browser };
 };
 
-const formatFieldLabel = (field) => field
+const fieldLabels = {
+  amount: 'Amount',
+  amount_paid: 'Amount paid',
+  balance: 'Balance',
+  balance_after: 'Balance after',
+  cash_disbursement_id: 'Cash disbursement ID',
+  cash_receipt_id: 'Cash receipt ID',
+  credit_amount: 'Credit amount',
+  debit_amount: 'Debit amount',
+  entry_number: 'Journal entry number',
+  account_id: 'Account',
+  journal_entry_id: 'Journal entry',
+  loan_id: 'Loan',
+  member_id: 'Member',
+  payment_method: 'Payment method',
+  payment_number: 'Payment number',
+  receipt_number: 'Receipt number',
+  reference_number: 'Reference number',
+  received_from: 'Received from',
+  voucher_number: 'Voucher number'
+};
+
+const formatFieldLabel = (field) => fieldLabels[field] || field
   .replaceAll('_', ' ')
   .replace(/\b\w/g, (letter) => letter.toUpperCase());
 
@@ -104,8 +126,18 @@ const sanitizeAuditValue = (value) => {
   ]));
 };
 
-const formatAuditValue = (value) => {
+const MONEY_FIELD = /(^amount$|amount_|_amount$|^balance$|balance_after|^principal|^interest|^penalty|^total_|^debit_|^credit_)/i;
+
+const formatAuditValue = (value, field = '') => {
   if (value === null || value === undefined || value === '') return '—';
+  if (MONEY_FIELD.test(field) && Number.isFinite(Number(value))) {
+    return new Intl.NumberFormat('en-PH', {
+      style: 'currency',
+      currency: 'PHP',
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2
+    }).format(Number(value));
+  }
   if (typeof value === 'object') return JSON.stringify(sanitizeAuditValue(value), null, 2);
   return String(value);
 };
@@ -120,9 +152,106 @@ const getChangedFields = (log) => {
     .filter((field) => JSON.stringify(oldData[field]) !== JSON.stringify(newData[field]))
     .map((field) => ({
       field,
-      oldValue: Object.prototype.hasOwnProperty.call(oldData, field) ? formatAuditValue(oldData[field]) : 'Not present',
-      newValue: Object.prototype.hasOwnProperty.call(newData, field) ? formatAuditValue(newData[field]) : 'Not present'
+      oldValue: Object.prototype.hasOwnProperty.call(oldData, field) ? formatAuditValue(oldData[field], field) : 'Not present',
+      newValue: Object.prototype.hasOwnProperty.call(newData, field) ? formatAuditValue(newData[field], field) : 'Not present'
     }));
+};
+
+const getFinancialContext = async (log) => {
+  const record = log.new_data && typeof log.new_data === 'object' ? log.new_data : log.old_data || {};
+  const context = [];
+  const add = (label, value) => {
+    if (value !== null && value !== undefined && value !== '') context.push({ label, value: String(value) });
+  };
+  const getOne = async (table, columns, id) => {
+    if (!id) return null;
+    const { data, error } = await supabase.from(table).select(columns).eq('id', id).maybeSingle();
+    if (error) throw error;
+    return data;
+  };
+  const getMemberName = async (memberId) => {
+    const member = await getOne('members', 'member_number, first_name, middle_name, last_name', memberId);
+    if (!member) return;
+    add('Member', [member.first_name, member.middle_name, member.last_name].filter(Boolean).join(' '));
+    add('Member number', member.member_number);
+  };
+  const getAccountName = async (accountId) => {
+    const account = await getOne('chart_of_accounts', 'account_code, account_name', accountId);
+    if (account) add('Account', [account.account_code, account.account_name].filter(Boolean).join(' · '));
+  };
+
+  if (['cash_receipt_lines', 'cash_disbursement_lines'].includes(log.table_name)) {
+    const isReceipt = log.table_name === 'cash_receipt_lines';
+    const parentTable = isReceipt ? 'cash_receipts' : 'cash_disbursements';
+    const parentId = record[isReceipt ? 'cash_receipt_id' : 'cash_disbursement_id'];
+    const parentColumns = isReceipt
+      ? 'receipt_number, receipt_date, received_from, amount, payment_method, reference_number, description, member_id'
+      : 'voucher_number, disbursement_date, payee, amount, payment_method, reference_number, description';
+    const [parent, account] = await Promise.all([
+      getOne(parentTable, parentColumns, parentId),
+      getOne('chart_of_accounts', 'account_code, account_name', record.account_id)
+    ]);
+    add(isReceipt ? 'Receipt number' : 'Voucher number', parent?.[isReceipt ? 'receipt_number' : 'voucher_number']);
+    add(isReceipt ? 'Received from' : 'Paid to', parent?.[isReceipt ? 'received_from' : 'payee']);
+    add(isReceipt ? 'Transaction date' : 'Disbursement date', parent?.[isReceipt ? 'receipt_date' : 'disbursement_date']);
+    add('Transaction amount', parent?.amount === undefined ? undefined : formatAuditValue(parent.amount, 'amount'));
+    add('Payment method', parent?.payment_method);
+    add('Reference number', parent?.reference_number);
+    add('Transaction description', parent?.description);
+    add('Account', account ? [account.account_code, account.account_name].filter(Boolean).join(' · ') : undefined);
+    add('Allocation amount', record.amount === undefined ? undefined : formatAuditValue(record.amount, 'amount'));
+    add('Allocation description', record.description);
+    add('Allocation side', record.side);
+    if (isReceipt && parent?.member_id) await getMemberName(parent.member_id);
+  } else if (log.table_name === 'loan_payments') {
+    const loan = await getOne('loans', 'loan_number, member_id', record.loan_id);
+    add('Loan number', loan?.loan_number);
+    if (loan?.member_id) await getMemberName(loan.member_id);
+    if (record.receipt_id) {
+      const receipt = await getOne('cash_receipts', 'receipt_number, amount, received_from', record.receipt_id);
+      add('Receipt number', receipt?.receipt_number);
+      add('Receipt amount', receipt?.amount === undefined ? undefined : formatAuditValue(receipt.amount, 'amount'));
+      add('Received from', receipt?.received_from);
+    }
+  } else if (log.table_name === 'loans') {
+    await getMemberName(record.member_id);
+  } else if (log.table_name === 'cash_receipts') {
+    if (record.member_id) await getMemberName(record.member_id);
+    if (record.account_id) await getAccountName(record.account_id);
+  } else if (log.table_name === 'journal_entry_lines') {
+    const [entry, account] = await Promise.all([
+      getOne('journal_entries', 'entry_number, entry_date, description, reference_number, status', record.journal_entry_id),
+      getOne('chart_of_accounts', 'account_code, account_name', record.account_id)
+    ]);
+    add('Journal entry', entry?.entry_number);
+    add('Entry date', entry?.entry_date);
+    add('Entry description', entry?.description);
+    add('Reference number', entry?.reference_number);
+    add('Journal status', entry?.status);
+    add('Account', account ? [account.account_code, account.account_name].filter(Boolean).join(' · ') : undefined);
+    add('Debit amount', record.debit_amount === undefined ? undefined : formatAuditValue(record.debit_amount, 'debit_amount'));
+    add('Credit amount', record.credit_amount === undefined ? undefined : formatAuditValue(record.credit_amount, 'credit_amount'));
+    add('Line description', record.description);
+  } else if (log.table_name === 'journal_entries') {
+    const { data: lines, error } = await supabase
+      .from('journal_entry_lines')
+      .select('debit_amount, credit_amount, description, account:chart_of_accounts(account_code, account_name)')
+      .eq('journal_entry_id', record.id || log.record_id);
+    if (error) throw error;
+    (lines || []).forEach((line, index) => {
+      const account = line.account;
+      add(`Line ${index + 1}`, [
+        account ? [account.account_code, account.account_name].filter(Boolean).join(' · ') : 'Account',
+        `Debit ${formatAuditValue(line.debit_amount, 'debit_amount')}`,
+        `Credit ${formatAuditValue(line.credit_amount, 'credit_amount')}`,
+        line.description
+      ].filter(Boolean).join(' · '));
+    });
+  } else if (log.table_name === 'cash_disbursements') {
+    if (record.account_id) await getAccountName(record.account_id);
+  }
+
+  return context;
 };
 
 const AuditLog = () => {
@@ -142,8 +271,12 @@ const AuditLog = () => {
   const [loadError, setLoadError] = useState('');
   const [archiveLoadError, setArchiveLoadError] = useState('');
   const [selectedLog, setSelectedLog] = useState(null);
+  const [relatedContext, setRelatedContext] = useState([]);
+  const [relatedContextLoading, setRelatedContextLoading] = useState(false);
+  const [relatedContextError, setRelatedContextError] = useState('');
   const [page, setPage] = useState(1);
   const latestRequestRef = useRef(0);
+  const relatedContextRequestRef = useRef(0);
 
   const fetchAuditLogs = useCallback(async () => {
     const monthKey = view === 'current' ? currentMonthKey : selectedArchiveMonth;
@@ -352,6 +485,42 @@ const AuditLog = () => {
   const accessEventCount = auditLogs.filter((log) => log.table_name === 'authentication').length;
   const latestActivity = auditLogs[0] ? formatDateTime(auditLogs[0].created_at) : 'No activity yet';
   const selectedChanges = selectedLog ? getChangedFields(selectedLog) : [];
+  const resolvedRelationLabels = {
+    account_id: ['Account'],
+    cash_disbursement_id: ['Voucher number'],
+    cash_receipt_id: ['Receipt number'],
+    journal_entry_id: ['Journal entry'],
+    loan_id: ['Loan number'],
+    member_id: ['Member'],
+    receipt_id: ['Receipt number']
+  };
+  const visibleSelectedChanges = selectedChanges.filter(({ field }) => (
+    !resolvedRelationLabels[field]?.some((label) => relatedContext.some((item) => item.label === label))
+  ));
+
+  const openLogDetails = async (log) => {
+    const requestId = ++relatedContextRequestRef.current;
+    setSelectedLog(log);
+    setRelatedContext([]);
+    setRelatedContextError('');
+    setRelatedContextLoading(true);
+    try {
+      const context = await getFinancialContext(log);
+      if (requestId === relatedContextRequestRef.current) setRelatedContext(context);
+    } catch (error) {
+      console.error('Unable to load related audit details:', error);
+      if (requestId === relatedContextRequestRef.current) {
+        setRelatedContextError('Related record details could not be loaded. The recorded field changes are still available below.');
+      }
+    } finally {
+      if (requestId === relatedContextRequestRef.current) setRelatedContextLoading(false);
+    }
+  };
+
+  const closeLogDetails = () => {
+    relatedContextRequestRef.current += 1;
+    setSelectedLog(null);
+  };
 
   const handleReset = () => {
     setFilters({ user: '', module: '', dateFrom: '', dateTo: '', action: '' });
@@ -660,11 +829,11 @@ const AuditLog = () => {
                       key={log.id}
                       tabIndex={0}
                       aria-label={`View details: ${getActivityLabel(log)} by ${getActorName(log)}`}
-                      onClick={() => setSelectedLog(log)}
+                      onClick={() => openLogDetails(log)}
                       onKeyDown={(event) => {
                         if (event.key === 'Enter' || event.key === ' ') {
                           event.preventDefault();
-                          setSelectedLog(log);
+                          openLogDetails(log);
                         }
                       }}
                       className="cursor-pointer bg-white transition-colors hover:bg-emerald-50/60 focus:bg-emerald-50/60 focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-emerald-700"
@@ -729,7 +898,7 @@ const AuditLog = () => {
       </section>
 
       {selectedLog && (
-        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-sm" onClick={() => setSelectedLog(null)}>
+        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-sm" onClick={closeLogDetails}>
           <section
             role="dialog"
             aria-modal="true"
@@ -747,7 +916,7 @@ const AuditLog = () => {
                 </div>
                 <button
                   type="button"
-                  onClick={() => setSelectedLog(null)}
+                  onClick={closeLogDetails}
                   aria-label="Close audit entry details"
                   className="flex size-9 shrink-0 items-center justify-center rounded-lg border border-white/20 bg-white/10 text-white hover:bg-white/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
                 >
@@ -784,12 +953,35 @@ const AuditLog = () => {
                 </details>
               )}
 
+              {(relatedContextLoading || relatedContextError || relatedContext.length > 0) && (
+                <section className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+                  <header className="border-b border-slate-100 px-4 py-3">
+                    <h3 className="text-sm font-semibold text-slate-900">Related transaction details</h3>
+                    <p className="mt-1 text-xs text-slate-500">Linked receipt, account, member, or journal information when available.</p>
+                  </header>
+                  {relatedContextLoading ? (
+                    <p className="px-4 py-5 text-sm text-slate-500">Loading linked record details…</p>
+                  ) : relatedContextError ? (
+                    <p role="alert" className="px-4 py-5 text-sm text-red-700">{relatedContextError}</p>
+                  ) : (
+                    <dl className="grid gap-3 p-4 sm:grid-cols-2">
+                      {relatedContext.map(({ label, value }, index) => (
+                        <div key={`${label}-${index}`} className="min-w-0 rounded-lg bg-slate-50 px-3 py-2.5">
+                          <dt className="text-xs font-medium text-slate-500">{label}</dt>
+                          <dd className="mt-1 break-words text-sm font-semibold text-slate-900">{value}</dd>
+                        </div>
+                      ))}
+                    </dl>
+                  )}
+                </section>
+              )}
+
               <section className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
                 <header className="border-b border-slate-100 px-4 py-3">
-                  <h3 className="text-sm font-semibold text-slate-900">Recorded field changes</h3>
-                  <p className="mt-1 text-xs text-slate-500">Sensitive credential fields are hidden.</p>
+                  <h3 className="text-sm font-semibold text-slate-900">What changed</h3>
+                  <p className="mt-1 text-xs text-slate-500">Financial amounts show in Philippine pesos. Sensitive credential fields are hidden.</p>
                 </header>
-                {selectedChanges.length === 0 ? (
+                {visibleSelectedChanges.length === 0 ? (
                   <p className="px-4 py-6 text-center text-sm text-slate-500">No field-level changes were recorded for this event.</p>
                 ) : (
                   <div className="overflow-x-auto">
@@ -802,7 +994,7 @@ const AuditLog = () => {
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-100">
-                        {selectedChanges.map(({ field, oldValue, newValue }) => (
+                        {visibleSelectedChanges.map(({ field, oldValue, newValue }) => (
                           <tr key={field} className="align-top">
                             <th scope="row" className="whitespace-nowrap px-4 py-3 text-left font-semibold text-slate-700">{formatFieldLabel(field)}</th>
                             <td className="max-w-64 break-words px-4 py-3 text-slate-600"><pre className="whitespace-pre-wrap break-words font-sans text-xs">{oldValue}</pre></td>
@@ -818,7 +1010,7 @@ const AuditLog = () => {
             <footer className="flex justify-end border-t border-slate-200 bg-white px-5 py-4 sm:px-6">
               <button
                 type="button"
-                onClick={() => setSelectedLog(null)}
+                onClick={closeLogDetails}
                 className="min-h-10 rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-700 focus-visible:ring-offset-2"
               >
                 Close details
