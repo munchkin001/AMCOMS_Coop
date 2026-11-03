@@ -278,7 +278,7 @@ BEGIN
 
   UPDATE public.transaction_workflows
   SET status = 'approved',
-      accounting_status = 'pending',
+      accounting_status = 'not_processed',
       bookkeeper_id = NULL,
       processed_at = NULL,
       updated_at = now()
