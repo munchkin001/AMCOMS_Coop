@@ -6,6 +6,7 @@ const Ledger = () => {
   const [accounts, setAccounts] = useState([]);
   const [selectedAccount, setSelectedAccount] = useState('');
   const [entries, setEntries] = useState([]);
+  const [expandedEntryId, setExpandedEntryId] = useState(null);
   const [balance, setBalance] = useState(0);
   const [loadingAccounts, setLoadingAccounts] = useState(true);
   const [loadingEntries, setLoadingEntries] = useState(false);
@@ -80,9 +81,11 @@ const Ledger = () => {
           runningBalance += normalDebit ? debit - credit : credit - debit;
           return {
             id: line.id,
+            entryId: journal.id,
             date: new Date(`${journal.entry_date}T00:00:00`).toLocaleDateString('en-PH'),
             reference: journal.entry_number,
             particulars: line.description || journal.description,
+            status: journal.status,
             debit,
             credit,
             balance: runningBalance
@@ -152,20 +155,45 @@ const Ledger = () => {
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
-              {entries.map((entry) => (
-                <tr key={entry.id} className="hover:bg-gray-50">
-                  <td className="px-4 py-3 text-sm text-gray-900 whitespace-nowrap">{entry.date}</td>
-                  <td className="px-4 py-3 text-sm font-medium text-purple-600 whitespace-nowrap cursor-pointer">
-                    {entry.reference}
-                  </td>
-                  <td className="px-4 py-3 text-sm text-gray-900">{entry.particulars}</td>
-                  <td className="px-4 py-3 text-sm text-gray-900 text-right whitespace-nowrap">{formatAmount(entry.debit)}</td>
-                  <td className="px-4 py-3 text-sm text-gray-900 text-right whitespace-nowrap">{formatAmount(entry.credit)}</td>
-                  <td className="px-4 py-3 text-sm font-semibold text-gray-900 text-right whitespace-nowrap">
-                    {formatAmount(entry.balance)}
-                  </td>
-                </tr>
-              ))}
+              {entries.map((entry) => {
+                const isExpanded = expandedEntryId === entry.entryId;
+                return (
+                  <React.Fragment key={entry.id}>
+                    <tr className="hover:bg-gray-50">
+                      <td className="px-4 py-3 text-sm text-gray-900 whitespace-nowrap">{entry.date}</td>
+                      <td className="px-4 py-3 text-sm font-medium whitespace-nowrap">
+                        <button
+                          type="button"
+                          aria-expanded={isExpanded}
+                          onClick={() => setExpandedEntryId(isExpanded ? null : entry.entryId)}
+                          className="rounded text-purple-700 underline decoration-purple-300 underline-offset-2 hover:text-purple-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-600 focus-visible:ring-offset-2"
+                        >
+                          {entry.reference}
+                        </button>
+                      </td>
+                      <td className="px-4 py-3 text-sm text-gray-900">{entry.particulars}</td>
+                      <td className="px-4 py-3 text-sm text-gray-900 text-right whitespace-nowrap">{formatAmount(entry.debit)}</td>
+                      <td className="px-4 py-3 text-sm text-gray-900 text-right whitespace-nowrap">{formatAmount(entry.credit)}</td>
+                      <td className="px-4 py-3 text-sm font-semibold text-gray-900 text-right whitespace-nowrap">
+                        {formatAmount(entry.balance)}
+                      </td>
+                    </tr>
+                    {isExpanded && (
+                      <tr className="bg-purple-50/60">
+                        <td colSpan={6} className="px-4 py-4">
+                          <dl className="grid gap-3 text-sm sm:grid-cols-2 lg:grid-cols-4">
+                            <div><dt className="font-semibold text-gray-600">Entry number</dt><dd className="mt-1 text-gray-900">{entry.reference}</dd></div>
+                            <div><dt className="font-semibold text-gray-600">Date</dt><dd className="mt-1 text-gray-900">{entry.date}</dd></div>
+                            <div><dt className="font-semibold text-gray-600">Status</dt><dd className="mt-1 capitalize text-gray-900">{entry.status}</dd></div>
+                            <div><dt className="font-semibold text-gray-600">Debit / credit</dt><dd className="mt-1 text-gray-900">{formatAmount(entry.debit)} / {formatAmount(entry.credit)}</dd></div>
+                            <div className="sm:col-span-2 lg:col-span-4"><dt className="font-semibold text-gray-600">Particulars</dt><dd className="mt-1 text-gray-900">{entry.particulars}</dd></div>
+                          </dl>
+                        </td>
+                      </tr>
+                    )}
+                  </React.Fragment>
+                );
+              })}
             </tbody>
           </table>
         </div>

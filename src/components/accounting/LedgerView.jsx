@@ -105,9 +105,16 @@ const AccountSection = ({ group, from, onSelectEntry }) => {
                   <td className="px-4 py-3 text-gray-800">{line.is_opening ? 'Opening Balance' : line.description}</td>
                   <td className="whitespace-nowrap px-4 py-3 font-medium text-gray-700">
                     {line.is_opening ? <Dash /> : (
-                      <span className="text-blue-700">
+                      <button
+                        type="button"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          onSelectEntry(line);
+                        }}
+                        className="rounded text-blue-700 underline decoration-blue-300 underline-offset-2 hover:text-blue-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:ring-offset-2"
+                      >
                         {line.reference_number || line.entry_number}
-                      </span>
+                      </button>
                     )}
                     {line.is_reversed && <span className="ml-2 rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold uppercase text-amber-800">Reversed</span>}
                     {line.is_reversal && <span className="ml-2 rounded bg-slate-200 px-1.5 py-0.5 text-[10px] font-semibold uppercase text-slate-700">Reversal</span>}

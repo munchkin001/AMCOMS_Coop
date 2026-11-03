@@ -44,6 +44,7 @@ const PerformanceReport = () => {
   const [reportType, setReportType] = useState('comprehensive');
   const [memberSort, setMemberSort] = useState('newest');
   const [showPreview, setShowPreview] = useState(false);
+  const [selectedMember, setSelectedMember] = useState(null);
   const [error, setError] = useState('');
   const [reportData, setReportData] = useState(null);
   const loading = reportData === null && !error;
@@ -200,6 +201,15 @@ const PerformanceReport = () => {
   useEffect(() => {
     loadReport();
   }, [loadReport]);
+
+  useEffect(() => {
+    if (!selectedMember) return undefined;
+    const closeOnEscape = (event) => {
+      if (event.key === 'Escape') setSelectedMember(null);
+    };
+    window.addEventListener('keydown', closeOnEscape);
+    return () => window.removeEventListener('keydown', closeOnEscape);
+  }, [selectedMember]);
 
   useMultipleRealtimeSubscriptions([
     'cash_receipts', 'cash_disbursements', 'journal_entries', 'journal_entry_lines',
@@ -450,7 +460,13 @@ const PerformanceReport = () => {
                         <tbody>
                           {sortedMembers.map((member) => (
                             <tr key={member.id} className="border-t border-slate-200 odd:bg-white even:bg-slate-50">
-                              <td className="whitespace-nowrap px-3 py-2 font-medium text-slate-800">{member.member_number || '—'}</td>
+                              <td className="whitespace-nowrap px-3 py-2 font-medium">
+                                {member.member_number ? (
+                                  <button type="button" onClick={() => setSelectedMember(member)} className="rounded text-blue-800 underline decoration-blue-300 underline-offset-2 hover:text-blue-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-700 focus-visible:ring-offset-2">
+                                    {member.member_number}
+                                  </button>
+                                ) : <span className="text-slate-500">—</span>}
+                              </td>
                               <td className="px-3 py-2 text-slate-800">{[member.first_name, member.middle_name, member.last_name].filter(Boolean).join(' ') || '—'}</td>
                               <td className="whitespace-nowrap px-3 py-2 text-slate-700">{member.date_joined ? new Date(`${member.date_joined}T00:00:00`).toLocaleDateString('en-PH') : '—'}</td>
                               <td className="px-3 py-2 capitalize text-slate-700">{member.membership_type || '—'}</td>
@@ -519,7 +535,6 @@ const PerformanceReport = () => {
               {analysis && <ReportInsights {...analysis} />}
             </div>
           )}
-
           <footer className="document-signatures mt-12 grid grid-cols-2 gap-8">
             <div className="mt-16 border-t-2 border-gray-300 pt-2 text-center">
               <p className="font-semibold text-gray-900">Chairman</p>
@@ -529,6 +544,44 @@ const PerformanceReport = () => {
               <p className="font-semibold text-gray-900">Date</p>
             </div>
           </footer>
+        </div>
+      )}
+      {selectedMember && (
+        <div className="no-print fixed inset-0 z-[70] flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-sm" onClick={() => setSelectedMember(null)}>
+          <section
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="performance-member-details-title"
+            className="w-full max-w-lg overflow-hidden rounded-2xl bg-white shadow-2xl"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <header className="flex items-start justify-between gap-4 bg-gradient-to-br from-[#0b2e68] via-[#1454a5] to-[#3180d8] px-5 py-5 text-white">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wide text-blue-100">Member details</p>
+                <h2 id="performance-member-details-title" className="mt-1 text-xl font-bold">
+                  {[selectedMember.first_name, selectedMember.middle_name, selectedMember.last_name].filter(Boolean).join(' ') || 'Member'}
+                </h2>
+                <p className="mt-1 text-sm text-blue-100">Member ID {selectedMember.member_number}</p>
+              </div>
+              <button type="button" onClick={() => setSelectedMember(null)} aria-label="Close member details" className="rounded-lg border border-white/25 px-3 py-1.5 text-sm font-semibold text-white hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white">
+                Close
+              </button>
+            </header>
+            <dl className="grid gap-3 p-5 sm:grid-cols-2">
+              <div className="rounded-lg border border-slate-200 p-3">
+                <dt className="text-xs font-semibold uppercase text-slate-500">Membership type</dt>
+                <dd className="mt-1 capitalize font-medium text-slate-900">{selectedMember.membership_type || '—'}</dd>
+              </div>
+              <div className="rounded-lg border border-slate-200 p-3">
+                <dt className="text-xs font-semibold uppercase text-slate-500">Status</dt>
+                <dd className="mt-1 capitalize font-medium text-slate-900">{selectedMember.membership_status || 'Unknown'}</dd>
+              </div>
+              <div className="rounded-lg border border-slate-200 p-3 sm:col-span-2">
+                <dt className="text-xs font-semibold uppercase text-slate-500">Date joined</dt>
+                <dd className="mt-1 font-medium text-slate-900">{selectedMember.date_joined ? new Date(`${selectedMember.date_joined}T00:00:00`).toLocaleDateString('en-PH') : '—'}</dd>
+              </div>
+            </dl>
+          </section>
         </div>
       )}
     </div>

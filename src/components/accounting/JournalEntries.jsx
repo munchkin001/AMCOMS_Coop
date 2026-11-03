@@ -427,7 +427,19 @@ const JournalEntries = ({ canPost }) => {
                     <tr className="cursor-pointer border-t border-gray-100 hover:bg-gray-50" onClick={() => setExpanded(open ? null : entry.id)}>
                       <td className="px-3 py-2 text-gray-400">{open ? <ChevronDown className="size-4" aria-hidden="true" /> : <ChevronRight className="size-4" aria-hidden="true" />}</td>
                       <td className="whitespace-nowrap px-3 py-2">{formatDate(entry.entry_date)}</td>
-                      <td className="whitespace-nowrap px-3 py-2 font-medium text-gray-900">{entry.entry_number}</td>
+                      <td className="whitespace-nowrap px-3 py-2 font-medium">
+                        <button
+                          type="button"
+                          aria-expanded={open}
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            setExpanded(open ? null : entry.id);
+                          }}
+                          className="rounded text-blue-800 underline decoration-blue-300 underline-offset-2 hover:text-blue-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-700 focus-visible:ring-offset-2"
+                        >
+                          {entry.entry_number}
+                        </button>
+                      </td>
                       <td className="px-3 py-2 text-gray-700">{entry.description}</td>
                       <td className="px-3 py-2 capitalize">{entry.entry_type}</td>
                       <td className="whitespace-nowrap px-3 py-2 text-gray-600">{entry.source_type}</td>
