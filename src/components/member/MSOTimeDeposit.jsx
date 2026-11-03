@@ -10,6 +10,12 @@ const peso = (value, decimals = 2) => `₱${Number(value || 0).toLocaleString('e
   maximumFractionDigits: decimals 
 })}`;
 
+const maturityInstructionLabel = (instruction) => ({
+  release_principal_and_interest: 'Release principal and interest',
+  renew_principal: 'Request renewal of principal only',
+  renew_principal_and_interest: 'Request renewal of principal and interest'
+}[instruction] || 'Release principal and interest');
+
 const MSOTimeDeposit = () => {
   const { staff } = useAuth();
   const [timeDepositData, setTimeDepositData] = useState({
@@ -31,7 +37,7 @@ const MSOTimeDeposit = () => {
       // Fetch time deposit accounts
       const { data: accounts, error: accountError } = await supabase
         .from('savings_accounts')
-        .select('id, account_number, balance, account_type, status, opening_date, interest_rate, maturity_date')
+        .select('id, account_number, balance, account_type, status, opening_date, interest_rate, maturity_date, maturity_instruction')
         .eq('member_id', staff.member_id)
         .eq('account_type', 'time_deposit')
         .order('opening_date', { ascending: false });
@@ -256,6 +262,13 @@ const MSOTimeDeposit = () => {
                       }
                     </p>
                   </div>
+                </div>
+
+                <div className="mt-4 rounded-lg border border-indigo-100 bg-indigo-50 p-3">
+                  <p className="text-xs font-medium text-indigo-800">Maturity instruction (preference only)</p>
+                  <p className="mt-1 text-sm font-semibold text-indigo-950">
+                    {maturityInstructionLabel(deposit.maturity_instruction)}
+                  </p>
                 </div>
 
                 {/* Maturity Info */}

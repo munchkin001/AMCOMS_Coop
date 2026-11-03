@@ -251,7 +251,7 @@ const Reports = () => {
             .eq('status', 'recorded')
             .order('disbursement_date', { ascending: true })),
           fetchAllRows(() => supabase.from('savings_accounts')
-            .select('id, account_number, balance, interest_rate, opening_date, maturity_date, status, member:members(first_name, middle_name, last_name, member_number)')
+            .select('id, account_number, balance, interest_rate, opening_date, maturity_date, maturity_instruction, status, member:members(first_name, middle_name, last_name, member_number)')
             .eq('account_type', 'time_deposit')
             .neq('status', 'closed')
             .gt('balance', 0)
@@ -401,6 +401,11 @@ const Reports = () => {
           ['Opening date', fmtDate(account.opening_date)],
           ['Maturity date', fmtDate(account.maturity_date)],
           ['Interest rate', account.interest_rate === null ? '-' : `${Number(account.interest_rate || 0)}%`],
+          ['Maturity instruction', ({
+            release_principal_and_interest: 'Release principal and interest',
+            renew_principal: 'Request renewal of principal only',
+            renew_principal_and_interest: 'Request renewal of principal and interest'
+          })[account.maturity_instruction] || 'Release principal and interest'],
           ['Account status', account.status],
           ['Outstanding balance', peso(account.balance)]
         ],

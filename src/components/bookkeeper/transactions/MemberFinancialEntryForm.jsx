@@ -24,6 +24,27 @@ const loanPaymentParticulars = [
 
 const currentDate = () => new Date().toISOString().slice(0, 10);
 const formatCurrency = (value) => `₱${Number(value || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })}`;
+const maturityInstructionOptions = [
+  { value: 'release_principal_and_interest', label: 'Release principal and interest' },
+  { value: 'renew_principal', label: 'Request renewal of principal only' },
+  { value: 'renew_principal_and_interest', label: 'Request renewal of principal and interest' }
+];
+
+const addMonthsToDate = (date, months) => {
+  if (!date) return '';
+  const [year, month, day] = date.split('-').map(Number);
+  const targetMonth = new Date(Date.UTC(year, month - 1 + months, 1));
+  const lastDay = new Date(Date.UTC(targetMonth.getUTCFullYear(), targetMonth.getUTCMonth() + 1, 0)).getUTCDate();
+  const maturity = new Date(Date.UTC(targetMonth.getUTCFullYear(), targetMonth.getUTCMonth(), Math.min(day, lastDay)));
+  return maturity.toISOString().slice(0, 10);
+};
+
+const getDaysBetweenDates = (start, end) => {
+  if (!start || !end) return 0;
+  const [startYear, startMonth, startDay] = start.split('-').map(Number);
+  const [endYear, endMonth, endDay] = end.split('-').map(Number);
+  return (Date.UTC(endYear, endMonth - 1, endDay) - Date.UTC(startYear, startMonth - 1, startDay)) / 86400000;
+};
 
 const getLoanInterestPerInstallment = (loan) => {
   const installments = Math.max(Number(loan.installments || loan.term_months || 1), 1);
@@ -102,8 +123,10 @@ const MemberFinancialEntryForm = ({
   const [cashAccount, setCashAccount] = useState('Cash on Hand');
   const [accountId, setAccountId] = useState('');
   const [loanId, setLoanId] = useState('');
-  const [maturityDate, setMaturityDate] = useState('');
+  const [depositTerm, setDepositTerm] = useState('6');
+  const [customMaturityDate, setCustomMaturityDate] = useState('');
   const [interestRate, setInterestRate] = useState('');
+  const [maturityInstruction, setMaturityInstruction] = useState(maturityInstructionOptions[0].value);
   const [particulars, setParticulars] = useState(
     initialEntryType === 'loan_payment' ? loanPaymentParticulars[0] : entryTypes.find((type) => type.value === initialEntryType)?.label || ''
   );
@@ -127,6 +150,21 @@ const MemberFinancialEntryForm = ({
   );
   const selectedLoan = loans.find((loan) => loan.id === loanId);
   const selectedLoanSummary = getLoanScheduleSummary(selectedLoan);
+  const maturityDate = depositTerm === 'custom'
+    ? customMaturityDate
+    : addMonthsToDate(date, Number(depositTerm));
+  const depositDays = getDaysBetweenDates(date, maturityDate);
+  const numericDepositAmount = Number(amount);
+  const numericInterestRate = Number(interestRate);
+  const estimateIsValid = depositDays > 0
+    && Number.isFinite(numericDepositAmount)
+    && numericDepositAmount > 0
+    && Number.isFinite(numericInterestRate)
+    && numericInterestRate >= 0;
+  const estimatedInterest = estimateIsValid
+    ? Number((numericDepositAmount * (numericInterestRate / 100) * (depositDays / 365)).toFixed(2))
+    : 0;
+  const estimatedMaturityAmount = (Number.isFinite(numericDepositAmount) ? numericDepositAmount : 0) + estimatedInterest;
   const capitalAmount = selectedMonths.length * 100;
   const dividendTotal = Number(dividendValues.dividend_amount || 0) + Number(dividendValues.patronage_amount || 0);
   const dividendAvailable = dividendTotal - Number(dividendValues.mortuary_deduction || 0);
@@ -424,6 +462,10 @@ const MemberFinancialEntryForm = ({
       setError('Enter a maturity date after the placement date and a valid non-negative annual interest rate.');
       return;
     }
+    if (entryType === 'time_deposit' && !maturityInstructionOptions.some((option) => option.value === maturityInstruction)) {
+      setError('Select a valid instruction for the time deposit maturity.');
+      return;
+    }
 
     const common = {
       member_id: memberId,
@@ -471,7 +513,8 @@ const MemberFinancialEntryForm = ({
           loan_id: loanId || null,
           due_months: selectedMonths,
           maturity_date: entryType === 'time_deposit' ? maturityDate : null,
-          interest_rate: entryType === 'time_deposit' ? Number(interestRate) : null
+          interest_rate: entryType === 'time_deposit' ? Number(interestRate) : null,
+          maturity_instruction: entryType === 'time_deposit' ? maturityInstruction : null
         }
       });
     } catch (saveError) {
@@ -524,8 +567,10 @@ const MemberFinancialEntryForm = ({
       <form onSubmit={handleSubmit} className="space-y-5 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-7">
         <section className="rounded-xl border border-slate-200 bg-slate-50/60 p-4 sm:p-5">
           <div className="mb-4 border-b border-slate-200 pb-3">
-            <h3 className="text-base font-bold text-slate-900">Member transaction details</h3>
-            <p className="mt-0.5 text-xs text-slate-500">Member, transaction type, amount, and particulars. Receipt and voucher numbers are generated automatically.</p>
+            <h3 className="text-base font-bold text-slate-900">{entryType === 'time_deposit' ? 'Member & payment details' : 'Member transaction details'}</h3>
+            <p className="mt-0.5 text-xs text-slate-500">{entryType === 'time_deposit'
+              ? 'Enter the member, placement date, amount, and payment details.'
+              : 'Member, transaction type, amount, and particulars. Receipt and voucher numbers are generated automatically.'}</p>
           </div>
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <label className="text-sm font-medium text-gray-700">
@@ -779,16 +824,74 @@ const MemberFinancialEntryForm = ({
         )}
 
         {entryType === 'time_deposit' && (
-          <div className="grid grid-cols-1 gap-4 rounded-lg border border-teal-200 bg-teal-50 p-4 sm:grid-cols-2">
-            <label className="text-sm font-medium text-gray-700">
-              Maturity date *
-              <input type="date" min={date} value={maturityDate} onChange={(event) => setMaturityDate(event.target.value)} required className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2" />
-            </label>
-            <label className="text-sm font-medium text-gray-700">
-              Annual interest rate (%) *
-              <input type="number" min="0" step="0.01" value={interestRate} onChange={(event) => setInterestRate(event.target.value)} required className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2" />
-            </label>
-          </div>
+          <>
+            <section className="space-y-4 rounded-xl border border-teal-200 bg-teal-50/70 p-4 sm:p-5">
+              <div>
+                <h3 className="font-semibold text-teal-950">Time deposit terms</h3>
+                <p className="mt-1 text-xs text-teal-900">Choose an offered term or enter a custom maturity date. The rate remains staff-entered until an approved rate policy is configured.</p>
+              </div>
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+                <label className="text-sm font-medium text-gray-700">
+                  Deposit term *
+                  <select value={depositTerm} onChange={(event) => setDepositTerm(event.target.value)} required className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2">
+                    <option value="3">3 months</option>
+                    <option value="6">6 months</option>
+                    <option value="12">12 months</option>
+                    <option value="custom">Custom</option>
+                  </select>
+                </label>
+                <label className="text-sm font-medium text-gray-700">
+                  Annual interest rate (%) *
+                  <input type="number" min="0" step="0.01" value={interestRate} onChange={(event) => setInterestRate(event.target.value)} required className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2" />
+                </label>
+                <label className="text-sm font-medium text-gray-700">
+                  Maturity date *
+                  <input
+                    type="date"
+                    min={date}
+                    value={maturityDate}
+                    onChange={(event) => setCustomMaturityDate(event.target.value)}
+                    readOnly={depositTerm !== 'custom'}
+                    required
+                    className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 read-only:bg-gray-100"
+                  />
+                </label>
+              </div>
+              <div className="grid grid-cols-1 gap-3 rounded-lg border border-teal-100 bg-white p-4 sm:grid-cols-2">
+                <div>
+                  <p className="text-xs font-medium text-gray-600">Estimated interest · {depositDays > 0 ? `${depositDays} days` : 'enter valid dates'}</p>
+                  <p className="mt-1 text-lg font-semibold text-gray-900">{formatCurrency(estimatedInterest)}</p>
+                </div>
+                <div>
+                  <p className="text-xs font-medium text-gray-600">Estimated maturity amount</p>
+                  <p className="mt-1 text-lg font-semibold text-gray-900">{formatCurrency(estimatedMaturityAmount)}</p>
+                </div>
+                <p className="text-xs text-gray-500 sm:col-span-2">
+                  {estimateIsValid
+                    ? 'Estimate uses simple interest and actual days ÷ 365. Taxes, rounding rules, and any other adjustments remain subject to cooperative policy.'
+                    : 'Enter a positive amount, a valid rate, and a maturity date after placement to see an estimate.'}
+                </p>
+              </div>
+            </section>
+
+            <section className="space-y-4 rounded-xl border border-slate-200 bg-white p-4 sm:p-5">
+              <div>
+                <h3 className="font-semibold text-slate-900">Instructions at maturity</h3>
+                <p className="mt-1 text-xs text-slate-600">This records the member’s preference only. Renewal or release still requires the cooperative’s normal authorization.</p>
+              </div>
+              <label className="block text-sm font-medium text-gray-700">
+                Maturity instruction *
+                <select value={maturityInstruction} onChange={(event) => setMaturityInstruction(event.target.value)} required className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2">
+                  {maturityInstructionOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+                </select>
+              </label>
+              <p className="rounded-lg bg-emerald-50 px-3 py-2 text-sm text-emerald-900">
+                {(!navigator.onLine || offlineMode)
+                  ? 'Manager approval is not required. Submitting confirms the funds have been received; the receipt and active deposit will be created after the entry syncs successfully.'
+                  : 'Manager approval is not required. Submitting confirms the funds have been received, records the receipt, and activates the deposit.'}
+              </p>
+            </section>
+          </>
         )}
 
         {entryType === 'savings_deposit' && (
@@ -807,7 +910,7 @@ const MemberFinancialEntryForm = ({
             Back to transaction types
           </button>
           <button type="submit" disabled={saving || loadingMemberData} className="rounded-lg bg-indigo-700 px-5 py-2.5 font-semibold text-white shadow-sm transition hover:bg-indigo-800 disabled:opacity-60">
-            {saving ? 'Recording...' : 'Record member entry'}
+            {saving ? 'Submitting...' : entryType === 'time_deposit' ? 'Submit Time Deposit Placement' : 'Record member entry'}
           </button>
         </div>
       </form>
