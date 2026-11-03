@@ -109,8 +109,15 @@ const salesReturnAmount = (workflow) => {
 const workflowDisplayAmount = (workflow) => workflow.transaction_type === 'sales_return'
   ? salesReturnAmount(workflow)
   : Number(workflow.amount || 0);
+const isLoanReleaseReconciliationRequired = (workflow) => (
+  workflow.transaction_type === 'loan_disbursement'
+  && workflow.status === 'release_issue'
+  && workflow.release_remarks?.includes('SYSTEM_RECONCILIATION_REQUIRED:')
+);
 const workflowStatusLabel = (workflow) => (
-  workflow.transaction_type === 'loan_disbursement' && workflow.status === 'completed'
+  isLoanReleaseReconciliationRequired(workflow)
+    ? 'Admin Reconciliation Required'
+    : workflow.transaction_type === 'loan_disbursement' && workflow.status === 'completed'
     ? 'Cash released'
     : isCreditSale(workflow) && ['approved', 'completed'].includes(workflow.status)
       && !['paid', 'cancelled'].includes(workflow.saleRecord?.payment_status)
@@ -1035,7 +1042,9 @@ const TransactionWorkflow = ({ role }) => {
                   const actionable = (isManager && ['pending_approval', 'returned_for_correction'].includes(row.status))
                     || (isBookkeeper && row.status === 'returned_for_correction')
                     || requiresProcessing
-                    || (isTreasurer && ['awaiting_release', 'on_hold', 'release_issue'].includes(row.status));
+                    || (isTreasurer
+                      && !isLoanReleaseReconciliationRequired(row)
+                      && ['awaiting_release', 'on_hold', 'release_issue'].includes(row.status));
                   return (
                     <tr key={row.id} className={`cursor-pointer ${isTreasurer ? 'hover:bg-teal-50/70' : isManager ? 'hover:bg-orange-50/70' : isBookkeeper ? 'hover:bg-purple-50/70' : 'hover:bg-blue-50/60'}`} onClick={() => openWorkflowDetails(row)}>
                       <td className="px-4 py-4">
@@ -1064,7 +1073,9 @@ const TransactionWorkflow = ({ role }) => {
                       </td>
                       <td className="px-4 py-4">
                         <button type="button" onClick={(event) => { event.stopPropagation(); openWorkflowDetails(row); }} className={`rounded-lg px-3 py-2 text-xs font-semibold ${actionable ? isTreasurer ? 'bg-teal-700 text-white hover:bg-teal-800' : isManager ? 'bg-orange-700 text-white hover:bg-orange-800' : isBookkeeper ? 'bg-purple-800 text-white hover:bg-purple-900' : 'bg-slate-900 text-white hover:bg-slate-700' : 'border border-slate-300 text-slate-700 hover:bg-slate-50'}`}>
-                          {actionable ? isManager ? 'Review' : isBookkeeper ? row.status === 'returned_for_correction' ? 'Edit & resubmit' : 'Process' : 'Verify release' : awaitingBookkeeperRelease ? 'View status' : 'View details'}
+                          {isLoanReleaseReconciliationRequired(row)
+                            ? 'Admin review required'
+                            : actionable ? isManager ? 'Review' : isBookkeeper ? row.status === 'returned_for_correction' ? 'Edit & resubmit' : 'Process' : 'Verify release' : awaitingBookkeeperRelease ? 'View status' : 'View details'}
                         </button>
                       </td>
                     </tr>
@@ -1302,7 +1313,16 @@ const TransactionWorkflow = ({ role }) => {
                       ))}
                     </ul>
                   )}
-                  {isTreasurer && selected.cash_release_required && ['awaiting_release', 'on_hold', 'release_issue'].includes(selected.status) && (
+                  {isTreasurer && isLoanReleaseReconciliationRequired(selected) && (
+                    <section role="status" className="mt-5 rounded-xl border border-red-200 bg-red-50 p-4">
+                      <h3 className="font-semibold text-red-950">Administrator reconciliation required</h3>
+                      <p className="mt-1 text-sm text-red-900">
+                        This loan is marked active, but no linked, posted cash-disbursement record was found. Release is blocked to prevent a duplicate payment. An administrator must verify whether the cash was handed to the member and reconcile the accounting records before this workflow can continue.
+                      </p>
+                    </section>
+                  )}
+
+                  {isTreasurer && selected.cash_release_required && !isLoanReleaseReconciliationRequired(selected) && ['awaiting_release', 'on_hold', 'release_issue'].includes(selected.status) && (
                     <label className="mt-4 block text-sm font-medium text-slate-700">
                       Photo or proof of release (PDF, JPG, PNG; up to 10 MB){registeredReleaseProof ? ' — proof already attached' : ' *'}
                       <input type="file" accept="application/pdf,image/jpeg,image/png" capture="environment" onChange={(event) => setReleaseFile(event.target.files?.[0] || null)} className="mt-2 block w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" />
@@ -1373,7 +1393,7 @@ const TransactionWorkflow = ({ role }) => {
                 </section>
               )}
 
-              {isTreasurer && selected.cash_release_required && ['awaiting_release', 'on_hold', 'release_issue'].includes(selected.status) && (
+              {isTreasurer && selected.cash_release_required && !isLoanReleaseReconciliationRequired(selected) && ['awaiting_release', 'on_hold', 'release_issue'].includes(selected.status) && (
                 <section className="mt-5 space-y-3 rounded-xl border border-emerald-200 bg-emerald-50 p-4">
                   <div className="flex gap-3">
                     <ShieldCheck className="mt-0.5 shrink-0 text-emerald-800" size={20} />
