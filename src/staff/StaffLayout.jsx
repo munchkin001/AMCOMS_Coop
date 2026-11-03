@@ -39,6 +39,7 @@ const StaffLayout = ({ children }) => {
   const roleColors = getRoleColors(staff?.role);
   const roleDisplayName = getRoleDisplayName(staff?.role);
   const isTreasurer = staff?.role === 'treasurer';
+  const isBookkeeper = staff?.role === 'bookkeeper';
 
   const handleLogout = () => {
     setShowUserMenu(false);
@@ -67,7 +68,7 @@ const StaffLayout = ({ children }) => {
   };
 
   return (
-    <div className={`amcoms-portal-shell flex h-screen ${isTreasurer ? 'amcoms-treasurer-portal' : ''}`}>
+    <div className={`amcoms-portal-shell flex h-screen ${isTreasurer ? 'amcoms-treasurer-portal' : ''} ${isBookkeeper ? 'amcoms-bookkeeper-portal' : ''}`}>
       {/* Mobile Overlay */}
       {isMobileMenuOpen && (
         <div 
@@ -80,6 +81,7 @@ const StaffLayout = ({ children }) => {
       <div id="staff-sidebar" className={`
         fixed lg:static inset-y-0 left-0 z-50
         w-64 shrink-0 flex flex-col border-r border-[#e9c46a]/30 bg-gradient-to-b from-blue-950 via-blue-900 to-slate-950 shadow-xl
+        ${isBookkeeper ? 'bk-sidebar' : ''}
         transform transition-[margin,transform] duration-300 ease-in-out
         ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
         ${isDesktopSidebarOpen ? 'lg:ml-0' : 'lg:-ml-64'}
@@ -88,7 +90,7 @@ const StaffLayout = ({ children }) => {
         <div className="flex items-center justify-between border-b border-[#e9c46a]/25 p-6">
           <div>
             <h1 className="text-2xl font-bold text-white">AMCOMS</h1>
-            <p className="mt-1 text-sm font-medium text-[#e9c46a]">
+            <p className={`mt-1 text-sm font-medium ${isBookkeeper ? 'text-purple-200' : 'text-[#e9c46a]'}`}>
               {roleDisplayName}
             </p>
           </div>
@@ -117,10 +119,10 @@ const StaffLayout = ({ children }) => {
                     setIsMobileMenuOpen(false);
                   }
                 }}
-                className={`w-full rounded-lg px-4 py-3 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#e9c46a] ${
+                className={`w-full rounded-lg px-4 py-3 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 ${isBookkeeper ? 'focus-visible:ring-purple-300' : 'focus-visible:ring-[#e9c46a]'} ${
                   isActiveRoute(item.path)
-                    ? 'bg-gradient-to-r from-[#e9c46a] to-[#d6ab4a] font-semibold text-blue-950 shadow-md'
-                    : 'text-blue-50/90 hover:bg-white/10 hover:text-[#f0d995]'
+                    ? isBookkeeper ? 'bg-gradient-to-r from-purple-300 to-purple-200 font-semibold text-purple-950 shadow-md' : 'bg-gradient-to-r from-[#e9c46a] to-[#d6ab4a] font-semibold text-blue-950 shadow-md'
+                    : isBookkeeper ? 'text-purple-50/90 hover:bg-white/10 hover:text-purple-100' : 'text-blue-50/90 hover:bg-white/10 hover:text-[#f0d995]'
                 }`}
               >
                 <div className="flex items-center justify-between">
@@ -151,10 +153,10 @@ const StaffLayout = ({ children }) => {
                         navigate(subItem.path);
                         setIsMobileMenuOpen(false);
                       }}
-                      className={`w-full rounded-lg px-4 py-2 text-left text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#e9c46a] ${
+                      className={`w-full rounded-lg px-4 py-2 text-left text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 ${isBookkeeper ? 'focus-visible:ring-purple-300' : 'focus-visible:ring-[#e9c46a]'} ${
                         isActiveRoute(subItem.path)
-                          ? 'bg-gradient-to-r from-[#e9c46a] to-[#d6ab4a] font-semibold text-blue-950 shadow-md'
-                          : 'text-blue-50/90 hover:bg-white/10 hover:text-[#f0d995]'
+                          ? isBookkeeper ? 'bg-gradient-to-r from-purple-300 to-purple-200 font-semibold text-purple-950 shadow-md' : 'bg-gradient-to-r from-[#e9c46a] to-[#d6ab4a] font-semibold text-blue-950 shadow-md'
+                          : isBookkeeper ? 'text-purple-50/90 hover:bg-white/10 hover:text-purple-100' : 'text-blue-50/90 hover:bg-white/10 hover:text-[#f0d995]'
                       }`}
                     >
                       {subItem.name}

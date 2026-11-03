@@ -108,7 +108,7 @@ const StaffPortal = () => {
         />
 
         {/* Manager Routes */}
-        <Route path="/members" element={staff.role === 'bookkeeper' ? <BookkeeperMemberManagement /> : <MemberManagement />} />
+        <Route path="/members" element={staff.role === 'bookkeeper' ? <BookkeeperMemberManagement bookkeeperTheme /> : <MemberManagement />} />
         <Route path="/requests" element={<Navigate to="/staff/dashboard" replace />} />
         <Route path="/member-requests" element={<Navigate to="/staff/dashboard" replace />} />
         <Route path="/loans" element={<Navigate to="/staff/dashboard" replace />} />

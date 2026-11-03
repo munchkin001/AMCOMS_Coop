@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { AlertTriangle, Building2, Clock3, Landmark, Scale, TrendingDown, TrendingUp, Wallet } from 'lucide-react';
+import { AlertTriangle, BookOpen, Building2, Clock3, Landmark, Plus, Scale, TrendingDown, TrendingUp, Wallet } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useMultipleRealtimeSubscriptions } from '../../hooks/useRealtimeSubscription';
 import { fetchAccountBalances, summarizeAccountBalances, toDateString } from '../../lib/dashboardAccounting';
@@ -149,17 +149,49 @@ const BookkeeperDashboard = ({ onSelectTransaction, onViewBooks }) => {
   };
   return (
     <div className="space-y-6">
+      <section className="overflow-hidden rounded-2xl bg-gradient-to-br from-[#28134b] via-[#4b2678] to-[#7544a5] p-6 text-white shadow-lg sm:p-8">
+        <div className="flex flex-wrap items-start justify-between gap-5">
+          <div className="max-w-2xl">
+            <p className="text-xs font-bold uppercase tracking-[0.2em] text-purple-200">Bookkeeping · Financial Control</p>
+            <h1 className="mt-2 text-2xl font-bold tracking-tight sm:text-3xl">{greeting}, Bookkeeper</h1>
+            <p className="mt-2 text-sm leading-6 text-purple-100">
+              Review daily cash activity, monitor the accounting equation, and keep transaction records up to date.
+            </p>
+            <div className="mt-5 flex flex-wrap items-center gap-2">
+              <span className="rounded-full border border-white/15 bg-white/10 px-3 py-1.5 text-xs font-semibold text-purple-50">
+                Reporting date · {new Date(`${selectedDate}T00:00:00`).toLocaleDateString('en-PH', {
+                  weekday: 'long', month: 'long', day: 'numeric', year: 'numeric'
+                })}
+              </span>
+              <span className="rounded-full border border-purple-200/20 bg-purple-200/10 px-3 py-1.5 text-xs font-semibold text-purple-50">
+                {loading ? 'Updating financial data' : 'Financial overview'}
+              </span>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => onSelectTransaction?.()}
+            className="inline-flex min-h-11 items-center gap-2 rounded-lg bg-purple-200 px-4 py-2 text-sm font-bold text-purple-950 shadow-sm transition hover:bg-white"
+          >
+            <Plus size={17} aria-hidden="true" />
+            New transaction
+          </button>
+        </div>
+      </section>
       {error && <p role="alert" className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{error}</p>}
       <DiscrepancyPanel />
       {/* Welcome Section */}
-      <div>
-        <h2 className="text-2xl font-bold text-gray-900">{greeting}, Bookkeeper</h2>
-        
+      <section className="flex flex-col gap-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <h2 className="text-lg font-bold text-slate-900">Financial snapshot</h2>
+          <p className="mt-1 text-sm text-slate-600">Choose a date to review recorded cash activity.</p>
+        </div>
         {/* Date Selector */}
-        <div className="flex items-center space-x-3 mt-4">
+        <div className="flex w-full items-center gap-2 sm:w-auto">
           <button
             onClick={() => changeDate(-1)}
-            className="p-2 border border-gray-300 rounded-lg hover:bg-gray-50"
+            aria-label="Previous day"
+            className="rounded-lg border border-slate-300 p-2 text-slate-700 hover:bg-purple-50"
           >
             <svg className="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
@@ -171,14 +203,14 @@ const BookkeeperDashboard = ({ onSelectTransaction, onViewBooks }) => {
               value={selectedDate}
               max={todayDate}
               onChange={(e) => setSelectedDate(e.target.value > todayDate ? todayDate : e.target.value)}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 font-medium"
+              className="w-full rounded-lg border border-slate-300 px-4 py-2 font-medium focus:border-purple-600 focus:ring-2 focus:ring-purple-500 sm:w-auto"
             />
           </div>
           <button
             onClick={() => setSelectedDate(todayDate)}
             aria-label="Return to today's dashboard"
             title="Return to today"
-            className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 font-medium"
+            className="rounded-lg border border-purple-200 bg-purple-50 px-4 py-2 font-semibold text-purple-900 hover:bg-purple-100"
           >
             {selectedDateLabel}
           </button>
@@ -186,17 +218,17 @@ const BookkeeperDashboard = ({ onSelectTransaction, onViewBooks }) => {
             onClick={() => changeDate(1)}
             disabled={selectedDate >= todayDate}
             aria-label="Next day"
-            className="p-2 border border-gray-300 rounded-lg hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40"
+            className="rounded-lg border border-slate-300 p-2 text-slate-700 hover:bg-purple-50 disabled:cursor-not-allowed disabled:opacity-40"
           >
             <svg className="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
             </svg>
           </button>
         </div>
-      </div>
+      </section>
 
       {/* Financial Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-5">
         {summaryCards.map((card) => (
           <DashboardMetricCard
             key={card.label}
@@ -205,17 +237,24 @@ const BookkeeperDashboard = ({ onSelectTransaction, onViewBooks }) => {
             detail={card.detail}
             icon={card.icon}
             tone={card.tone}
+            variant="bookkeeper"
           />
         ))}
       </div>
 
       {/* Quick Actions */}
-      <div className="bg-white rounded-lg border border-gray-200 p-6">
-        <h3 className="text-lg font-semibold text-gray-900 mb-4">Quick Actions</h3>
+      <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+        <div className="mb-4 flex items-center justify-between gap-3">
+          <div>
+            <h3 className="text-lg font-semibold text-slate-900">Quick Actions</h3>
+            <p className="mt-1 text-sm text-slate-600">Common tasks for recording and reviewing financial activity.</p>
+          </div>
+          <BookOpen className="hidden size-5 text-purple-700 sm:block" aria-hidden="true" />
+        </div>
         <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
           <button
             onClick={() => onSelectTransaction?.()}
-            className="flex flex-col items-center justify-center p-4 border-2 border-purple-300 bg-purple-50 rounded-lg hover:bg-purple-100 transition-colors"
+            className="flex flex-col items-center justify-center rounded-xl border-2 border-purple-300 bg-purple-50 p-4 transition-colors hover:bg-purple-100"
           >
             <svg className="w-8 h-8 text-purple-600 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -263,7 +302,7 @@ const BookkeeperDashboard = ({ onSelectTransaction, onViewBooks }) => {
 
       {/* Accounting Balances */}
       <div className="bg-white rounded-lg border border-gray-200 p-6">
-        <h3 className="text-lg font-semibold text-gray-900 mb-4">Accounting Equation</h3>
+        <h3 className="text-lg font-semibold text-slate-900 mb-4">Accounting Equation</h3>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           {accountingCards.map((card) => (
             <DashboardMetricCard
@@ -276,7 +315,7 @@ const BookkeeperDashboard = ({ onSelectTransaction, onViewBooks }) => {
             />
           ))}
         </div>
-        <div className="mt-4 p-4 bg-gray-50 rounded-lg">
+        <div className="mt-4 rounded-xl border border-purple-100 bg-purple-50/60 p-4">
           <p className="text-sm text-gray-600 text-center">
             <span className="font-semibold">Accounting Equation Check:</span> Assets = Liabilities + Equity
           </p>

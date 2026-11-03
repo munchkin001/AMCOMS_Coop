@@ -25,6 +25,8 @@ const solidTones = {
 const DashboardMetricCard = ({ label, value, icon: Icon, tone = 'teal', actionLabel, onAction, onClick, solid = false, detail, variant }) => {
   const toneClasses = tones[tone] || tones.teal;
   const treasurerVariant = variant === 'treasurer';
+  const bookkeeperVariant = variant === 'bookkeeper';
+  const brandedVariant = treasurerVariant || bookkeeperVariant;
   const Container = onClick ? 'button' : 'article';
   const interactionClasses = onClick
     ? 'w-full cursor-pointer text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:ring-offset-2'
@@ -37,14 +39,14 @@ const DashboardMetricCard = ({ label, value, icon: Icon, tone = 'teal', actionLa
         onClick={onClick}
         aria-label={onClick ? `View ${label.toLowerCase()} details` : undefined}
         className={`${interactionClasses} min-w-0 rounded-xl bg-gradient-to-br p-3 text-white shadow-md sm:p-4 ${
-          treasurerVariant ? 'from-[#173264] to-[#244a88]' : solidTones[tone] || solidTones.teal
+          treasurerVariant ? 'from-[#173264] to-[#244a88]' : bookkeeperVariant ? 'from-[#4b2678] to-[#7544a5]' : solidTones[tone] || solidTones.teal
         }`}
       >
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
             <p className="text-xs font-semibold uppercase text-white/80">{label}</p>
             <p className="mt-2 whitespace-nowrap text-lg font-semibold tabular-nums sm:mt-3 sm:text-2xl">{value}</p>
-            {treasurerVariant && detail && <p className="mt-2 text-xs leading-5 text-white/75">{detail}</p>}
+            {brandedVariant && detail && <p className="mt-2 text-xs leading-5 text-white/75">{detail}</p>}
             {onClick ? (
               <span className="mt-3 inline-flex items-center gap-1 text-xs font-semibold text-white">
                 {actionLabel || 'View details'}
@@ -57,7 +59,7 @@ const DashboardMetricCard = ({ label, value, icon: Icon, tone = 'teal', actionLa
               </button>
             ) : null}
           </div>
-          <span className={`hidden size-10 shrink-0 place-items-center rounded-md sm:grid ${treasurerVariant ? 'bg-[#e9c46a] text-blue-950' : 'bg-white/20'}`}>
+          <span className={`hidden size-10 shrink-0 place-items-center rounded-md sm:grid ${treasurerVariant ? 'bg-[#e9c46a] text-blue-950' : bookkeeperVariant ? 'bg-purple-200 text-purple-950' : 'bg-white/20'}`}>
             {Icon && <Icon aria-hidden="true" className="size-5" />}
           </span>
         </div>
@@ -71,14 +73,14 @@ const DashboardMetricCard = ({ label, value, icon: Icon, tone = 'teal', actionLa
       onClick={onClick}
       aria-label={onClick ? `View ${label.toLowerCase()} details` : undefined}
       className={`${interactionClasses} min-w-0 rounded-xl border border-slate-200 ${
-        treasurerVariant ? 'border-t-4 border-t-[#d6ab4a]' : `border-t-4 ${toneClasses.accent}`
+        treasurerVariant ? 'border-t-4 border-t-[#d6ab4a]' : bookkeeperVariant ? 'border-t-4 border-t-purple-700' : `border-t-4 ${toneClasses.accent}`
       } bg-white p-4 shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md`}
     >
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">{label}</p>
           <p className="mt-3 break-words text-2xl font-extrabold tabular-nums tracking-tight text-slate-950">{value}</p>
-          {treasurerVariant && detail && <p className="mt-2 text-xs leading-5 text-slate-500">{detail}</p>}
+          {brandedVariant && detail && <p className="mt-2 text-xs leading-5 text-slate-500">{detail}</p>}
           {onClick ? (
             <span className="mt-3 inline-flex items-center gap-1 text-xs font-semibold text-slate-700">
               {actionLabel || 'View details'}

@@ -677,9 +677,11 @@ const TransactionWorkflow = ({ role }) => {
       <header className={`rounded-2xl px-6 py-6 text-white shadow-sm sm:px-8 ${
         isTreasurer
           ? 'bg-gradient-to-br from-[#142b57] via-[#1c3d76] to-[#244b86]'
-          : 'bg-slate-950'
+          : isBookkeeper
+            ? 'bg-gradient-to-br from-[#28134b] via-[#4b2678] to-[#7544a5]'
+            : 'bg-slate-950'
       }`}>
-        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-amber-300">AMCOMS · Transaction Control</p>
+        <p className={`text-xs font-semibold uppercase tracking-[0.18em] ${isBookkeeper ? 'text-purple-200' : 'text-amber-300'}`}>AMCOMS · Transaction Control</p>
         <div className="mt-2 flex flex-wrap items-end justify-between gap-4">
           <div>
             <h1 className="text-2xl font-bold sm:text-3xl">

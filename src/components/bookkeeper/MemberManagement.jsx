@@ -56,7 +56,7 @@ const getAccountActionError = async (error) => {
   return error?.message || 'The member account action could not be completed.';
 };
 
-const MemberManagement = ({ canManageMembers = true }) => {
+const MemberManagement = ({ canManageMembers = true, bookkeeperTheme = false }) => {
   const [members, setMembers] = useState([]);
   const [archivedMembers, setArchivedMembers] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -543,7 +543,9 @@ const MemberManagement = ({ canManageMembers = true }) => {
     </label>
   );
 
-  const inputClass = 'w-full rounded-xl border border-slate-300 bg-white px-3.5 py-2.5 text-sm text-slate-900 shadow-sm transition placeholder:text-slate-400 focus:border-blue-700 focus:outline-none focus:ring-4 focus:ring-blue-700/10';
+  const inputClass = `w-full rounded-xl border border-slate-300 bg-white px-3.5 py-2.5 text-sm text-slate-900 shadow-sm transition placeholder:text-slate-400 focus:outline-none focus:ring-4 ${
+    bookkeeperTheme ? 'focus:border-purple-700 focus:ring-purple-700/10' : 'focus:border-blue-700 focus:ring-blue-700/10'
+  }`;
   const labelClass = 'mb-1.5 block text-sm font-medium text-gray-700';
   const sectionClass = 'rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6';
   const sectionGridClass = 'grid gap-4 sm:grid-cols-2 lg:grid-cols-3';
@@ -556,7 +558,11 @@ const MemberManagement = ({ canManageMembers = true }) => {
 
   return (
     <div className="space-y-6">
-      <header className="flex flex-col justify-between gap-4 overflow-hidden rounded-2xl border border-blue-900/10 bg-gradient-to-r from-slate-950 via-blue-950 to-blue-900 p-5 text-white shadow-lg shadow-blue-950/10 sm:flex-row sm:items-center sm:p-6">
+      <header className={`flex flex-col justify-between gap-4 overflow-hidden rounded-2xl border p-5 text-white shadow-lg sm:flex-row sm:items-center sm:p-6 ${
+        bookkeeperTheme
+          ? 'border-purple-900/10 bg-gradient-to-r from-[#28134b] via-[#4b2678] to-[#7544a5] shadow-purple-950/10'
+          : 'border-blue-900/10 bg-gradient-to-r from-slate-950 via-blue-950 to-blue-900 shadow-blue-950/10'
+      }`}>
         <div className="flex items-center gap-4">
           <div className="flex size-12 shrink-0 items-center justify-center rounded-xl border border-white/15 bg-white/10 text-blue-100">
             <Users size={24} aria-hidden="true" />
@@ -573,7 +579,9 @@ const MemberManagement = ({ canManageMembers = true }) => {
             <p className="text-xl font-extrabold tabular-nums">{activeMembers.length.toLocaleString()}</p>
           </div>
         {canManageMembers && (
-          <button type="button" onClick={startAdd} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-white px-4 text-sm font-extrabold text-blue-950 shadow-sm transition hover:bg-blue-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-blue-900">
+          <button type="button" onClick={startAdd} className={`inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-white px-4 text-sm font-extrabold shadow-sm transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 ${
+            bookkeeperTheme ? 'text-purple-950 hover:bg-purple-50 focus-visible:ring-offset-purple-900' : 'text-blue-950 hover:bg-blue-50 focus-visible:ring-offset-blue-900'
+          }`}>
             <Plus size={18} aria-hidden="true" />Add Member
           </button>
         )}
@@ -588,7 +596,7 @@ const MemberManagement = ({ canManageMembers = true }) => {
               type="button"
               aria-pressed={view === id}
               onClick={() => { setView(id); setStatusFilter('all'); setMemberPage(1); }}
-              className={`inline-flex items-center gap-2 whitespace-nowrap rounded-lg px-3 py-2.5 text-sm font-bold transition-colors ${view === id ? 'bg-blue-950 text-white shadow-sm' : 'text-slate-600 hover:bg-slate-100 hover:text-slate-950'}`}
+              className={`inline-flex items-center gap-2 whitespace-nowrap rounded-lg px-3 py-2.5 text-sm font-bold transition-colors ${view === id ? `${bookkeeperTheme ? 'bg-purple-900' : 'bg-blue-950'} text-white shadow-sm` : 'text-slate-600 hover:bg-slate-100 hover:text-slate-950'}`}
             >
               {label}
               <span className={`rounded-full px-2 py-0.5 text-xs tabular-nums ${view === id ? 'bg-white/15 text-white' : 'bg-slate-100 text-slate-600'}`}>{count}</span>
@@ -728,7 +736,9 @@ const MemberManagement = ({ canManageMembers = true }) => {
       {modal === 'add' && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/65 p-3 backdrop-blur-sm sm:p-5">
           <section role="dialog" aria-modal="true" aria-labelledby="member-form-title" className="max-h-[94vh] w-full max-w-5xl overflow-y-auto rounded-2xl border border-white/50 bg-slate-100 shadow-2xl">
-            <div className="sticky top-0 z-10 flex items-center justify-between border-b border-blue-950/20 bg-gradient-to-r from-blue-950 via-blue-900 to-blue-800 px-5 py-4 text-white sm:px-7">
+            <div className={`sticky top-0 z-10 flex items-center justify-between border-b px-5 py-4 text-white sm:px-7 ${
+              bookkeeperTheme ? 'border-purple-950/20 bg-gradient-to-r from-[#28134b] via-[#4b2678] to-[#7544a5]' : 'border-blue-950/20 bg-gradient-to-r from-blue-950 via-blue-900 to-blue-800'
+            }`}>
               <div className="flex items-center gap-3">
                 <span className="grid size-10 place-items-center rounded-xl border border-white/15 bg-white/10 text-[#f0d995]">
                   <Users size={20} aria-hidden="true" />
@@ -851,7 +861,9 @@ const MemberManagement = ({ canManageMembers = true }) => {
               )}
               <div className="sticky bottom-0 -mx-4 flex justify-end gap-3 border-t border-slate-200 bg-white/95 px-4 py-4 backdrop-blur sm:-mx-6 sm:px-6">
                 <button type="button" onClick={() => setModal('')} className="min-h-11 rounded-xl border border-slate-300 px-5 text-sm font-semibold text-slate-700 hover:bg-slate-50">Cancel</button>
-                <button type="submit" disabled={saving || (duplicateMatches.length > 0 && !confirmPossibleDuplicate)} className="min-h-11 rounded-xl bg-gradient-to-r from-blue-950 to-blue-800 px-5 text-sm font-bold text-white shadow-sm transition hover:from-blue-900 hover:to-blue-700 disabled:opacity-60">{saving ? 'Saving...' : duplicateMatches.length > 0 ? 'Confirm and Add Member' : 'Add Member'}</button>
+                <button type="submit" disabled={saving || (duplicateMatches.length > 0 && !confirmPossibleDuplicate)} className={`min-h-11 rounded-xl bg-gradient-to-r px-5 text-sm font-bold text-white shadow-sm transition disabled:opacity-60 ${
+                  bookkeeperTheme ? 'from-purple-950 to-purple-700 hover:from-purple-900 hover:to-purple-600' : 'from-blue-950 to-blue-800 hover:from-blue-900 hover:to-blue-700'
+                }`}>{saving ? 'Saving...' : duplicateMatches.length > 0 ? 'Confirm and Add Member' : 'Add Member'}</button>
               </div>
             </form>
           </section>
@@ -861,7 +873,9 @@ const MemberManagement = ({ canManageMembers = true }) => {
       {modal === 'edit' && selectedMember && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/65 p-3 backdrop-blur-sm sm:p-5">
           <section role="dialog" aria-modal="true" aria-labelledby="member-edit-title" className="max-h-[94vh] w-full max-w-5xl overflow-y-auto rounded-2xl border border-white/50 bg-slate-100 shadow-2xl">
-            <div className="sticky top-0 z-10 flex items-center justify-between border-b border-blue-950/20 bg-gradient-to-r from-blue-950 via-blue-900 to-blue-800 px-5 py-4 text-white sm:px-7">
+            <div className={`sticky top-0 z-10 flex items-center justify-between border-b px-5 py-4 text-white sm:px-7 ${
+              bookkeeperTheme ? 'border-purple-950/20 bg-gradient-to-r from-[#28134b] via-[#4b2678] to-[#7544a5]' : 'border-blue-950/20 bg-gradient-to-r from-blue-950 via-blue-900 to-blue-800'
+            }`}>
               <div className="flex items-center gap-3">
                 <span className="grid size-10 place-items-center rounded-xl border border-white/15 bg-white/10 text-[#f0d995]"><Pencil size={18} aria-hidden="true" /></span>
                 <div>
@@ -983,7 +997,9 @@ const MemberManagement = ({ canManageMembers = true }) => {
               </section>
               <div className="sticky bottom-0 -mx-4 flex justify-end gap-3 border-t border-slate-200 bg-white/95 px-4 py-4 backdrop-blur sm:-mx-6 sm:px-6">
                 <button type="button" onClick={() => setModal('')} className="min-h-11 rounded-xl border border-slate-300 px-5 text-sm font-semibold text-slate-700 hover:bg-slate-50">Cancel</button>
-                <button type="submit" disabled={saving} className="min-h-11 rounded-xl bg-gradient-to-r from-blue-950 to-blue-800 px-5 text-sm font-bold text-white shadow-sm transition hover:from-blue-900 hover:to-blue-700 disabled:opacity-60">{saving ? 'Saving...' : 'Save Changes'}</button>
+                <button type="submit" disabled={saving} className={`min-h-11 rounded-xl bg-gradient-to-r px-5 text-sm font-bold text-white shadow-sm transition disabled:opacity-60 ${
+                  bookkeeperTheme ? 'from-purple-950 to-purple-700 hover:from-purple-900 hover:to-purple-600' : 'from-blue-950 to-blue-800 hover:from-blue-900 hover:to-blue-700'
+                }`}>{saving ? 'Saving...' : 'Save Changes'}</button>
               </div>
             </form>
           </section>

@@ -238,8 +238,12 @@ const FinancialReports = () => {
 
   return (
     <div className="space-y-6">
-      <div className="rounded-lg border border-gray-200 bg-white p-6 shadow">
-        <h3 className="mb-4 text-lg font-semibold text-gray-900">Report Configuration</h3>
+      <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+        <div className="mb-5">
+          <p className="text-xs font-bold uppercase tracking-[0.16em] text-purple-700">Bookkeeping · Reporting</p>
+          <h3 className="mt-1 text-lg font-semibold text-gray-900">Report Configuration</h3>
+          <p className="mt-1 text-sm text-gray-600">Choose a financial report and reporting period to review posted accounting activity.</p>
+        </div>
         <div className="mb-4 grid grid-cols-1 gap-4 md:grid-cols-3">
           <label className="text-sm font-medium text-gray-700">
             Report Type
@@ -276,15 +280,15 @@ const FinancialReports = () => {
           setRows([]);
           setShowPreview(true);
           setRequestVersion((version) => version + 1);
-        }} className="w-full rounded-lg bg-[#183b34] px-4 py-3 font-medium text-white hover:bg-[#102e28]">
+        }} className="w-full rounded-xl bg-gradient-to-r from-purple-950 to-purple-700 px-4 py-3 font-semibold text-white shadow-sm transition hover:from-purple-900 hover:to-purple-600">
           Generate Report
         </button>
       </div>
 
       {error && <p role="alert" className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{error}</p>}
       {showPreview && !error && (
-        <section className="amcoms-print-document rounded-lg border border-gray-200 bg-white p-6 shadow">
-          <header className="amcoms-document-header mb-6 border-b-4 pb-5 text-center">
+        <section className="amcoms-print-document rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-7">
+          <header className="amcoms-document-header mb-6 border-b-4 border-purple-900 pb-5 text-center">
             <p className="text-xs font-semibold uppercase tracking-[0.16em]">Agay-ayan Multi-Purpose Cooperative</p>
             <h1 className="mt-3 text-2xl font-bold text-gray-900">{reportTitle}</h1>
             <p className="mt-2 text-sm text-gray-700">Period covered: {range.from} to {range.to}</p>
@@ -297,7 +301,7 @@ const FinancialReports = () => {
                 <div className="grid gap-6 md:grid-cols-2">
                   <ReportRows title="Income" rows={report.income} total={report.totalIncome} color="green" />
                   <ReportRows title="Expenses" rows={report.expenses} total={report.totalExpenses} color="red" />
-                  <p className="rounded-lg border border-[#c8d8d2] bg-[#eff5f2] p-4 text-lg font-bold text-[#183b34] md:col-span-2">
+                  <p className="rounded-xl border border-purple-200 bg-purple-50 p-4 text-lg font-bold text-purple-950 md:col-span-2">
                     Net {report.netIncome < 0 ? 'deficit' : 'surplus'}: ₱{money(Math.abs(report.netIncome))}
                   </p>
                 </div>
@@ -333,10 +337,10 @@ const FinancialReports = () => {
                 <div className="border-t border-gray-700 pt-2">Reviewed and approved by</div>
               </footer>
               <div className="no-print mt-6 flex flex-wrap gap-3 border-t border-gray-200 pt-5">
-                <button type="button" onClick={() => window.print()} className="flex flex-1 items-center justify-center gap-2 rounded-lg bg-[#183b34] px-4 py-3 font-medium text-white hover:bg-[#102e28]">
+                <button type="button" onClick={() => window.print()} className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-purple-950 px-4 py-3 font-semibold text-white hover:bg-purple-900">
                   <Printer className="size-5" aria-hidden="true" />Print
                 </button>
-                <button type="button" disabled={loading} onClick={downloadReport} className="flex flex-1 items-center justify-center gap-2 rounded-lg border border-[#183b34] px-4 py-3 font-medium text-[#183b34] hover:bg-[#183b34]/5 disabled:opacity-50">
+                <button type="button" disabled={loading} onClick={downloadReport} className="flex flex-1 items-center justify-center gap-2 rounded-xl border border-purple-300 px-4 py-3 font-semibold text-purple-900 hover:bg-purple-50 disabled:opacity-50">
                   <Download className="size-5" aria-hidden="true" />Download CSV
                 </button>
               </div>
