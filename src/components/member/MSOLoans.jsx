@@ -3,6 +3,7 @@ import { TrendingUp, AlertCircle, CheckCircle, Clock, Award } from 'lucide-react
 import { useAuth } from '../../contexts/AuthContext';
 import { supabase } from '../../lib/supabase';
 import { useMultipleRealtimeSubscriptions } from '../../hooks/useRealtimeSubscription';
+import { getLoanInstallmentBreakdown } from '../../lib/loanInstallments';
 
 const peso = (value) => `₱${Number(value || 0).toLocaleString('en-PH', { 
   minimumFractionDigits: 2, 
@@ -301,8 +302,9 @@ const MSOLoans = () => {
                       <p className="mt-1 text-sm font-semibold text-gray-900">{loan.interest_rate}% p.a.</p>
                     </div>
                     <div>
-                      <p className="text-xs text-gray-600">Monthly Payment</p>
+                      <p className="text-xs text-gray-600">Installment (with interest)</p>
                       <p className="mt-1 text-sm font-semibold text-gray-900">{peso(loan.installment_amount)}</p>
+                      <p className="mt-1 text-xs text-gray-500">Principal portion: {peso(getLoanInstallmentBreakdown(loan).principal)}</p>
                     </div>
                     <div>
                       <p className="text-xs text-gray-600">Total Amount</p>
@@ -351,6 +353,7 @@ const MSOLoans = () => {
                             <tr>
                               <th className="px-3 py-2 text-left text-xs font-medium text-gray-600">#</th>
                               <th className="px-3 py-2 text-left text-xs font-medium text-gray-600">Due Date</th>
+                              <th className="px-3 py-2 text-right text-xs font-medium text-gray-600">Principal</th>
                               <th className="px-3 py-2 text-right text-xs font-medium text-gray-600">Amount</th>
                               <th className="px-3 py-2 text-center text-xs font-medium text-gray-600">Status</th>
                             </tr>
@@ -360,6 +363,9 @@ const MSOLoans = () => {
                               <tr key={item.id} className="hover:bg-gray-50">
                                 <td className="px-3 py-2 text-gray-900">{item.installment_number}</td>
                                 <td className="px-3 py-2 text-gray-900">{fmtDate(item.due_date)}</td>
+                                <td className="px-3 py-2 text-right text-gray-900">
+                                  {peso(getLoanInstallmentBreakdown(loan, item.installment_number, item.amount_due).principal)}
+                                </td>
                                 <td className="px-3 py-2 text-right font-medium text-gray-900">
                                   {peso(Number(item.amount_due) + Number(item.penalty_amount))}
                                 </td>

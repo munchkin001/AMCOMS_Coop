@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { Eye, X } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useMultipleRealtimeSubscriptions } from '../../hooks/useRealtimeSubscription';
+import { getLoanInstallmentBreakdown } from '../../lib/loanInstallments';
 
 const peso = (value) => `₱${(Number(value) || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 const formatDate = (value) => value
@@ -84,7 +85,7 @@ const OperationsMonitoring = () => {
         .select('id, loan_number, status, balance, principal_amount, term_months, payment_frequency, application_date, approval_date, release_date, maturity_date, member:members(first_name, middle_name, last_name, member_number)')
         .order('application_date', { ascending: false }),
       supabase.from('loan_schedule')
-        .select('id, loan_id, installment_number, due_date, amount_due, amount_paid, penalty_amount, status, loan:loans!inner(loan_number, status, member:members(first_name, middle_name, last_name, member_number))')
+        .select('id, loan_id, installment_number, due_date, amount_due, amount_paid, penalty_amount, status, loan:loans!inner(loan_number, status, principal_amount, total_amount, total_interest, term_months, payment_frequency, installments, installment_amount, member:members(first_name, middle_name, last_name, member_number))')
         .neq('status', 'paid')
         .lt('due_date', today)
         .order('due_date', { ascending: true }),
@@ -192,6 +193,7 @@ const OperationsMonitoring = () => {
         ['Installment number', display(schedule.installment_number)],
         ['Due date', formatDate(schedule.due_date)],
         ['Installment amount', peso(schedule.amount_due)],
+        ['Principal portion', peso(getLoanInstallmentBreakdown(loan, schedule.installment_number, schedule.amount_due).principal)],
         ['Amount paid', peso(schedule.amount_paid)],
         ['Penalty', peso(schedule.penalty_amount)],
         ['Outstanding amount', peso(outstanding)],

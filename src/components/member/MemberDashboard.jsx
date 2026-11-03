@@ -6,6 +6,7 @@ import { useMultipleRealtimeSubscriptions } from '../../hooks/useRealtimeSubscri
 import offlineDb from '../../lib/Offline/OfflineDb';
 import DashboardMetricCard from '../common/DashboardMetricCard';
 import { getDataLoadErrorMessage } from '../../lib/errorHandler';
+import { getLoanInstallmentBreakdown } from '../../lib/loanInstallments';
 
 const formatPeso = (value) => new Intl.NumberFormat('en-PH', {
   style: 'currency',
@@ -488,6 +489,7 @@ const MemberDashboard = ({ onNavigate }) => {
                           <>
                             <p className="font-semibold text-amber-800">{new Date(`${nextDue.due_date}T00:00:00`).toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' })}</p>
                             <p className="mt-0.5 text-xs text-slate-500">{formatPeso(nextDueAmount)} · installment {nextDue.installment_number}</p>
+                            <p className="mt-0.5 text-xs text-slate-500">Scheduled principal: {formatPeso(getLoanInstallmentBreakdown(loan, nextDue.installment_number, nextDue.amount_due).principal)}</p>
                           </>
                         ) : <span className="text-slate-400">No upcoming due</span>}
                       </td>

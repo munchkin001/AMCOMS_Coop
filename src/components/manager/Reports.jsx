@@ -3,6 +3,7 @@ import { useLocation } from 'react-router-dom';
 import { CalendarDays, ChevronLeft, ChevronRight, Clock3, Printer, RefreshCw, WalletCards, X } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useMultipleRealtimeSubscriptions } from '../../hooks/useRealtimeSubscription';
+import { getLoanInstallmentBreakdown } from '../../lib/loanInstallments';
 import ReportInsights from '../common/ReportInsights';
 import MemberReportSort from '../common/MemberReportSort';
 import { sortMemberReportRows } from '../common/memberReportSorting';
@@ -283,7 +284,7 @@ const Reports = () => {
             .gt('balance', 0)
             .order('maturity_date', { ascending: true })),
           fetchAllRows(() => supabase.from('loan_schedule')
-            .select('id, installment_number, due_date, amount_due, amount_paid, penalty_amount, status, loan:loans!inner(loan_number, status, member:members(first_name, middle_name, last_name))')
+            .select('id, installment_number, due_date, amount_due, amount_paid, penalty_amount, status, loan:loans!inner(loan_number, status, principal_amount, total_amount, total_interest, term_months, payment_frequency, installments, installment_amount, member:members(first_name, middle_name, last_name))')
             .neq('status', 'paid')
             .order('due_date', { ascending: true }))
         ]);
@@ -465,6 +466,7 @@ const Reports = () => {
             ['Due date', fmtDate(schedule.due_date)],
             ['Schedule status', schedule.status],
             ['Installment amount due', peso(due)],
+            ['Principal portion', peso(getLoanInstallmentBreakdown(loan, schedule.installment_number, schedule.amount_due).principal)],
             ['Amount paid', peso(paid)],
             ['Penalty amount', peso(schedule.penalty_amount)],
             ['Outstanding installment', peso(unpaidInstallment)],

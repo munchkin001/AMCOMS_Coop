@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useMultipleRealtimeSubscriptions } from '../../hooks/useRealtimeSubscription';
+import { getLoanInstallmentBreakdown } from '../../lib/loanInstallments';
 
 const FILE_LIMIT = 10 * 1024 * 1024;
 const ALLOWED_FILES = new Set(['application/pdf', 'image/jpeg', 'image/png']);
@@ -1216,6 +1217,7 @@ const TransactionWorkflow = ({ role }) => {
                           ['Term', loan.term_months ? `${loan.term_months} months` : null],
                           ['Payment frequency', loan.payment_frequency],
                           ['Installment amount', loan.installment_amount ? money(loan.installment_amount) : null],
+                          ['Principal per installment', loan.installment_amount ? money(getLoanInstallmentBreakdown(loan).principal) : null],
                           ['Total interest', loan.total_interest ? money(loan.total_interest) : null],
                           ['Total payable', loan.total_amount ? money(loan.total_amount) : null],
                           ['Purpose', application.purpose || loan.notes],

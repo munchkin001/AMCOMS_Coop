@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { supabase } from '../../lib/supabase';
 import { useMultipleRealtimeSubscriptions } from '../../hooks/useRealtimeSubscription';
+import { getLoanInstallmentBreakdown } from '../../lib/loanInstallments';
 
 const peso = (value) => `₱${Number(value || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 const fmtDate = (value) => (value ? new Date(`${String(value).slice(0, 10)}T00:00:00`).toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' }) : '—');
@@ -101,6 +102,7 @@ const MyLoans = () => {
                   <p className="text-xs text-orange-700">Next due</p>
                   <p className="text-sm font-semibold text-orange-900">{fmtDate(next.due_date)}</p>
                   <p className="text-xs text-orange-700">{peso(Number(next.amount_due) + Number(next.penalty_amount) - Number(next.amount_paid))}</p>
+                  <p className="text-xs text-orange-700">Scheduled principal: {peso(getLoanInstallmentBreakdown(loan, next.installment_number, next.amount_due).principal)}</p>
                 </div>
               )}
             </div>
@@ -110,7 +112,11 @@ const MyLoans = () => {
               <div><dt className="text-gray-500">Total to pay</dt><dd className="font-medium">{peso(loan.total_amount)}</dd></div>
               <div><dt className="text-gray-500">Term</dt><dd className="font-medium">{loan.term_months / 12} yr · {loan.payment_frequency}</dd></div>
               <div><dt className="text-gray-500">Interest</dt><dd className="font-medium">{loan.interest_rate}% per year</dd></div>
-              <div><dt className="text-gray-500">Each payment</dt><dd className="font-medium">{peso(loan.installment_amount)}</dd></div>
+              <div>
+                <dt className="text-gray-500">Each payment (with interest)</dt>
+                <dd className="font-medium">{peso(loan.installment_amount)}</dd>
+                <dd className="text-xs text-gray-500">Principal portion: {peso(getLoanInstallmentBreakdown(loan).principal)}</dd>
+              </div>
               <div><dt className="text-gray-500">Late charge</dt><dd className="font-medium">{loan.penalty_rate}% of missed payment</dd></div>
               {Number(loan.penalty_total) > 0 && (
                 <div className="col-span-2"><dt className="text-gray-500">Late charges added</dt><dd className="font-medium text-red-600">{peso(loan.penalty_total)}</dd></div>
@@ -134,7 +140,10 @@ const MyLoans = () => {
                     <li key={row.id} className="flex items-center justify-between gap-2 px-3 py-2 text-sm">
                       <span className="text-gray-700">#{row.installment_number} · {fmtDate(row.due_date)}</span>
                       <span className="flex items-center gap-2">
-                        <span className="font-medium">{peso(Number(row.amount_due) + Number(row.penalty_amount))}</span>
+                        <span className="text-right">
+                          <span className="block font-medium">{peso(Number(row.amount_due) + Number(row.penalty_amount))}</span>
+                          <span className="block text-xs text-gray-500">Scheduled principal: {peso(getLoanInstallmentBreakdown(loan, row.installment_number, row.amount_due).principal)}</span>
+                        </span>
                         <span className={`rounded-full px-2 py-0.5 text-xs capitalize ${statusStyle[row.status]}`}>{row.status}</span>
                       </span>
                     </li>

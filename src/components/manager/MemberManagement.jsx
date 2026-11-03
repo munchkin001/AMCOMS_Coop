@@ -4,6 +4,7 @@ import { supabase } from '../../lib/supabase';
 import { useRealtimeSubscription } from '../../hooks/useRealtimeSubscription';
 import MemberReportSort from '../common/MemberReportSort';
 import { sortMemberReportRows } from '../common/memberReportSorting';
+import { getLoanInstallmentBreakdown } from '../../lib/loanInstallments';
 
 const fullName = (member) => [member.first_name, member.middle_name, member.last_name].filter(Boolean).join(' ');
 
@@ -109,7 +110,7 @@ const MemberManagement = () => {
       try {
         const { data: loans, error: loansError } = await supabase
           .from('loans')
-          .select('id, loan_number, loan_product_id, principal_amount, interest_rate, term_months, payment_frequency, monthly_payment, installment_amount, total_interest, total_amount, balance, application_date, approval_date, release_date, maturity_date, status, notes')
+          .select('id, loan_number, loan_product_id, principal_amount, interest_rate, term_months, installments, payment_frequency, monthly_payment, installment_amount, total_interest, total_amount, balance, application_date, approval_date, release_date, maturity_date, status, notes')
           .eq('member_id', selectedMember.id)
           .order('created_at', { ascending: false });
 
@@ -209,6 +210,7 @@ const MemberManagement = () => {
     ['Total amount', formatMoney(loan.total_amount)],
     ['Outstanding balance', formatMoney(loan.balance)],
     ['Installment amount', formatMoney(loan.installment_amount || loan.monthly_payment)],
+    ['Principal per installment', formatMoney(getLoanInstallmentBreakdown(loan, nextDue?.installment_number || 1, nextDue?.amount_due).principal)],
     ['Interest rate', loan.interest_rate === null ? 'Not recorded' : `${loan.interest_rate}%`],
     ['Payment frequency', loan.payment_frequency],
     ['Term', loan.term_months ? `${loan.term_months} months` : 'Not recorded'],
@@ -226,6 +228,7 @@ const MemberManagement = () => {
     ['Due date', formatDate(installment.due_date)],
     ['Status', status],
     ['Amount due', formatMoney(installment.amount_due)],
+    ['Principal portion', formatMoney(getLoanInstallmentBreakdown(loan, installment.installment_number, installment.amount_due).principal)],
     ['Penalty amount', formatMoney(installment.penalty_amount)],
     ['Total due', formatMoney(Number(installment.amount_due || 0) + Number(installment.penalty_amount || 0))],
     ['Amount paid', formatMoney(installment.amount_paid)],
@@ -788,7 +791,10 @@ const MemberManagement = () => {
                                       <p className="mt-1 text-xs text-gray-500">Total {formatMoney(loan.total_amount)}</p>
                                     </td>
                                     <td className="whitespace-nowrap px-4 py-3 font-semibold text-gray-900">{formatMoney(loan.balance)}</td>
-                                    <td className="whitespace-nowrap px-4 py-3 text-gray-700">{formatMoney(loan.installment_amount || loan.monthly_payment)}</td>
+                                    <td className="whitespace-nowrap px-4 py-3 text-gray-700">
+                                      <p>{formatMoney(loan.installment_amount || loan.monthly_payment)}</p>
+                                      <p className="mt-1 text-xs text-gray-500">Principal {formatMoney(getLoanInstallmentBreakdown(loan).principal)}</p>
+                                    </td>
                                     <td className="whitespace-nowrap px-4 py-3">
                                       {nextDue ? (
                                         <>

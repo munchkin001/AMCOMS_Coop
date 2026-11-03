@@ -39,7 +39,14 @@ const LoanApplicationForm = () => {
       : selectedTerm.term_months;
     const interest = Math.round(amountNumber * Number(selectedTerm.annual_rate) / 100 * selectedTerm.term_months / 12 * 100) / 100;
     const total = amountNumber + interest;
-    return { interest, total, installment: Math.round(total / installments * 100) / 100 };
+    const installment = Math.round(total / installments * 100) / 100;
+    const installmentInterest = Math.round(interest / installments * 100) / 100;
+    return {
+      interest,
+      total,
+      installment,
+      principalInstallment: Math.max(installment - installmentInterest, 0),
+    };
   }, [amountNumber, selectedTerm]);
 
   const load = useCallback(async () => {
@@ -224,7 +231,8 @@ const LoanApplicationForm = () => {
             <div className="grid gap-3 rounded-lg bg-green-50 p-3 text-sm text-green-950 sm:col-span-2 sm:grid-cols-3">
               <p>Estimated interest <strong className="block">{money(quote.interest)}</strong></p>
               <p>Estimated total repayment <strong className="block">{money(quote.total)}</strong></p>
-              <p>Estimated installment <strong className="block">{money(quote.installment)}</strong></p>
+              <p>Estimated installment (with interest) <strong className="block">{money(quote.installment)}</strong></p>
+              <p>Estimated principal portion per regular installment <strong className="block">{money(quote.principalInstallment)}</strong></p>
             </div>
           )}
           {hasOpenApplication && <p className="text-sm text-amber-800 sm:col-span-2"><Clock3 aria-hidden="true" className="mr-1 inline" size={16} />You have an application awaiting review. You can submit another after a decision.</p>}
