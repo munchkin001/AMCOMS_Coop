@@ -18,6 +18,11 @@ const money = (value) => `₱${(Number(value) || 0).toLocaleString('en-PH', { mi
 const MEMBER_PAGE_SIZE = 10;
 const fullName = (member) => [member.first_name, member.middle_name, member.last_name].filter(Boolean).join(' ');
 const memberNameCollator = new Intl.Collator(undefined, { sensitivity: 'base', numeric: true });
+const normalizePhone = (value) => {
+  const cleaned = String(value || '').replace(/[^\d+]/g, '');
+  const hasLeadingPlus = cleaned.startsWith('+');
+  return `${hasLeadingPlus ? '+' : ''}${cleaned.replace(/\+/g, '')}`;
+};
 const parseFamilyMembers = (value) => {
   if (Array.isArray(value)) return value;
   if (typeof value !== 'string' || !value.trim()) return [];
@@ -214,11 +219,16 @@ const MemberManagement = ({ canManageMembers = true }) => {
     setForm({
       ...emptyForm,
       ...member,
+      phone: normalizePhone(member.phone),
+      emergency_contact_phone: normalizePhone(member.emergency_contact_phone),
       username: member.portal_account?.username || '',
       date_of_birth: member.date_of_birth || '',
       date_joined: member.date_joined || '',
       additional_emergency_contacts: Array.isArray(member.additional_emergency_contacts)
-        ? member.additional_emergency_contacts
+        ? member.additional_emergency_contacts.map((contact) => ({
+          ...contact,
+          phone: normalizePhone(contact.phone)
+        }))
         : []
     });
     setDuplicateMatches([]);
@@ -293,6 +303,30 @@ const MemberManagement = ({ canManageMembers = true }) => {
   const handleSave = async (event) => {
     event.preventDefault();
     if (!canManageMembers) return;
+    const requiredValues = [
+      form.first_name,
+      form.last_name,
+      form.address,
+      form.date_joined,
+      form.membership_type
+    ];
+    if (requiredValues.some((value) => !String(value || '').trim())) {
+      setError('Complete all required fields marked with an asterisk before saving.');
+      return;
+    }
+    if (form.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim())) {
+      setError('Enter a valid email address containing @, or leave the email field blank.');
+      return;
+    }
+    const phoneFields = [
+      form.phone,
+      form.emergency_contact_phone,
+      ...form.additional_emergency_contacts.map((contact) => contact.phone)
+    ];
+    if (phoneFields.some((phone) => phone && !/^\+?\d+$/.test(phone))) {
+      setError('Contact numbers may contain digits and a single + at the beginning only.');
+      return;
+    }
     setSaving(true);
     setError('');
     setPortalNotice('');
@@ -300,6 +334,7 @@ const MemberManagement = ({ canManageMembers = true }) => {
       if (modal === 'add') {
         const memberPayload = {
           ...form,
+          email: form.email.trim(),
           shares_owned: form.shares_owned || '0',
           total_capital: form.total_capital || '0',
           family_members: parseFamilyMembers(form.family_members)
@@ -340,7 +375,7 @@ const MemberManagement = ({ canManageMembers = true }) => {
           first_name: form.first_name,
           middle_name: form.middle_name,
           last_name: form.last_name,
-          email: form.email,
+          email: form.email.trim(),
           phone: form.phone,
           address: form.address,
           date_of_birth: form.date_of_birth,
@@ -458,21 +493,26 @@ const MemberManagement = ({ canManageMembers = true }) => {
 
   const updateField = (event) => {
     const { name, value } = event.target;
-    setForm((current) => ({ ...current, [name]: value }));
+    setForm((current) => ({
+      ...current,
+      [name]: ['phone', 'emergency_contact_phone'].includes(name) ? normalizePhone(value) : value
+    }));
   };
 
   const updateAdditionalContact = (index, field, value) => {
     setForm((current) => ({
       ...current,
       additional_emergency_contacts: current.additional_emergency_contacts.map((contact, contactIndex) => (
-        contactIndex === index ? { ...contact, [field]: value } : contact
+        contactIndex === index
+          ? { ...contact, [field]: field === 'phone' ? normalizePhone(value) : value }
+          : contact
       ))
     }));
   };
 
   const renderMemberField = (name, label, type = 'text', required = false, className = '') => (
     <label key={name} className={`${labelClass} ${className}`}>
-      {label}{required && ' *'}
+      {label}{required && <span className="ml-1 font-bold text-rose-600" aria-label="required">*</span>}
       {name === 'address' ? (
         <textarea name={name} value={form[name] || ''} onChange={updateField} required={required} rows={2} className={`${inputClass} mt-1`} />
       ) : type === 'select' ? (
@@ -489,8 +529,9 @@ const MemberManagement = ({ canManageMembers = true }) => {
         <input
           name={name}
           type={type}
-          pattern={name === 'email' ? '[^@ ]+@[^@ ]+[.][^@ ]+' : undefined}
-          title={name === 'email' ? 'Enter a valid email containing @, or leave this field blank.' : undefined}
+          inputMode={['phone', 'emergency_contact_phone'].includes(name) ? 'tel' : undefined}
+          pattern={['phone', 'emergency_contact_phone'].includes(name) ? '[0-9+]*' : undefined}
+          title={['phone', 'emergency_contact_phone'].includes(name) ? 'Use numbers and an optional + at the beginning only.' : undefined}
           min={type === 'number' ? '0' : undefined}
           step={name === 'total_capital' ? '0.01' : undefined}
           value={form[name] || ''}
@@ -502,9 +543,9 @@ const MemberManagement = ({ canManageMembers = true }) => {
     </label>
   );
 
-  const inputClass = 'w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-600/20';
+  const inputClass = 'w-full rounded-xl border border-slate-300 bg-white px-3.5 py-2.5 text-sm text-slate-900 shadow-sm transition placeholder:text-slate-400 focus:border-blue-700 focus:outline-none focus:ring-4 focus:ring-blue-700/10';
   const labelClass = 'mb-1.5 block text-sm font-medium text-gray-700';
-  const sectionClass = 'rounded-xl border border-gray-200 bg-white p-4 sm:p-5';
+  const sectionClass = 'rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6';
   const sectionGridClass = 'grid gap-4 sm:grid-cols-2 lg:grid-cols-3';
   const memberViews = [
     { id: 'all', label: 'All Members', count: activeMembers.length },
@@ -685,15 +726,27 @@ const MemberManagement = ({ canManageMembers = true }) => {
       )}
 
       {modal === 'add' && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/55 p-4">
-          <section role="dialog" aria-modal="true" aria-labelledby="member-form-title" className="max-h-[92vh] w-full max-w-4xl overflow-y-auto rounded-xl bg-slate-50 shadow-2xl">
-            <div className="sticky top-0 z-10 flex items-center justify-between border-b border-gray-200 bg-white px-5 py-4">
-              <div><h2 id="member-form-title" className="text-lg font-semibold text-gray-900">Add Member</h2></div>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/65 p-3 backdrop-blur-sm sm:p-5">
+          <section role="dialog" aria-modal="true" aria-labelledby="member-form-title" className="max-h-[94vh] w-full max-w-5xl overflow-y-auto rounded-2xl border border-white/50 bg-slate-100 shadow-2xl">
+            <div className="sticky top-0 z-10 flex items-center justify-between border-b border-blue-950/20 bg-gradient-to-r from-blue-950 via-blue-900 to-blue-800 px-5 py-4 text-white sm:px-7">
+              <div className="flex items-center gap-3">
+                <span className="grid size-10 place-items-center rounded-xl border border-white/15 bg-white/10 text-[#f0d995]">
+                  <Users size={20} aria-hidden="true" />
+                </span>
+                <div>
+                  <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-blue-200">Member directory</p>
+                  <h2 id="member-form-title" className="text-lg font-bold">Add Member</h2>
+                </div>
+              </div>
+              <button type="button" onClick={() => setModal('')} aria-label="Close add member form" className="rounded-lg border border-white/20 px-3 py-1.5 text-sm font-semibold text-white/90 hover:bg-white/10">Close</button>
             </div>
-            <form onSubmit={handleSave} className="space-y-4 p-4 sm:p-5">
+            <form onSubmit={handleSave} className="space-y-5 p-4 sm:p-6">
               {error && <p role="alert" className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">{error}</p>}
+              <p className="rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-950">
+                Fields marked <span className="font-bold text-rose-600">*</span> are required. Optional email addresses must be valid; contact numbers accept digits and an optional leading +.
+              </p>
               <section className={sectionClass} aria-labelledby="personal-info-title">
-                <div className="mb-4"><h3 id="personal-info-title" className="text-sm font-semibold text-gray-900">Personal info</h3></div>
+                <div className="mb-5 border-b border-slate-100 pb-3"><h3 id="personal-info-title" className="text-base font-bold text-slate-900">Personal information</h3><p className="mt-1 text-xs text-slate-500">Basic identity and contact details.</p></div>
                 <div className={sectionGridClass}>
                   {renderMemberField('first_name', 'First name', 'text', true)}
                   {renderMemberField('middle_name', 'Middle name')}
@@ -709,7 +762,7 @@ const MemberManagement = ({ canManageMembers = true }) => {
               </section>
 
               <section className={sectionClass} aria-labelledby="membership-info-title">
-                <div className="mb-4"><h3 id="membership-info-title" className="text-sm font-semibold text-gray-900">Membership</h3></div>
+                <div className="mb-5 border-b border-slate-100 pb-3"><h3 id="membership-info-title" className="text-base font-bold text-slate-900">Membership</h3><p className="mt-1 text-xs text-slate-500">Membership date and classification.</p></div>
                 <div className={sectionGridClass}>
                   {renderMemberField('date_joined', 'Membership date', 'date', true)}
                   {renderMemberField('membership_type', 'Member type', 'select', true)}
@@ -719,7 +772,7 @@ const MemberManagement = ({ canManageMembers = true }) => {
               </section>
 
               <section className={sectionClass} aria-labelledby="member-ids-title">
-                <div className="mb-4"><h3 id="member-ids-title" className="text-sm font-semibold text-gray-900">IDs</h3></div>
+                <div className="mb-5 border-b border-slate-100 pb-3"><h3 id="member-ids-title" className="text-base font-bold text-slate-900">Member identification</h3><p className="mt-1 text-xs text-slate-500">Provide available cooperative or government identifiers.</p></div>
                 <div className={sectionGridClass}>
                   {renderMemberField('rsbsa', 'RSBSA')}
                   {renderMemberField('tin', 'TIN')}
@@ -728,7 +781,7 @@ const MemberManagement = ({ canManageMembers = true }) => {
               </section>
 
               <section className={sectionClass} aria-labelledby="other-info-title">
-                <div className="mb-4"><h3 id="other-info-title" className="text-sm font-semibold text-gray-900">Others</h3></div>
+                <div className="mb-5 border-b border-slate-100 pb-3"><h3 id="other-info-title" className="text-base font-bold text-slate-900">Emergency contact</h3><p className="mt-1 text-xs text-slate-500">Optional contact details for emergencies.</p></div>
                 <div className={sectionGridClass}>
                   {renderMemberField('emergency_contact_name', 'Emergency contact name')}
                   {renderMemberField('emergency_contact_phone', 'Emergency contact phone', 'tel')}
@@ -760,6 +813,9 @@ const MemberManagement = ({ canManageMembers = true }) => {
                           <label key={field} className={labelClass}>{label}
                             <input
                               type={type}
+                              inputMode={field === 'phone' ? 'tel' : undefined}
+                              pattern={field === 'phone' ? '[0-9+]*' : undefined}
+                              title={field === 'phone' ? 'Use numbers and an optional + at the beginning only.' : undefined}
                               value={contact[field] || ''}
                               onChange={(event) => updateAdditionalContact(index, field, event.target.value)}
                               className={`${inputClass} mt-1`}
@@ -793,9 +849,9 @@ const MemberManagement = ({ canManageMembers = true }) => {
                   <label className="flex items-center gap-2 text-sm text-amber-950"><input type="checkbox" checked={confirmPossibleDuplicate} onChange={(event) => setConfirmPossibleDuplicate(event.target.checked)} /> I reviewed these matches and confirm this is a different member.</label>
                 </div>
               )}
-              <div className="flex justify-end gap-3 border-t border-gray-200 pt-4">
-                <button type="button" onClick={() => setModal('')} className="min-h-10 rounded-lg border border-gray-300 px-4 text-sm font-medium text-gray-700">Cancel</button>
-                <button type="submit" disabled={saving || (duplicateMatches.length > 0 && !confirmPossibleDuplicate)} className="min-h-10 rounded-lg bg-blue-700 px-4 text-sm font-semibold text-white disabled:opacity-60">{saving ? 'Saving...' : duplicateMatches.length > 0 ? 'Confirm and Add Member' : 'Add Member'}</button>
+              <div className="sticky bottom-0 -mx-4 flex justify-end gap-3 border-t border-slate-200 bg-white/95 px-4 py-4 backdrop-blur sm:-mx-6 sm:px-6">
+                <button type="button" onClick={() => setModal('')} className="min-h-11 rounded-xl border border-slate-300 px-5 text-sm font-semibold text-slate-700 hover:bg-slate-50">Cancel</button>
+                <button type="submit" disabled={saving || (duplicateMatches.length > 0 && !confirmPossibleDuplicate)} className="min-h-11 rounded-xl bg-gradient-to-r from-blue-950 to-blue-800 px-5 text-sm font-bold text-white shadow-sm transition hover:from-blue-900 hover:to-blue-700 disabled:opacity-60">{saving ? 'Saving...' : duplicateMatches.length > 0 ? 'Confirm and Add Member' : 'Add Member'}</button>
               </div>
             </form>
           </section>
@@ -803,15 +859,25 @@ const MemberManagement = ({ canManageMembers = true }) => {
       )}
 
       {modal === 'edit' && selectedMember && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/55 p-4">
-          <section role="dialog" aria-modal="true" aria-labelledby="member-edit-title" className="max-h-[92vh] w-full max-w-4xl overflow-y-auto rounded-xl bg-slate-50 shadow-2xl">
-            <div className="sticky top-0 z-10 flex items-center justify-between border-b border-gray-200 bg-white px-5 py-4">
-              <div><h2 id="member-edit-title" className="text-lg font-semibold text-gray-900">Edit Member</h2><p className="text-xs text-gray-500">{selectedMember.member_number}</p></div>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/65 p-3 backdrop-blur-sm sm:p-5">
+          <section role="dialog" aria-modal="true" aria-labelledby="member-edit-title" className="max-h-[94vh] w-full max-w-5xl overflow-y-auto rounded-2xl border border-white/50 bg-slate-100 shadow-2xl">
+            <div className="sticky top-0 z-10 flex items-center justify-between border-b border-blue-950/20 bg-gradient-to-r from-blue-950 via-blue-900 to-blue-800 px-5 py-4 text-white sm:px-7">
+              <div className="flex items-center gap-3">
+                <span className="grid size-10 place-items-center rounded-xl border border-white/15 bg-white/10 text-[#f0d995]"><Pencil size={18} aria-hidden="true" /></span>
+                <div>
+                  <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-blue-200">Member directory · {selectedMember.member_number}</p>
+                  <h2 id="member-edit-title" className="text-lg font-bold">Edit Member</h2>
+                </div>
+              </div>
+              <button type="button" onClick={() => setModal('')} aria-label="Close edit member form" className="rounded-lg border border-white/20 px-3 py-1.5 text-sm font-semibold text-white/90 hover:bg-white/10">Close</button>
             </div>
-            <form onSubmit={handleSave} className="space-y-4 p-4 sm:p-5">
+            <form onSubmit={handleSave} className="space-y-5 p-4 sm:p-6">
               {error && <p role="alert" className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">{error}</p>}
+              <p className="rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-950">
+                Fields marked <span className="font-bold text-rose-600">*</span> are required. Optional email addresses must be valid; contact numbers accept digits and an optional leading +.
+              </p>
               <section className={sectionClass} aria-labelledby="member-edit-personal-info-title">
-                <div className="mb-4"><h3 id="member-edit-personal-info-title" className="text-sm font-semibold text-gray-900">Personal info</h3></div>
+                <div className="mb-5 border-b border-slate-100 pb-3"><h3 id="member-edit-personal-info-title" className="text-base font-bold text-slate-900">Personal information</h3><p className="mt-1 text-xs text-slate-500">Basic identity and contact details.</p></div>
                 <div className={sectionGridClass}>
                   <label className={labelClass}>Username
                     <input
@@ -840,7 +906,7 @@ const MemberManagement = ({ canManageMembers = true }) => {
               </section>
 
               <section className={sectionClass} aria-labelledby="member-edit-membership-title">
-                <div className="mb-4"><h3 id="member-edit-membership-title" className="text-sm font-semibold text-gray-900">Membership</h3></div>
+                <div className="mb-5 border-b border-slate-100 pb-3"><h3 id="member-edit-membership-title" className="text-base font-bold text-slate-900">Membership</h3><p className="mt-1 text-xs text-slate-500">Membership date and classification.</p></div>
                 <div className={sectionGridClass}>
                   {renderMemberField('date_joined', 'Membership date', 'date', true)}
                   {renderMemberField('membership_type', 'Member type', 'select', true)}
@@ -850,7 +916,7 @@ const MemberManagement = ({ canManageMembers = true }) => {
               </section>
 
               <section className={sectionClass} aria-labelledby="member-edit-ids-title">
-                <div className="mb-4"><h3 id="member-edit-ids-title" className="text-sm font-semibold text-gray-900">IDs</h3></div>
+                <div className="mb-5 border-b border-slate-100 pb-3"><h3 id="member-edit-ids-title" className="text-base font-bold text-slate-900">Member identification</h3><p className="mt-1 text-xs text-slate-500">Provide available cooperative or government identifiers.</p></div>
                 <div className={sectionGridClass}>
                   {renderMemberField('rsbsa', 'RSBSA')}
                   {renderMemberField('tin', 'TIN')}
@@ -859,7 +925,7 @@ const MemberManagement = ({ canManageMembers = true }) => {
               </section>
 
               <section className={sectionClass} aria-labelledby="member-edit-other-title">
-                <div className="mb-4"><h3 id="member-edit-other-title" className="text-sm font-semibold text-gray-900">Others</h3></div>
+                <div className="mb-5 border-b border-slate-100 pb-3"><h3 id="member-edit-other-title" className="text-base font-bold text-slate-900">Emergency contact</h3><p className="mt-1 text-xs text-slate-500">Optional contact details for emergencies.</p></div>
                 <div className={sectionGridClass}>
                   {renderMemberField('emergency_contact_name', 'Emergency contact name')}
                   {renderMemberField('emergency_contact_phone', 'Emergency contact phone', 'tel')}
@@ -891,6 +957,9 @@ const MemberManagement = ({ canManageMembers = true }) => {
                           <label key={field} className={labelClass}>{label}
                             <input
                               type={type}
+                              inputMode={field === 'phone' ? 'tel' : undefined}
+                              pattern={field === 'phone' ? '[0-9+]*' : undefined}
+                              title={field === 'phone' ? 'Use numbers and an optional + at the beginning only.' : undefined}
                               value={contact[field] || ''}
                               onChange={(event) => updateAdditionalContact(index, field, event.target.value)}
                               className={`${inputClass} mt-1`}
@@ -912,9 +981,9 @@ const MemberManagement = ({ canManageMembers = true }) => {
                   </button>
                 </div>
               </section>
-              <div className="flex justify-end gap-3 border-t border-gray-200 pt-4">
-                <button type="button" onClick={() => setModal('')} className="min-h-10 rounded-lg border border-gray-300 px-4 text-sm font-medium text-gray-700">Cancel</button>
-                <button type="submit" disabled={saving} className="min-h-10 rounded-lg bg-blue-700 px-4 text-sm font-semibold text-white disabled:opacity-60">{saving ? 'Saving...' : 'Save Changes'}</button>
+              <div className="sticky bottom-0 -mx-4 flex justify-end gap-3 border-t border-slate-200 bg-white/95 px-4 py-4 backdrop-blur sm:-mx-6 sm:px-6">
+                <button type="button" onClick={() => setModal('')} className="min-h-11 rounded-xl border border-slate-300 px-5 text-sm font-semibold text-slate-700 hover:bg-slate-50">Cancel</button>
+                <button type="submit" disabled={saving} className="min-h-11 rounded-xl bg-gradient-to-r from-blue-950 to-blue-800 px-5 text-sm font-bold text-white shadow-sm transition hover:from-blue-900 hover:to-blue-700 disabled:opacity-60">{saving ? 'Saving...' : 'Save Changes'}</button>
               </div>
             </form>
           </section>
