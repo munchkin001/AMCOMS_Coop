@@ -429,6 +429,7 @@ const TransactionWorkflow = ({ role }) => {
   const [correctionPayload, setCorrectionPayload] = useState('');
   const [reviewedRelease, setReviewedRelease] = useState(false);
   const [releaseFile, setReleaseFile] = useState(null);
+  const [releaseProgress, setReleaseProgress] = useState('');
   const registeredReleaseProof = selected?.documents
     ?.filter((document) => document.document_type === 'cash_release_acknowledgment')
     .sort((left, right) => new Date(right.uploaded_at) - new Date(left.uploaded_at))[0];
@@ -680,6 +681,7 @@ const TransactionWorkflow = ({ role }) => {
     if (!ALLOWED_FILES.has(file.type)) throw new Error('Proof must be a PDF, JPG, or PNG file.');
     if (file.size <= 0 || file.size > FILE_LIMIT) throw new Error('Proof must be no larger than 10 MB.');
 
+    setReleaseProgress('Uploading proof…');
     const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
     const objectName = `${workflow.id}/${crypto.randomUUID()}-${safeName}`;
     const { error: uploadError } = await supabase.storage
@@ -687,6 +689,7 @@ const TransactionWorkflow = ({ role }) => {
       .upload(objectName, file, { contentType: file.type, upsert: false });
     if (uploadError) throw uploadError;
 
+    setReleaseProgress('Registering proof…');
     const { data, error: registerError } = await supabase.rpc('register_transaction_workflow_document', {
       p_workflow_id: workflow.id,
       p_document_type: 'cash_release_acknowledgment',
@@ -707,10 +710,12 @@ const TransactionWorkflow = ({ role }) => {
     setBusy(true);
     setError('');
     setNotice('');
+    setReleaseProgress('');
     try {
       const documentId = releaseFile
         ? await uploadReleaseProof(selected, releaseFile)
         : registeredReleaseProof.id;
+      setReleaseProgress('Recording release…');
       const { data: result, error: confirmError } = await supabase.rpc('confirm_transaction_workflow_release', {
         p_workflow_id: selected.id,
         p_document_id: documentId,
@@ -720,14 +725,12 @@ const TransactionWorkflow = ({ role }) => {
       if (result?.status !== 'completed') {
         throw new Error(result?.error || 'The server did not confirm the release.');
       }
-      if (!result.business_record_id || !result.journal_entry_id) {
-        throw new Error('The server did not return the recorded disbursement and journal entry.');
-      }
       setNotice(selected.transaction_type === 'loan_disbursement'
         ? 'Loan disbursed and recorded as Cash released. The Manager and Bookkeeper can review the transaction and proof.'
         : 'Cash released. The Manager and Bookkeeper can now review the completed transaction and attached proof.');
       setSelected(null);
       setReleaseFile(null);
+      setReleaseProgress('');
       setRemarks('');
       setReviewedRelease(false);
       await load();
@@ -736,6 +739,7 @@ const TransactionWorkflow = ({ role }) => {
       setError(`Release was not confirmed: ${actionError.message || 'Please retry.'}`);
     } finally {
       setBusy(false);
+      setReleaseProgress('');
     }
   };
 
@@ -1222,7 +1226,7 @@ const TransactionWorkflow = ({ role }) => {
                   <div className="flex flex-wrap justify-end gap-2">
                     <button type="button" disabled={busy} onClick={() => { if (!remarks.trim()) { setError('Enter a reason before placing this release on hold.'); return; } runRpc('place_transaction_workflow_on_hold', { p_workflow_id: selected.id, p_reason: remarks.trim() }, 'Transaction placed on hold.'); }} className="rounded-lg border border-slate-400 bg-white px-4 py-2 text-sm font-semibold text-slate-800 disabled:opacity-50">Place on hold</button>
                     <button type="button" disabled={busy} onClick={() => { if (!remarks.trim()) { setError('Enter the discrepancy before reporting this issue.'); return; } runRpc('report_transaction_workflow_release_issue', { p_workflow_id: selected.id, p_reason: remarks.trim() }, 'Release issue recorded for review.'); }} className="inline-flex items-center gap-2 rounded-lg border border-red-300 bg-white px-4 py-2 text-sm font-semibold text-red-800 disabled:opacity-50"><AlertTriangle size={16} /> Report issue</button>
-                    <button type="button" disabled={busy || !reviewedRelease || (!releaseFile && !registeredReleaseProof)} onClick={confirmRelease} className="rounded-lg bg-emerald-800 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-900 disabled:opacity-50">{busy ? 'Releasing…' : 'Release'}</button>
+                    <button type="button" disabled={busy || !reviewedRelease || (!releaseFile && !registeredReleaseProof)} onClick={confirmRelease} className="rounded-lg bg-emerald-800 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-900 disabled:opacity-50">{busy ? releaseProgress || 'Releasing…' : 'Release'}</button>
                   </div>
                   {!busy && !reviewedRelease && (
                     <p className="text-right text-xs text-slate-600">Confirm that you verified the recipient and approved amount to enable release.</p>
