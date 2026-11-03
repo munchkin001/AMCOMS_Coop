@@ -241,6 +241,7 @@ const SalesForm = ({ onSave, onCancel }) => {
     return key === collectionPayeeKey;
   }), [collectionPayeeKey, outstandingSales]);
   const selectedCollectionSale = outstandingSales.find((sale) => sale.id === collectionOrderId);
+  const selectedCancellationSale = cancellableSales.find((sale) => sale.id === cancellationOrderId);
   const selectedCollectionBalance = selectedCollectionSale
     ? Math.max(Number(selectedCollectionSale.net_amount || 0) - Number(selectedCollectionSale.amount_paid || 0), 0)
     : 0;
@@ -441,41 +442,71 @@ const SalesForm = ({ onSave, onCancel }) => {
             )}
             {flow === 'cancel' ? (
               <>
-                <label className="text-sm font-medium text-gray-700 sm:col-span-2">
-                  Unpaid credit sale *
-                  <select value={cancellationOrderId} onChange={(event) => setCancellationOrderId(event.target.value)} required className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2">
-                    <option value="">Select an unpaid credit sale</option>
-                    {cancellableSales.map((sale) => (
-                      <option key={sale.id} value={sale.id}>{sale.order_number} — {sale.customer_name}</option>
-                    ))}
-                  </select>
-                  {cancellableSales.length === 0 && <span className="mt-1 block text-xs text-gray-500">No unpaid credit sales are currently eligible. Any collection receipt must be voided separately first.</span>}
-                </label>
-                {cancellableSales.find((sale) => sale.id === cancellationOrderId)?.returnableItems.map((item) => (
-                  <label key={item.product_id} className="text-sm font-medium text-gray-700">
-                    Returned quantity — {item.description}
-                    <span className="mt-1 block text-xs font-normal text-gray-500">
-                      {item.remaining} unit(s) remain eligible for return ({item.returned} already returned).
-                    </span>
-                    <input
-                      type="number"
-                      min="0"
-                      max={item.remaining}
-                      step="1"
-                      value={returnQuantities[item.product_id] || '0'}
-                      onChange={(event) => {
-                        const value = event.target.value.replace(/^0+(?=\d)/, '');
-                        setReturnQuantities((current) => ({ ...current, [item.product_id]: value }));
-                      }}
-                      disabled={item.remaining === 0}
-                      className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2"
-                    />
+                <section className="sm:col-span-2 rounded-xl border border-orange-200 bg-orange-50/60 p-4">
+                  <div className="mb-3">
+                    <h4 className="font-semibold text-slate-900">1. Choose the credit sale to cancel</h4>
+                    <p className="mt-1 text-xs text-slate-600">This sale number is the shared reference used in the Manager review, audit trail, and inventory reversal.</p>
+                  </div>
+                  <label className="block text-sm font-medium text-gray-700">
+                    Unpaid credit sale *
+                    <select value={cancellationOrderId} onChange={(event) => {
+                      setCancellationOrderId(event.target.value);
+                      setReturnQuantities({});
+                    }} required className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2">
+                      <option value="">Select an unpaid credit sale</option>
+                      {cancellableSales.map((sale) => (
+                        <option key={sale.id} value={sale.id}>{sale.order_number} — {sale.customer_name}</option>
+                      ))}
+                    </select>
+                    {cancellableSales.length === 0 && <span className="mt-1 block text-xs text-gray-600">No unpaid credit sales are eligible. Any collection receipt must be voided separately first.</span>}
                   </label>
-                ))}
+                  {selectedCancellationSale && (
+                    <dl className="mt-3 grid gap-2 rounded-lg border border-orange-100 bg-white p-3 text-sm sm:grid-cols-3">
+                      <div><dt className="text-xs font-medium text-slate-500">Sale reference</dt><dd className="mt-0.5 font-semibold text-slate-900">{selectedCancellationSale.order_number}</dd></div>
+                      <div><dt className="text-xs font-medium text-slate-500">Customer</dt><dd className="mt-0.5 font-semibold text-slate-900">{selectedCancellationSale.customer_name || 'Customer not recorded'}</dd></div>
+                      <div><dt className="text-xs font-medium text-slate-500">Sale total</dt><dd className="mt-0.5 font-semibold text-slate-900">₱{Number(selectedCancellationSale.net_amount || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</dd></div>
+                    </dl>
+                  )}
+                  {selectedCancellationSale?.returnableItems.length > 0 && (
+                    <div className="mt-4">
+                      <div className="mb-2">
+                        <h5 className="text-sm font-semibold text-slate-900">2. Enter physical quantities being returned</h5>
+                        <p className="mt-0.5 text-xs text-slate-600">Only these quantities will be restored to inventory. Leave zero for items not physically returned.</p>
+                      </div>
+                      <div className="space-y-2">
+                        {selectedCancellationSale.returnableItems.map((item) => (
+                          <label key={item.product_id} className="grid items-center gap-2 rounded-lg border border-slate-200 bg-white p-3 text-sm sm:grid-cols-[minmax(0,1fr)_8rem]">
+                            <span>
+                              <span className="block font-semibold text-slate-800">{item.description}</span>
+                              <span className="mt-0.5 block text-xs text-slate-500">Remaining eligible: {item.remaining} · Already returned: {item.returned}</span>
+                            </span>
+                            <span>
+                              <span className="mb-1 block text-xs font-medium text-slate-600">Return quantity</span>
+                              <input
+                                type="number"
+                                min="0"
+                                max={item.remaining}
+                                step="1"
+                                value={returnQuantities[item.product_id] || '0'}
+                                onChange={(event) => {
+                                  const value = event.target.value.replace(/^0+(?=\d)/, '');
+                                  setReturnQuantities((current) => ({ ...current, [item.product_id]: value }));
+                                }}
+                                disabled={item.remaining === 0}
+                                aria-label={`Return quantity for ${item.description}`}
+                                className="w-full rounded-lg border border-slate-300 px-3 py-2 focus:border-orange-600 focus:outline-none focus:ring-2 focus:ring-orange-600/20 disabled:bg-slate-100"
+                              />
+                            </span>
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </section>
                 <label className="text-sm font-medium text-gray-700 sm:col-span-2">
-                  Cancellation reason *
-                  <textarea value={cancellationReason} onChange={(event) => setCancellationReason(event.target.value)} rows={3} required className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2" />
-                  <span className="mt-1 block text-xs font-normal text-gray-500">Any collected receipts must be voided or refunded separately. Enter only quantities physically returned; other stock will not be restored.</span>
+                  3. Cancellation reason *
+                  <textarea value={cancellationReason} onChange={(event) => setCancellationReason(event.target.value)} rows={3} required placeholder="Explain why this credit sale should be cancelled. This reason will be shown to the Manager and retained in the audit history." className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 focus:border-orange-600 focus:outline-none focus:ring-2 focus:ring-orange-600/20" />
+                  <span className="mt-1 block text-xs font-normal text-gray-500">Any collected receipts must be voided or refunded separately. The Manager will review the selected sale, reason, and returned quantities.</span>
                 </label>
               </>
             ) : flow === 'collection' ? (

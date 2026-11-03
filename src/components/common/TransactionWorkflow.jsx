@@ -397,6 +397,17 @@ const TransactionWorkflow = ({ role }) => {
   const registeredReleaseProof = selected?.documents
     ?.filter((document) => document.document_type === 'cash_release_acknowledgment')
     .sort((left, right) => new Date(right.uploaded_at) - new Date(left.uploaded_at))[0];
+  const selectedReturnItems = selected?.transaction_type === 'sales_return'
+    ? (selected.payload?.p_returned_items || []).map((returnedItem) => {
+      const saleItem = selected.saleRecord?.sales_order_items?.find((item) => item.product_id === returnedItem.product_id);
+      return {
+        productId: returnedItem.product_id,
+        description: saleItem?.product?.product_name || saleItem?.item_description || 'Sale item',
+        quantity: Number(returnedItem.quantity || 0),
+        soldQuantity: Number(saleItem?.quantity || 0),
+      };
+    })
+    : [];
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -438,7 +449,7 @@ const TransactionWorkflow = ({ role }) => {
       if (saleIds.length) {
         const { data: sales, error: salesError } = await supabase
           .from('sales_orders')
-          .select('id, order_number, customer_name, member_id, due_date, net_amount, amount_paid, payment_status')
+          .select('id, order_number, customer_name, member_id, order_date, due_date, net_amount, amount_paid, payment_status, sales_order_items(product_id, item_description, quantity, product:products(product_name))')
           .in('id', saleIds);
         if (salesError) {
           console.error('Unable to load related sale details:', salesError);
@@ -882,9 +893,9 @@ const TransactionWorkflow = ({ role }) => {
                     ['Cash received', dateTime(selected.processed_at)],
                   ]
                   : [
-                    ['Approved / requested amount', money(selected.amount)],
-                    ['Direction', selected.direction.replace('_', ' ')],
-                    ['Payment method', selected.payment_method || 'Not specified'],
+                    [selected.transaction_type === 'sales_return' ? 'Sale amount to reverse' : 'Approved / requested amount', money(selected.amount)],
+                    [selected.transaction_type === 'sales_return' ? 'Accounting effect' : 'Direction', selected.transaction_type === 'sales_return' ? 'Reverse credit sale' : selected.direction.replace('_', ' ')],
+                    ['Payment method', selected.transaction_type === 'sales_return' ? 'Not applicable' : selected.payment_method || 'Not specified'],
                     ['Workflow status', workflowStatusLabel(selected)],
                     ['Approved by', isCreditSale(selected) ? 'Not required' : relation(selected.approver)?.full_name || 'Not yet approved'],
                     ['Manager decision', isCreditSale(selected) ? 'Not required' : dateTime(selected.manager_decision_at)],
@@ -914,15 +925,56 @@ const TransactionWorkflow = ({ role }) => {
                 />
               )}
               <div className="mt-4 rounded-xl border border-slate-200 p-4">
-                <h3 className="font-semibold text-slate-900">Purpose and submitted details</h3>
-                {selected.transaction_type === 'sales_return' && selected.saleRecord?.order_number && (
-                  <p className="mt-2 text-sm font-semibold text-slate-800">Credit sale: {selected.saleRecord.order_number}</p>
+                {selected.transaction_type === 'sales_return' ? (
+                  <>
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div>
+                        <p className="text-xs font-semibold uppercase tracking-wide text-orange-800">Connected original record</p>
+                        <h3 className="mt-1 text-lg font-bold text-slate-900">Credit sale {selected.saleRecord?.order_number || selected.payload?.p_sales_order_number || 'Reference unavailable'}</h3>
+                        <p className="mt-1 text-sm text-slate-600">{selected.saleRecord?.customer_name || selected.payload?.p_customer_name || selected.counterparty_name || 'Customer not recorded'}</p>
+                      </div>
+                      <span className="rounded-full bg-orange-100 px-3 py-1 text-xs font-semibold text-orange-900">Cancellation request</span>
+                    </div>
+                    <dl className="mt-4 grid gap-3 sm:grid-cols-3">
+                      <div className="rounded-lg bg-slate-50 p-3">
+                        <dt className="text-xs font-medium text-slate-500">Original sale date</dt>
+                        <dd className="mt-1 text-sm font-semibold text-slate-900">{dateLabel(selected.saleRecord?.order_date)}</dd>
+                      </div>
+                      <div className="rounded-lg bg-slate-50 p-3">
+                        <dt className="text-xs font-medium text-slate-500">Original sale total</dt>
+                        <dd className="mt-1 text-sm font-semibold text-slate-900">{money(selected.saleRecord?.net_amount ?? selected.amount)}</dd>
+                      </div>
+                      <div className="rounded-lg bg-slate-50 p-3">
+                        <dt className="text-xs font-medium text-slate-500">Payment status</dt>
+                        <dd className="mt-1 text-sm font-semibold capitalize text-slate-900">{selected.saleRecord?.payment_status || 'Unpaid credit sale'}</dd>
+                      </div>
+                    </dl>
+                    <section className="mt-4">
+                      <h4 className="text-sm font-semibold text-slate-900">Physical items to return to stock</h4>
+                      {selectedReturnItems.length ? (
+                        <ul className="mt-2 divide-y divide-slate-200 rounded-lg border border-slate-200">
+                          {selectedReturnItems.map((item) => (
+                            <li key={item.productId} className="flex flex-wrap items-center justify-between gap-2 px-3 py-2.5 text-sm">
+                              <span className="font-medium text-slate-800">{item.description}</span>
+                              <span className="text-slate-600">Returning <strong className="text-slate-900">{item.quantity}</strong>{item.soldQuantity ? ` of ${item.soldQuantity} sold` : ''}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      ) : (
+                        <p className="mt-2 rounded-lg bg-slate-50 px-3 py-2.5 text-sm text-slate-600">No physical items were marked for return. This request reverses the credit sale without restoring inventory.</p>
+                      )}
+                    </section>
+                    <section className="mt-4 rounded-lg border border-orange-200 bg-orange-50/60 p-3">
+                      <h4 className="text-sm font-semibold text-orange-950">Bookkeeper’s cancellation reason</h4>
+                      <p className="mt-1 whitespace-pre-wrap text-sm text-slate-800">{selected.payload?.p_reason || 'No cancellation reason was included in this request.'}</p>
+                    </section>
+                  </>
+                ) : (
+                  <>
+                    <h3 className="font-semibold text-slate-900">Purpose and submitted details</h3>
+                    <p className="mt-2 whitespace-pre-wrap text-sm text-slate-700">{selected.description}</p>
+                  </>
                 )}
-                <p className="mt-2 whitespace-pre-wrap text-sm text-slate-700">
-                  {selected.transaction_type === 'sales_return' && selected.saleRecord?.order_number
-                    ? `Return/cancel sale ${selected.saleRecord.order_number}`
-                    : selected.description}
-                </p>
                 {selected.manager_remarks && <p className="mt-3 rounded-lg bg-amber-50 p-3 text-sm text-amber-950"><strong>Manager remarks:</strong> {selected.manager_remarks}</p>}
                 {selected.journal_entry_id && <p className="mt-3 text-sm text-slate-600">Journal entry: <span className="font-mono">{selected.journal_entry_id}</span></p>}
                 {selected.transaction_type === 'loan_disbursement' && (() => {
