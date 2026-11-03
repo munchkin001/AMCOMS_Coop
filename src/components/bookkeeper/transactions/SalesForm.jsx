@@ -240,6 +240,16 @@ const SalesForm = ({ onSave, onCancel }) => {
       : `customer:${(sale.customer_name || '').trim().toLocaleLowerCase()}`;
     return key === collectionPayeeKey;
   }), [collectionPayeeKey, outstandingSales]);
+  const selectedCollectionSale = outstandingSales.find((sale) => sale.id === collectionOrderId);
+  const selectedCollectionBalance = selectedCollectionSale
+    ? Math.max(Number(selectedCollectionSale.net_amount || 0) - Number(selectedCollectionSale.amount_paid || 0), 0)
+    : 0;
+  const isOffline = !navigator.onLine || offlineMode;
+  const collectionAmount = Number(form.amount);
+  const collectionExceedsBalance = flow === 'collection'
+    && Boolean(form.amount)
+    && Number.isFinite(collectionAmount)
+    && collectionAmount > selectedCollectionBalance;
   const selectedBalanceMemberId = flow === 'collection'
     ? collectionPayeeKey.startsWith('member:') ? collectionPayeeKey.slice('member:'.length) : ''
     : customerMode === 'member' ? form.memberId : '';
@@ -291,12 +301,11 @@ const SalesForm = ({ onSave, onCancel }) => {
       return;
     }
     if (flow === 'collection') {
-      const sale = outstandingSales.find((item) => item.id === collectionOrderId);
+      const sale = selectedCollectionSale;
       const outstanding = sale ? Number(sale.net_amount) - Number(sale.amount_paid || 0) : 0;
-      const isOffline = !navigator.onLine || offlineMode;
-      if (!form.date || !form.reference.trim() || !sale || !Number.isFinite(amount) || amount <= 0
-          || (!isOffline && amount > outstanding)) {
-        setError('Select an outstanding credit sale and enter a collection amount greater than zero and no more than its balance.');
+      if (!isOffline && amount > outstanding) return;
+      if (!form.date || !form.reference.trim() || !sale || !Number.isFinite(amount) || amount <= 0) {
+        setError('Select an outstanding credit sale and enter a collection amount greater than zero.');
         return;
       }
       setSaving(true);
@@ -507,7 +516,25 @@ const SalesForm = ({ onSave, onCancel }) => {
                 <MemberBalanceSummary memberId={selectedBalanceMemberId} className="sm:col-span-2" />
                 <label className="text-sm font-medium text-gray-700">
                   Collection amount (₱) *
-                  <input type="number" min="0.01" step="0.01" value={form.amount} onChange={(event) => setForm({ ...form, amount: event.target.value })} required className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2" />
+                  <input
+                    type="number"
+                    min="0.01"
+                    max={!isOffline && selectedCollectionSale ? selectedCollectionBalance : undefined}
+                    step="0.01"
+                    value={form.amount}
+                    onChange={(event) => setForm({ ...form, amount: event.target.value })}
+                    aria-invalid={collectionExceedsBalance}
+                    aria-describedby="sales-collection-amount-help"
+                    required
+                    className={`mt-1 w-full rounded-lg border px-3 py-2 ${collectionExceedsBalance ? 'border-red-500 bg-red-50 focus:border-red-600 focus:outline-none focus:ring-2 focus:ring-red-200' : 'border-gray-300'}`}
+                  />
+                  <span id="sales-collection-amount-help" role={collectionExceedsBalance ? 'alert' : undefined} className={`mt-1 block text-xs ${collectionExceedsBalance ? 'font-semibold text-red-700' : 'text-gray-500'}`}>
+                    {collectionExceedsBalance
+                      ? `Collection exceeds the remaining credit balance of ₱${selectedCollectionBalance.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}.`
+                      : selectedCollectionSale
+                        ? `Maximum collection: ₱${selectedCollectionBalance.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}.`
+                        : 'Select an outstanding credit sale to see its remaining balance.'}
+                  </span>
                 </label>
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 sm:col-span-2">
                   <label className="text-sm font-medium text-gray-700">
