@@ -121,22 +121,22 @@ input[type="radio"] {
 }
 
 .amcoms-manager-portal {
-  --amcoms-primary: #c2410c;
-  --amcoms-primary-hover: #9a3412;
-  --amcoms-focus: #f97316;
-  --amcoms-canvas: #fff7ed;
-  --amcoms-border: #f2d5bf;
-  --amcoms-card-shadow: 0 10px 28px rgb(154 52 18 / 8%);
+  --amcoms-primary: #ea580c;
+  --amcoms-primary-hover: #c2410c;
+  --amcoms-focus: #fb923c;
+  --amcoms-canvas: #fffaf5;
+  --amcoms-border: #f7dfca;
+  --amcoms-card-shadow: 0 10px 28px rgb(234 88 12 / 7%);
 }
 
 .amcoms-manager-portal .mgr-sidebar {
-  border-color: rgb(254 215 170 / 34%);
-  background-image: linear-gradient(165deg, #7c2d12 0%, #c2410c 48%, #7c2d12 100%);
-  box-shadow: 12px 0 36px rgb(124 45 18 / 22%);
+  border-color: rgb(194 65 12 / 16%);
+  background-image: linear-gradient(165deg, #ffedd5 0%, #fed7aa 48%, #fdba74 100%);
+  box-shadow: 12px 0 36px rgb(194 65 12 / 10%);
 }
 
 .amcoms-manager-portal .mgr-sidebar > div:first-child {
-  border-color: rgb(254 215 170 / 24%);
+  border-color: rgb(194 65 12 / 16%);
 }
 
 .amcoms-chairman-portal .ch-sidebar {
@@ -275,8 +275,8 @@ input[type="radio"] {
 }
 
 .amcoms-manager-portal > div.flex-1 > .sticky {
-  border-color: #f2d5bf;
-  background-image: linear-gradient(90deg, rgb(255 255 255 / 98%), rgb(255 247 237 / 98%));
+  border-color: #f7dfca;
+  background-image: linear-gradient(90deg, rgb(255 255 255 / 98%), rgb(255 250 245 / 98%));
 }
 
 .amcoms-bookkeeper-portal > div.flex-1 > .sticky {
@@ -353,20 +353,20 @@ input[type="radio"] {
 
 #root .amcoms-manager-portal .amcoms-portal-content {
   background:
-    radial-gradient(ellipse at top right, rgb(251 146 60 / 19%), transparent 32rem),
-    radial-gradient(ellipse at bottom left, rgb(254 215 170 / 36%), transparent 34rem),
+    radial-gradient(ellipse at top right, rgb(251 146 60 / 17%), transparent 32rem),
+    radial-gradient(ellipse at bottom left, rgb(255 237 213 / 56%), transparent 34rem),
     var(--amcoms-canvas);
 }
 
 #root .amcoms-manager-portal .amcoms-portal-content :is(div, section, article)[class~="bg-white"][class~="border"] {
-  border-color: #f0d1b8;
-  background-image: linear-gradient(135deg, #ffffff 55%, #fff5eb);
-  box-shadow: 0 10px 28px rgb(154 52 18 / 9%), 0 2px 6px rgb(154 52 18 / 4%);
+  border-color: #f4dbc5;
+  background-image: linear-gradient(135deg, #ffffff 55%, #fff9f3);
+  box-shadow: 0 10px 28px rgb(194 65 12 / 7%), 0 2px 6px rgb(194 65 12 / 3%);
 }
 
 #root .amcoms-manager-portal .amcoms-portal-content :is(section, article)[class~="bg-white"][class~="border"]:hover {
-  border-color: #eab88f;
-  box-shadow: 0 14px 34px rgb(154 52 18 / 13%), 0 3px 8px rgb(154 52 18 / 5%);
+  border-color: #efbd93;
+  box-shadow: 0 14px 34px rgb(194 65 12 / 11%), 0 3px 8px rgb(194 65 12 / 4%);
 }
 
 #root .amcoms-manager-portal .amcoms-portal-content :is(input, select, textarea):focus {
@@ -387,7 +387,7 @@ input[type="radio"] {
 }
 
 #root .amcoms-manager-portal .amcoms-portal-content :is([class~="bg-blue-50"], [class~="bg-blue-100"]) {
-  background-color: #fff0e2 !important;
+  background-color: #fff1e3 !important;
 }
 
 #root .amcoms-manager-portal .amcoms-portal-content :is([class~="border-blue-200"], [class~="border-blue-500"], [class~="border-blue-600"]) {
@@ -395,7 +395,7 @@ input[type="radio"] {
 }
 
 #root .amcoms-manager-portal .amcoms-portal-content :is([class~="hover:bg-blue-50"], [class~="hover:bg-blue-100"]):hover {
-  background-color: #ffe6d1 !important;
+  background-color: #ffe8d2 !important;
 }
 
 #root .amcoms-manager-portal .amcoms-portal-content thead {
@@ -407,7 +407,17 @@ input[type="radio"] {
 }
 
 .amcoms-manager-portal #staff-main-content .manager-gradient-header {
-  background-image: linear-gradient(120deg, #7c2d12 0%, #c2410c 52%, #f97316 100%);
+  background-image: linear-gradient(120deg, #ffedd5 0%, #fed7aa 52%, #fdba74 100%);
+  color: #7c2d12;
+  box-shadow: 0 14px 32px rgb(194 65 12 / 12%);
+}
+
+.amcoms-manager-portal #staff-main-content .manager-gradient-header:is([class~="text-white"]) {
+  color: #7c2d12;
+}
+
+.amcoms-manager-portal #staff-main-content .manager-gradient-header :is([class~="text-white"], [class~="text-orange-50"], [class~="text-orange-100"]) {
+  color: #7c2d12 !important;
 }
 
 .amcoms-treasurer-portal > div.flex-1 > .sticky {

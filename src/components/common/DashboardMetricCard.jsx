@@ -39,13 +39,13 @@ const DashboardMetricCard = ({ label, value, icon: Icon, tone = 'teal', actionLa
         type={onClick ? 'button' : undefined}
         onClick={onClick}
         aria-label={onClick ? `View ${label.toLowerCase()} details` : undefined}
-        className={`${interactionClasses} min-w-0 rounded-xl bg-gradient-to-br p-3 text-white shadow-md sm:p-4 ${
-          treasurerVariant ? 'from-[#064e50] via-[#087f83] to-[#18a6a0]' : bookkeeperVariant ? 'from-[#4b2678] to-[#7544a5]' : managerVariant ? 'from-orange-800 via-orange-600 to-amber-500' : solidTones[tone] || solidTones.teal
+        className={`${interactionClasses} min-w-0 rounded-xl bg-gradient-to-br p-3 shadow-md sm:p-4 ${managerVariant ? 'text-orange-950' : 'text-white'} ${
+          treasurerVariant ? 'from-[#064e50] via-[#087f83] to-[#18a6a0]' : bookkeeperVariant ? 'from-[#4b2678] to-[#7544a5]' : managerVariant ? 'from-orange-200 via-orange-300 to-amber-200' : solidTones[tone] || solidTones.teal
         }`}
       >
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
-            <p className="text-xs font-semibold uppercase text-white/80">{label}</p>
+            <p className={`text-xs font-semibold uppercase ${managerVariant ? 'text-orange-950/75' : 'text-white/80'}`}>{label}</p>
             <p className="mt-2 whitespace-nowrap text-lg font-semibold tabular-nums sm:mt-3 sm:text-2xl">{value}</p>
             {brandedVariant && detail && <p className="mt-2 text-xs leading-5 text-white/75">{detail}</p>}
             {onClick ? (
@@ -60,7 +60,7 @@ const DashboardMetricCard = ({ label, value, icon: Icon, tone = 'teal', actionLa
               </button>
             ) : null}
           </div>
-          <span className={`hidden size-10 shrink-0 place-items-center rounded-md sm:grid ${treasurerVariant ? 'bg-[#f3d37a] text-teal-950' : bookkeeperVariant ? 'bg-purple-200 text-purple-950' : 'bg-white/20'}`}>
+          <span className={`hidden size-10 shrink-0 place-items-center rounded-md sm:grid ${treasurerVariant ? 'bg-[#f3d37a] text-teal-950' : bookkeeperVariant ? 'bg-purple-200 text-purple-950' : managerVariant ? 'bg-white/70 text-orange-800' : 'bg-white/20'}`}>
             {Icon && <Icon aria-hidden="true" className="size-5" />}
           </span>
         </div>
