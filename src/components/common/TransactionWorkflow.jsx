@@ -563,7 +563,13 @@ const TransactionWorkflow = ({ role }) => {
       const { data, error: rpcError } = await supabase.rpc(functionName, params);
       if (rpcError) throw rpcError;
       if (data?.status === 'accounting_error' || data?.error) {
-        throw new Error(data.error || 'Accounting could not complete this transaction.');
+        const processingError = data.error || 'Accounting could not complete this transaction.';
+        setSelected((current) => current && current.id === params.p_workflow_id
+          ? { ...current, status: 'accounting_error', accounting_status: 'error' }
+          : current);
+        await load();
+        setError(processingError);
+        return;
       }
       setNotice(successMessage);
       setRemarks('');
@@ -647,7 +653,9 @@ const TransactionWorkflow = ({ role }) => {
 
   const processTransaction = async (workflow) => {
     await runRpc(
-      'process_transaction_workflow',
+      workflow.status === 'accounting_error'
+        ? 'retry_transaction_workflow_processing'
+        : 'process_transaction_workflow',
       { p_workflow_id: workflow.id },
       workflow.cash_release_required
         ? 'Processing checked. The transaction is awaiting Treasurer confirmation.'
@@ -1159,10 +1167,16 @@ const TransactionWorkflow = ({ role }) => {
                 </section>
               )}
 
-              {isBookkeeper && selected.status === 'approved' && !isCreditSale(selected) && (
+              {isBookkeeper && ['approved', 'accounting_error'].includes(selected.status) && !isCreditSale(selected) && (
                 <section className="mt-5 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-blue-200 bg-blue-50 p-4">
-                  <div><h3 className="font-semibold text-blue-950">Ready for accounting processing</h3><p className="mt-1 text-sm text-blue-900">This action validates and posts using the existing transaction-specific business and accounting logic.</p></div>
-                  <button type="button" disabled={busy} onClick={() => processTransaction(selected)} className="rounded-lg bg-blue-800 px-4 py-2.5 text-sm font-semibold text-white hover:bg-blue-900 disabled:opacity-50">{busy ? 'Processing…' : selected.cash_release_required ? 'Prepare for release' : 'Process transaction'}</button>
+                  <div className="min-w-0 flex-1">
+                    <h3 className="font-semibold text-blue-950">{selected.status === 'accounting_error' ? 'Accounting processing failed' : 'Ready for accounting processing'}</h3>
+                    <p className="mt-1 text-sm text-blue-900">{selected.status === 'accounting_error'
+                      ? 'The failed attempt was rolled back. Review the error above, correct the underlying issue if needed, then retry processing.'
+                      : 'This action validates and posts using the existing transaction-specific business and accounting logic.'}</p>
+                    {error && <p role="alert" className="mt-2 break-words rounded-lg border border-red-200 bg-white px-3 py-2 text-sm text-red-800">{error}</p>}
+                  </div>
+                  <button type="button" disabled={busy} onClick={() => processTransaction(selected)} className="shrink-0 rounded-lg bg-blue-800 px-4 py-2.5 text-sm font-semibold text-white hover:bg-blue-900 disabled:opacity-50">{busy ? 'Processing…' : selected.status === 'accounting_error' ? 'Retry processing' : selected.cash_release_required ? 'Prepare for release' : 'Process transaction'}</button>
                 </section>
               )}
 
