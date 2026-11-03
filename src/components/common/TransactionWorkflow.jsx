@@ -78,6 +78,8 @@ const dateLabel = (value) => value
   : '—';
 
 const relation = (value) => Array.isArray(value) ? value[0] : value;
+const asObject = (value) => value && typeof value === 'object' && !Array.isArray(value) ? value : {};
+const asArray = (value) => Array.isArray(value) ? value : [];
 const isCreditSale = (workflow) => (
   workflow.transaction_type === 'sale' && workflow.payload?.p_sale?.payment_type === 'credit'
 );
@@ -170,11 +172,6 @@ const WorkflowEvidence = ({ document, onOpen }) => {
           <img src={signedUrl} alt={`Release proof: ${document.file_name}`} className="max-h-72 w-full object-contain" />
         </a>
       )}
-      {isTreasurer && isLoanAwaitingBookkeeper(selected) && (
-        <p role="status" className="mt-4 rounded-lg border border-teal-200 bg-teal-50 px-3 py-2.5 text-sm text-teal-950">
-          This loan is manager-approved but is not ready for cash release yet. The Bookkeeper must open <strong>Approved Transactions</strong> in the Bookkeeper portal and select <strong>Process</strong>. It will then appear here as Awaiting Release.
-        </p>
-      )}
       {!signedUrl && previewError && <p className="text-xs text-amber-800">Preview unavailable: {previewError}</p>}
       {(!isImage || !signedUrl) && (
         <button type="button" onClick={() => onOpen(document)} className="text-xs font-semibold text-blue-800 underline underline-offset-2">
@@ -184,6 +181,36 @@ const WorkflowEvidence = ({ document, onOpen }) => {
     </div>
   );
 };
+
+class WorkflowDetailsErrorBoundary extends React.Component {
+  state = { hasError: false };
+
+  static getDerivedStateFromError() {
+    return { hasError: true };
+  }
+
+  componentDidCatch(error, info) {
+    console.error('Unable to render transaction workflow details:', error, info.componentStack);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-4" role="presentation">
+          <section role="alertdialog" aria-modal="true" aria-labelledby="workflow-details-error-title" className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-2xl">
+            <h2 id="workflow-details-error-title" className="text-lg font-bold text-slate-900">Transaction details could not be displayed</h2>
+            <p className="mt-2 text-sm text-slate-600">The Cash Release page is still available. Close this message and refresh the queue, or contact support if it happens again.</p>
+            <div className="mt-5 flex justify-end">
+              <button type="button" onClick={this.props.onClose} className="rounded-lg bg-teal-800 px-4 py-2 text-sm font-semibold text-white hover:bg-teal-900">Close details</button>
+            </div>
+          </section>
+        </div>
+      );
+    }
+
+    return this.props.children;
+  }
+}
 
 const profileDate = (value) => value
   ? new Date(`${String(value).slice(0, 10)}T00:00:00`).toLocaleDateString('en-PH', { dateStyle: 'medium' })
@@ -430,13 +457,18 @@ const TransactionWorkflow = ({ role }) => {
   const [reviewedRelease, setReviewedRelease] = useState(false);
   const [releaseFile, setReleaseFile] = useState(null);
   const [releaseProgress, setReleaseProgress] = useState('');
-  const registeredReleaseProof = selected?.documents
-    ?.filter((document) => document.document_type === 'cash_release_acknowledgment')
+  const selectedDocuments = asArray(selected?.documents);
+  const selectedPayload = asObject(selected?.payload);
+  const selectedApprovedPayload = asObject(selected?.approved_payload);
+  const registeredReleaseProof = selectedDocuments
+    .filter(Boolean)
+    .filter((document) => document?.document_type === 'cash_release_acknowledgment')
     .sort((left, right) => new Date(right.uploaded_at) - new Date(left.uploaded_at))[0];
-  const workflowEvents = Array.isArray(selected?.events) ? selected.events : [];
+  const returnedItems = asArray(selectedPayload.p_returned_items).filter(Boolean);
+  const workflowEvents = asArray(selected?.events).filter(Boolean);
   const selectedReturnItems = selected?.transaction_type === 'sales_return'
-    ? (selected.payload?.p_returned_items || []).map((returnedItem) => {
-      const saleItems = selected.saleRecord?.sales_order_items?.filter((item) => item.product_id === returnedItem.product_id) || [];
+    ? returnedItems.map((returnedItem) => {
+      const saleItems = asArray(selected.saleRecord?.sales_order_items).filter((item) => item.product_id === returnedItem.product_id);
       const saleItem = saleItems[0];
       const soldQuantity = saleItems.reduce((sum, item) => sum + Number(item.quantity || 0), 0);
       const totalLineValue = saleItems.reduce((sum, item) => (
@@ -923,6 +955,7 @@ const TransactionWorkflow = ({ role }) => {
       </section>
 
       {selected && (
+        <WorkflowDetailsErrorBoundary key={selected.id} onClose={() => setSelected(null)}>
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-3 backdrop-blur-sm sm:p-6" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget && !busy) setSelected(null); }}>
           <section role="dialog" aria-modal="true" aria-labelledby="workflow-detail-title" className="flex max-h-[94vh] w-full max-w-4xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl">
             <header className={`flex items-start justify-between gap-4 px-5 py-5 sm:px-7 ${isManager ? 'bg-gradient-to-br from-orange-200 via-orange-300 to-orange-400 text-orange-950' : isBookkeeper ? 'bg-gradient-to-br from-[#28134b] via-[#4b2678] to-[#7544a5] text-white' : isTreasurer ? 'bg-gradient-to-br from-[#064e50] via-[#087f83] to-[#18a6a0] text-white' : 'bg-slate-950 text-white'}`}>
@@ -963,7 +996,7 @@ const TransactionWorkflow = ({ role }) => {
                       ? selected.cash_release_status === 'released' ? 'Cash released' : String(selected.cash_release_status || 'not recorded').replaceAll('_', ' ')
                       : 'Not required'],
                     ...(isCreditSale(selected) ? [
-                      ['Due date', dateLabel(selected.saleRecord?.due_date || selected.payload?.p_sale?.due_date || selected.approved_payload?.p_sale?.due_date)],
+                      ['Due date', dateLabel(selected.saleRecord?.due_date || selectedPayload.p_sale?.due_date || selectedApprovedPayload.p_sale?.due_date)],
                       ['Outstanding balance', money(Math.max(
                         Number(selected.saleRecord?.net_amount ?? selected.amount) - Number(selected.saleRecord?.amount_paid || 0),
                         0,
@@ -989,8 +1022,8 @@ const TransactionWorkflow = ({ role }) => {
                     <div className="flex flex-wrap items-start justify-between gap-3">
                       <div>
                         <p className="text-xs font-semibold uppercase tracking-wide text-orange-800">Connected original record</p>
-                        <h3 className="mt-1 text-lg font-bold text-slate-900">Credit sale {selected.saleRecord?.order_number || selected.payload?.p_sales_order_number || 'Reference unavailable'}</h3>
-                        <p className="mt-1 text-sm text-slate-600">{selected.saleRecord?.customer_name || selected.payload?.p_customer_name || selected.counterparty_name || 'Customer not recorded'}</p>
+                        <h3 className="mt-1 text-lg font-bold text-slate-900">Credit sale {selected.saleRecord?.order_number || selectedPayload.p_sales_order_number || 'Reference unavailable'}</h3>
+                        <p className="mt-1 text-sm text-slate-600">{selected.saleRecord?.customer_name || selectedPayload.p_customer_name || selected.counterparty_name || 'Customer not recorded'}</p>
                       </div>
                       <span className="rounded-full bg-orange-100 px-3 py-1 text-xs font-semibold text-orange-900">Cancellation request</span>
                     </div>
@@ -1025,7 +1058,7 @@ const TransactionWorkflow = ({ role }) => {
                     </section>
                     <section className="mt-4 rounded-lg border border-orange-200 bg-orange-50/60 p-3">
                       <h4 className="text-sm font-semibold text-orange-950">Bookkeeper’s cancellation reason</h4>
-                      <p className="mt-1 whitespace-pre-wrap text-sm text-slate-800">{selected.payload?.p_reason || 'No cancellation reason was included in this request.'}</p>
+                      <p className="mt-1 whitespace-pre-wrap text-sm text-slate-800">{selectedPayload.p_reason || 'No cancellation reason was included in this request.'}</p>
                     </section>
                   </>
                 ) : (
@@ -1037,8 +1070,9 @@ const TransactionWorkflow = ({ role }) => {
                 {selected.manager_remarks && <p className="mt-3 rounded-lg bg-amber-50 p-3 text-sm text-amber-950"><strong>Manager remarks:</strong> {selected.manager_remarks}</p>}
                 {selected.journal_entry_id && <p className="mt-3 text-sm text-slate-600">Journal entry: <span className="font-mono">{selected.journal_entry_id}</span></p>}
                 {selected.transaction_type === 'loan_disbursement' && (() => {
-                  const loan = selected.approved_payload || selected.payload || {};
-                  const application = loan.request_data || {};
+                  const loan = Object.keys(selectedApprovedPayload).length ? selectedApprovedPayload : selectedPayload;
+                  const application = asObject(loan.request_data);
+                  const applicationDetails = asObject(application.application_details);
                   return (
                     <section className={`mt-4 rounded-lg border p-4 ${isTreasurer ? 'border-teal-100 bg-teal-50/60' : 'border-blue-100 bg-blue-50/60'}`}>
                       <h3 className="font-semibold text-slate-900">Approved loan details</h3>
@@ -1052,8 +1086,8 @@ const TransactionWorkflow = ({ role }) => {
                           ['Total interest', loan.total_interest ? money(loan.total_interest) : null],
                           ['Total payable', loan.total_amount ? money(loan.total_amount) : null],
                           ['Purpose', application.purpose || loan.notes],
-                          ['Collateral', [application.application_details?.collateral_type, application.application_details?.collateral_description].filter(Boolean).join(' — ')],
-                          ['Co-maker / guarantor', [application.application_details?.guarantor_name, application.application_details?.guarantor_contact].filter(Boolean).join(' · ')],
+                          ['Collateral', [applicationDetails.collateral_type, applicationDetails.collateral_description].filter(Boolean).join(' — ')],
+                          ['Co-maker / guarantor', [applicationDetails.guarantor_name, applicationDetails.guarantor_contact].filter(Boolean).join(' · ')],
                         ].filter(([, value]) => value).map(([label, value]) => (
                           <div key={label}>
                             <dt className="text-xs font-medium text-slate-500">{label}</dt>
@@ -1114,9 +1148,9 @@ const TransactionWorkflow = ({ role }) => {
               <div className="mt-4 grid gap-4 lg:grid-cols-2">
                 <section className="rounded-xl border border-slate-200 p-4">
                   <h3 className="font-semibold text-slate-900">Supporting documents</h3>
-                  {!selected.documents?.length ? <p className="mt-2 text-sm text-slate-500">No documents attached.</p> : (
+                  {!selectedDocuments.length ? <p className="mt-2 text-sm text-slate-500">No documents attached.</p> : (
                     <ul className="mt-2 space-y-2">
-                      {selected.documents.map((document) => (
+                      {selectedDocuments.map((document) => (
                         <li key={document.id} className="rounded-lg bg-slate-50 p-3">
                           <div className="flex items-center justify-between gap-2">
                             <span className="flex min-w-0 items-center gap-2 text-sm text-slate-700"><FileText size={16} className="shrink-0 text-slate-500" /><span className="truncate">{document.file_name}</span></span>
@@ -1262,6 +1296,7 @@ const TransactionWorkflow = ({ role }) => {
             </div>
           </section>
         </div>
+        </WorkflowDetailsErrorBoundary>
       )}
     </div>
   );
