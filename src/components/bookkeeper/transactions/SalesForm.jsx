@@ -268,6 +268,13 @@ const SalesForm = ({ onSave, onCancel }) => {
   }), [collectionPayeeKey, outstandingSales]);
   const selectedCollectionSale = outstandingSales.find((sale) => sale.id === collectionOrderId);
   const selectedCancellationSale = cancellableSales.find((sale) => sale.id === cancellationOrderId);
+  const selectedCancellationReturnValue = useMemo(() => {
+    const items = selectedCancellationSale?.returnableItems || [];
+    return Math.round(items.reduce((total, item) => {
+      const quantity = Number(returnQuantities[item.product_id] || 0);
+      return total + Math.round(quantity * Number(item.unitAmount || 0) * 100) / 100;
+    }, 0) * 100) / 100;
+  }, [returnQuantities, selectedCancellationSale]);
   const selectedCollectionBalance = selectedCollectionSale
     ? Math.max(Number(selectedCollectionSale.net_amount || 0) - Number(selectedCollectionSale.amount_paid || 0), 0)
     : 0;
@@ -315,6 +322,7 @@ const SalesForm = ({ onSave, onCancel }) => {
         const saleItem = sale.returnableItems.find((candidate) => candidate.product_id === item.product_id);
         return total + Math.round(item.quantity * Number(saleItem?.unitAmount || 0) * 100) / 100;
       }, 0) * 100) / 100;
+      const workflowAmount = returnedItemValue > 0 ? returnedItemValue : Number(sale.net_amount);
       setSaving(true);
       try {
         await onSave({
@@ -322,7 +330,8 @@ const SalesForm = ({ onSave, onCancel }) => {
           p_sales_order_id: sale.id,
           p_sales_order_number: sale.order_number,
           p_customer_name: sale.customer_name,
-          amount: Number(sale.net_amount),
+          amount: workflowAmount,
+          p_original_sale_amount: Number(sale.net_amount),
           p_returned_item_value: returnedItemValue,
           p_reason: cancellationReason.trim(),
           p_returned_items: returnedItems,
@@ -492,10 +501,11 @@ const SalesForm = ({ onSave, onCancel }) => {
                     {cancellableSales.length === 0 && <span className="mt-1 block text-xs text-gray-600">No unpaid credit sales are eligible. Any collection receipt must be voided separately first.</span>}
                   </label>
                   {selectedCancellationSale && (
-                    <dl className="mt-3 grid gap-2 rounded-lg border border-orange-100 bg-white p-3 text-sm sm:grid-cols-3">
+                    <dl className="mt-3 grid gap-2 rounded-lg border border-orange-100 bg-white p-3 text-sm sm:grid-cols-2 lg:grid-cols-4">
                       <div><dt className="text-xs font-medium text-slate-500">Sale reference</dt><dd className="mt-0.5 font-semibold text-slate-900">{selectedCancellationSale.order_number}</dd></div>
                       <div><dt className="text-xs font-medium text-slate-500">Customer</dt><dd className="mt-0.5 font-semibold text-slate-900">{selectedCancellationSale.customer_name || 'Customer not recorded'}</dd></div>
                       <div><dt className="text-xs font-medium text-slate-500">Sale total</dt><dd className="mt-0.5 font-semibold text-slate-900">₱{Number(selectedCancellationSale.net_amount || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</dd></div>
+                      <div><dt className="text-xs font-medium text-orange-800">Value of items being returned</dt><dd className="mt-0.5 font-bold text-orange-950">₱{selectedCancellationReturnValue.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</dd></div>
                     </dl>
                   )}
                   {selectedCancellationSale?.returnableItems.length > 0 && (

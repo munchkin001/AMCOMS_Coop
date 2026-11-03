@@ -82,9 +82,14 @@ const isCreditSale = (workflow) => (
   workflow.transaction_type === 'sale' && workflow.payload?.p_sale?.payment_type === 'credit'
 );
 const salesReturnAmount = (workflow) => {
+  const submittedReturnValue = workflow.payload?.p_returned_item_value;
+  if (submittedReturnValue != null && Number.isFinite(Number(submittedReturnValue))) {
+    return Number(submittedReturnValue);
+  }
+
   const returnedItems = workflow.payload?.p_returned_items || [];
   const saleItems = workflow.saleRecord?.sales_order_items || [];
-  if (!saleItems.length) return Number(workflow.payload?.p_returned_item_value || 0);
+  if (!saleItems.length) return Number(workflow.amount || 0);
 
   const amount = returnedItems.reduce((total, returnedItem) => {
     const matchingItems = saleItems.filter((item) => item.product_id === returnedItem.product_id);
