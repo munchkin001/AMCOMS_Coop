@@ -3,6 +3,7 @@ import { Download, Printer } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { getDataLoadErrorMessage } from '../../lib/errorHandler';
 import { useMultipleRealtimeSubscriptions } from '../../hooks/useRealtimeSubscription';
+import ReportInsights from '../common/ReportInsights';
 
 const currentMonth = new Date().toISOString().slice(0, 7);
 const today = () => new Date().toISOString().slice(0, 10);
@@ -171,6 +172,70 @@ const FinancialReports = () => {
     : reportType === 'expense-report' ? report.expenses
       : [];
 
+  const analysis = useMemo(() => {
+    const metrics = reportType === 'income-report'
+      ? [
+        { label: 'Total income', value: `₱${money(report.totalIncome)}` },
+        { label: 'Income accounts with activity', value: report.income.length.toLocaleString() }
+      ]
+      : reportType === 'expense-report'
+        ? [
+          { label: 'Total expenses', value: `₱${money(report.totalExpenses)}` },
+          { label: 'Expense accounts with activity', value: report.expenses.length.toLocaleString() }
+        ]
+        : reportType === 'cash-summary'
+          ? [
+            { label: 'Cash received', value: `₱${money(report.cashReceived)}` },
+            { label: 'Cash released', value: `₱${money(report.cashReleased)}` },
+            { label: 'Ending cash / bank balance', value: `₱${money(report.cashBalance)}` },
+            { label: 'Accounts with activity', value: report.cashAccounts.length.toLocaleString() }
+          ]
+          : [
+            { label: 'Total income', value: `₱${money(report.totalIncome)}` },
+            { label: 'Total expenses', value: `₱${money(report.totalExpenses)}` },
+            { label: 'Net result', value: `₱${money(Math.abs(report.netIncome))}`, detail: report.netIncome < 0 ? 'Deficit' : 'Surplus' },
+            { label: 'Net cash flow', value: `₱${money(report.cashReceived - report.cashReleased)}` }
+          ];
+    const highlights = [];
+    const challenges = [];
+    const opportunities = [];
+    const categories = [];
+    if (reportType === 'financial-summary' || reportType === 'income-report') {
+      categories.push({
+        title: 'Income breakdown by chart-of-account category',
+        valueHeading: 'Period amount',
+        items: report.income.map((row) => ({ label: row.account_name, value: `₱${money(row.amount)}` }))
+      });
+    }
+    if (reportType === 'financial-summary' || reportType === 'expense-report') {
+      categories.push({
+        title: 'Expense breakdown by chart-of-account category',
+        valueHeading: 'Period amount',
+        items: report.expenses.map((row) => ({ label: row.account_name, value: `₱${money(row.amount)}` }))
+      });
+    }
+    if (reportType === 'cash-summary') {
+      categories.push({
+        title: 'Cash and bank movement by account',
+        labelHeading: 'Cash / bank account',
+        valueHeading: 'Received',
+        detailHeading: 'Released · ending balance',
+        items: report.cashAccounts.map((row) => ({
+          label: row.account_name,
+          value: `₱${money(row.received)}`,
+          detail: `₱${money(row.released)} released · ₱${money(row.closing)} ending`
+        }))
+      });
+    }
+    if (report.netIncome > 0) highlights.push(`The period closed with a net surplus of ₱${money(report.netIncome)}.`);
+    if (report.totalIncome > 0) highlights.push(`Income was recorded across ${report.income.length.toLocaleString()} chart-of-account categories.`);
+    if (report.netIncome < 0) challenges.push(`Expenses exceeded income by ₱${money(Math.abs(report.netIncome))}; review the largest expense categories.`);
+    if (report.totalIncome === 0 && report.totalExpenses === 0) challenges.push('No income or expense activity is present in the selected period.');
+    if (report.expenses.length > 0) opportunities.push('Review the account-level expense breakdown to identify items requiring budget follow-up.');
+    if (report.cashAccounts.length > 0) opportunities.push('Use the cash and bank account detail to reconcile recorded receipts and releases to statements and physical counts.');
+    return { metrics, highlights, challenges, opportunities, breakdowns: categories };
+  }, [report, reportType]);
+
   return (
     <div className="space-y-6">
       <div className="rounded-lg border border-gray-200 bg-white p-6 shadow">
@@ -225,6 +290,7 @@ const FinancialReports = () => {
             <p className="mt-2 text-sm text-gray-700">Period covered: {range.from} to {range.to}</p>
             <p className="mt-1 text-xs text-gray-500">Generated {new Date().toLocaleString('en-PH')}</p>
           </header>
+          {!loading && <ReportInsights {...analysis} />}
           {loading ? <p className="py-8 text-center text-sm text-gray-500">Loading posted accounting data...</p> : (
             <>
               {reportType === 'financial-summary' && (

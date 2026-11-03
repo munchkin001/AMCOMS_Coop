@@ -3,6 +3,7 @@ import { supabase } from '../../lib/supabase';
 import { useMultipleRealtimeSubscriptions } from '../../hooks/useRealtimeSubscription';
 import { fetchAccountBalances, summarizeAccountBalances, toDateString } from '../../lib/dashboardAccounting';
 import { getDataLoadErrorMessage } from '../../lib/errorHandler';
+import ReportInsights from '../common/ReportInsights';
 
 const getPeriodRange = (period) => {
   const [yearText, periodType] = period.split('-');
@@ -75,10 +76,11 @@ const PerformanceReport = () => {
         supabase.from('loan_payments').select('amount_paid')
           .eq('status', 'recorded').gte('payment_date', range.start).lte('payment_date', range.end),
         supabase.from('products').select('reorder_level, stock_inventory(quantity_available)').eq('is_active', true),
-        supabase.from('production_records').select('quantity_produced')
+        supabase.from('production_records').select('quantity_produced, products(product_name, unit_of_measure)')
           .eq('status', 'completed').gte('production_date', range.start).lte('production_date', range.end),
-        supabase.from('stock_movements').select('quantity')
-          .eq('movement_type', 'sale').gte('movement_date', range.start).lte('movement_date', range.end)
+        supabase.from('stock_movements')
+          .select('movement_type, quantity, products(product_name, unit_of_measure)')
+          .gte('movement_date', range.start).lte('movement_date', range.end)
       ]);
 
       const results = [
@@ -92,6 +94,35 @@ const PerformanceReport = () => {
       const savingsAccounts = savingsResult.data || [];
       const activeLoans = (loansResult.data || []).filter((loan) => loan.status === 'active');
       const products = productsResult.data || [];
+      const periodIncomeAccounts = (periodAccounts || [])
+        .filter((account) => account.account_type === 'revenue')
+        .map((account) => ({
+          label: account.account_name,
+          amount: Number(account.period_credit || 0) - Number(account.period_debit || 0)
+        }))
+        .filter((account) => account.amount !== 0)
+        .sort((a, b) => b.amount - a.amount);
+      const periodExpenseAccounts = (periodAccounts || [])
+        .filter((account) => account.account_type === 'expense')
+        .map((account) => ({
+          label: account.account_name,
+          amount: Number(account.period_debit || 0) - Number(account.period_credit || 0)
+        }))
+        .filter((account) => account.amount !== 0)
+        .sort((a, b) => b.amount - a.amount);
+      const movementGroups = (movementsResult.data || []).reduce((groups, movement) => {
+        const unit = movement.products?.unit_of_measure || 'unit not specified';
+        const key = `${movement.movement_type} · ${unit}`;
+        groups[key] = (groups[key] || 0) + Number(movement.quantity || 0);
+        return groups;
+      }, {});
+      const productionByProduct = (productionResult.data || []).reduce((groups, record) => {
+        const product = record.products?.product_name || 'Unspecified product';
+        const unit = record.products?.unit_of_measure || 'unit not specified';
+        const key = `${product} · ${unit}`;
+        groups[key] = (groups[key] || 0) + Number(record.quantity_produced || 0);
+        return groups;
+      }, {});
       const countInventory = products.reduce((counts, product) => {
         const quantity = product.stock_inventory?.[0]?.quantity_available || 0;
         if (quantity === 0) counts.outOfStock += 1;
@@ -109,6 +140,8 @@ const PerformanceReport = () => {
           income: financial.periodIncome,
           expenses: financial.periodExpenses,
           netIncome: financial.periodIncome - financial.periodExpenses,
+          incomeAccounts: periodIncomeAccounts,
+          expenseAccounts: periodExpenseAccounts,
           cashReceived: sum(receiptsResult.data || [], 'amount'),
           cashReleased: sum(disbursementsResult.data || [], 'amount'),
           cashOnHand: currentFinancial.cashOnHand
@@ -123,12 +156,15 @@ const PerformanceReport = () => {
             .reduce((total, account) => total + Number(account.balance || 0), 0),
           timeDeposits: savingsAccounts.filter((account) => account.account_type === 'time_deposit')
             .reduce((total, account) => total + Number(account.balance || 0), 0),
-          shareCapital: sum(members, 'total_capital')
+          shareCapital: sum(members, 'total_capital'),
+          inactive: members.filter((member) => member.membership_status !== 'active').length,
+          activeRate: members.length ? members.filter((member) => member.membership_status === 'active').length / members.length * 100 : 0
         },
         loans: {
           activeCount: activeLoans.length,
           principal: sum(activeLoans, 'principal_amount'),
           payments: sum(paymentsResult.data || [], 'amount_paid'),
+          paymentCount: (paymentsResult.data || []).length,
           overdueCount: activeLoans.filter((loan) => loan.maturity_date && loan.maturity_date < today).length,
           balance: sum(activeLoans, 'balance')
         },
@@ -136,7 +172,15 @@ const PerformanceReport = () => {
           totalProducts: products.length,
           ...countInventory,
           production: sum(productionResult.data || [], 'quantity_produced'),
-          productsSold: sum(movementsResult.data || [], 'quantity')
+          productionBatches: (productionResult.data || []).length,
+          productsSold: sum((movementsResult.data || []).filter((row) => row.movement_type === 'sale'), 'quantity'),
+          waste: sum((movementsResult.data || []).filter((row) => row.movement_type === 'waste'), 'quantity'),
+          movementGroups: Object.entries(movementGroups)
+            .map(([label, quantity]) => ({ label, quantity }))
+            .sort((a, b) => a.label.localeCompare(b.label)),
+          productionByProduct: Object.entries(productionByProduct)
+            .map(([label, quantity]) => ({ label, quantity }))
+            .sort((a, b) => b.quantity - a.quantity)
         }
       });
       setError('');
@@ -170,6 +214,96 @@ const PerformanceReport = () => {
     setError('');
     loadReport();
   };
+
+  const analysis = useMemo(() => {
+    if (!reportData) return null;
+    const financial = reportData.financial;
+    const members = reportData.members;
+    const loans = reportData.loans;
+    const inventory = reportData.inventory;
+    const isFinancial = reportType === 'financial';
+    const isOperations = reportType === 'operations';
+    const metrics = [];
+    const highlights = [];
+    const challenges = [];
+    const opportunities = [];
+    const breakdowns = [];
+
+    if (!isOperations) {
+      metrics.push(
+        { label: 'Period income', value: formatMoney(financial.income) },
+        { label: 'Period expenses', value: formatMoney(financial.expenses) },
+        { label: 'Net operating result', value: formatMoney(financial.netIncome), detail: financial.netIncome < 0 ? 'Deficit for the selected period' : 'Surplus for the selected period' },
+        { label: 'Cash received / released', value: `${formatMoney(financial.cashReceived)} / ${formatMoney(financial.cashReleased)}` }
+      );
+      if (financial.netIncome < 0) challenges.push(`Recorded expenses exceeded income by ${formatMoney(Math.abs(financial.netIncome))} during this period.`);
+      else if (financial.netIncome > 0) highlights.push(`Recorded income exceeded expenses by ${formatMoney(financial.netIncome)} during this period.`);
+      highlights.push(`Recorded cash movement: ${formatMoney(financial.cashReceived)} received and ${formatMoney(financial.cashReleased)} released.`);
+      breakdowns.push(
+        {
+          title: 'Income by account',
+          valueHeading: 'Period amount',
+          items: financial.incomeAccounts.map((account) => ({ label: account.label, value: formatMoney(account.amount) }))
+        },
+        {
+          title: 'Expenses by account',
+          valueHeading: 'Period amount',
+          items: financial.expenseAccounts.map((account) => ({ label: account.label, value: formatMoney(account.amount) }))
+        }
+      );
+    }
+
+    if (!isFinancial) {
+      metrics.push(
+        { label: 'Members', value: members.total.toLocaleString(), detail: `${members.active.toLocaleString()} active · ${members.inactive.toLocaleString()} non-active` },
+        { label: 'New members', value: members.newInPeriod.toLocaleString(), detail: 'Joined during this report period' },
+        { label: 'Active loans', value: loans.activeCount.toLocaleString(), detail: `${formatMoney(loans.balance)} outstanding balance` },
+        { label: 'Production / sales', value: `${inventory.production.toLocaleString()} / ${inventory.productsSold.toLocaleString()}`, detail: 'Recorded quantities; product units may differ' },
+        { label: 'Inventory requiring attention', value: `${(inventory.lowStock + inventory.outOfStock).toLocaleString()} products`, detail: `${inventory.lowStock} low · ${inventory.outOfStock} out of stock` }
+      );
+      if (members.newInPeriod > 0) highlights.push(`${members.newInPeriod.toLocaleString()} new member${members.newInPeriod === 1 ? '' : 's'} joined during the selected period.`);
+      highlights.push(`${members.activeRate.toFixed(1)}% of recorded members currently have active status.`);
+      if (loans.overdueCount > 0) challenges.push(`${loans.overdueCount.toLocaleString()} active loan${loans.overdueCount === 1 ? '' : 's'} have passed their recorded maturity date; review payment schedules and follow-up.`);
+      if (inventory.outOfStock > 0) challenges.push(`${inventory.outOfStock.toLocaleString()} active product${inventory.outOfStock === 1 ? '' : 's'} currently show no available stock.`);
+      if (inventory.lowStock > 0) opportunities.push(`Review reorder needs for ${inventory.lowStock.toLocaleString()} low-stock product${inventory.lowStock === 1 ? '' : 's'}.`);
+      if (inventory.productionBatches > 0) opportunities.push(`Review production output by product to identify seasonal demand and replenishment needs.`);
+      breakdowns.push(
+        {
+          title: 'Membership and member funds',
+          valueHeading: 'Members / balance',
+          items: [
+            { label: 'Active members', value: members.active.toLocaleString() },
+            { label: 'Non-active members', value: members.inactive.toLocaleString() },
+            { label: 'Regular savings', value: formatMoney(members.savings) },
+            { label: 'Time deposits', value: formatMoney(members.timeDeposits) },
+            { label: 'Share capital', value: formatMoney(members.shareCapital) }
+          ]
+        },
+        {
+          title: 'Agricultural production and stock movement',
+          valueHeading: 'Recorded quantity',
+          detailHeading: 'Basis',
+          items: [
+            ...inventory.productionByProduct.map((row) => ({ label: `Production · ${row.label}`, value: row.quantity.toLocaleString(), detail: 'Production records in period' })),
+            ...inventory.movementGroups.map((row) => ({ label: `Movement · ${row.label}`, value: row.quantity.toLocaleString(), detail: 'Stock movement records in period' }))
+          ]
+        }
+      );
+    }
+
+    if (financial.netIncome === 0 && !isOperations) challenges.push('Income and expenses are equal for this period; review the account-level breakdown for context.');
+    if (loans.payments > 0 && !isFinancial) highlights.push(`${loans.paymentCount.toLocaleString()} recorded loan payment${loans.paymentCount === 1 ? '' : 's'} totaling ${formatMoney(loans.payments)}.`);
+    return {
+      metrics,
+      highlights,
+      challenges,
+      opportunities,
+      breakdowns,
+      scopeNote: !isFinancial
+        ? 'Agricultural output and stock movements are shown as recorded quantities grouped by product and unit. AMCOMS does not currently record farm area, crop cycle, yield per area, weather, or input-use data in these report sources, so yield and farm-productivity ratios are not calculated.'
+        : null
+    };
+  }, [reportData, reportType]);
 
   return (
     <div className="space-y-6">
@@ -316,6 +450,7 @@ const PerformanceReport = () => {
                   </section>
                 </>
               )}
+              {analysis && <ReportInsights {...analysis} />}
             </div>
           )}
 

@@ -3,6 +3,7 @@ import { useLocation } from 'react-router-dom';
 import { CalendarDays, ChevronLeft, ChevronRight, Clock3, Printer, RefreshCw, WalletCards, X } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useMultipleRealtimeSubscriptions } from '../../hooks/useRealtimeSubscription';
+import ReportInsights from '../common/ReportInsights';
 
 const peso = (v) => `PHP ${(Number(v) || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 const num = (v) => (Number(v) || 0).toLocaleString('en-PH');
@@ -526,6 +527,45 @@ const Reports = () => {
             ['Overdue amount', peso(overdueOutstanding)],
             ['Overdue entries', num(overdueRows.length)]
           ]} />
+          <ReportInsights
+            metrics={[
+              { label: 'Accounts receivable', value: peso(sumOutstanding(receivables)), detail: `${num(receivables.length)} entries` },
+              { label: 'Accounts payable', value: peso(sumOutstanding(payables)), detail: `${num(payables.length)} entries` },
+              { label: 'Overdue receivables', value: peso(sumOutstanding(receivables.filter((row) => row.daysPastDue > 0))) },
+              { label: 'Overdue payable entries', value: num(payables.filter((row) => row.daysPastDue > 0).length) }
+            ]}
+            highlights={[
+              `${num(receivables.length)} receivable entries and ${num(payables.length)} payable entries are included in the aging snapshot.`
+            ]}
+            challenges={overdueRows.length
+              ? [`${num(overdueRows.length)} outstanding entries are past their recorded due date; prioritize follow-up by amount and aging bucket.`]
+              : []}
+            opportunities={[
+              'Record actual supplier payment due dates so payables can be aged accurately.',
+              'Use member-level collection follow-up for overdue sales and loan installments.'
+            ]}
+            breakdowns={[
+              {
+                title: 'Receivable aging by source',
+                valueHeading: 'Outstanding',
+                detailHeading: 'Overdue',
+                items: [
+                  { label: 'Credit sales', value: peso(sumOutstanding(sales)), detail: num(sales.filter((row) => row.daysPastDue > 0).length) },
+                  { label: 'Loan installments', value: peso(sumOutstanding(schedules)), detail: num(schedules.filter((row) => row.daysPastDue > 0).length) }
+                ]
+              },
+              {
+                title: 'Payable balance by source',
+                valueHeading: 'Outstanding',
+                detailHeading: 'Aging basis',
+                items: [
+                  { label: 'Supplier purchases', value: peso(sumOutstanding(purchases)), detail: 'No payment due date recorded' },
+                  { label: 'Time deposits', value: peso(sumOutstanding(timeDeposits)), detail: 'Maturity alone is not overdue' }
+                ]
+              }
+            ]}
+            scopeNote="Aging is determined from recorded payment due dates. Supplier purchases without a due date and time deposits without an explicit payment obligation are shown as current, not overdue."
+          />
           <p className="mt-4 text-xs text-slate-600">
             Sales and loan installments use their payment due dates. Supplier purchases without a recorded payment due date and time deposits are shown as current; time-deposit maturity alone does not make an amount overdue.
           </p>
@@ -582,9 +622,35 @@ const Reports = () => {
       const disb = data.disbursements || [];
       const totalIn = receipts.reduce((s, r) => s + Number(r.amount || 0), 0);
       const totalOut = disb.reduce((s, r) => s + Number(r.amount || 0), 0);
+      const byPaymentMethod = (rows) => Object.entries(rows.reduce((groups, row) => {
+        const method = row.payment_method || 'Not specified';
+        groups[method] = (groups[method] || 0) + Number(row.amount || 0);
+        return groups;
+      }, {})).map(([label, amount]) => ({ label, value: peso(amount) }));
       return (
         <>
           <Summary items={[['Total receipts', peso(totalIn)], ['Total disbursements', peso(totalOut)], ['Net cash flow', peso(totalIn - totalOut)], ['Transactions', num(receipts.length + disb.length)]]} />
+          <ReportInsights
+            metrics={[
+              { label: 'Cash received', value: peso(totalIn), detail: `${num(receipts.length)} recorded receipts` },
+              { label: 'Cash released', value: peso(totalOut), detail: `${num(disb.length)} recorded disbursements` },
+              { label: 'Net cash flow', value: peso(totalIn - totalOut) },
+              { label: 'Receipt-to-disbursement coverage', value: totalOut ? `${((totalIn / totalOut) * 100).toFixed(1)}%` : 'Not applicable', detail: 'Period receipts divided by disbursements; not a liquidity ratio' }
+            ]}
+            highlights={totalIn > totalOut
+              ? [`Recorded receipts exceeded recorded disbursements by ${peso(totalIn - totalOut)}.`]
+              : totalIn > 0
+                ? [`Recorded receipts totaled ${peso(totalIn)} across ${num(receipts.length)} transactions.`]
+                : []}
+            challenges={totalOut > totalIn
+              ? [`Recorded disbursements exceeded receipts by ${peso(totalOut - totalIn)}; reconcile the cash movement with opening balances and bank activity.`]
+              : []}
+            opportunities={['Review unmatched receipts and disbursements against vouchers, bank records, and cash reconciliation.']}
+            breakdowns={[
+              { title: 'Receipts by payment method', valueHeading: 'Recorded amount', items: byPaymentMethod(receipts) },
+              { title: 'Disbursements by payment method', valueHeading: 'Recorded amount', items: byPaymentMethod(disb) }
+            ]}
+          />
           <Section title="Cash Receipts">
             <DataTable
               rows={receipts}
@@ -640,9 +706,44 @@ const Reports = () => {
       const outstanding = active.reduce((s, l) => s + Number(l.balance || 0), 0);
       const released = loans.filter((l) => ['active', 'completed'].includes(l.status)).reduce((s, l) => s + Number(l.principal_amount || 0), 0);
       const collected = pays.reduce((s, p) => s + Number(p.amount_paid || 0), 0);
+      const collectionsByComponent = [
+        ['Principal collected', pays.reduce((sum, payment) => sum + Number(payment.principal_paid || 0), 0)],
+        ['Interest collected', pays.reduce((sum, payment) => sum + Number(payment.interest_paid || 0), 0)],
+        ['Penalties collected', pays.reduce((sum, payment) => sum + Number(payment.penalty_paid || 0), 0)]
+      ];
+      const loansByStatus = Object.entries(loans.reduce((groups, loan) => {
+        const status = loan.status || 'unknown';
+        const current = groups[status] || { count: 0, balance: 0 };
+        current.count += 1;
+        current.balance += Number(loan.balance || 0);
+        groups[status] = current;
+        return groups;
+      }, {})).map(([status, value]) => ({
+        label: status.replaceAll('_', ' '),
+        value: num(value.count),
+        detail: peso(value.balance)
+      }));
       return (
         <>
           <Summary items={[['Active loans', num(active.length)], ['Outstanding balance', peso(outstanding)], ['Total released', peso(released)], ['Collected this period', peso(collected)]]} />
+          <ReportInsights
+            metrics={[
+              { label: 'Loan accounts', value: num(loans.length) },
+              { label: 'Active portfolio balance', value: peso(outstanding) },
+              { label: 'Principal released', value: peso(released) },
+              { label: 'Collections in period', value: peso(collected), detail: `${num(pays.length)} recorded payments` }
+            ]}
+            highlights={collected > 0
+              ? [`${num(pays.length)} recorded payments contributed ${peso(collected)} during the selected period.`]
+              : []}
+            challenges={[]}
+            opportunities={['Monitor collections by principal, interest, and penalty, and use the installment schedule for member follow-up.']}
+            breakdowns={[
+              { title: 'Portfolio by loan status', valueHeading: 'Loan accounts', detailHeading: 'Recorded balance', items: loansByStatus },
+              { title: 'Collections by component', valueHeading: 'Amount collected', items: collectionsByComponent.map(([label, amount]) => ({ label, value: peso(amount) })) }
+            ]}
+            scopeNote="Loan collection totals include recorded payments within the selected period. Outstanding balances are current balances, not historical period-end balances. This report does not classify arrears; use the installment aging report to identify overdue amounts."
+          />
           <Section title="Loan Portfolio">
             <DataTable
               rows={loans}
@@ -704,9 +805,42 @@ const Reports = () => {
       const savings = accounts.filter((a) => a.account_type !== 'time_deposit' && a.status !== 'closed');
       const deposits = accounts.filter((a) => a.account_type === 'time_deposit' && a.status !== 'closed');
       const sum = (rows) => rows.reduce((s, a) => s + Number(a.balance || 0), 0);
+      const membershipTypes = Object.entries(members.reduce((groups, member) => {
+        const type = member.membership_type || 'Not specified';
+        groups[type] = (groups[type] || 0) + 1;
+        return groups;
+      }, {})).map(([label, count]) => ({ label, value: num(count) }));
       return (
         <>
           <Summary items={[['Total members', num(members.length)], ['Active members', num(activeMembers.length)], ['New this period', num(joined.length)], ['Archived / inactive', num(members.length - activeMembers.length)]]} />
+          <ReportInsights
+            metrics={[
+              { label: 'Total members', value: num(members.length) },
+              { label: 'Active members', value: num(activeMembers.length), detail: members.length ? `${((activeMembers.length / members.length) * 100).toFixed(1)}% of members` : undefined },
+              { label: 'New members', value: num(joined.length), detail: 'Joined in the selected period' },
+              { label: 'Savings / time deposits', value: `${peso(sum(savings))} / ${peso(sum(deposits))}` }
+            ]}
+            highlights={joined.length ? [`${num(joined.length)} member${joined.length === 1 ? '' : 's'} joined during the selected period.`] : []}
+            challenges={[]}
+            opportunities={[
+              'Review membership growth alongside member participation and savings-account activity.',
+              ...(members.length > activeMembers.length
+                ? [`Confirm the status of ${num(members.length - activeMembers.length)} non-active member record${members.length - activeMembers.length === 1 ? '' : 's'}.`]
+                : [])
+            ]}
+            breakdowns={[
+              { title: 'Membership mix by type', valueHeading: 'Member count', items: membershipTypes },
+              {
+                title: 'Member account balances',
+                valueHeading: 'Open accounts',
+                detailHeading: 'Combined balance',
+                items: [
+                  { label: 'Savings accounts', value: num(savings.length), detail: peso(sum(savings)) },
+                  { label: 'Time deposits', value: num(deposits.length), detail: peso(sum(deposits)) }
+                ]
+              }
+            ]}
+          />
           <Section title="New Members">
             <DataTable
               rows={joined}
@@ -763,9 +897,44 @@ const Reports = () => {
     });
     const movements = data.movements || [];
     const value = products.reduce((s, p) => s + p.qty * Number(p.unit_price || 0), 0);
+    const stockBreakdown = ['In stock', 'Low stock', 'Out of stock'].map((status) => ({
+      label: status,
+      value: num(products.filter((product) => product.status === status).length)
+    }));
+    const movementBreakdown = Object.entries(movements.reduce((groups, movement) => {
+      const unit = movement.product?.unit_of_measure || 'unit not specified';
+      const type = String(movement.movement_type || 'unknown').replaceAll('_', ' ');
+      const key = `${type} · ${unit}`;
+      const current = groups[key] || { quantity: 0, count: 0 };
+      current.quantity += Number(movement.quantity || 0);
+      current.count += 1;
+      groups[key] = current;
+      return groups;
+    }, {})).map(([label, row]) => ({ label, value: num(row.quantity), detail: `${num(row.count)} records` }));
+    const lowStockCount = products.filter((p) => p.status === 'Low stock').length;
+    const outOfStockCount = products.filter((p) => p.status === 'Out of stock').length;
     return (
       <>
         <Summary items={[['Products', num(products.length)], ['Low stock', num(products.filter((p) => p.status === 'Low stock').length)], ['Out of stock', num(products.filter((p) => p.status === 'Out of stock').length)], ['Stock value (at price)', peso(value)]]} />
+        <ReportInsights
+          metrics={[
+            { label: 'Active products', value: num(products.length) },
+            { label: 'Low / out of stock', value: `${num(lowStockCount)} / ${num(outOfStockCount)}` },
+            { label: 'Estimated stock value', value: peso(value), detail: 'Quantity on hand × current unit price' },
+            { label: 'Movement records', value: num(movements.length), detail: 'Selected period' }
+          ]}
+          highlights={movements.length ? [`${num(movements.length)} stock movement records were recorded in the selected period.`] : []}
+          challenges={[
+            ...(lowStockCount ? [`${num(lowStockCount)} products are at or below their reorder threshold.`] : []),
+            ...(outOfStockCount ? [`${num(outOfStockCount)} products have no available stock.`] : [])
+          ]}
+          opportunities={['Compare movement activity with physical counts and review reorder thresholds against seasonal agricultural demand.']}
+          breakdowns={[
+            { title: 'Current stock status', valueHeading: 'Product count', items: stockBreakdown },
+            { title: 'Movement activity by type and unit', valueHeading: 'Recorded quantity', detailHeading: 'Record count', items: movementBreakdown }
+          ]}
+          scopeNote="Stock value is estimated using current quantity on hand and current product unit price; it is not an accounting inventory valuation. Movement quantities are grouped by unit because different products may use different measures."
+        />
         <Section title="Stock on Hand">
           <DataTable
             rows={products}

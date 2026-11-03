@@ -5,6 +5,7 @@ import { useMultipleRealtimeSubscriptions } from '../../hooks/useRealtimeSubscri
 import { toDateString } from '../../lib/dashboardAccounting';
 import { downloadCsv, getQuantityOnHand, getStockStatus } from '../../lib/inventoryService';
 import { getDataLoadErrorMessage } from '../../lib/errorHandler';
+import ReportInsights from '../common/ReportInsights';
 
 const REPORT_TYPES = {
   'stock-report': 'Inventory Stock Report',
@@ -182,6 +183,148 @@ const InventoryReports = () => {
   const table = tables[reportType];
   const isCurrentStock = reportType === 'stock-report';
   const periodLabel = isCurrentStock ? `As of ${new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}` : range.label;
+  const analysis = useMemo(() => {
+    const stockMetrics = products.map((product) => {
+      const onHand = getQuantityOnHand(product);
+      const layers = product.inventory_cost_layers || [];
+      const valuedQuantity = layers.reduce((sum, layer) => sum + Number(layer.quantity_remaining || 0), 0);
+      const value = layers.reduce((sum, layer) => sum + Number(layer.quantity_remaining || 0) * Number(layer.unit_cost || 0), 0);
+      return { product, onHand, valuedQuantity, unvalued: Math.max(onHand - valuedQuantity, 0), value, status: getStockStatus(onHand, product.reorder_level) };
+    });
+    const totalStockValue = stockMetrics.reduce((sum, row) => sum + row.value, 0);
+    const totalUnvalued = stockMetrics.reduce((sum, row) => sum + row.unvalued, 0);
+    const lowStock = stockMetrics.filter((row) => row.status === 'Low').length;
+    const outOfStock = stockMetrics.filter((row) => row.status === 'Out of Stock').length;
+    const producedQuantity = production.reduce((sum, row) => sum + Number(row.quantity_produced || 0), 0);
+    const movementGroups = movements.reduce((groups, movement) => {
+      const unit = movement.products?.unit_of_measure || 'unit not specified';
+      const key = `${MOVEMENT_LABELS[movement.movement_type] || movement.movement_type} · ${unit}`;
+      const current = groups[key] || { quantity: 0, records: 0 };
+      current.quantity += Math.abs(Number(movement.quantity || 0));
+      current.records += 1;
+      groups[key] = current;
+      return groups;
+    }, {});
+    const productionGroups = production.reduce((groups, record) => {
+      const productName = record.products?.product_name || 'Unspecified product';
+      const unit = record.products?.unit_of_measure || 'unit not specified';
+      const key = `${productName} · ${unit}`;
+      const current = groups[key] || { quantity: 0, batches: 0 };
+      current.quantity += Number(record.quantity_produced || 0);
+      current.batches += 1;
+      groups[key] = current;
+      return groups;
+    }, {});
+    const wasteGroups = wasteMovements.reduce((groups, movement) => {
+      const productName = movement.products?.product_name || 'Unspecified product';
+      const unit = movement.products?.unit_of_measure || 'unit not specified';
+      const key = `${productName} · ${unit}`;
+      groups[key] = (groups[key] || 0) + Math.abs(Number(movement.quantity || 0));
+      return groups;
+    }, {});
+    const metrics = [];
+    const highlights = [];
+    const challenges = [];
+    const opportunities = [];
+    const breakdowns = [];
+
+    if (reportType === 'stock-report') {
+      metrics.push(
+        { label: 'Active products', value: stockMetrics.length.toLocaleString() },
+        { label: 'Products at / below reorder level', value: lowStock.toLocaleString() },
+        { label: 'Out-of-stock products', value: outOfStock.toLocaleString() },
+        { label: 'Valued inventory', value: `₱${totalStockValue.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` },
+        { label: 'Unvalued stock quantity', value: totalUnvalued.toLocaleString(), detail: 'Quantity; units differ by product' }
+      );
+      if (stockMetrics.length) highlights.push(`${stockMetrics.length.toLocaleString()} active product records are included in the current stock snapshot.`);
+      if (lowStock) challenges.push(`${lowStock.toLocaleString()} product${lowStock === 1 ? '' : 's'} are at or below reorder level.`);
+      if (outOfStock) challenges.push(`${outOfStock.toLocaleString()} product${outOfStock === 1 ? '' : 's'} have no available stock.`);
+      if (totalUnvalued > 0) challenges.push(`${totalUnvalued.toLocaleString()} units are not covered by remaining FIFO cost layers and are excluded from the valued inventory amount.`);
+      if (lowStock + outOfStock > 0) opportunities.push('Review replenishment needs and confirm purchase timing for low or unavailable items.');
+      if (totalUnvalued > 0) opportunities.push('Review opening or receipt costing for quantities without FIFO cost layers.');
+      breakdowns.push({
+        title: 'Current stock status by product',
+        labelHeading: 'Product',
+        valueHeading: 'On hand',
+        detailHeading: 'Status · FIFO value',
+        items: stockMetrics.map(({ product, onHand, value, status }) => ({
+          label: product.product_name,
+          value: `${onHand.toLocaleString()} ${product.unit_of_measure || ''}`.trim(),
+          detail: `${status} · ₱${value.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+        }))
+      });
+    } else if (reportType === 'production-report') {
+      metrics.push(
+        { label: 'Production records', value: production.length.toLocaleString() },
+        { label: 'Total output recorded', value: producedQuantity.toLocaleString(), detail: 'Aggregate quantity; units differ by product' },
+        { label: 'Products produced', value: Object.keys(productionGroups).length.toLocaleString() }
+      );
+      if (production.length) highlights.push(`${production.length.toLocaleString()} production record${production.length === 1 ? '' : 's'} were recorded in the selected period.`);
+      else challenges.push('No completed production records were found for the selected period.');
+      if (production.length) opportunities.push('Compare output by product and batch with sales and stock movement to guide the next production plan.');
+      breakdowns.push({
+        title: 'Output by product and unit',
+        valueHeading: 'Quantity produced',
+        detailHeading: 'Production records',
+        items: Object.entries(productionGroups).map(([label, row]) => ({
+          label,
+          value: row.quantity.toLocaleString(),
+          detail: row.batches.toLocaleString()
+        }))
+      });
+    } else {
+      const isWasteReport = reportType === 'damaged-expired';
+      const selectedMovements = isWasteReport ? wasteMovements : movements;
+      const netByUnit = movements.reduce((groups, movement) => {
+        const unit = movement.products?.unit_of_measure || 'unit not specified';
+        groups[unit] = (groups[unit] || 0) + signed(movement);
+        return groups;
+      }, {});
+      metrics.push(
+        { label: isWasteReport ? 'Damage / loss records' : 'Stock movement records', value: selectedMovements.length.toLocaleString() },
+        ...(isWasteReport
+          ? [{ label: 'Affected products', value: Object.keys(wasteGroups).length.toLocaleString() }]
+          : [{ label: 'Movement types', value: new Set(movements.map((row) => row.movement_type)).size.toLocaleString() }])
+      );
+      if (isWasteReport && wasteMovements.length) challenges.push(`${wasteMovements.length.toLocaleString()} damage, expiry, or loss movement${wasteMovements.length === 1 ? '' : 's'} are recorded; review causes and any corrective action.`);
+      if (!isWasteReport && movements.length) highlights.push(`${movements.length.toLocaleString()} stock movement records are included in the selected period.`);
+      if (!selectedMovements.length) highlights.push(`No ${isWasteReport ? 'damage or loss' : 'stock movement'} records were found for the selected period.`);
+      if (isWasteReport && wasteMovements.length) opportunities.push('Review loss descriptions by product and address recurring handling, storage, or expiry causes.');
+      if (!isWasteReport && movements.length) opportunities.push('Reconcile purchases, production, sales, returns, waste, and adjustments to physical stock counts.');
+      breakdowns.push(isWasteReport
+        ? {
+          title: 'Damage / loss by product and unit',
+          valueHeading: 'Quantity affected',
+          items: Object.entries(wasteGroups).map(([label, quantity]) => ({ label, value: quantity.toLocaleString() }))
+        }
+        : {
+          title: 'Movement activity by type and unit',
+          valueHeading: 'Quantity moved',
+          detailHeading: 'Record count',
+          items: Object.entries(movementGroups).map(([label, row]) => ({
+            label,
+            value: row.quantity.toLocaleString(),
+            detail: row.records.toLocaleString()
+          }))
+        });
+      if (!isWasteReport) {
+        breakdowns.push({
+          title: 'Net movement by unit of measure',
+          valueHeading: 'Net quantity',
+          items: Object.entries(netByUnit).map(([unit, quantity]) => ({ label: unit, value: quantity.toLocaleString() }))
+        });
+      }
+    }
+
+    return {
+      metrics,
+      highlights,
+      challenges,
+      opportunities,
+      breakdowns,
+      scopeNote: 'Agricultural output and stock movement are reported only from recorded production and inventory transactions, grouped by product and unit. Farm area, crop cycle, weather, and input-use data are not present in this report source, so yield per area and farm productivity ratios are not calculated.'
+    };
+  }, [products, production, movements, wasteMovements, reportType]);
 
   const anchorInput = {
     daily: { type: 'date', value: anchor, onChange: (value) => setAnchor(value) },
@@ -247,6 +390,7 @@ const InventoryReports = () => {
           <p className="mt-1 text-xs text-gray-500">Generated {new Date().toLocaleString('en-PH')}</p>
         </div>
 
+        {!loading && !error && <ReportInsights {...analysis} />}
         <div className="overflow-x-auto">
           <table className="w-full">
             <thead className="bg-gray-50 border-b-2 border-gray-300">

@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import BookkeeperDashboard from '../components/bookkeeper/BookkeeperDashboard';
 import Transactions from '../components/bookkeeper/Transactions';
 import Books from '../components/bookkeeper/Books';
-import Reports from '../components/bookkeeper/Reports';
+import FinancialReports from '../components/bookkeeper/FinancialReports';
 
 const BookkeeperPortal = () => {
   const [activeModule, setActiveModule] = useState('dashboard');
@@ -53,7 +53,7 @@ const BookkeeperPortal = () => {
       case 'books':
         return <Books />;
       case 'reports':
-        return <Reports />;
+        return <FinancialReports />;
       case 'settings':
         return (
           <div className="bg-white rounded-lg shadow p-6 border border-gray-200">

@@ -6,6 +6,7 @@ import { getDataLoadErrorMessage } from '../../lib/errorHandler';
 import {
   PrintStyles, accountTypeLabel, amount, buttonClass, formatDate, inputClass, primaryButtonClass, startOfYearISO, todayISO
 } from './accountingUtils';
+import ReportInsights from '../common/ReportInsights';
 
 const useBalances = (from, to) => {
   const [rows, setRows] = useState([]);
@@ -52,8 +53,13 @@ export const TrialBalance = () => {
 
   const totalDebit = lines.reduce((sum, row) => sum + row.debit, 0);
   const totalCredit = lines.reduce((sum, row) => sum + row.credit, 0);
-  const balanced = Math.abs(totalDebit - totalCredit) < 0.005;
+  const balanced = lines.length > 0 && Math.abs(totalDebit - totalCredit) < 0.005;
   const periodLabel = mode === 'period' ? `${formatDate(from)} to ${formatDate(to)}` : `Cumulative balances as of ${formatDate(to)}`;
+  const accountTypeTotals = ['asset', 'liability', 'equity', 'revenue', 'expense'].map((type) => ({
+    label: accountTypeLabel(type),
+    value: lines.filter((row) => row.account_type === type).length.toLocaleString(),
+    detail: `Debit ${amount(lines.filter((row) => row.account_type === type).reduce((sum, row) => sum + row.debit, 0))} · Credit ${amount(lines.filter((row) => row.account_type === type).reduce((sum, row) => sum + row.credit, 0))}`
+  }));
 
   return (
     <div className="space-y-4">
@@ -87,6 +93,25 @@ export const TrialBalance = () => {
         {loading ? <p className="py-8 text-center text-sm text-gray-500">Loading...</p> : error ? (
           <p className="px-4 py-8 text-center text-sm text-gray-500">The report could not be calculated. Resolve the error above and try again.</p>
         ) : (
+          <>
+          <div className="px-4 pt-4">
+            <ReportInsights
+              metrics={[
+                { label: 'Accounts with activity', value: lines.length.toLocaleString() },
+                { label: 'Total debits', value: amount(totalDebit) },
+                { label: 'Total credits', value: amount(totalCredit) },
+                { label: 'Trial balance status', value: lines.length === 0 ? 'No activity' : balanced ? 'Balanced' : `Out by ${amount(Math.abs(totalDebit - totalCredit))}` }
+              ]}
+              highlights={balanced ? ['Total debits equal total credits for this view.'] : []}
+              challenges={lines.length === 0
+                ? ['No posted account activity is present in the selected view.']
+                : balanced
+                  ? []
+                  : [`Debits and credits differ by ${amount(Math.abs(totalDebit - totalCredit))}; investigate unbalanced or incomplete journal activity.`]}
+              opportunities={['Review account-level debit and credit activity against journal entries and supporting documents.']}
+              breakdowns={[{ title: 'Account activity by accounting category', valueHeading: 'Account count', detailHeading: 'Debit · credit totals', items: accountTypeTotals }]}
+            />
+          </div>
           <table className="min-w-full text-sm">
             <thead className="bg-gray-50 text-left text-xs uppercase text-gray-500">
               <tr><th className="px-4 py-2">Code</th><th className="px-4 py-2">Account</th><th className="px-4 py-2 text-right">Debit</th><th className="px-4 py-2 text-right">Credit</th></tr>
@@ -104,12 +129,17 @@ export const TrialBalance = () => {
             <tfoot className="border-t-2 border-gray-300 bg-gray-50 font-semibold">
               <tr><td colSpan={2} className="px-4 py-2 text-right">Totals</td><Money value={totalDebit} bold /><Money value={totalCredit} bold /></tr>
               <tr>
-                <td colSpan={4} className={`px-4 py-2 text-center text-sm ${balanced ? 'text-green-700' : 'text-red-700'}`}>
-                  {balanced ? 'Debits equal credits. The ledger is in balance.' : `Out of balance by ${Math.abs(totalDebit - totalCredit).toFixed(2)}. Review journal entries.`}
+                <td colSpan={4} className={`px-4 py-2 text-center text-sm ${lines.length === 0 ? 'text-gray-600' : balanced ? 'text-green-700' : 'text-red-700'}`}>
+                  {lines.length === 0
+                    ? 'No posted transactions for this period.'
+                    : balanced
+                      ? 'Debits equal credits. The ledger is in balance.'
+                      : `Out of balance by ${Math.abs(totalDebit - totalCredit).toFixed(2)}. Review journal entries.`}
                 </td>
               </tr>
             </tfoot>
           </table>
+          </>
         )}
         {!loading && !error && (
           <footer className="document-signatures grid grid-cols-2 gap-10 px-4 pb-4 text-center text-xs text-gray-700">
@@ -169,6 +199,15 @@ export const FinancialStatements = () => {
   const loading = period.loading || position.loading;
   const error = period.error || position.error;
   const inBalance = Math.abs(sheet.totalAssets - (sheet.totalLiabilities + sheet.totalEquity)) < 0.005;
+  const statementBreakdowns = [
+    { title: 'Revenue account categories', valueHeading: 'Period amount', items: income.revenue.map((row) => ({ label: row.account_name, value: amount(row.value) })) },
+    { title: 'Expense account categories', valueHeading: 'Period amount', items: income.expense.map((row) => ({ label: row.account_name, value: amount(row.value) })) },
+    { title: 'Financial position by account category', valueHeading: 'Closing balance', items: [
+      { label: 'Assets', value: amount(sheet.totalAssets) },
+      { label: 'Liabilities', value: amount(sheet.totalLiabilities) },
+      { label: 'Equity including accumulated net income', value: amount(sheet.totalEquity) }
+    ] }
+  ];
 
   return (
     <div className="space-y-4">
@@ -195,6 +234,26 @@ export const FinancialStatements = () => {
             <p className="text-sm text-gray-600">{formatDate(from)} to {formatDate(to)}</p>
             <p className="text-xs text-gray-500">Generated {new Date().toLocaleDateString('en-PH')}</p>
           </header>
+          <div className="lg:col-span-2">
+            <ReportInsights
+              metrics={[
+                { label: 'Period revenue', value: amount(income.totalRevenue) },
+                { label: 'Period expenses', value: amount(income.totalExpense) },
+                { label: income.net >= 0 ? 'Net surplus' : 'Net deficit', value: amount(Math.abs(income.net)) },
+                { label: 'Financial position', value: inBalance ? 'In balance' : `Difference ${amount(Math.abs(sheet.totalAssets - sheet.totalLiabilities - sheet.totalEquity))}` }
+              ]}
+              highlights={[
+                ...(income.net > 0 ? [`The period recorded a net surplus of ${amount(income.net)}.`] : []),
+                ...(inBalance ? ['Assets equal liabilities and equity as of the selected date.'] : [])
+              ]}
+              challenges={[
+                ...(income.net < 0 ? [`Expenses exceeded revenue by ${amount(Math.abs(income.net))} for the period.`] : []),
+                ...(!inBalance ? ['The statement of financial position does not balance; review closing balances and journal postings.'] : [])
+              ]}
+              opportunities={['Review the account-level income, expense, asset, liability, and equity breakdowns for planning and reconciliation.']}
+              breakdowns={statementBreakdowns}
+            />
+          </div>
           <section className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
             <div className="border-b border-gray-200 px-4 py-4 text-center">
               <h2 className="text-base font-semibold text-gray-900">Statement of Income and Expenses</h2>
