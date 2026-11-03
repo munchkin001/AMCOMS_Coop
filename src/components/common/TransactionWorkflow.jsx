@@ -1162,7 +1162,7 @@ const TransactionWorkflow = ({ role }) => {
                   <div className="mt-3 flex flex-wrap justify-end gap-2">
                     <button type="button" disabled={busy} onClick={() => submitDecision('returned_for_correction')} className="rounded-lg border border-amber-400 bg-white px-4 py-2 text-sm font-semibold text-amber-950 disabled:opacity-50">Return for correction</button>
                     <button type="button" disabled={busy} onClick={() => submitDecision('rejected')} className="rounded-lg border border-red-300 bg-white px-4 py-2 text-sm font-semibold text-red-800 disabled:opacity-50">Reject</button>
-                    <button type="button" disabled={busy} onClick={() => submitDecision('approved')} className="inline-flex items-center gap-2 rounded-lg bg-slate-950 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800 disabled:opacity-50"><Check size={16} /> Approve</button>
+                    <button type="button" disabled={busy} onClick={() => submitDecision('approved')} className={`inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold text-white disabled:opacity-50 ${isManager ? 'bg-orange-700 hover:bg-orange-800' : 'bg-slate-950 hover:bg-slate-800'}`}><Check size={16} /> Approve</button>
                   </div>
                 </section>
               )}

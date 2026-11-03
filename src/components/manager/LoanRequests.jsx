@@ -1007,21 +1007,21 @@ export const LegacyLoanRequests = () => {
                 <div className="pointer-events-none absolute -right-10 -top-20 size-48 rounded-full border-[24px] border-white/5" />
                 <div className="relative flex items-start justify-between gap-4">
                   <div className="min-w-0">
-                    <p className="text-xs font-semibold text-emerald-100">Loan application</p>
+                    <p className="text-xs font-semibold text-orange-900">Loan application</p>
                     <h2 id="loan-request-details-title" className="mt-1 text-2xl font-bold tracking-tight">Application details</h2>
-                    <p className="mt-1 break-all text-sm text-emerald-100">{selectedRequest.request_number} · Submitted {new Date(selectedRequest.created_at).toLocaleDateString('en-PH')}</p>
+                    <p className="mt-1 break-all text-sm text-orange-950/75">{selectedRequest.request_number} · Submitted {new Date(selectedRequest.created_at).toLocaleDateString('en-PH')}</p>
                   </div>
-                  <button type="button" onClick={() => setSelectedRequest(null)} aria-label="Close loan application details" className="flex size-9 flex-none items-center justify-center rounded-lg border border-white/20 bg-white/10 text-white hover:bg-white/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white">
+                  <button type="button" onClick={() => setSelectedRequest(null)} aria-label="Close loan application details" className="flex size-9 flex-none items-center justify-center rounded-lg border border-orange-900/20 bg-white/55 text-orange-950 transition hover:bg-white/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-800">
                     <X aria-hidden="true" size={20} />
                   </button>
                 </div>
                 <div className="relative mt-4 flex flex-wrap items-end justify-between gap-3 border-t border-white/15 pt-4">
                   <div>
-                    <p className="text-xs font-medium text-emerald-100">Requested amount</p>
+                    <p className="text-xs font-medium text-orange-900">Requested amount</p>
                     <p className="mt-1 text-3xl font-bold tabular-nums">{formatMoney(selectedRequest.amount)}</p>
-                    <p className="mt-1 text-sm text-emerald-100">{fullName(memberOf(selectedRequest))}</p>
+                    <p className="mt-1 text-sm text-orange-950/75">{fullName(memberOf(selectedRequest))}</p>
                   </div>
-                  <span className="inline-flex rounded-full border border-amber-200/20 bg-amber-200/15 px-3 py-1.5 text-xs font-semibold capitalize text-amber-50">
+                  <span className="inline-flex rounded-full border border-orange-900/20 bg-white/65 px-3 py-1.5 text-xs font-semibold capitalize text-orange-950">
                     {selectedRequest.status.replaceAll('_', ' ')}
                   </span>
                 </div>
@@ -1057,7 +1057,7 @@ export const LegacyLoanRequests = () => {
                 {canReview && (
                   <div className="mt-5 flex flex-wrap justify-end gap-3">
                     <button type="button" disabled={!!busyId} onClick={() => { setNotes(''); setDecision({ ...selectedRequest, status: 'rejected' }); setSelectedRequest(null); }} className="min-h-10 rounded-lg border border-red-200 bg-white px-4 py-2 font-semibold text-red-700 transition hover:bg-red-50 disabled:opacity-50">Reject application</button>
-                    <button type="button" disabled={!!busyId} onClick={() => { setNotes(''); setDecision({ ...selectedRequest, status: 'approved' }); setSelectedRequest(null); }} className="min-h-10 rounded-lg bg-emerald-800 px-4 py-2 font-semibold text-white transition hover:bg-emerald-900 disabled:opacity-50">Approve application</button>
+                    <button type="button" disabled={!!busyId} onClick={() => { setNotes(''); setDecision({ ...selectedRequest, status: 'approved' }); setSelectedRequest(null); }} className="min-h-10 rounded-lg bg-orange-700 px-4 py-2 font-semibold text-white transition hover:bg-orange-800 disabled:opacity-50">Approve application</button>
                   </div>
                 )}
               </div>
@@ -1162,30 +1162,34 @@ export const LegacyLoanRequests = () => {
               const displayDate = (value) => value ? new Date(`${value}T00:00:00`).toLocaleDateString('en-PH', { year: 'numeric', month: 'short', day: 'numeric' }) : 'Not available';
               return (
                 <>
-                  <header className="relative bg-gradient-to-br from-slate-900 via-blue-950 to-blue-900 px-6 py-6 text-white sm:px-8">
-                    <div className="absolute inset-x-0 bottom-0 h-1 bg-gradient-to-r from-amber-300 via-yellow-400 to-amber-300" />
+                  <header className={`relative px-6 py-6 sm:px-8 ${canReview ? 'bg-gradient-to-br from-orange-200 via-orange-300 to-amber-300 text-orange-950' : 'bg-gradient-to-br from-slate-900 via-blue-950 to-blue-900 text-white'}`}>
+                    <div className={`absolute inset-x-0 bottom-0 h-1 ${canReview ? 'bg-gradient-to-r from-orange-500 via-amber-400 to-orange-500' : 'bg-gradient-to-r from-amber-300 via-yellow-400 to-amber-300'}`} />
                     <div className="flex items-start justify-between gap-4">
                       <div>
-                        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-blue-200">Loan account</p>
+                        <p className={`text-xs font-semibold uppercase tracking-[0.18em] ${canReview ? 'text-orange-900' : 'text-blue-200'}`}>Loan account</p>
                         <h2 id="approved-loan-details-title" className="mt-1 text-2xl font-bold">{selectedLoan.loan_number}</h2>
-                        <p className="mt-2 text-sm text-blue-100">{fullName(member)}{member?.member_number ? ` · Member ${member.member_number}` : ''}</p>
+                        <p className={`mt-2 text-sm ${canReview ? 'text-orange-950/75' : 'text-blue-100'}`}>{fullName(member)}{member?.member_number ? ` · Member ${member.member_number}` : ''}</p>
                       </div>
-                      <button type="button" onClick={() => setSelectedLoan(null)} aria-label="Close loan details" className="rounded-full bg-white/10 p-2 text-white transition hover:bg-white/20 focus:outline-none focus:ring-2 focus:ring-white">
+                      <button type="button" onClick={() => setSelectedLoan(null)} aria-label="Close loan details" className={`rounded-full p-2 transition focus:outline-none focus:ring-2 focus:ring-white ${canReview ? 'bg-white/35 text-orange-950 hover:bg-white/55' : 'bg-white/10 text-white hover:bg-white/20'}`}>
                         <X aria-hidden="true" size={20} />
                       </button>
                     </div>
-                    <span className={`mt-4 inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-semibold ${selectedLoan.cashReleased ? 'bg-emerald-400/15 text-emerald-100 ring-1 ring-emerald-200/30' : 'bg-amber-300/15 text-amber-100 ring-1 ring-amber-200/30'}`}>
-                      <span className={`h-2 w-2 rounded-full ${selectedLoan.cashReleased ? 'bg-emerald-300' : 'bg-amber-300'}`} />
+                    <span className={`mt-4 inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-semibold ${canReview
+                      ? selectedLoan.cashReleased ? 'bg-emerald-100 text-emerald-900 ring-1 ring-emerald-700/20' : 'bg-amber-100 text-amber-950 ring-1 ring-amber-700/20'
+                      : selectedLoan.cashReleased ? 'bg-emerald-400/15 text-emerald-100 ring-1 ring-emerald-200/30' : 'bg-amber-300/15 text-amber-100 ring-1 ring-amber-200/30'}`}>
+                      <span className={`h-2 w-2 rounded-full ${canReview
+                        ? selectedLoan.cashReleased ? 'bg-emerald-700' : 'bg-amber-700'
+                        : selectedLoan.cashReleased ? 'bg-emerald-300' : 'bg-amber-300'}`} />
                       {loanStatus}
                     </span>
                   </header>
                   <div className="max-h-[calc(92vh-170px)] space-y-6 overflow-y-auto bg-slate-50 p-6 sm:p-8">
                     <section aria-label="Loan financial summary" className="grid gap-3 sm:grid-cols-3">
-                      <div className="rounded-xl border border-blue-100 bg-white p-4 shadow-sm">
+                      <div className={`rounded-xl border bg-white p-4 shadow-sm ${canReview ? 'border-orange-100' : 'border-blue-100'}`}>
                         <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Principal</p>
                         <p className="mt-2 text-xl font-bold text-slate-900">{formatMoney(selectedLoan.principal_amount)}</p>
                       </div>
-                      <div className="rounded-xl border border-blue-100 bg-white p-4 shadow-sm">
+                      <div className={`rounded-xl border bg-white p-4 shadow-sm ${canReview ? 'border-orange-100' : 'border-blue-100'}`}>
                         <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Total interest</p>
                         <p className="mt-2 text-xl font-bold text-slate-900">{formatMoney(selectedLoan.total_interest)}</p>
                       </div>
@@ -1265,7 +1269,7 @@ export const LegacyLoanRequests = () => {
             </label>
             <div className="mt-4 flex justify-end gap-3">
               <button type="button" disabled={!!busyId} onClick={() => setDecision(null)} className="rounded-lg border border-gray-300 px-4 py-2 text-gray-700 hover:bg-gray-50">Cancel</button>
-              <button type="button" disabled={!notes.trim() || !!busyId} onClick={submitDecision} className={`rounded-lg px-4 py-2 font-semibold text-white disabled:opacity-50 ${decision.status === 'approved' ? 'bg-emerald-700 hover:bg-emerald-800' : 'bg-red-700 hover:bg-red-800'}`}>
+              <button type="button" disabled={!notes.trim() || !!busyId} onClick={submitDecision} className={`rounded-lg px-4 py-2 font-semibold text-white disabled:opacity-50 ${decision.status === 'approved' ? 'bg-orange-700 hover:bg-orange-800' : 'bg-red-700 hover:bg-red-800'}`}>
                 {busyId ? 'Saving...' : decision.status === 'approved' ? 'Confirm approval' : 'Confirm rejection'}
               </button>
             </div>
