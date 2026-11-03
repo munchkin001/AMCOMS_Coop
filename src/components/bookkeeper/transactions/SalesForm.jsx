@@ -1,8 +1,9 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useAuth } from '../../../contexts/AuthContext';
 import { supabase } from '../../../lib/supabase';
 import offlineDb from '../../../lib/Offline/OfflineDb';
 import { getDataLoadErrorMessage } from '../../../lib/errorHandler';
+import { useRealtimeSubscription } from '../../../hooks/useRealtimeSubscription';
 import { ArrowLeft, ShoppingCart } from 'lucide-react';
 import MemberBalanceSummary from './MemberBalanceSummary';
 import SearchableMemberSelect from '../../common/SearchableMemberSelect';
@@ -28,6 +29,8 @@ const SalesForm = ({ onSave, onCancel }) => {
   const [cancellationOrderId, setCancellationOrderId] = useState('');
   const [cancellationReason, setCancellationReason] = useState('');
   const [returnQuantities, setReturnQuantities] = useState({});
+  const [salesRefresh, setSalesRefresh] = useState(0);
+  const refreshSales = useCallback(() => setSalesRefresh((current) => current + 1), []);
   const [form, setForm] = useState({
     date: today(),
     dueDate: '',
@@ -46,6 +49,19 @@ const SalesForm = ({ onSave, onCancel }) => {
   });
 
   const selectedProduct = products.find((product) => product.id === form.productId);
+  useRealtimeSubscription('sales_orders', refreshSales, null, [refreshSales], navigator.onLine && !offlineMode);
+  useEffect(() => {
+    const refreshWhenOnline = () => {
+      if (navigator.onLine && !offlineMode) refreshSales();
+    };
+    window.addEventListener('online', refreshWhenOnline);
+    window.addEventListener('focus', refreshWhenOnline);
+    return () => {
+      window.removeEventListener('online', refreshWhenOnline);
+      window.removeEventListener('focus', refreshWhenOnline);
+    };
+  }, [offlineMode, refreshSales]);
+
   const productAvailableQuantity = selectedProduct
     ? (Array.isArray(selectedProduct.stock_inventory)
       ? selectedProduct.stock_inventory
@@ -107,8 +123,9 @@ const SalesForm = ({ onSave, onCancel }) => {
           .eq('is_active', true)
           .order('account_name'),
         supabase.from('sales_orders')
-          .select('id, order_number, member_id, customer_name, net_amount, amount_paid, payment_status, order_status, cash_receipt_id, sales_order_items(id, product_id, item_description, quantity, product:products(product_name))')
+          .select('id, order_number, member_id, customer_name, net_amount, amount_paid, payment_status, order_status, cash_receipt_id, sales_order_items(id, product_id, item_description, quantity, unit_price, line_total, product:products(product_name))')
           .in('payment_status', ['pending', 'partial'])
+          .or('order_status.is.null,order_status.neq.cancelled')
           .order('order_date', { ascending: true })
       ]);
       if (!active) return;
@@ -146,10 +163,16 @@ const SalesForm = ({ onSave, onCancel }) => {
           const itemMap = new Map();
           for (const item of sale.sales_order_items || []) {
             if (!item.product_id) continue;
-            if (!itemMap.has(item.product_id)) itemMap.set(item.product_id, {
+            const current = itemMap.get(item.product_id) || {
               product_id: item.product_id,
               description: item.product?.product_name || item.item_description,
-            });
+              soldQuantity: 0,
+              totalLineAmount: 0,
+            };
+            const quantity = Number(item.quantity || 0);
+            current.soldQuantity += quantity;
+            current.totalLineAmount += Number(item.line_total ?? (Number(item.unit_price || 0) * quantity));
+            itemMap.set(item.product_id, current);
           }
           return {
             ...sale,
@@ -160,6 +183,7 @@ const SalesForm = ({ onSave, onCancel }) => {
                 sold: quantities.sold,
                 returned: quantities.returned,
                 remaining: Math.max(quantities.sold - quantities.returned, 0),
+                unitAmount: item.soldQuantity > 0 ? item.totalLineAmount / item.soldQuantity : 0,
               };
             }),
           };
@@ -172,12 +196,14 @@ const SalesForm = ({ onSave, onCancel }) => {
           && Number(sale.net_amount) - Number(sale.amount_paid || 0) > 0.01
         );
         setOutstandingSales(outstandingCreditSales);
-        setCollectionOrderId(outstandingCreditSales[0]?.id || '');
-        setCollectionPayeeKey(outstandingCreditSales[0]
-          ? outstandingCreditSales[0].member_id
-            ? `member:${outstandingCreditSales[0].member_id}`
-            : `customer:${(outstandingCreditSales[0].customer_name || '').trim().toLocaleLowerCase()}`
-          : '');
+        setCollectionOrderId((current) => outstandingCreditSales.some((sale) => sale.id === current)
+          ? current
+          : outstandingCreditSales[0]?.id || '');
+        const availablePayeeKeys = outstandingCreditSales.map((sale) => sale.member_id
+          ? `member:${sale.member_id}`
+          : `customer:${(sale.customer_name || '').trim().toLocaleLowerCase()}`);
+        const firstPayeeKey = availablePayeeKeys[0] || '';
+        setCollectionPayeeKey((current) => availablePayeeKeys.includes(current) ? current : firstPayeeKey);
         setCancellableSales(salesWithReturnableItems);
         setCancellationOrderId(salesWithReturnableItems[0]?.id || '');
         if ((accountResult.data || []).some((account) => account.account_name === 'Sales')) {
@@ -210,7 +236,7 @@ const SalesForm = ({ onSave, onCancel }) => {
       setLoading(false);
     });
     return () => { active = false; };
-  }, [offlineMode, user?.id]);
+  }, [offlineMode, salesRefresh, user?.id]);
 
   const getMemberName = (member) => [member.first_name, member.middle_name, member.last_name].filter(Boolean).join(' ');
   const creditPayees = useMemo(() => {
@@ -285,6 +311,10 @@ const SalesForm = ({ onSave, onCancel }) => {
         setError('Returned quantities must be whole numbers and cannot exceed the remaining quantity sold.');
         return;
       }
+      const returnedItemValue = Math.round(returnedItems.reduce((total, item) => {
+        const saleItem = sale.returnableItems.find((candidate) => candidate.product_id === item.product_id);
+        return total + Math.round(item.quantity * Number(saleItem?.unitAmount || 0) * 100) / 100;
+      }, 0) * 100) / 100;
       setSaving(true);
       try {
         await onSave({
@@ -293,6 +323,7 @@ const SalesForm = ({ onSave, onCancel }) => {
           p_sales_order_number: sale.order_number,
           p_customer_name: sale.customer_name,
           amount: Number(sale.net_amount),
+          p_returned_item_value: returnedItemValue,
           p_reason: cancellationReason.trim(),
           p_returned_items: returnedItems,
         });

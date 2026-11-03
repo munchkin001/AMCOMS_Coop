@@ -81,6 +81,26 @@ const relation = (value) => Array.isArray(value) ? value[0] : value;
 const isCreditSale = (workflow) => (
   workflow.transaction_type === 'sale' && workflow.payload?.p_sale?.payment_type === 'credit'
 );
+const salesReturnAmount = (workflow) => {
+  const returnedItems = workflow.payload?.p_returned_items || [];
+  const saleItems = workflow.saleRecord?.sales_order_items || [];
+  if (!saleItems.length) return Number(workflow.payload?.p_returned_item_value || 0);
+
+  const amount = returnedItems.reduce((total, returnedItem) => {
+    const matchingItems = saleItems.filter((item) => item.product_id === returnedItem.product_id);
+    const soldQuantity = matchingItems.reduce((sum, item) => sum + Number(item.quantity || 0), 0);
+    const itemValue = matchingItems.reduce((sum, item) => (
+      sum + Number(item.line_total ?? (Number(item.unit_price || 0) * Number(item.quantity || 0)))
+    ), 0);
+    if (!soldQuantity) return total;
+    const returnedValue = Number(returnedItem.quantity || 0) * itemValue / soldQuantity;
+    return total + Math.round(returnedValue * 100) / 100;
+  }, 0);
+  return amount;
+};
+const workflowDisplayAmount = (workflow) => workflow.transaction_type === 'sales_return'
+  ? salesReturnAmount(workflow)
+  : Number(workflow.amount || 0);
 const workflowStatusLabel = (workflow) => (
   workflow.transaction_type === 'loan_disbursement' && workflow.status === 'completed'
     ? 'Cash released'
@@ -399,12 +419,20 @@ const TransactionWorkflow = ({ role }) => {
     .sort((left, right) => new Date(right.uploaded_at) - new Date(left.uploaded_at))[0];
   const selectedReturnItems = selected?.transaction_type === 'sales_return'
     ? (selected.payload?.p_returned_items || []).map((returnedItem) => {
-      const saleItem = selected.saleRecord?.sales_order_items?.find((item) => item.product_id === returnedItem.product_id);
+      const saleItems = selected.saleRecord?.sales_order_items?.filter((item) => item.product_id === returnedItem.product_id) || [];
+      const saleItem = saleItems[0];
+      const soldQuantity = saleItems.reduce((sum, item) => sum + Number(item.quantity || 0), 0);
+      const totalLineValue = saleItems.reduce((sum, item) => (
+        sum + Number(item.line_total ?? (Number(item.unit_price || 0) * Number(item.quantity || 0)))
+      ), 0);
       return {
         productId: returnedItem.product_id,
         description: saleItem?.product?.product_name || saleItem?.item_description || 'Sale item',
         quantity: Number(returnedItem.quantity || 0),
-        soldQuantity: Number(saleItem?.quantity || 0),
+        soldQuantity,
+        value: soldQuantity
+          ? Math.round(Number(returnedItem.quantity || 0) * totalLineValue / soldQuantity * 100) / 100
+          : 0,
       };
     })
     : [];
@@ -449,7 +477,7 @@ const TransactionWorkflow = ({ role }) => {
       if (saleIds.length) {
         const { data: sales, error: salesError } = await supabase
           .from('sales_orders')
-          .select('id, order_number, customer_name, member_id, order_date, due_date, net_amount, amount_paid, payment_status, sales_order_items(product_id, item_description, quantity, product:products(product_name))')
+          .select('id, order_number, customer_name, member_id, order_date, due_date, net_amount, amount_paid, payment_status, sales_order_items(product_id, item_description, quantity, unit_price, line_total, product:products(product_name))')
           .in('id', saleIds);
         if (salesError) {
           console.error('Unable to load related sale details:', salesError);
@@ -520,7 +548,7 @@ const TransactionWorkflow = ({ role }) => {
   const rejectedToday = todayRows.filter((row) => row.status === 'rejected').length;
   const pendingAmount = rows
     .filter((row) => ['pending_approval', 'returned_for_correction'].includes(row.status))
-    .reduce((total, row) => total + Number(row.amount || 0), 0);
+    .reduce((total, row) => total + workflowDisplayAmount(row), 0);
 
   const runRpc = async (functionName, params, successMessage) => {
     setBusy(true);
@@ -842,7 +870,7 @@ const TransactionWorkflow = ({ role }) => {
                         <p>{row.counterparty_name || row.saleRecord?.customer_name || requester}</p>
                         {row.member_id && <p className="mt-1 text-xs text-slate-500">Member-linked</p>}
                       </td>
-                      <td className="whitespace-nowrap px-4 py-4 text-sm font-semibold text-slate-900">{money(row.amount)}</td>
+                      <td className="whitespace-nowrap px-4 py-4 text-sm font-semibold text-slate-900">{money(workflowDisplayAmount(row))}</td>
                       <td className="whitespace-nowrap px-4 py-4 text-sm text-slate-600">{dateTime(row.created_at)}</td>
                       <td className="px-4 py-4">
                         <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${workflowStatusStyle(row)}`}>
@@ -885,7 +913,7 @@ const TransactionWorkflow = ({ role }) => {
               <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
                 {(isCompletedCashIn(selected)
                   ? [
-                    ['Requested amount', money(selected.amount)],
+                    [selected.transaction_type === 'sales_return' ? 'Returned-item value' : 'Requested amount', money(workflowDisplayAmount(selected))],
                     ['Direction', selected.direction.replace('_', ' ')],
                     ['Payment method', selected.payment_method || 'Not specified'],
                     ['Status', 'Cash received'],
@@ -893,7 +921,7 @@ const TransactionWorkflow = ({ role }) => {
                     ['Cash received', dateTime(selected.processed_at)],
                   ]
                   : [
-                    [selected.transaction_type === 'sales_return' ? 'Sale amount to reverse' : 'Approved / requested amount', money(selected.amount)],
+                    [selected.transaction_type === 'sales_return' ? 'Returned-item value' : 'Approved / requested amount', money(workflowDisplayAmount(selected))],
                     [selected.transaction_type === 'sales_return' ? 'Accounting effect' : 'Direction', selected.transaction_type === 'sales_return' ? 'Reverse credit sale' : selected.direction.replace('_', ' ')],
                     ['Payment method', selected.transaction_type === 'sales_return' ? 'Not applicable' : selected.payment_method || 'Not specified'],
                     ['Workflow status', workflowStatusLabel(selected)],
@@ -941,12 +969,12 @@ const TransactionWorkflow = ({ role }) => {
                         <dd className="mt-1 text-sm font-semibold text-slate-900">{dateLabel(selected.saleRecord?.order_date)}</dd>
                       </div>
                       <div className="rounded-lg bg-slate-50 p-3">
-                        <dt className="text-xs font-medium text-slate-500">Original sale total</dt>
-                        <dd className="mt-1 text-sm font-semibold text-slate-900">{money(selected.saleRecord?.net_amount ?? selected.amount)}</dd>
-                      </div>
-                      <div className="rounded-lg bg-slate-50 p-3">
                         <dt className="text-xs font-medium text-slate-500">Payment status</dt>
                         <dd className="mt-1 text-sm font-semibold capitalize text-slate-900">{selected.saleRecord?.payment_status || 'Unpaid credit sale'}</dd>
+                      </div>
+                      <div className="rounded-lg bg-orange-50 p-3">
+                        <dt className="text-xs font-medium text-orange-800">Returned-item value</dt>
+                        <dd className="mt-1 text-sm font-bold text-orange-950">{money(workflowDisplayAmount(selected))}</dd>
                       </div>
                     </dl>
                     <section className="mt-4">
@@ -956,7 +984,7 @@ const TransactionWorkflow = ({ role }) => {
                           {selectedReturnItems.map((item) => (
                             <li key={item.productId} className="flex flex-wrap items-center justify-between gap-2 px-3 py-2.5 text-sm">
                               <span className="font-medium text-slate-800">{item.description}</span>
-                              <span className="text-slate-600">Returning <strong className="text-slate-900">{item.quantity}</strong>{item.soldQuantity ? ` of ${item.soldQuantity} sold` : ''}</span>
+                              <span className="text-right text-slate-600">Returning <strong className="text-slate-900">{item.quantity}</strong>{item.soldQuantity ? ` of ${item.soldQuantity} sold` : ''}<span className="block font-semibold text-slate-900">{money(item.value)}</span></span>
                             </li>
                           ))}
                         </ul>
