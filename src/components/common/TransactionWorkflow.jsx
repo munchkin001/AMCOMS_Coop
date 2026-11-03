@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   AlertTriangle,
   Check,
+  ChevronDown,
   Clock3,
   Download,
   FileText,
@@ -106,6 +107,189 @@ const isPhysicalCashHandoff = (workflow) => {
   return (workflow.payload?.p_allocations || []).some((allocation) => (
     allocation.account === 'Cash on Hand' && allocation.side === 'debit'
   ));
+};
+
+const profileDate = (value) => value
+  ? new Date(`${String(value).slice(0, 10)}T00:00:00`).toLocaleDateString('en-PH', { dateStyle: 'medium' })
+  : '—';
+
+const profileValue = (value) => {
+  if (value === null || value === undefined || value === '') return '—';
+  if (typeof value === 'boolean') return value ? 'Yes' : 'No';
+  return String(value);
+};
+
+const MemberProfileDisclosure = ({ memberId }) => {
+  const [expanded, setExpanded] = useState(false);
+  const [member, setMember] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    if (!expanded || !memberId) return undefined;
+    let active = true;
+
+    supabase.from('members')
+      .select(`
+        member_number, first_name, middle_name, last_name, email, phone, address,
+        date_of_birth, gender, marital_status, membership_type, membership_status,
+        date_joined, shares_owned, total_capital, emergency_contact_name,
+        emergency_contact_phone, emergency_contact_relationship,
+        additional_emergency_contacts, family_members, rsbsa, tin, ncfrs,
+        pca_id, occupation, barangay, municipality, province
+      `)
+      .eq('id', memberId)
+      .maybeSingle()
+      .then(({ data, error: queryError }) => {
+        if (!active) return;
+        if (queryError) throw queryError;
+        if (!data) throw new Error('The linked member profile could not be found.');
+        setMember(data);
+      })
+      .catch((loadError) => {
+        if (!active) return;
+        console.error('Unable to load transaction member profile:', loadError);
+        setMember(null);
+        setError(loadError.message || 'Member profile could not be loaded.');
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+
+    return () => { active = false; };
+  }, [expanded, memberId]);
+
+  if (!memberId) return null;
+
+  const contacts = Array.isArray(member?.additional_emergency_contacts)
+    ? member.additional_emergency_contacts
+    : [];
+  const familyMembers = Array.isArray(member?.family_members) ? member.family_members : [];
+  const address = member
+    ? [member.address, member.barangay, member.municipality, member.province].filter(Boolean).join(', ')
+    : '';
+  const sections = member ? [
+    {
+      title: 'Personal and contact information',
+      fields: [
+        ['Member number', member.member_number],
+        ['Full name', [member.first_name, member.middle_name, member.last_name].filter(Boolean).join(' ')],
+        ['Date of birth', profileDate(member.date_of_birth)],
+        ['Gender', member.gender],
+        ['Marital status', member.marital_status],
+        ['Email', member.email],
+        ['Phone', member.phone],
+        ['Address', address]
+      ]
+    },
+    {
+      title: 'Membership details',
+      fields: [
+        ['Membership status', member.membership_status],
+        ['Membership type', member.membership_type],
+        ['Date joined', profileDate(member.date_joined)],
+        ['Shares owned', member.shares_owned],
+        ['Share capital', money(member.total_capital)]
+      ]
+    },
+    {
+      title: 'Additional information',
+      fields: [
+        ['Occupation', member.occupation],
+        ['RSBSA', member.rsbsa],
+        ['TIN', member.tin],
+        ['NCFRS', member.ncfrs],
+        ['PCA ID', member.pca_id]
+      ]
+    },
+    {
+      title: 'Emergency contact',
+      fields: [
+        ['Name', member.emergency_contact_name],
+        ['Phone', member.emergency_contact_phone],
+        ['Relationship', member.emergency_contact_relationship]
+      ]
+    }
+  ] : [];
+
+  return (
+    <section className="mt-4 overflow-hidden rounded-xl border border-blue-200 bg-white">
+      <button
+        type="button"
+        aria-expanded={expanded}
+        onClick={() => {
+          if (!expanded) {
+            setLoading(true);
+            setError('');
+          }
+          setExpanded(!expanded);
+        }}
+        className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left hover:bg-blue-50/60"
+      >
+        <span>
+          <span className="block font-semibold text-slate-900">Member profile</span>
+          <span className="mt-0.5 block text-xs text-slate-500">
+            {member ? `${[member.first_name, member.middle_name, member.last_name].filter(Boolean).join(' ')} · ${member.member_number || 'No member number'}` : 'Expand to view the linked member’s details'}
+          </span>
+        </span>
+        <ChevronDown size={18} aria-hidden="true" className={`shrink-0 text-slate-500 transition-transform ${expanded ? 'rotate-180' : ''}`} />
+      </button>
+      {expanded && (
+        <div className="border-t border-blue-100 p-4">
+          {loading && <p role="status" className="text-sm text-slate-600">Loading member profile…</p>}
+          {error && <p role="alert" className="text-sm text-red-700">{error}</p>}
+          {member && (
+            <div className="space-y-4">
+              {sections.map((section) => (
+                <section key={section.title}>
+                  <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-500">{section.title}</h3>
+                  <dl className="mt-2 grid gap-x-4 gap-y-3 sm:grid-cols-2 lg:grid-cols-3">
+                    {section.fields.map(([label, value]) => (
+                      <div key={label} className="min-w-0">
+                        <dt className="text-xs text-slate-500">{label}</dt>
+                        <dd className="mt-0.5 break-words text-sm font-medium text-slate-900">
+                          {label === 'Share capital' ? value : profileValue(value)}
+                        </dd>
+                      </div>
+                    ))}
+                  </dl>
+                </section>
+              ))}
+              {contacts.length > 0 && (
+                <section>
+                  <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-500">Additional emergency contacts</h3>
+                  <ul className="mt-2 grid gap-2 sm:grid-cols-2">
+                    {contacts.map((contact, index) => (
+                      <li key={`${contact?.name || 'contact'}-${index}`} className="rounded-lg bg-slate-50 p-3 text-sm">
+                        <p className="font-medium text-slate-900">{profileValue(contact?.name)}</p>
+                        <p className="mt-1 text-slate-600">{profileValue(contact?.phone)} · {profileValue(contact?.relationship)}</p>
+                      </li>
+                    ))}
+                  </ul>
+                </section>
+              )}
+              {familyMembers.length > 0 && (
+                <section>
+                  <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-500">Family members</h3>
+                  <ul className="mt-2 grid gap-2 sm:grid-cols-2">
+                    {familyMembers.map((familyMember, index) => (
+                      <li key={`${familyMember?.name || familyMember?.full_name || 'family'}-${index}`} className="rounded-lg bg-slate-50 p-3 text-sm">
+                        <p className="font-medium text-slate-900">{profileValue(familyMember?.name || familyMember?.full_name)}</p>
+                        <p className="mt-1 text-slate-600">
+                          {[familyMember?.relationship, familyMember?.age ? `Age ${familyMember.age}` : null, familyMember?.occupation]
+                            .filter(Boolean).join(' · ') || '—'}
+                        </p>
+                      </li>
+                    ))}
+                  </ul>
+                </section>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+    </section>
+  );
 };
 
 const WorkflowEvidence = ({ document, onOpen }) => {
@@ -642,6 +826,9 @@ const TransactionWorkflow = ({ role }) => {
                   </div>
                 ))}
               </div>
+              {isManager && selected.member_id && (
+                <MemberProfileDisclosure memberId={selected.member_id} />
+              )}
               <div className="mt-4 rounded-xl border border-slate-200 p-4">
                 <h3 className="font-semibold text-slate-900">Purpose and submitted details</h3>
                 <p className="mt-2 whitespace-pre-wrap text-sm text-slate-700">{selected.description}</p>
