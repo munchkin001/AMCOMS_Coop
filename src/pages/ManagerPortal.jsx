@@ -118,7 +118,7 @@ const ManagerPortal = () => {
       case 'sms':
         return <SMSCenter />;
       case 'profile':
-        return <StaffProfile role="Manager" roleName="Manager" roleColor="blue" />;
+        return <StaffProfile roleName="Manager" />;
       default:
         return <ManagerDashboard />;
     }

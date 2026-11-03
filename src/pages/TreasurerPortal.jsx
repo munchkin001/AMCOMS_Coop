@@ -115,7 +115,7 @@ const TreasurerPortal = () => {
       case 'transaction-history':
         return <TransactionHistory />;
       case 'profile':
-        return <StaffProfile role="Treasurer" roleName="Financial Officer" roleColor="teal" />;
+        return <StaffProfile roleName="Financial Officer" />;
       default:
         return <TreasurerDashboard />;
     }

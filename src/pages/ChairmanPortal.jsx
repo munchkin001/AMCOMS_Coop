@@ -111,7 +111,7 @@ const ChairmanPortal = () => {
       case 'policies':
         return <Policies />;
       case 'profile':
-        return <StaffProfile role="Chairman" roleName="Chairman" roleColor="purple" />;
+        return <StaffProfile roleName="Chairman" />;
       default:
         return <ChairmanDashboard />;
     }

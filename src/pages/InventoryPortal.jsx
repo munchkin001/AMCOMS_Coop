@@ -41,7 +41,7 @@ const InventoryPortal = () => {
       case 'inventory-reports':
         return <InventoryReports />;
       case 'settings':
-        return <StaffProfile role="Inventory Staff" roleName="Inventory Manager" roleColor="orange" />;
+        return <StaffProfile roleName="Inventory Manager" />;
       default:
         return <InventoryDashboard />;
     }

@@ -45,7 +45,7 @@ const splitName = (fullName = '') => {
   };
 };
 
-const ProfileEditor = ({ profileType = 'staff', roleLabel }) => {
+const ProfileEditor = ({ profileType = 'staff', roleLabel, headerColor = 'green' }) => {
   const { user, staff, offlineMode } = useAuth();
   const [profile, setProfile] = useState(emptyProfile);
   const [memberSummary, setMemberSummary] = useState(null);
@@ -383,6 +383,14 @@ const ProfileEditor = ({ profileType = 'staff', roleLabel }) => {
 
   const roleName = roleLabel || staff?.role?.replaceAll('_', ' ') || 'Account';
   const inputType = showPasswords ? 'text' : 'password';
+  const profileHeaderColors = {
+    blue: 'from-blue-800 via-blue-700 to-blue-600',
+    green: 'from-green-800 via-green-700 to-green-600',
+    teal: 'from-teal-800 via-teal-700 to-teal-600',
+    purple: 'from-purple-800 via-purple-700 to-purple-600',
+    orange: 'from-orange-800 via-orange-700 to-orange-600'
+  };
+  const profileHeaderColorClass = profileHeaderColors[headerColor] || profileHeaderColors.green;
 
   if (loading) {
     return <div className="rounded-xl border border-gray-200 bg-white p-8 text-sm text-gray-600">Loading profile...</div>;
@@ -393,13 +401,13 @@ const ProfileEditor = ({ profileType = 'staff', roleLabel }) => {
 
   return (
     <div className="mx-auto max-w-3xl space-y-4 sm:space-y-6">
-      <section className="flex items-center gap-4 rounded-2xl bg-gradient-to-br from-[#0d3b2d] via-[#146344] to-[#2a8057] p-4 text-white shadow-sm sm:p-6">
+      <section className={`flex items-center gap-4 rounded-2xl bg-gradient-to-br ${profileHeaderColorClass} p-4 text-white shadow-sm sm:p-6`}>
         <span aria-hidden="true" className="flex size-14 shrink-0 items-center justify-center rounded-full bg-white/15 text-xl font-semibold ring-2 ring-white/30 sm:size-16 sm:text-2xl">
           {initials}
         </span>
         <div className="min-w-0">
           <h2 className="truncate text-lg font-semibold sm:text-xl">{displayName}</h2>
-          <p className="truncate text-sm capitalize text-green-100/90">{roleName}</p>
+          <p className="truncate text-sm capitalize text-white/85">{roleName}</p>
           {memberSummary && (
             <div className="mt-2 flex flex-wrap gap-2">
               <span className="rounded-full bg-white/15 px-2.5 py-1 text-xs font-medium">#{memberSummary.member_number}</span>
