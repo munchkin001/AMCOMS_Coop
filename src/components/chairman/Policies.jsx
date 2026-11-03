@@ -253,7 +253,10 @@ const Policies = () => {
         </p>
       )}
       <section className="flex flex-col gap-5 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:flex-row sm:items-center sm:justify-between sm:p-6">
-        <div>
+        <div className="min-w-0">
+          <p className="text-xs font-semibold uppercase tracking-[0.14em] text-blue-700">Governance library</p>
+          <h2 className="mt-1 text-xl font-bold tracking-tight text-slate-900">Policies and procedures</h2>
+          <p className="mt-1 max-w-2xl text-sm text-slate-600">Create, publish, and maintain the guidance shared with staff and members.</p>
           <p className="mt-2 inline-flex items-center gap-2 text-xs font-medium text-emerald-700">
             <span className="h-2 w-2 rounded-full bg-emerald-500" />
             Live updates enabled
@@ -271,7 +274,7 @@ const Policies = () => {
             setEditingPolicyId(null);
             setShowCreateModal(true);
           }}
-          className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-emerald-700 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-emerald-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-700 focus-visible:ring-offset-2"
+          className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-blue-800 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-blue-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-700 focus-visible:ring-offset-2"
         >
           <Plus aria-hidden="true" className="h-5 w-5" />
           <span>Create Policy</span>
@@ -295,11 +298,11 @@ const Policies = () => {
           <div className="flex items-center justify-between gap-4">
             <div>
               <p className="text-sm font-medium text-slate-600">Published</p>
-              <p className="mt-2 text-3xl font-semibold tracking-tight text-emerald-700">
+              <p className="mt-2 text-3xl font-semibold tracking-tight text-blue-800">
                 {policies.filter(p => p.status === 'published').length}
               </p>
             </div>
-            <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-emerald-50 text-emerald-700">
+            <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-blue-50 text-blue-700">
               <CheckCircle2 aria-hidden="true" className="h-5 w-5" />
             </div>
           </div>
@@ -387,7 +390,7 @@ const Policies = () => {
                 {policy.status === 'draft' && (
                   <button
                     onClick={() => handlePublishPolicy(policy.id)}
-                    className="min-h-10 rounded-lg bg-emerald-700 px-3.5 py-2 text-sm font-semibold text-white transition-colors hover:bg-emerald-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-700 focus-visible:ring-offset-2"
+                    className="min-h-10 rounded-lg bg-blue-800 px-3.5 py-2 text-sm font-semibold text-white transition-colors hover:bg-blue-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-700 focus-visible:ring-offset-2"
                   >
                     Publish
                   </button>
@@ -425,7 +428,7 @@ const Policies = () => {
                   value={policyForm.name}
                   onChange={(e) => setPolicyForm({ ...policyForm, name: e.target.value })}
                   placeholder="e.g., Loan Collection Policy"
-                  className="w-full rounded-lg border border-slate-300 px-3.5 py-2.5 text-sm text-slate-900 placeholder:text-slate-400 focus:border-emerald-600 focus:outline-none focus:ring-2 focus:ring-emerald-600/20"
+                  className="w-full rounded-lg border border-slate-300 px-3.5 py-2.5 text-sm text-slate-900 placeholder:text-slate-400 focus:border-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-600/20"
                 />
               </div>
 
@@ -437,7 +440,7 @@ const Policies = () => {
                   value={policyForm.target_audience}
                   onChange={(e) => setPolicyForm({ ...policyForm, target_audience: e.target.value })}
                   disabled={!audienceColumnAvailable}
-                  className="w-full rounded-lg border border-slate-300 bg-white px-3.5 py-2.5 text-sm text-slate-900 focus:border-emerald-600 focus:outline-none focus:ring-2 focus:ring-emerald-600/20"
+                  className="w-full rounded-lg border border-slate-300 bg-white px-3.5 py-2.5 text-sm text-slate-900 focus:border-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-600/20"
                 >
                   <option value="staff">Staff only</option>
                   <option value="member">Members</option>
@@ -457,7 +460,7 @@ const Policies = () => {
                 <select
                   value={policyForm.category}
                   onChange={(e) => setPolicyForm({ ...policyForm, category: e.target.value })}
-                  className="w-full rounded-lg border border-slate-300 bg-white px-3.5 py-2.5 text-sm text-slate-900 focus:border-emerald-600 focus:outline-none focus:ring-2 focus:ring-emerald-600/20"
+                  className="w-full rounded-lg border border-slate-300 bg-white px-3.5 py-2.5 text-sm text-slate-900 focus:border-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-600/20"
                 >
                   <option value="">Select Category</option>
                   <option value="Loans">Loans</option>
@@ -488,7 +491,7 @@ const Policies = () => {
                 <select
                   value={policyForm.status}
                   onChange={(e) => setPolicyForm({ ...policyForm, status: e.target.value })}
-                  className="w-full rounded-lg border border-slate-300 bg-white px-3.5 py-2.5 text-sm text-slate-900 focus:border-emerald-600 focus:outline-none focus:ring-2 focus:ring-emerald-600/20"
+                  className="w-full rounded-lg border border-slate-300 bg-white px-3.5 py-2.5 text-sm text-slate-900 focus:border-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-600/20"
                 >
                   <option value="draft">Draft (Save for later)</option>
                   <option value="published">Published</option>
@@ -500,7 +503,7 @@ const Policies = () => {
               <button
                 onClick={handleCreatePolicy}
                 disabled={saving}
-                className="min-h-10 rounded-lg bg-emerald-700 px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-emerald-800 disabled:cursor-not-allowed disabled:opacity-60"
+                className="min-h-10 rounded-lg bg-blue-800 px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-blue-900 disabled:cursor-not-allowed disabled:opacity-60"
               >
               {saving ? 'Saving...' : policyForm.status === 'published' ? 'Save & Publish' : editingPolicyId ? 'Save Changes' : 'Save as Draft'}
               </button>
@@ -586,7 +589,7 @@ const Policies = () => {
               </button>
               <button
                 onClick={() => setShowViewModal(false)}
-                className="min-h-10 rounded-lg bg-emerald-700 px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-emerald-800"
+                className="min-h-10 rounded-lg bg-blue-800 px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-blue-900"
               >
                 Close
               </button>

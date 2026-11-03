@@ -685,16 +685,16 @@ const AuditLog = () => {
 
   return (
     <div className="space-y-6">
-      <header className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-slate-950 via-[#173b35] to-emerald-800 p-6 text-white shadow-lg sm:p-8">
+      <header className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-slate-950 via-[#173b64] to-blue-800 p-6 text-white shadow-lg sm:p-8">
         <div aria-hidden="true" className="pointer-events-none absolute -right-10 -top-20 size-64 rounded-full border-[30px] border-white/5" />
         <div className="relative flex flex-wrap items-start justify-between gap-5">
           <div>
-            <span className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-emerald-100">
+            <span className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-blue-100">
               <ShieldCheck aria-hidden="true" className="size-4" />
               Staff activity oversight
             </span>
             <h1 className="mt-4 text-2xl font-bold tracking-tight sm:text-3xl">Audit log</h1>
-            <p className="mt-2 max-w-2xl text-sm leading-6 text-emerald-100">
+            <p className="mt-2 max-w-2xl text-sm leading-6 text-blue-100">
               Review staff actions, account access, and record changes. Select an entry to inspect its audit details.
             </p>
           </div>
@@ -712,16 +712,16 @@ const AuditLog = () => {
               type="button"
               onClick={handleExport}
               disabled={!filteredLogs.length}
-              className="inline-flex min-h-10 items-center gap-2 rounded-lg bg-white px-4 py-2 text-sm font-semibold text-emerald-950 transition-colors hover:bg-emerald-50 disabled:cursor-not-allowed disabled:opacity-60"
+              className="inline-flex min-h-10 items-center gap-2 rounded-lg bg-white px-4 py-2 text-sm font-semibold text-blue-950 transition-colors hover:bg-blue-50 disabled:cursor-not-allowed disabled:opacity-60"
             >
               <Download aria-hidden="true" className="size-4" />
               Export CSV
             </button>
           </div>
         </div>
-        <div className="relative mt-6 flex flex-wrap items-center gap-3 border-t border-white/15 pt-4 text-sm text-emerald-100">
+        <div className="relative mt-6 flex flex-wrap items-center gap-3 border-t border-white/15 pt-4 text-sm text-blue-100">
           <span className="inline-flex items-center gap-2"><CalendarDays aria-hidden="true" className="size-4" />{displayedMonth}</span>
-          <span className="hidden text-emerald-300 sm:inline">•</span>
+          <span className="hidden text-blue-300 sm:inline">•</span>
           <span className="inline-flex items-center gap-2"><Clock3 aria-hidden="true" className="size-4" />Latest: {latestActivity}</span>
         </div>
       </header>
@@ -763,7 +763,7 @@ const AuditLog = () => {
                   setPage(1);
                 }}
                 disabled={!archiveMonths.length}
-                className="mt-1 block min-h-11 w-full rounded-lg border border-slate-300 bg-white px-3 text-sm text-slate-900 focus:border-emerald-700 focus:outline-none focus:ring-2 focus:ring-emerald-700/20 disabled:bg-slate-100 sm:min-w-48"
+                className="mt-1 block min-h-11 w-full rounded-lg border border-slate-300 bg-white px-3 text-sm text-slate-900 focus:border-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-700/20 disabled:bg-slate-100 sm:min-w-48"
               >
                 {!archiveMonths.length && <option value="">No archived months</option>}
                 {archiveMonths.map((month) => <option key={month} value={month}>{formatMonth(month)}</option>)}
@@ -777,7 +777,7 @@ const AuditLog = () => {
             type="button"
             onClick={() => { setLoading(true); setView('current'); setPage(1); }}
             aria-pressed={view === 'current'}
-            className={`min-h-10 rounded-lg px-4 text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-700 focus-visible:ring-offset-2 ${view === 'current' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-600 hover:text-slate-900'}`}
+            className={`min-h-10 rounded-lg px-4 text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-700 focus-visible:ring-offset-2 ${view === 'current' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-600 hover:text-slate-900'}`}
           >
             Current month
           </button>
@@ -794,7 +794,7 @@ const AuditLog = () => {
               setPage(1);
             }}
             aria-pressed={view === 'archive'}
-            className={`inline-flex min-h-10 items-center gap-2 rounded-lg px-4 text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-700 focus-visible:ring-offset-2 ${view === 'archive' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-600 hover:text-slate-900'}`}
+            className={`inline-flex min-h-10 items-center gap-2 rounded-lg px-4 text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-700 focus-visible:ring-offset-2 ${view === 'archive' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-600 hover:text-slate-900'}`}
           >
             <Archive aria-hidden="true" className="size-4" />
             Archived
@@ -811,7 +811,7 @@ const AuditLog = () => {
                 value={filters.user}
                 onChange={(event) => handleFilterChange('user', event.target.value)}
                 placeholder="Search staff"
-                className="min-h-11 w-full rounded-lg border border-slate-300 bg-white pl-9 pr-3 text-sm font-normal text-slate-900 placeholder:text-slate-400 focus:border-emerald-700 focus:outline-none focus:ring-2 focus:ring-emerald-700/20"
+                className="min-h-11 w-full rounded-lg border border-slate-300 bg-white pl-9 pr-3 text-sm font-normal text-slate-900 placeholder:text-slate-400 focus:border-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-700/20"
               />
             </span>
           </label>
@@ -820,7 +820,7 @@ const AuditLog = () => {
             <select
               value={filters.module}
               onChange={(event) => handleFilterChange('module', event.target.value)}
-              className="mt-1 min-h-11 w-full rounded-lg border border-slate-300 bg-white px-3 text-sm font-normal text-slate-900 focus:border-emerald-700 focus:outline-none focus:ring-2 focus:ring-emerald-700/20"
+              className="mt-1 min-h-11 w-full rounded-lg border border-slate-300 bg-white px-3 text-sm font-normal text-slate-900 focus:border-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-700/20"
             >
               <option value="">All areas</option>
               <option value="Loans">Loans</option>
@@ -841,7 +841,7 @@ const AuditLog = () => {
               type="date"
               value={filters.dateFrom}
               onChange={(event) => handleFilterChange('dateFrom', event.target.value)}
-              className="mt-1 min-h-11 w-full rounded-lg border border-slate-300 bg-white px-3 text-sm font-normal text-slate-900 focus:border-emerald-700 focus:outline-none focus:ring-2 focus:ring-emerald-700/20"
+              className="mt-1 min-h-11 w-full rounded-lg border border-slate-300 bg-white px-3 text-sm font-normal text-slate-900 focus:border-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-700/20"
             />
           </label>
           <label className="text-sm font-medium text-slate-700">
@@ -850,7 +850,7 @@ const AuditLog = () => {
               type="date"
               value={filters.dateTo}
               onChange={(event) => handleFilterChange('dateTo', event.target.value)}
-              className="mt-1 min-h-11 w-full rounded-lg border border-slate-300 bg-white px-3 text-sm font-normal text-slate-900 focus:border-emerald-700 focus:outline-none focus:ring-2 focus:ring-emerald-700/20"
+              className="mt-1 min-h-11 w-full rounded-lg border border-slate-300 bg-white px-3 text-sm font-normal text-slate-900 focus:border-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-700/20"
             />
           </label>
           <label className="text-sm font-medium text-slate-700">
@@ -862,7 +862,7 @@ const AuditLog = () => {
                 value={filters.action}
                 onChange={(event) => handleFilterChange('action', event.target.value)}
                 placeholder="Search activity"
-                className="min-h-11 w-full rounded-lg border border-slate-300 bg-white pl-9 pr-3 text-sm font-normal text-slate-900 placeholder:text-slate-400 focus:border-emerald-700 focus:outline-none focus:ring-2 focus:ring-emerald-700/20"
+                className="min-h-11 w-full rounded-lg border border-slate-300 bg-white pl-9 pr-3 text-sm font-normal text-slate-900 placeholder:text-slate-400 focus:border-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-700/20"
               />
             </span>
           </label>
@@ -874,7 +874,7 @@ const AuditLog = () => {
           <button
             type="button"
             onClick={handleReset}
-            className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-700"
+            className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-700"
           >
             <RefreshCw aria-hidden="true" className="size-4" />
             Clear filters
@@ -892,7 +892,7 @@ const AuditLog = () => {
             <p className="mt-1 text-xs text-slate-500">Newest first · times shown in Manila time · select a row for details</p>
           </div>
           {!loading && filteredLogs.length > 0 && (
-            <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-800">
+            <span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-800">
               {filteredLogs.length} {filteredLogs.length === 1 ? 'event' : 'events'}
             </span>
           )}
@@ -942,7 +942,7 @@ const AuditLog = () => {
                           openLogDetails(log);
                         }
                       }}
-                      className="cursor-pointer bg-white transition-colors hover:bg-emerald-50/60 focus:bg-emerald-50/60 focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-emerald-700"
+                      className="cursor-pointer bg-white transition-colors hover:bg-blue-50/60 focus:bg-blue-50/60 focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-blue-700"
                     >
                       <td className="whitespace-nowrap px-5 py-4 text-slate-600">{formatDateTime(log.created_at)}</td>
                       <td className="px-5 py-4">
@@ -964,7 +964,7 @@ const AuditLog = () => {
                       <td className="max-w-48 truncate px-5 py-4 font-mono text-xs text-slate-500" title={log.record_id || log.table_name || ''}>
                         {log.record_id || log.table_name || '—'}
                       </td>
-                      <td className="px-5 py-4 text-right text-xs font-semibold text-emerald-800">View</td>
+                      <td className="px-5 py-4 text-right text-xs font-semibold text-blue-800">View</td>
                     </tr>
                   );
                 })}
@@ -1012,13 +1012,13 @@ const AuditLog = () => {
             className="flex max-h-[92vh] w-full max-w-3xl flex-col overflow-hidden rounded-2xl border border-white/60 bg-slate-50 shadow-2xl"
             onClick={(event) => event.stopPropagation()}
           >
-            <header className="relative shrink-0 overflow-hidden bg-gradient-to-br from-slate-950 via-[#173b35] to-emerald-800 px-5 py-5 text-white sm:px-7">
+            <header className="relative shrink-0 overflow-hidden bg-gradient-to-br from-slate-950 via-[#173b64] to-blue-800 px-5 py-5 text-white sm:px-7">
               <div aria-hidden="true" className="pointer-events-none absolute -right-10 -top-20 size-48 rounded-full border-[24px] border-white/5" />
               <div className="relative flex items-start justify-between gap-4">
                 <div className="min-w-0">
-                  <p className="text-xs font-semibold uppercase tracking-[0.14em] text-emerald-100">Audit entry · {getModule(selectedLog.table_name, getRecordData(selectedLog, 'new_data').request_type || getRecordData(selectedLog, 'old_data').request_type)}</p>
+                  <p className="text-xs font-semibold uppercase tracking-[0.14em] text-blue-100">Audit entry · {getModule(selectedLog.table_name, getRecordData(selectedLog, 'new_data').request_type || getRecordData(selectedLog, 'old_data').request_type)}</p>
                   <h2 id="audit-entry-title" className="mt-1 break-words text-xl font-bold">{getActivityLabel(selectedLog)}</h2>
-                  <p className="mt-1 text-sm text-emerald-100">{getActorName(selectedLog)}{selectedLog.staff?.role ? ` · ${selectedLog.staff.role}` : ''}</p>
+                  <p className="mt-1 text-sm text-blue-100">{getActorName(selectedLog)}{selectedLog.staff?.role ? ` · ${selectedLog.staff.role}` : ''}</p>
                 </div>
                 <button
                   type="button"

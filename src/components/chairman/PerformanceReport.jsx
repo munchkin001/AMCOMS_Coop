@@ -319,8 +319,16 @@ const PerformanceReport = () => {
 
   return (
     <div className="space-y-6">
-      <div className="no-print rounded-lg border border-gray-200 bg-white p-6 shadow">
-        <h3 className="mb-4 text-lg font-semibold text-gray-900">Report Configuration</h3>
+      <header className="no-print relative overflow-hidden rounded-2xl bg-gradient-to-br from-[#102d5c] via-[#17427f] to-[#2762a7] p-6 text-white shadow-lg sm:p-8">
+        <div aria-hidden="true" className="absolute -right-10 -top-20 size-64 rounded-full border-[28px] border-white/10" />
+        <div className="relative">
+          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-blue-200">Executive insights</p>
+          <h2 className="mt-2 text-2xl font-bold tracking-tight sm:text-3xl">Performance report</h2>
+          <p className="mt-2 max-w-2xl text-sm leading-6 text-blue-100">Review financial health, member growth, lending, and operational outcomes for a selected period.</p>
+        </div>
+      </header>
+      <div className="no-print rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+        <h3 className="mb-4 text-lg font-semibold text-slate-900">Configure report</h3>
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
           <label className="block text-sm font-medium text-gray-700">
             Report Period
@@ -331,7 +339,7 @@ const PerformanceReport = () => {
                 setError('');
                 setReportPeriod(event.target.value);
               }}
-              className="mt-2 w-full rounded-lg border border-gray-300 px-3 py-2"
+              className="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2 focus:border-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-600/20"
             >
               {periods.map((period) => (
                 <option key={period.value} value={period.value}>{period.label}</option>
@@ -343,7 +351,7 @@ const PerformanceReport = () => {
             <select
               value={reportType}
               onChange={(event) => setReportType(event.target.value)}
-              className="mt-2 w-full rounded-lg border border-gray-300 px-3 py-2"
+              className="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2 focus:border-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-600/20"
             >
               <option value="comprehensive">Comprehensive Report</option>
               <option value="financial">Financial Summary Only</option>
@@ -356,14 +364,14 @@ const PerformanceReport = () => {
             onClick={() => {
               handleGenerateReport();
             }}
-            className="rounded-lg bg-[#173a69] px-6 py-2 font-medium text-white transition-colors hover:bg-[#102d54] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#173a69] focus-visible:ring-offset-2"
+            className="rounded-lg bg-blue-800 px-6 py-2 font-medium text-white transition-colors hover:bg-blue-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-700 focus-visible:ring-offset-2"
           >
             Generate Report
           </button>
           {showPreview && (
             <button
               onClick={() => window.print()}
-              className="rounded-lg bg-blue-600 px-6 py-2 font-medium text-white hover:bg-blue-700"
+              className="rounded-lg bg-blue-100 px-6 py-2 font-medium text-blue-900 hover:bg-blue-200"
             >
               Print
             </button>
@@ -372,7 +380,7 @@ const PerformanceReport = () => {
       </div>
 
       {showPreview && (
-        <div className="amcoms-print-document rounded-lg border border-gray-200 bg-white p-8 shadow" id="report-content">
+        <div className="amcoms-print-document rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-8" id="report-content">
           <header className="amcoms-document-header mb-8 border-b-4 pb-6 text-center">
             <p className="text-xs font-semibold uppercase tracking-[0.16em]">Agay-ayan Multi-Purpose Cooperative</p>
             <h1 className="mt-3 text-2xl font-bold text-gray-900">Performance Report</h1>

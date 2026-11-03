@@ -38,6 +38,7 @@ const StaffLayout = ({ children }) => {
   const navigationItems = getNavigationForRole(staff?.role);
   const roleColors = getRoleColors(staff?.role);
   const roleDisplayName = getRoleDisplayName(staff?.role);
+  const isChairman = staff?.role === 'chairman';
   const isTreasurer = staff?.role === 'treasurer';
   const isBookkeeper = staff?.role === 'bookkeeper';
 
@@ -68,7 +69,7 @@ const StaffLayout = ({ children }) => {
   };
 
   return (
-    <div className={`amcoms-portal-shell flex h-screen ${isTreasurer ? 'amcoms-treasurer-portal' : ''} ${isBookkeeper ? 'amcoms-bookkeeper-portal' : ''}`}>
+    <div className={`amcoms-portal-shell flex h-screen ${isChairman ? 'amcoms-chairman-portal' : ''} ${isTreasurer ? 'amcoms-treasurer-portal' : ''} ${isBookkeeper ? 'amcoms-bookkeeper-portal' : ''}`}>
       {/* Mobile Overlay */}
       {isMobileMenuOpen && (
         <div 
@@ -81,6 +82,7 @@ const StaffLayout = ({ children }) => {
       <div id="staff-sidebar" className={`
         fixed lg:static inset-y-0 left-0 z-50
         w-64 shrink-0 flex flex-col border-r border-[#e9c46a]/30 bg-gradient-to-b from-blue-950 via-blue-900 to-slate-950 shadow-xl
+        ${isChairman ? 'ch-sidebar' : ''}
         ${isBookkeeper ? 'bk-sidebar' : ''}
         transform transition-[margin,transform] duration-300 ease-in-out
         ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
@@ -90,14 +92,14 @@ const StaffLayout = ({ children }) => {
         <div className="flex items-center justify-between border-b border-[#e9c46a]/25 p-6">
           <div>
             <h1 className="text-2xl font-bold text-white">AMCOMS</h1>
-            <p className={`mt-1 text-sm font-medium ${isBookkeeper ? 'text-purple-200' : 'text-[#e9c46a]'}`}>
+            <p className={`mt-1 text-sm font-medium ${isChairman ? 'text-blue-200' : isBookkeeper ? 'text-purple-200' : 'text-[#e9c46a]'}`}>
               {roleDisplayName}
             </p>
           </div>
           {/* Close button for mobile */}
           <button
             onClick={() => setIsMobileMenuOpen(false)}
-            className="rounded-lg p-2 text-white hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#e9c46a] lg:hidden"
+            className={`rounded-lg p-2 text-white hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 ${isChairman ? 'focus-visible:ring-blue-200' : 'focus-visible:ring-[#e9c46a]'} lg:hidden`}
           >
             <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -119,10 +121,10 @@ const StaffLayout = ({ children }) => {
                     setIsMobileMenuOpen(false);
                   }
                 }}
-                className={`w-full rounded-lg px-4 py-3 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 ${isBookkeeper ? 'focus-visible:ring-purple-300' : 'focus-visible:ring-[#e9c46a]'} ${
+                className={`w-full rounded-lg px-4 py-3 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 ${isChairman ? 'focus-visible:ring-blue-200' : isBookkeeper ? 'focus-visible:ring-purple-300' : 'focus-visible:ring-[#e9c46a]'} ${
                   isActiveRoute(item.path)
-                    ? isBookkeeper ? 'bg-gradient-to-r from-purple-300 to-purple-200 font-semibold text-purple-950 shadow-md' : 'bg-gradient-to-r from-[#e9c46a] to-[#d6ab4a] font-semibold text-blue-950 shadow-md'
-                    : isBookkeeper ? 'text-purple-50/90 hover:bg-white/10 hover:text-purple-100' : 'text-blue-50/90 hover:bg-white/10 hover:text-[#f0d995]'
+                    ? isChairman ? 'bg-gradient-to-r from-blue-200 to-blue-100 font-semibold text-blue-950 shadow-md' : isBookkeeper ? 'bg-gradient-to-r from-purple-300 to-purple-200 font-semibold text-purple-950 shadow-md' : 'bg-gradient-to-r from-[#e9c46a] to-[#d6ab4a] font-semibold text-blue-950 shadow-md'
+                    : isChairman ? 'text-blue-50/90 hover:bg-white/10 hover:text-blue-100' : isBookkeeper ? 'text-purple-50/90 hover:bg-white/10 hover:text-purple-100' : 'text-blue-50/90 hover:bg-white/10 hover:text-[#f0d995]'
                 }`}
               >
                 <div className="flex items-center justify-between">
@@ -153,10 +155,10 @@ const StaffLayout = ({ children }) => {
                         navigate(subItem.path);
                         setIsMobileMenuOpen(false);
                       }}
-                      className={`w-full rounded-lg px-4 py-2 text-left text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 ${isBookkeeper ? 'focus-visible:ring-purple-300' : 'focus-visible:ring-[#e9c46a]'} ${
+                      className={`w-full rounded-lg px-4 py-2 text-left text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 ${isChairman ? 'focus-visible:ring-blue-200' : isBookkeeper ? 'focus-visible:ring-purple-300' : 'focus-visible:ring-[#e9c46a]'} ${
                         isActiveRoute(subItem.path)
-                          ? isBookkeeper ? 'bg-gradient-to-r from-purple-300 to-purple-200 font-semibold text-purple-950 shadow-md' : 'bg-gradient-to-r from-[#e9c46a] to-[#d6ab4a] font-semibold text-blue-950 shadow-md'
-                          : isBookkeeper ? 'text-purple-50/90 hover:bg-white/10 hover:text-purple-100' : 'text-blue-50/90 hover:bg-white/10 hover:text-[#f0d995]'
+                          ? isChairman ? 'bg-gradient-to-r from-blue-200 to-blue-100 font-semibold text-blue-950 shadow-md' : isBookkeeper ? 'bg-gradient-to-r from-purple-300 to-purple-200 font-semibold text-purple-950 shadow-md' : 'bg-gradient-to-r from-[#e9c46a] to-[#d6ab4a] font-semibold text-blue-950 shadow-md'
+                          : isChairman ? 'text-blue-50/90 hover:bg-white/10 hover:text-blue-100' : isBookkeeper ? 'text-purple-50/90 hover:bg-white/10 hover:text-purple-100' : 'text-blue-50/90 hover:bg-white/10 hover:text-[#f0d995]'
                       }`}
                     >
                       {subItem.name}
@@ -201,7 +203,7 @@ const StaffLayout = ({ children }) => {
               <button
                 type="button"
                 onClick={() => setIsDesktopSidebarOpen((open) => !open)}
-                className="hidden shrink-0 items-center justify-center rounded-lg p-2 text-gray-600 transition-colors hover:bg-gray-100 hover:text-gray-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#e9c46a] lg:inline-flex"
+                className={`hidden shrink-0 items-center justify-center rounded-lg p-2 text-gray-600 transition-colors hover:bg-gray-100 hover:text-gray-900 focus-visible:outline-none focus-visible:ring-2 ${isChairman ? 'focus-visible:ring-blue-600' : 'focus-visible:ring-[#e9c46a]'} lg:inline-flex`}
                 aria-label={isDesktopSidebarOpen ? 'Close staff sidebar' : 'Open staff sidebar'}
                 aria-expanded={isDesktopSidebarOpen}
                 aria-controls="staff-sidebar"

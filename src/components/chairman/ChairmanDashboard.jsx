@@ -294,7 +294,24 @@ const ChairmanDashboard = () => {
   };
 
   return (
-    <div className="space-y-6 rounded-2xl bg-slate-50/70 p-3 sm:p-5">
+    <div className="space-y-6 rounded-2xl p-3 sm:p-5">
+      <header className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-[#102d5c] via-[#17427f] to-[#2762a7] p-6 text-white shadow-lg sm:p-8">
+        <div aria-hidden="true" className="absolute -right-10 -top-20 size-64 rounded-full border-[28px] border-white/10" />
+        <div className="relative flex flex-wrap items-end justify-between gap-5">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-blue-200">Executive overview</p>
+            <h2 className="mt-2 text-2xl font-bold tracking-tight sm:text-3xl">Cooperative at a glance</h2>
+            <p className="mt-2 max-w-2xl text-sm leading-6 text-blue-100">Monitor financial performance, member activity, lending, and operations from one place.</p>
+          </div>
+          <button
+            type="button"
+            onClick={() => navigate('/staff/performance')}
+            className="min-h-11 rounded-lg bg-white px-4 py-2 text-sm font-semibold text-blue-900 shadow-sm transition-colors hover:bg-blue-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-blue-800"
+          >
+            View performance report
+          </button>
+        </div>
+      </header>
       {error && <p role="alert" className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{error}</p>}
       <DiscrepancyPanel />
       {/* Financial Overview */}
@@ -303,7 +320,7 @@ const ChairmanDashboard = () => {
         <div className="min-w-0 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm lg:col-span-2">
           <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 px-5 py-4 sm:px-6">
             <div className="flex items-center gap-3">
-              <span className="grid size-10 place-items-center rounded-xl bg-emerald-50 text-emerald-700">
+              <span className="grid size-10 place-items-center rounded-xl bg-blue-50 text-blue-700">
                 <TrendingUp aria-hidden="true" size={20} />
               </span>
               <div>

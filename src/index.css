@@ -101,6 +101,20 @@ input[type="radio"] {
   --amcoms-card-shadow: 0 8px 24px rgb(74 43 112 / 6%);
 }
 
+.amcoms-chairman-portal {
+  --amcoms-primary: #16427f;
+  --amcoms-primary-hover: #103363;
+  --amcoms-focus: #3b82c4;
+  --amcoms-canvas: #f1f5fb;
+  --amcoms-border: #d9e3f0;
+  --amcoms-card-shadow: 0 8px 24px rgb(22 66 127 / 6%);
+}
+
+.amcoms-chairman-portal .ch-sidebar {
+  border-color: rgb(191 219 254 / 22%);
+  background-image: linear-gradient(180deg, #102d5c 0%, #17427f 54%, #0c2146 100%);
+}
+
 .amcoms-bookkeeper-portal .bk-sidebar {
   border-color: rgb(216 180 245 / 22%);
   background-image: linear-gradient(180deg, #28134b 0%, #3b1f66 52%, #1b1230 100%);
@@ -207,6 +221,25 @@ input[type="radio"] {
 
 #root .amcoms-bookkeeper-portal .amcoms-portal-content tbody tr:hover {
   background-color: #faf7fd;
+}
+
+#root .amcoms-chairman-portal .amcoms-portal-content {
+  background:
+    radial-gradient(ellipse at top right, rgb(211 229 251 / 42%), transparent 38rem),
+    var(--amcoms-canvas);
+}
+
+#root .amcoms-chairman-portal .amcoms-portal-content :is(input, select, textarea):focus {
+  border-color: var(--amcoms-focus);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--amcoms-focus) 15%, transparent);
+}
+
+#root .amcoms-chairman-portal .amcoms-portal-content table thead {
+  background-color: #eaf1fa;
+}
+
+#root .amcoms-chairman-portal .amcoms-portal-content tbody tr:hover {
+  background-color: #f5f8fc;
 }
 
 @media (max-width: 640px) {

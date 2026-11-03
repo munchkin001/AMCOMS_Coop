@@ -19,13 +19,16 @@ const GeneralLedger = () => {
   const { staff } = useAuth();
   const [active, setActive] = useState('ledger');
   const canPost = ['bookkeeper', 'treasurer'].includes(staff?.role);
+  const chairmanTheme = staff?.role === 'chairman';
   const visibleTabs = tabs.filter((tab) => !tab.hideFor?.includes(staff?.role));
   const current = visibleTabs.some((tab) => tab.id === active) ? active : 'ledger';
 
   return (
-    <div className="space-y-6">
-      <div className="no-print rounded-xl border border-gray-200 bg-white p-4 shadow-sm sm:p-6">
-        <h2 className="text-xl font-semibold text-gray-900">General Ledger</h2>
+    <div className={`space-y-6 ${chairmanTheme ? 'chairman-ledger-page' : ''}`}>
+      <div className={`no-print border bg-white shadow-sm ${chairmanTheme ? 'rounded-2xl border-slate-200 p-5 sm:p-6' : 'rounded-xl border-gray-200 p-4 sm:p-6'}`}>
+        {chairmanTheme && <p className="text-xs font-semibold uppercase tracking-[0.14em] text-blue-700">Financial oversight</p>}
+        <h2 className={chairmanTheme ? 'mt-1 text-xl font-bold tracking-tight text-gray-900' : 'text-xl font-semibold text-gray-900'}>General Ledger</h2>
+        {chairmanTheme && <p className="mt-1 text-sm text-slate-600">Review posted entries, balances, and cooperative financial statements.</p>}
       </div>
 
       <div className="no-print overflow-x-auto rounded-xl border border-gray-200 bg-white">
@@ -37,7 +40,7 @@ const GeneralLedger = () => {
               role="tab"
               aria-selected={current === tab.id}
               onClick={() => setActive(tab.id)}
-              className={`px-4 py-3 text-sm font-medium whitespace-nowrap transition-colors ${current === tab.id ? 'border-b-2 border-blue-600 bg-blue-50 text-blue-700' : 'text-gray-600 hover:text-gray-900'}`}
+              className={`px-4 py-3 text-sm font-medium whitespace-nowrap transition-colors ${current === tab.id ? chairmanTheme ? 'border-b-2 border-blue-800 bg-blue-50 text-blue-900' : 'border-b-2 border-blue-600 bg-blue-50 text-blue-700' : 'text-gray-600 hover:text-gray-900'}`}
             >
               {tab.label}
             </button>

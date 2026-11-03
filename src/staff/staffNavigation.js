@@ -399,10 +399,10 @@ export const getRoleDisplayName = (role) => {
 export const getRoleColors = (role) => {
   const colors = {
     chairman: {
-      primary: 'blue',
-      gradient: 'from-blue-700 to-blue-800',
-      bg: 'bg-blue-600',
-      text: 'text-blue-600',
+      primary: 'navy',
+      gradient: 'from-blue-900 to-blue-800',
+      bg: 'bg-blue-800',
+      text: 'text-blue-800',
       hover: 'hover:bg-blue-50'
     },
     manager: {
