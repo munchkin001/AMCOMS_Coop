@@ -9,6 +9,12 @@ import { getDataLoadErrorMessage } from '../../lib/errorHandler';
 
 const money = (amount) => `₱${Number(amount || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })}`;
 const statusText = (status) => status.replaceAll('_', ' ');
+const applicationStatusStyle = (status) => ({
+  approved: 'bg-green-100 text-green-900',
+  rejected: 'bg-red-100 text-red-900',
+  under_review: 'bg-amber-100 text-amber-900',
+  pending: 'bg-gray-100 text-gray-800',
+}[status] || 'bg-gray-100 text-gray-800');
 
 const LoanApplicationForm = () => {
   const { user, staff, offlineMode } = useAuth();
@@ -185,7 +191,9 @@ const LoanApplicationForm = () => {
                 <p className="mt-1 text-xs text-gray-600">{application.request_data?.loan_type || 'Loan'} · {new Date(application.created_at).toLocaleDateString('en-PH')}</p>
                 {(application.review_notes || application.approval_notes) && <p className="mt-2 text-sm text-gray-700">{application.approval_notes || application.review_notes}</p>}
               </div>
-              <span className="rounded-full bg-green-100 px-3 py-1 text-xs font-semibold capitalize text-green-900">{statusText(application.status)}</span>
+              <span className={`rounded-full px-3 py-1 text-xs font-semibold capitalize ${applicationStatusStyle(application.status)}`}>
+                {statusText(application.status)}
+              </span>
             </article>
           ))}
         </div>

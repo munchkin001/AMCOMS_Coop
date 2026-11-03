@@ -17,26 +17,43 @@ const MyLoans = () => {
   const [loans, setLoans] = useState([]);
   const [schedule, setSchedule] = useState({});
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
 
   const load = useCallback(async () => {
     if (!staff?.member_id) return;
-    const { data: loanRows } = await supabase
+    setError('');
+    const { data: loanRows, error: loanError } = await supabase
       .from('loans')
       .select('id, loan_number, principal_amount, interest_rate, term_months, total_amount, balance, status, payment_frequency, installments, installment_amount, penalty_rate, penalty_total, maturity_date, notes')
       .eq('member_id', staff.member_id)
-      .in('status', ['active', 'completed'])
+      .in('status', ['approved', 'active', 'completed'])
       .order('created_at', { ascending: false });
+    if (loanError) {
+      console.error('Unable to load member loans:', loanError);
+      setError('Your loan information could not be loaded. Please refresh and try again.');
+      setLoading(false);
+      return;
+    }
     setLoans(loanRows || []);
 
-    if (loanRows?.length) {
-      const { data: rows } = await supabase
+    const repaymentLoans = (loanRows || []).filter((loan) => loan.status !== 'approved');
+    if (repaymentLoans.length) {
+      const { data: rows, error: scheduleError } = await supabase
         .from('loan_schedule')
         .select('id, loan_id, installment_number, due_date, amount_due, amount_paid, penalty_amount, status')
-        .in('loan_id', loanRows.map((loan) => loan.id))
+        .in('loan_id', repaymentLoans.map((loan) => loan.id))
         .order('installment_number');
+      if (scheduleError) {
+        console.error('Unable to load member loan schedules:', scheduleError);
+        setError('Your loan payment schedule could not be loaded. Please refresh and try again.');
+        setLoading(false);
+        return;
+      }
       const grouped = {};
       (rows || []).forEach((row) => { (grouped[row.loan_id] ||= []).push(row); });
       setSchedule(grouped);
+    } else {
+      setSchedule({});
     }
     setLoading(false);
   }, [staff?.member_id]);
@@ -49,8 +66,9 @@ const MyLoans = () => {
   ], [load]);
 
   if (loading) return <p className="py-6 text-center text-sm text-gray-500">Loading...</p>;
+  if (error) return <p role="alert" className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800">{error}</p>;
   if (!loans.length) {
-    return <p className="rounded-lg bg-gray-50 p-4 text-center text-sm text-gray-500">You have no active loans.</p>;
+    return <p className="rounded-lg bg-gray-50 p-4 text-center text-sm text-gray-500">You have no approved or active loans.</p>;
   }
 
   return (
@@ -60,13 +78,23 @@ const MyLoans = () => {
         const next = rows.find((row) => row.status !== 'paid');
         const paidCount = rows.filter((row) => row.status === 'paid').length;
         const progress = rows.length ? Math.round((paidCount / rows.length) * 100) : 0;
+        const awaitingRelease = loan.status === 'approved';
         return (
           <section key={loan.id} className="space-y-4 rounded-xl border border-gray-200 bg-white p-4">
+            {awaitingRelease && (
+              <p role="status" className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-semibold text-emerald-900">
+                Loan approved — awaiting cash release.
+              </p>
+            )}
             <div className="flex items-start justify-between gap-3">
               <div>
                 <p className="text-sm text-gray-500">{loan.loan_number}{loan.status === 'completed' ? ' · Fully paid' : ''}</p>
-                <p className="text-sm text-gray-500">Remaining balance</p>
-                <p className="text-3xl font-bold text-orange-600">{peso(loan.balance)}</p>
+                {!awaitingRelease && (
+                  <>
+                    <p className="text-sm text-gray-500">Remaining balance</p>
+                    <p className="text-3xl font-bold text-orange-600">{peso(loan.balance)}</p>
+                  </>
+                )}
               </div>
               {next && (
                 <div className="rounded-lg bg-orange-50 px-3 py-2 text-right">
@@ -89,12 +117,14 @@ const MyLoans = () => {
               )}
             </dl>
 
-            <div>
-              <div className="mb-1 flex justify-between text-xs text-gray-600">
-                <span>{paidCount} of {rows.length} payments made</span><span>{progress}%</span>
+            {!awaitingRelease && (
+              <div>
+                <div className="mb-1 flex justify-between text-xs text-gray-600">
+                  <span>{paidCount} of {rows.length} payments made</span><span>{progress}%</span>
+                </div>
+                <div className="h-2 overflow-hidden rounded-full bg-gray-200"><div className="h-full rounded-full bg-orange-500" style={{ width: `${progress}%` }} /></div>
               </div>
-              <div className="h-2 overflow-hidden rounded-full bg-gray-200"><div className="h-full rounded-full bg-orange-500" style={{ width: `${progress}%` }} /></div>
-            </div>
+            )}
 
             {rows.length > 0 && (
               <details className="rounded-lg border border-gray-200">

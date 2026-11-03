@@ -817,6 +817,10 @@ const TransactionWorkflow = ({ role }) => {
       setError('Review the recipient and approved amount, and attach proof before releasing.');
       return;
     }
+    if (!navigator.onLine) {
+      setError('You are offline. Reconnect before confirming this release.');
+      return;
+    }
     releaseInFlight.current = true;
     setBusy(true);
     setError('');
