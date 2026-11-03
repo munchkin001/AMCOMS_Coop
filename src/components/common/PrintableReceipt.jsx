@@ -70,7 +70,7 @@ const PrintableReceipt = ({
 
               {isVoided && <p className="mt-5 rounded border border-red-700 px-3 py-2 text-center text-sm font-bold uppercase tracking-[0.2em] text-red-800">Void</p>}
 
-              <dl className="document-parties mt-6 grid grid-cols-2 gap-x-8 gap-y-4 text-sm">
+              <dl className="document-parties mt-6 grid grid-cols-2 gap-x-8 gap-y-4 text-left text-sm">
                 <div className="min-w-0"><dt className="text-xs font-semibold uppercase tracking-wide text-gray-500">{isInvoice ? 'Bill to' : 'Received from'}</dt><dd className="mt-1 break-words font-medium text-gray-900">{issuedTo || '—'}</dd></div>
                 <div className="min-w-0"><dt className="text-xs font-semibold uppercase tracking-wide text-gray-500">Date</dt><dd className="mt-1 break-words font-medium text-gray-900">{formatDate(date)}</dd></div>
                 {reference && <div className="min-w-0"><dt className="text-xs font-semibold uppercase tracking-wide text-gray-500">Reference</dt><dd className="mt-1 break-words text-gray-900">{reference}</dd></div>}
@@ -79,17 +79,17 @@ const PrintableReceipt = ({
 
               <table className="document-items mt-8 w-full table-fixed text-sm">
                 <colgroup>
-                  <col className="w-[48%]" />
+                  <col className="w-[52%]" />
                   <col className="w-[10%]" />
-                  <col className="w-[20%]" />
-                  <col className="w-[22%]" />
+                  <col className="w-[19%]" />
+                  <col className="w-[19%]" />
                 </colgroup>
-                <thead>
-                  <tr className="border-y-2 border-[#183b34] text-left text-xs uppercase tracking-wide text-gray-600">
+                <thead className="bg-slate-100">
+                  <tr className="border-y border-gray-300 text-left text-xs uppercase tracking-wide text-gray-700">
                     <th className="break-words py-3 pr-3">{isInvoice ? 'Description' : 'Particulars'}</th>
-                    <th className="break-words px-1 py-3 text-right">Qty</th>
-                    <th className="break-words px-1 py-3 text-right">Unit price</th>
-                    <th className="break-words py-3 pl-1 text-right">Amount</th>
+                    <th className="whitespace-nowrap px-1 py-3 text-right">Qty</th>
+                    <th className="whitespace-nowrap px-1 py-3 text-right">Unit price</th>
+                    <th className="whitespace-nowrap py-3 pl-1 text-right">Amount</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -102,8 +102,7 @@ const PrintableReceipt = ({
                 </tbody>
               </table>
 
-              <div className="mt-5 flex justify-end">
-                <div className="w-full max-w-xs border-t-2 border-[#183b34] pt-3">
+              <div className="document-totals mt-5 w-full border-t-2 border-[#183b34] pt-3">
                   <div className="flex justify-between gap-4 text-base font-bold">
                     <span className="min-w-0 break-words">{isInvoice ? 'Invoice total' : 'Total received'}</span><span className="whitespace-nowrap">{formatMoney(amount)}</span>
                   </div>
@@ -117,7 +116,6 @@ const PrintableReceipt = ({
                       </div>
                     </>
                   )}
-                </div>
               </div>
 
               <footer className="document-signatures grid grid-cols-2 gap-10 pt-10 text-center text-xs text-gray-700">

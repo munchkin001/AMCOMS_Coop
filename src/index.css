@@ -284,7 +284,7 @@ input[type="radio"] {
   .amcoms-print-document * {
     min-width: 0 !important;
     overflow: visible !important;
-    overflow-wrap: anywhere;
+    overflow-wrap: normal;
   }
 
   .amcoms-document-header {
@@ -310,9 +310,16 @@ input[type="radio"] {
     word-break: break-word !important;
   }
 
+  .document-cooperative-block p,
+  .document-parties dd,
+  .amcoms-print-document td:first-child {
+    overflow-wrap: anywhere !important;
+  }
+
   .amcoms-print-document .document-parties {
     grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
     column-gap: 8mm !important;
+    text-align: left !important;
   }
 
   .amcoms-print-document table {
@@ -342,9 +349,19 @@ input[type="radio"] {
     vertical-align: top !important;
   }
 
+  .amcoms-print-document th:not(:first-child) {
+    white-space: nowrap !important;
+    overflow-wrap: normal !important;
+    word-break: keep-all !important;
+  }
+
   .amcoms-print-document td.whitespace-nowrap {
     white-space: nowrap !important;
     overflow-wrap: normal !important;
+  }
+
+  .amcoms-print-document .document-totals {
+    width: 100% !important;
   }
 
   .amcoms-print-document .document-signatures {
