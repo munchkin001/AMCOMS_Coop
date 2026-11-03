@@ -461,7 +461,10 @@ const SalesForm = ({ onSave, onCancel }) => {
                       max={item.remaining}
                       step="1"
                       value={returnQuantities[item.product_id] || '0'}
-                      onChange={(event) => setReturnQuantities({ ...returnQuantities, [item.product_id]: event.target.value })}
+                      onChange={(event) => {
+                        const value = event.target.value.replace(/^0+(?=\d)/, '');
+                        setReturnQuantities((current) => ({ ...current, [item.product_id]: value }));
+                      }}
                       disabled={item.remaining === 0}
                       className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2"
                     />
