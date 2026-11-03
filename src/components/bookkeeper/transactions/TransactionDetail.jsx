@@ -6,7 +6,7 @@ import {
   Download, 
   FileText, 
   Calendar,
-  DollarSign,
+  PhilippinePeso,
   Building,
   Receipt,
   CheckCircle,
@@ -233,7 +233,7 @@ const TransactionDetail = ({ transaction, onBack, onEdit, onDelete }) => {
 
           <div>
             <label className="flex items-center gap-2 text-sm font-medium text-gray-500 mb-1">
-              <DollarSign className="w-4 h-4" />
+              <PhilippinePeso className="w-4 h-4" />
               Amount
             </label>
             <p className="text-2xl font-bold text-gray-900">

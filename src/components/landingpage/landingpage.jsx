@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
-import { BadgeDollarSign, Check, ChevronDown, ClipboardList, IdCard, Sprout, Store } from 'lucide-react';
+import { PhilippinePeso, Check, ChevronDown, ClipboardList, IdCard, Sprout, Store } from 'lucide-react';
 import CooperativeMap from './CooperativeMap';
 import RichTextContent from '../common/RichTextContent';
 import './landingpage.css';
@@ -518,7 +518,7 @@ const Services = () => {
       iconBg: 'bg-orange-100'
     },
     {
-      icon: BadgeDollarSign,
+      icon: PhilippinePeso,
       title: 'Member Savings & Lending',
       description: 'Member savings operation with lending and rediscounting services for financial support.',
       bgColor: 'bg-blue-50',
@@ -665,7 +665,7 @@ const Membership = () => {
           {/* Membership Fees */}
           <div className="bg-white bg-opacity-10 backdrop-blur-sm rounded-lg p-6 sm:p-8">
             <div className="bg-green-600 w-14 h-14 sm:w-16 sm:h-16 rounded-lg flex items-center justify-center mb-4 sm:mb-6">
-              <BadgeDollarSign aria-hidden="true" className="h-8 w-8" />
+              <PhilippinePeso aria-hidden="true" className="h-8 w-8" />
             </div>
             <h3 className="text-xl sm:text-2xl font-bold mb-4 sm:mb-6">Membership Fees</h3>
             

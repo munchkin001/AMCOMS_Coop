@@ -1,5 +1,5 @@
 import React, { useCallback, useState, useEffect } from 'react';
-import { ArrowRight, BadgeDollarSign, Building2, CalendarClock, CalendarDays, ChartNoAxesCombined, HandCoins, Landmark, PiggyBank, Sparkles } from 'lucide-react';
+import { ArrowRight, PhilippinePeso, Building2, CalendarClock, CalendarDays, ChartNoAxesCombined, HandCoins, Landmark, PiggyBank, Sparkles } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import { useMultipleRealtimeSubscriptions } from '../../hooks/useRealtimeSubscription';
@@ -448,7 +448,7 @@ const MemberDashboard = ({ onNavigate }) => {
                 <tr>
                   <td colSpan="8" className="px-4 py-10 text-center">
                     <span className="mx-auto grid size-11 place-items-center rounded-full bg-emerald-50 text-emerald-700">
-                      <BadgeDollarSign aria-hidden="true" size={22} />
+                      <PhilippinePeso aria-hidden="true" size={22} />
                     </span>
                     <p className="mt-3 font-semibold text-slate-800">No active loan payments</p>
                     <p className="mt-1 text-sm text-slate-500">When a loan is released, its due dates and payment progress will appear here.</p>
