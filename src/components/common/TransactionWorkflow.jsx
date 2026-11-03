@@ -118,6 +118,11 @@ const workflowStatusLabel = (workflow) => (
       ? 'Cash received'
     : STATUS_LABELS[workflow.status] || workflow.status
 );
+const isLoanAwaitingBookkeeper = (workflow) => (
+  workflow.transaction_type === 'loan_disbursement'
+  && workflow.cash_release_required
+  && workflow.status === 'approved'
+);
 const workflowStatusStyle = (workflow) => (
   isCreditSale(workflow) && ['approved', 'completed'].includes(workflow.status)
     && !['paid', 'cancelled'].includes(workflow.saleRecord?.payment_status)
@@ -164,6 +169,11 @@ const WorkflowEvidence = ({ document, onOpen }) => {
         <a href={signedUrl} target="_blank" rel="noreferrer" className="block overflow-hidden rounded-lg border border-slate-200 bg-slate-100">
           <img src={signedUrl} alt={`Release proof: ${document.file_name}`} className="max-h-72 w-full object-contain" />
         </a>
+      )}
+      {isTreasurer && isLoanAwaitingBookkeeper(selected) && (
+        <p role="status" className="mt-4 rounded-lg border border-teal-200 bg-teal-50 px-3 py-2.5 text-sm text-teal-950">
+          This loan is manager-approved but is not ready for cash release yet. The Bookkeeper must open <strong>Approved Transactions</strong> in the Bookkeeper portal and select <strong>Process</strong>. It will then appear here as Awaiting Release.
+        </p>
       )}
       {!signedUrl && previewError && <p className="text-xs text-amber-800">Preview unavailable: {previewError}</p>}
       {(!isImage || !signedUrl) && (
@@ -530,7 +540,9 @@ const TransactionWorkflow = ({ role }) => {
   const filteredRows = useMemo(() => {
     const term = search.trim().toLocaleLowerCase();
     return rows.filter((row) => {
-      if (statusFilter !== 'all' && row.status !== statusFilter) return false;
+      const awaitingBookkeeperRelease = isTreasurer && isLoanAwaitingBookkeeper(row);
+      if (statusFilter !== 'all' && row.status !== statusFilter
+        && !(statusFilter === 'awaiting_release' && awaitingBookkeeperRelease)) return false;
       if (typeFilter !== 'all' && row.transaction_type !== typeFilter) return false;
       if (!term) return true;
       const requester = relation(row.requester)?.full_name || '';
@@ -545,7 +557,7 @@ const TransactionWorkflow = ({ role }) => {
         row.id,
       ].some((value) => String(value || '').toLocaleLowerCase().includes(term));
     });
-  }, [rows, search, statusFilter, typeFilter]);
+  }, [isTreasurer, rows, search, statusFilter, typeFilter]);
 
   const todayRows = rows.filter((row) => row.created_at?.slice(0, 10) === new Date().toISOString().slice(0, 10));
   const pendingCount = rows.filter((row) => ['pending_approval', 'returned_for_correction'].includes(row.status)).length;
@@ -748,20 +760,20 @@ const TransactionWorkflow = ({ role }) => {
     <div className="space-y-6">
       <header className={`rounded-2xl px-6 py-6 shadow-sm sm:px-8 ${
         isTreasurer
-          ? 'bg-gradient-to-br from-[#142b57] via-[#1c3d76] to-[#244b86] text-white'
+          ? 'bg-gradient-to-br from-[#064e50] via-[#087f83] to-[#18a6a0] text-white'
           : isBookkeeper
             ? 'bg-gradient-to-br from-[#28134b] via-[#4b2678] to-[#7544a5] text-white'
             : isManager
               ? 'bg-gradient-to-br from-orange-200 via-orange-300 to-orange-400 text-orange-950'
               : 'bg-slate-950 text-white'
       }`}>
-        <p className={`text-xs font-semibold uppercase tracking-[0.18em] ${isBookkeeper ? 'text-purple-200' : isManager ? 'text-orange-900' : 'text-amber-300'}`}>AMCOMS · Transaction Control</p>
+        <p className={`text-xs font-semibold uppercase tracking-[0.18em] ${isBookkeeper ? 'text-purple-200' : isManager ? 'text-orange-900' : isTreasurer ? 'text-amber-300' : 'text-slate-300'}`}>AMCOMS · Transaction Control</p>
         <div className="mt-2 flex flex-wrap items-end justify-between gap-4">
           <div>
             <h1 className="text-2xl font-bold sm:text-3xl">
               {isManager ? 'Transactions Management' : isBookkeeper ? 'Accounting Processing' : 'Cash Release & Verification'}
             </h1>
-            <p className={`mt-2 max-w-3xl text-sm ${isManager ? 'text-orange-950/75' : 'text-slate-300'}`}>
+            <p className={`mt-2 max-w-3xl text-sm ${isManager ? 'text-orange-950/75' : isTreasurer ? 'text-teal-50/90' : isBookkeeper ? 'text-purple-100/90' : 'text-slate-300'}`}>
               {isManager
                 ? 'Review submitted transactions and record an auditable decision before accounting begins.'
                 : isBookkeeper
@@ -769,13 +781,13 @@ const TransactionWorkflow = ({ role }) => {
                   : 'Verify the approved payee and amount, attach proof, and confirm the actual release.'}
             </p>
           </div>
-          <button type="button" onClick={load} className={`inline-flex items-center gap-2 rounded-lg border px-4 py-2 text-sm font-semibold ${isManager ? 'border-orange-900/20 bg-white/50 text-orange-950 hover:bg-white/75' : 'border-slate-600 hover:bg-slate-800'}`}>
+          <button type="button" onClick={load} className={`inline-flex items-center gap-2 rounded-lg border px-4 py-2 text-sm font-semibold ${isManager ? 'border-orange-900/20 bg-white/50 text-orange-950 hover:bg-white/75' : isTreasurer ? 'border-white/25 bg-white/10 text-white hover:bg-white/20' : 'border-slate-600 text-white hover:bg-slate-800'}`}>
             <RefreshCw size={16} aria-hidden="true" /> Refresh
           </button>
         </div>
         <div className="mt-6 flex flex-wrap gap-2 text-xs font-medium">
           {['Submitted', 'Manager Approved', 'Bookkeeper Processed', ...(isTreasurer ? ['Treasurer Released'] : []), 'Completed'].map((step) => (
-            <span key={step} className={`rounded-full border px-3 py-1.5 ${isManager ? 'border-orange-900/15 bg-white/45 text-orange-950' : 'border-slate-700 bg-slate-900 text-slate-200'}`}>{step}</span>
+            <span key={step} className={`rounded-full border px-3 py-1.5 ${isManager ? 'border-orange-900/15 bg-white/45 text-orange-950' : isTreasurer ? 'border-white/20 bg-white/10 text-white' : isBookkeeper ? 'border-purple-200/20 bg-black/10 text-purple-100' : 'border-slate-700 bg-slate-900 text-slate-200'}`}>{step}</span>
           ))}
         </div>
       </header>
@@ -811,14 +823,14 @@ const TransactionWorkflow = ({ role }) => {
                 onChange={(event) => setSearch(event.target.value)}
                 placeholder="Reference, requester, or payee"
                 aria-label="Search transactions by reference, requester, or payee"
-                className="min-h-11 w-full min-w-0 rounded-lg border border-slate-300 py-2.5 pl-9 pr-3 text-sm text-slate-900 placeholder:text-slate-400 focus:border-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-100"
+                className={`min-h-11 w-full min-w-0 rounded-lg border border-slate-300 py-2.5 pl-9 pr-3 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 ${isTreasurer ? 'focus:border-teal-600 focus:ring-teal-100' : isManager ? 'focus:border-orange-600 focus:ring-orange-100' : isBookkeeper ? 'focus:border-purple-600 focus:ring-purple-100' : 'focus:border-blue-700 focus:ring-blue-100'}`}
               />
             </span>
           </label>
           <label className="min-w-0 text-sm text-slate-600">
             Status
             <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} className="mt-1 min-h-11 w-full min-w-0 rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-900">
-              {visibleStatuses.map((status) => <option key={status} value={status}>{status === 'all' ? 'All statuses' : status === 'completed' ? 'Completed / Payable / Cash released' : STATUS_LABELS[status]}</option>)}
+              {visibleStatuses.map((status) => <option key={status} value={status}>{status === 'all' ? 'All statuses' : status === 'completed' ? 'Completed / Payable / Cash released' : isTreasurer && status === 'awaiting_release' ? 'Awaiting Release / Bookkeeper Processing' : STATUS_LABELS[status]}</option>)}
             </select>
           </label>
           <label className="min-w-0 text-sm text-slate-600">
@@ -860,12 +872,13 @@ const TransactionWorkflow = ({ role }) => {
                 {filteredRows.map((row) => {
                   const requester = relation(row.requester)?.full_name || 'Staff';
                   const requiresProcessing = isBookkeeper && row.status === 'approved' && !isCreditSale(row);
+                  const awaitingBookkeeperRelease = isTreasurer && isLoanAwaitingBookkeeper(row);
                   const actionable = (isManager && ['pending_approval', 'returned_for_correction'].includes(row.status))
                     || (isBookkeeper && row.status === 'returned_for_correction')
                     || requiresProcessing
                     || (isTreasurer && ['awaiting_release', 'on_hold', 'release_issue'].includes(row.status));
                   return (
-                    <tr key={row.id} className="cursor-pointer hover:bg-blue-50/60" onClick={() => openWorkflowDetails(row)}>
+                    <tr key={row.id} className={`cursor-pointer ${isTreasurer ? 'hover:bg-teal-50/70' : isManager ? 'hover:bg-orange-50/70' : isBookkeeper ? 'hover:bg-purple-50/70' : 'hover:bg-blue-50/60'}`} onClick={() => openWorkflowDetails(row)}>
                       <td className="px-4 py-4">
                         <p className="font-semibold text-slate-900">{TYPE_LABELS[row.transaction_type] || row.transaction_type}</p>
                         <p className="mt-1 max-w-xs truncate text-xs text-slate-500">
@@ -886,13 +899,13 @@ const TransactionWorkflow = ({ role }) => {
                       <td className="whitespace-nowrap px-4 py-4 text-sm font-semibold text-slate-900">{money(workflowDisplayAmount(row))}</td>
                       <td className="whitespace-nowrap px-4 py-4 text-sm text-slate-600">{dateTime(row.created_at)}</td>
                       <td className="px-4 py-4">
-                        <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${workflowStatusStyle(row)}`}>
-                            {workflowStatusLabel(row)}
+                        <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${awaitingBookkeeperRelease ? 'bg-teal-100 text-teal-900' : workflowStatusStyle(row)}`}>
+                            {awaitingBookkeeperRelease ? 'Awaiting Bookkeeper Processing' : workflowStatusLabel(row)}
                         </span>
                       </td>
                       <td className="px-4 py-4">
-                        <button type="button" onClick={(event) => { event.stopPropagation(); openWorkflowDetails(row); }} className={`rounded-lg px-3 py-2 text-xs font-semibold ${actionable ? 'bg-slate-900 text-white hover:bg-slate-700' : 'border border-slate-300 text-slate-700 hover:bg-slate-50'}`}>
-                          {actionable ? isManager ? 'Review' : isBookkeeper ? row.status === 'returned_for_correction' ? 'Edit & resubmit' : 'Process' : 'Verify release' : 'View details'}
+                        <button type="button" onClick={(event) => { event.stopPropagation(); openWorkflowDetails(row); }} className={`rounded-lg px-3 py-2 text-xs font-semibold ${actionable ? isTreasurer ? 'bg-teal-700 text-white hover:bg-teal-800' : isManager ? 'bg-orange-700 text-white hover:bg-orange-800' : isBookkeeper ? 'bg-purple-800 text-white hover:bg-purple-900' : 'bg-slate-900 text-white hover:bg-slate-700' : 'border border-slate-300 text-slate-700 hover:bg-slate-50'}`}>
+                          {actionable ? isManager ? 'Review' : isBookkeeper ? row.status === 'returned_for_correction' ? 'Edit & resubmit' : 'Process' : 'Verify release' : awaitingBookkeeperRelease ? 'View status' : 'View details'}
                         </button>
                       </td>
                     </tr>
@@ -907,9 +920,9 @@ const TransactionWorkflow = ({ role }) => {
       {selected && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-3 backdrop-blur-sm sm:p-6" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget && !busy) setSelected(null); }}>
           <section role="dialog" aria-modal="true" aria-labelledby="workflow-detail-title" className="flex max-h-[94vh] w-full max-w-4xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl">
-            <header className={`flex items-start justify-between gap-4 px-5 py-5 sm:px-7 ${isManager ? 'bg-gradient-to-br from-orange-200 via-orange-300 to-orange-400 text-orange-950' : isBookkeeper ? 'bg-gradient-to-br from-[#28134b] via-[#4b2678] to-[#7544a5] text-white' : isTreasurer ? 'bg-gradient-to-br from-[#142b57] via-[#1c3d76] to-[#244b86] text-white' : 'bg-slate-950 text-white'}`}>
+            <header className={`flex items-start justify-between gap-4 px-5 py-5 sm:px-7 ${isManager ? 'bg-gradient-to-br from-orange-200 via-orange-300 to-orange-400 text-orange-950' : isBookkeeper ? 'bg-gradient-to-br from-[#28134b] via-[#4b2678] to-[#7544a5] text-white' : isTreasurer ? 'bg-gradient-to-br from-[#064e50] via-[#087f83] to-[#18a6a0] text-white' : 'bg-slate-950 text-white'}`}>
               <div>
-                <p className={`text-xs font-semibold uppercase tracking-wider ${isManager ? 'text-orange-900' : isBookkeeper ? 'text-purple-200' : 'text-amber-300'}`}>{TYPE_LABELS[selected.transaction_type] || selected.transaction_type}</p>
+                <p className={`text-xs font-semibold uppercase tracking-wider ${isManager ? 'text-orange-900' : isBookkeeper ? 'text-purple-200' : isTreasurer ? 'text-amber-200' : 'text-amber-300'}`}>{TYPE_LABELS[selected.transaction_type] || selected.transaction_type}</p>
                 <h2 id="workflow-detail-title" className="mt-1 text-xl font-bold sm:text-2xl">
                   {selected.counterparty_name
                     || selected.saleRecord?.customer_name
@@ -917,9 +930,9 @@ const TransactionWorkflow = ({ role }) => {
                       ? `Credit sale ${selected.saleRecord.order_number}`
                       : selected.description)}
                 </h2>
-                <p className={`mt-1 text-sm ${isManager ? 'text-orange-950/75' : 'text-slate-300'}`}>{selected.source_module} · submitted {dateTime(selected.created_at)}</p>
+                <p className={`mt-1 text-sm ${isManager ? 'text-orange-950/75' : isTreasurer ? 'text-teal-50/90' : isBookkeeper ? 'text-purple-100/90' : 'text-slate-300'}`}>{selected.source_module} · submitted {dateTime(selected.created_at)}</p>
               </div>
-              <button type="button" onClick={() => setSelected(null)} disabled={busy} aria-label="Close transaction details" className={`rounded-lg p-2 ${isManager ? 'text-orange-900 hover:bg-white/40 hover:text-orange-950' : 'text-slate-300 hover:bg-slate-800 hover:text-white'}`}>×</button>
+              <button type="button" onClick={() => setSelected(null)} disabled={busy} aria-label="Close transaction details" className={`rounded-lg p-2 ${isManager ? 'text-orange-900 hover:bg-white/40 hover:text-orange-950' : isTreasurer ? 'text-teal-50 hover:bg-white/15 hover:text-white' : isBookkeeper ? 'text-purple-100 hover:bg-white/15 hover:text-white' : 'text-slate-300 hover:bg-slate-800 hover:text-white'}`}>×</button>
             </header>
             <div className="overflow-y-auto p-5 sm:p-7">
               {error && <p role="alert" className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{error}</p>}
@@ -937,7 +950,7 @@ const TransactionWorkflow = ({ role }) => {
                     [selected.transaction_type === 'sales_return' ? 'Returned-item value' : 'Approved / requested amount', money(workflowDisplayAmount(selected))],
                     [selected.transaction_type === 'sales_return' ? 'Accounting effect' : 'Direction', selected.transaction_type === 'sales_return' ? 'Reverse credit sale' : selected.direction.replace('_', ' ')],
                     ['Payment method', selected.transaction_type === 'sales_return' ? 'Not applicable' : selected.payment_method || 'Not specified'],
-                    ['Workflow status', workflowStatusLabel(selected)],
+                    ['Workflow status', isTreasurer && isLoanAwaitingBookkeeper(selected) ? 'Awaiting Bookkeeper Processing' : workflowStatusLabel(selected)],
                     ['Approved by', isCreditSale(selected) ? 'Not required' : relation(selected.approver)?.full_name || 'Not yet approved'],
                     ['Manager decision', isCreditSale(selected) ? 'Not required' : dateTime(selected.manager_decision_at)],
                     ['Bookkeeper processing', selected.processed_at ? dateTime(selected.processed_at) : selected.accounting_status.replace('_', ' ')],
@@ -1022,7 +1035,7 @@ const TransactionWorkflow = ({ role }) => {
                   const loan = selected.approved_payload || selected.payload || {};
                   const application = loan.request_data || {};
                   return (
-                    <section className="mt-4 rounded-lg border border-blue-100 bg-blue-50/60 p-4">
+                    <section className={`mt-4 rounded-lg border p-4 ${isTreasurer ? 'border-teal-100 bg-teal-50/60' : 'border-blue-100 bg-blue-50/60'}`}>
                       <h3 className="font-semibold text-slate-900">Approved loan details</h3>
                       <dl className="mt-3 grid gap-3 sm:grid-cols-2">
                         {[
@@ -1102,7 +1115,7 @@ const TransactionWorkflow = ({ role }) => {
                         <li key={document.id} className="rounded-lg bg-slate-50 p-3">
                           <div className="flex items-center justify-between gap-2">
                             <span className="flex min-w-0 items-center gap-2 text-sm text-slate-700"><FileText size={16} className="shrink-0 text-slate-500" /><span className="truncate">{document.file_name}</span></span>
-                            <button type="button" onClick={() => createDocumentLink(document)} className="rounded p-1 text-blue-800 hover:bg-blue-50" aria-label={`Open ${document.file_name}`}><Download size={16} /></button>
+                            <button type="button" onClick={() => createDocumentLink(document)} className={`rounded p-1 ${isTreasurer ? 'text-teal-800 hover:bg-teal-50' : 'text-blue-800 hover:bg-blue-50'}`} aria-label={`Open ${document.file_name}`}><Download size={16} /></button>
                           </div>
                           <WorkflowEvidence document={document} onOpen={createDocumentLink} />
                         </li>
@@ -1133,7 +1146,7 @@ const TransactionWorkflow = ({ role }) => {
                         .map((event, index, events) => (
                         <li key={event.id} className="relative flex gap-3 pb-5 text-sm last:pb-0">
                           {index < events.length - 1 && <span aria-hidden="true" className="absolute bottom-0 left-[5px] top-3 w-px bg-slate-200" />}
-                          <span aria-hidden="true" className="relative mt-1.5 size-[11px] shrink-0 rounded-full border-2 border-blue-500 bg-white" />
+                          <span aria-hidden="true" className={`relative mt-1.5 size-[11px] shrink-0 rounded-full border-2 ${isTreasurer ? 'border-teal-600' : isManager ? 'border-orange-500' : isBookkeeper ? 'border-purple-500' : 'border-blue-500'} bg-white`} />
                           <span className="min-w-0 flex-1">
                             <span className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
                               <strong className="font-semibold capitalize text-slate-800">

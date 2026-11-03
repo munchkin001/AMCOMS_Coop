@@ -548,6 +548,7 @@ export const LegacyLoanRequests = () => {
       if (termResult.error) throw termResult.error;
       const loans = loanResult.data || [];
       let releasedLoanIds = new Set();
+      const releaseWorkflowStatusByLoanId = new Map();
       if (loans.length) {
         const loanIds = loans.map((loan) => loan.id);
         const [disbursementResult, workflowResult, paymentResult] = await Promise.all([
@@ -556,12 +557,11 @@ export const LegacyLoanRequests = () => {
             .in('loan_id', loanIds)
             .eq('status', 'recorded'),
           supabase.from('transaction_workflows')
-            .select('source_record_id')
+            .select('source_record_id, status, cash_release_status')
             .eq('transaction_type', 'loan_disbursement')
             .eq('source_module', 'loan_application')
             .in('source_record_id', loanIds)
-            .eq('status', 'completed')
-            .eq('cash_release_status', 'released'),
+            .is('superseded_by', null),
           supabase.from('loan_payments')
             .select('loan_id')
             .in('loan_id', loanIds)
@@ -570,11 +570,17 @@ export const LegacyLoanRequests = () => {
         if (disbursementResult.error) throw disbursementResult.error;
         if (workflowResult.error) throw workflowResult.error;
         if (paymentResult.error) throw paymentResult.error;
+        for (const workflow of workflowResult.data || []) {
+          if (workflow.source_record_id) {
+            releaseWorkflowStatusByLoanId.set(workflow.source_record_id, workflow.status);
+          }
+        }
         const recordedLoanIds = new Set(
           (disbursementResult.data || []).map((row) => row.loan_id).filter(Boolean)
         );
         releasedLoanIds = new Set(
           (workflowResult.data || [])
+            .filter((workflow) => workflow.status === 'completed' && workflow.cash_release_status === 'released')
             .map((row) => row.source_record_id)
             .filter((loanId) => loanId && recordedLoanIds.has(loanId))
         );
@@ -585,7 +591,8 @@ export const LegacyLoanRequests = () => {
       setRequests(requestResult.data || []);
       setApprovedLoans(loans.map((loan) => ({
         ...loan,
-        cashReleased: releasedLoanIds.has(loan.id)
+        cashReleased: releasedLoanIds.has(loan.id),
+        cashReleaseWorkflowStatus: releaseWorkflowStatusByLoanId.get(loan.id)
       })));
       setTerms(termResult.data || []);
     } catch (loadError) {
@@ -1115,7 +1122,17 @@ export const LegacyLoanRequests = () => {
                     <td className="whitespace-nowrap px-5 py-4 text-sm text-gray-700">{formatMoney(loan.principal_amount)}</td>
                     <td className="whitespace-nowrap px-5 py-4 text-sm text-gray-700">{formatMoney(loan.installment_amount ?? loan.monthly_payment)} · {loan.payment_frequency}</td>
                     <td className="whitespace-nowrap px-5 py-4 text-sm text-gray-700">{formatMoney(loan.balance)}</td>
-                    <td className="whitespace-nowrap px-5 py-4 text-sm text-gray-700">{loan.cashReleased ? 'Cash released' : 'Awaiting for release'}</td>
+                    <td className="whitespace-nowrap px-5 py-4 text-sm text-gray-700">{loan.cashReleased
+                      ? 'Cash released'
+                      : loan.cashReleaseWorkflowStatus === 'approved'
+                        ? 'Awaiting Bookkeeper processing'
+                        : loan.cashReleaseWorkflowStatus === 'awaiting_release'
+                          ? 'Awaiting Treasurer release'
+                          : loan.cashReleaseWorkflowStatus === 'on_hold'
+                            ? 'Release on hold'
+                            : loan.cashReleaseWorkflowStatus === 'release_issue'
+                              ? 'Release issue reported'
+                              : 'Awaiting release'}</td>
                   </tr>
                 ))}
               </tbody>
@@ -1136,7 +1153,17 @@ export const LegacyLoanRequests = () => {
             {(() => {
               const application = requestData(selectedLoan.request);
               const member = memberOf(selectedLoan);
-              const loanStatus = selectedLoan.cashReleased ? 'Cash released' : 'Awaiting for release';
+              const loanStatus = selectedLoan.cashReleased
+                ? 'Cash released'
+                : selectedLoan.cashReleaseWorkflowStatus === 'approved'
+                  ? 'Awaiting Bookkeeper processing'
+                  : selectedLoan.cashReleaseWorkflowStatus === 'awaiting_release'
+                    ? 'Awaiting Treasurer release'
+                    : selectedLoan.cashReleaseWorkflowStatus === 'on_hold'
+                      ? 'Release on hold'
+                      : selectedLoan.cashReleaseWorkflowStatus === 'release_issue'
+                        ? 'Release issue reported'
+                        : 'Awaiting release';
               const detailRows = [
                 ['Loan type', application.loan_type || 'Not specified'],
                 ['Repayment term', `${selectedLoan.term_months} months`],
