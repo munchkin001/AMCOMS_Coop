@@ -175,8 +175,8 @@ const CashReceiptForm = ({ onSave, onCancel, transaction = null, title = 'Cash R
 
   return (
     <div className="mx-auto max-w-5xl space-y-5">
-      <header className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-slate-200 bg-white px-5 py-5 shadow-sm sm:px-7">
-        <div className="flex items-center gap-4">
+      <header className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-slate-200 bg-white px-5 py-5 shadow-sm sm:px-7 md:flex-nowrap">
+        <div className="flex min-w-0 flex-1 items-center gap-4">
           <span className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-emerald-50 text-emerald-700">
             <ArrowDownLeft size={22} strokeWidth={2.2} aria-hidden="true" />
           </span>
@@ -189,7 +189,7 @@ const CashReceiptForm = ({ onSave, onCancel, transaction = null, title = 'Cash R
         <button
           type="button"
           onClick={onCancel}
-          className="inline-flex items-center gap-2 rounded-lg border border-slate-200 px-3.5 py-2 text-sm font-semibold text-slate-700 transition hover:border-slate-300 hover:bg-slate-50"
+          className="inline-flex shrink-0 items-center gap-2 rounded-lg border border-slate-200 px-3.5 py-2 text-sm font-semibold text-slate-700 transition hover:border-slate-300 hover:bg-slate-50"
         >
           <ArrowLeft size={16} aria-hidden="true" />
           Back to transaction types
