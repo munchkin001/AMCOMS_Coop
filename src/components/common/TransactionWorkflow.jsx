@@ -1203,19 +1203,20 @@ const TransactionWorkflow = ({ role }) => {
                     <input type="checkbox" checked={reviewedRelease} onChange={(event) => setReviewedRelease(event.target.checked)} className="mt-1" />
                     I verified the recipient and approved amount of <strong>{money(selected.amount)}</strong>.
                   </label>
-                  <label className="block text-sm font-medium text-slate-700">Release note or issue reason
-                    <span className="ml-1 font-normal text-slate-500">(required for hold or issue; optional for release)</span>
+                  <label className="block text-sm font-medium text-slate-700">Release note
+                    <span className="ml-1 font-normal text-slate-500">(optional for release; required for hold or issue)</span>
                     <input
                       value={remarks}
                       onChange={(event) => {
                         setRemarks(event.target.value);
                         if (error) setError('');
                       }}
+                      placeholder="Only enter a note if needed"
                       aria-describedby="release-note-help"
                       className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2"
                     />
                     <span id="release-note-help" className="mt-1 block text-xs font-normal text-slate-500">
-                      Explain why the release is on hold or what discrepancy you found.
+                      A note is not needed to release. Add a reason when placing the transaction on hold or reporting an issue.
                     </span>
                   </label>
                   <div className="flex flex-wrap justify-end gap-2">
@@ -1223,6 +1224,12 @@ const TransactionWorkflow = ({ role }) => {
                     <button type="button" disabled={busy} onClick={() => { if (!remarks.trim()) { setError('Enter the discrepancy before reporting this issue.'); return; } runRpc('report_transaction_workflow_release_issue', { p_workflow_id: selected.id, p_reason: remarks.trim() }, 'Release issue recorded for review.'); }} className="inline-flex items-center gap-2 rounded-lg border border-red-300 bg-white px-4 py-2 text-sm font-semibold text-red-800 disabled:opacity-50"><AlertTriangle size={16} /> Report issue</button>
                     <button type="button" disabled={busy || !reviewedRelease || (!releaseFile && !registeredReleaseProof)} onClick={confirmRelease} className="rounded-lg bg-emerald-800 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-900 disabled:opacity-50">{busy ? 'Releasing…' : 'Release'}</button>
                   </div>
+                  {!busy && !reviewedRelease && (
+                    <p className="text-right text-xs text-slate-600">Confirm that you verified the recipient and approved amount to enable release.</p>
+                  )}
+                  {!busy && reviewedRelease && !releaseFile && !registeredReleaseProof && (
+                    <p className="text-right text-xs text-slate-600">Attach the required photo or proof of release to enable the Release button. A release note is optional.</p>
+                  )}
                 </section>
               )}
 
