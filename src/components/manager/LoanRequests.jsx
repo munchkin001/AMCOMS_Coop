@@ -897,7 +897,15 @@ export const LegacyLoanRequests = () => {
               </label>
               <label className="text-sm font-medium text-gray-700">
                 Co-maker / guarantor contact
-                <input maxLength={80} value={guarantorContact} onChange={(event) => setGuarantorContact(event.target.value)} className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2" />
+                <input
+                  type="tel"
+                  inputMode="numeric"
+                  pattern="[0-9]*"
+                  maxLength={15}
+                  value={guarantorContact}
+                  onChange={(event) => setGuarantorContact(event.target.value.replace(/\D/g, '').slice(0, 15))}
+                  className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2"
+                />
               </label>
               <p className="text-xs text-gray-500 sm:col-span-2">These details are subject to cooperative policy and Manager verification.</p>
             </fieldset>
