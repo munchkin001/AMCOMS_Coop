@@ -4,6 +4,7 @@ import { useAuth } from '../../../contexts/AuthContext';
 import offlineDb from '../../../lib/Offline/OfflineDb';
 import { getDataLoadErrorMessage } from '../../../lib/errorHandler';
 import { ArrowDownLeft, ArrowLeft, ArrowUpRight } from 'lucide-react';
+import MemberBalanceSummary from './MemberBalanceSummary';
 
 const entryTypes = [
   { value: 'savings_deposit', label: 'Savings deposit', receipt: true, account: 'regular' },
@@ -97,6 +98,11 @@ const getLoanScheduleSummary = (loan) => {
   };
 };
 
+const getDefaultAccount = (accounts, accountType) => (
+  accounts.find((account) => account.account_type === accountType && Number(account.balance) > 0)
+  || accounts.find((account) => account.account_type === accountType)
+);
+
 const MemberFinancialEntryForm = ({
   onSave,
   onCancel,
@@ -149,7 +155,11 @@ const MemberFinancialEntryForm = ({
     [accounts, selectedEntry]
   );
   const selectedLoan = loans.find((loan) => loan.id === loanId);
+  const selectedAccount = matchingAccounts.find((account) => account.id === accountId);
   const selectedLoanSummary = getLoanScheduleSummary(selectedLoan);
+  const exceedsSelectedAccountBalance = entryType.includes('withdrawal')
+    && selectedAccount
+    && Number(amount) > Number(selectedAccount.balance || 0);
   const maturityDate = depositTerm === 'custom'
     ? customMaturityDate
     : addMonthsToDate(date, Number(depositTerm));
@@ -318,8 +328,14 @@ const MemberFinancialEntryForm = ({
           }
           setUnpaidMonths(months);
           setSelectedMonths([]);
-          setAccountId('');
-          setLoanId(cachedLoans?.[0]?.id || '');
+          const defaultAccount = entryType.includes('withdrawal')
+            ? getDefaultAccount(cachedAccounts, selectedEntry?.account)
+            : null;
+          const defaultLoan = entryType === 'loan_payment' ? cachedLoans?.[0] : null;
+          setAccountId(defaultAccount?.id || '');
+          setLoanId(defaultLoan?.id || cachedLoans?.[0]?.id || '');
+          if (defaultAccount) setAmount(String(defaultAccount.balance || ''));
+          else if (defaultLoan) setAmount(String(getLoanScheduleSummary(defaultLoan)?.remainingDue || defaultLoan.balance || ''));
           setError('Using saved account and loan details. Balances may be stale; the server will revalidate this entry before posting.');
           return;
         }
@@ -398,8 +414,14 @@ const MemberFinancialEntryForm = ({
         setLoans(loansWithSchedule);
         setUnpaidMonths(months);
         setSelectedMonths([]);
-        setAccountId('');
-        setLoanId(loanResult.data?.[0]?.id || '');
+        const defaultAccount = entryType.includes('withdrawal')
+          ? getDefaultAccount(accountResult.data || [], selectedEntry?.account)
+          : null;
+        const defaultLoan = entryType === 'loan_payment' ? loansWithSchedule[0] : null;
+        setAccountId(defaultAccount?.id || '');
+        setLoanId(defaultLoan?.id || loansWithSchedule[0]?.id || '');
+        if (defaultAccount) setAmount(String(defaultAccount.balance || ''));
+        else if (defaultLoan) setAmount(String(getLoanScheduleSummary(defaultLoan)?.remainingDue || defaultLoan.balance || ''));
       } catch (loadError) {
         if (active) setError(getDataLoadErrorMessage(loadError, 'member financial records'));
       } finally {
@@ -408,7 +430,7 @@ const MemberFinancialEntryForm = ({
     };
     loadMemberRecords();
     return () => { active = false; };
-  }, [memberId, members, offlineMode, user?.id]);
+  }, [entryType, memberId, members, offlineMode, selectedEntry?.account, user?.id]);
 
   const handleMonthToggle = (month) => {
     setSelectedMonths((current) => {
@@ -586,6 +608,7 @@ const MemberFinancialEntryForm = ({
                 setSelectedMonths([]);
                 setLoanId('');
                 setAccountId('');
+                setAmount('');
               }}
               required
               className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2"
@@ -612,11 +635,22 @@ const MemberFinancialEntryForm = ({
                 onChange={(event) => {
                   const nextType = entryTypes.find((type) => type.value === event.target.value);
                   setEntryType(event.target.value);
-                  setAmount(event.target.value === 'capital_contribution' ? String(capitalAmount || '') : '');
+                  const defaultAccount = event.target.value.includes('withdrawal')
+                    ? getDefaultAccount(accounts, nextType?.account)
+                    : null;
+                  const defaultLoan = event.target.value === 'loan_payment' ? selectedLoan || loans[0] : null;
+                  setAmount(event.target.value === 'capital_contribution'
+                    ? String(capitalAmount || '')
+                    : defaultAccount
+                      ? String(defaultAccount.balance || '')
+                      : defaultLoan
+                        ? String(getLoanScheduleSummary(defaultLoan)?.remainingDue || defaultLoan.balance || '')
+                        : '');
                   setParticulars(event.target.value === 'loan_payment'
                     ? loanPaymentParticulars[0]
                     : nextType?.label || '');
-                  setAccountId('');
+                  setAccountId(defaultAccount?.id || '');
+                  setLoanId(defaultLoan?.id || '');
                 }}
                 className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2"
               >
@@ -631,7 +665,23 @@ const MemberFinancialEntryForm = ({
             {entryType !== 'capital_contribution' && !selectedEntry?.dividend && (
             <label className="text-sm font-medium text-gray-700">
               Amount (₱) *
-              <input type="number" min="0.01" step="0.01" value={amount} onChange={(event) => setAmount(event.target.value)} required className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2" />
+              <input
+                type="number"
+                min="0.01"
+                max={entryType.includes('withdrawal') && selectedAccount ? selectedAccount.balance : undefined}
+                step="0.01"
+                value={amount}
+                onChange={(event) => setAmount(event.target.value)}
+                required
+                aria-describedby={entryType.includes('withdrawal') ? 'withdrawal-amount-help' : undefined}
+                className={`mt-1 w-full rounded-lg border px-3 py-2 ${exceedsSelectedAccountBalance ? 'border-red-400' : 'border-gray-300'}`}
+              />
+              {entryType.includes('withdrawal') && selectedAccount && (
+                <span id="withdrawal-amount-help" className={`mt-1 block text-xs font-normal ${exceedsSelectedAccountBalance ? 'text-red-700' : 'text-gray-500'}`}>
+                  Current account balance: {formatCurrency(selectedAccount.balance)}
+                  {exceedsSelectedAccountBalance ? ' · Withdrawal exceeds the available balance.' : ' · Amount was prefilled with the available balance; edit it to the requested amount.'}
+                </span>
+              )}
             </label>
           )}
           {!selectedEntry?.dividend && <label className="text-sm font-medium text-gray-700">
@@ -651,6 +701,13 @@ const MemberFinancialEntryForm = ({
           </label>}
         </div>
         </section>
+
+        <MemberBalanceSummary
+          memberId={memberId}
+          accounts={accounts}
+          loans={loans}
+          isLoading={loadingMemberData}
+        />
 
         {selectedEntry?.dividend && (
           <div className="space-y-4 rounded-lg border border-indigo-200 bg-indigo-50 p-4">
@@ -733,7 +790,16 @@ const MemberFinancialEntryForm = ({
         {entryType.includes('withdrawal') && (
           <label className="block max-w-xl text-sm font-medium text-gray-700">
             Member account *
-            <select value={accountId} onChange={(event) => setAccountId(event.target.value)} required className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2">
+            <select
+              value={accountId}
+              onChange={(event) => {
+                const nextAccount = matchingAccounts.find((account) => account.id === event.target.value);
+                setAccountId(event.target.value);
+                if (nextAccount) setAmount(String(nextAccount.balance || ''));
+              }}
+              required
+              className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2"
+            >
               <option value="">Select account</option>
               {matchingAccounts.map((account) => (
                 <option key={account.id} value={account.id}>
@@ -748,7 +814,17 @@ const MemberFinancialEntryForm = ({
           <div className="space-y-3 rounded-lg border border-blue-200 bg-blue-50 p-4">
             <label className="block text-sm font-medium text-gray-800">
               Existing loan *
-              <select value={loanId} onChange={(event) => setLoanId(event.target.value)} required disabled={loadingMemberData || !loans.length} className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2">
+              <select
+                value={loanId}
+                onChange={(event) => {
+                  const nextLoan = loans.find((loan) => loan.id === event.target.value);
+                  setLoanId(event.target.value);
+                  if (nextLoan) setAmount(String(getLoanScheduleSummary(nextLoan)?.remainingDue || nextLoan.balance || ''));
+                }}
+                required
+                disabled={loadingMemberData || !loans.length}
+                className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2"
+              >
                 <option value="">Select loan</option>
                 {loans.map((loan) => <option key={loan.id} value={loan.id}>{loan.loan_number} — balance ₱{Number(loan.balance).toLocaleString('en-PH', { minimumFractionDigits: 2 })}</option>)}
               </select>

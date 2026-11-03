@@ -3,6 +3,7 @@ import { useAuth } from '../../../contexts/AuthContext';
 import { supabase } from '../../../lib/supabase';
 import offlineDb from '../../../lib/Offline/OfflineDb';
 import { ArrowLeft, ArrowUpRight, FileText, Upload, Plus, X, AlertCircle } from 'lucide-react';
+import MemberBalanceSummary from './MemberBalanceSummary';
 
 const CashDisbursementForm = ({
   onSave,
@@ -407,7 +408,16 @@ const CashDisbursementForm = ({
               </label>
               <select
                 value={formData.memberId}
-                onChange={(e) => handleInputChange('memberId', e.target.value)}
+                onChange={(e) => {
+                  const memberId = e.target.value;
+                  const member = members.find((item) => item.id === memberId);
+                  setFormData((current) => ({
+                    ...current,
+                    memberId,
+                    payee: member ? memberName(member) : ''
+                  }));
+                  if (errors.memberId) setErrors((current) => ({ ...current, memberId: '' }));
+                }}
                 className={`w-full px-3 py-2 border rounded-lg bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
                   errors.memberId ? 'border-red-500' : 'border-gray-300'
                 }`}
@@ -424,6 +434,10 @@ const CashDisbursementForm = ({
           )}
         </div>
         </section>
+
+        {!allowExternalPayee && (
+          <MemberBalanceSummary memberId={selectedMember?.id} />
+        )}
 
         {hasLoanPayable && (
           <div className="mb-6 grid grid-cols-1 gap-4 rounded-lg border border-blue-200 bg-blue-50 p-4 md:grid-cols-2">

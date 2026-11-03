@@ -4,6 +4,7 @@ import { supabase } from '../../../lib/supabase';
 import offlineDb from '../../../lib/Offline/OfflineDb';
 import { getDataLoadErrorMessage } from '../../../lib/errorHandler';
 import { ArrowLeft, ShoppingCart } from 'lucide-react';
+import MemberBalanceSummary from './MemberBalanceSummary';
 
 const today = () => new Date().toISOString().slice(0, 10);
 
@@ -237,6 +238,15 @@ const SalesForm = ({ onSave, onCancel }) => {
       : `customer:${(sale.customer_name || '').trim().toLocaleLowerCase()}`;
     return key === collectionPayeeKey;
   }), [collectionPayeeKey, outstandingSales]);
+  const selectedBalanceMemberId = flow === 'collection'
+    ? collectionPayeeKey.startsWith('member:') ? collectionPayeeKey.slice('member:'.length) : ''
+    : customerMode === 'member' ? form.memberId : '';
+  const selectCollectionSale = (saleId) => {
+    setCollectionOrderId(saleId);
+    const sale = outstandingSales.find((item) => item.id === saleId);
+    const remaining = sale ? Math.max(Number(sale.net_amount || 0) - Number(sale.amount_paid || 0), 0) : 0;
+    setForm((current) => ({ ...current, amount: remaining ? remaining.toFixed(2) : '' }));
+  };
 
   const handleSubmit = async (event) => {
     event.preventDefault();
@@ -467,7 +477,7 @@ const SalesForm = ({ onSave, onCancel }) => {
                           : `customer:${(sale.customer_name || '').trim().toLocaleLowerCase()}`;
                         return key === payeeKey;
                       });
-                      setCollectionOrderId(firstSale?.id || '');
+                      selectCollectionSale(firstSale?.id || '');
                     }}
                     required
                     className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2"
@@ -483,7 +493,7 @@ const SalesForm = ({ onSave, onCancel }) => {
                 </label>
                 <label className="text-sm font-medium text-gray-700 sm:col-span-2">
                   Outstanding credit sale *
-                  <select value={collectionOrderId} onChange={(event) => setCollectionOrderId(event.target.value)} required disabled={!filteredOutstandingSales.length} className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 disabled:bg-slate-100">
+                  <select value={collectionOrderId} onChange={(event) => selectCollectionSale(event.target.value)} required disabled={!filteredOutstandingSales.length} className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 disabled:bg-slate-100">
                     <option value="">Select a credit sale</option>
                     {filteredOutstandingSales.map((sale) => (
                       <option key={sale.id} value={sale.id}>
@@ -493,6 +503,7 @@ const SalesForm = ({ onSave, onCancel }) => {
                   </select>
                   {!filteredOutstandingSales.length && <span className="mt-1 block text-xs text-gray-500">Select a member/payee with an outstanding credit sale.</span>}
                 </label>
+                <MemberBalanceSummary memberId={selectedBalanceMemberId} className="sm:col-span-2" />
                 <label className="text-sm font-medium text-gray-700">
                   Collection amount (₱) *
                   <input type="number" min="0.01" step="0.01" value={form.amount} onChange={(event) => setForm({ ...form, amount: event.target.value })} required className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2" />
@@ -554,6 +565,8 @@ const SalesForm = ({ onSave, onCancel }) => {
                 </>
               )}
             </label>
+            <MemberBalanceSummary memberId={selectedBalanceMemberId} className="sm:col-span-2" />
+
             <label className="text-sm font-medium text-gray-700">
               Product (optional) or service
               <select

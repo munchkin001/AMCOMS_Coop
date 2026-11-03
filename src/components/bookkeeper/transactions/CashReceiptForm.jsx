@@ -3,6 +3,7 @@ import { useAuth } from '../../../contexts/AuthContext';
 import { supabase } from '../../../lib/supabase';
 import offlineDb from '../../../lib/Offline/OfflineDb';
 import { ArrowDownLeft, ArrowLeft, FileText } from 'lucide-react';
+import MemberBalanceSummary from './MemberBalanceSummary';
 
 const getDefaultSide = (account) => ['Cash on Hand', 'Cash in Bank'].includes(account) ? 'debit' : 'credit';
 const receiptParticularsOptions = [
@@ -95,6 +96,7 @@ const CashReceiptForm = ({ onSave, onCancel, transaction = null, title = 'Cash R
   );
   const [formError, setFormError] = useState('');
   const [saving, setSaving] = useState(false);
+  const selectedMember = members.find((member) => member.id === formData.memberId);
 
   const handleSubmit = async (e, status = 'draft') => {
     e.preventDefault();
@@ -250,6 +252,7 @@ const CashReceiptForm = ({ onSave, onCancel, transaction = null, title = 'Cash R
               )}
             </div>
 
+            <MemberBalanceSummary memberId={selectedMember?.id} className="sm:col-span-2" />
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">Amount Received *</label>
