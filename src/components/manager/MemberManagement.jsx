@@ -649,13 +649,13 @@ const MemberManagement = () => {
                         className="flex max-h-[90vh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-white/60 bg-slate-50 shadow-2xl"
                         onClick={(event) => event.stopPropagation()}
                       >
-                        <header className="relative overflow-hidden bg-gradient-to-br from-[#163c34] via-[#1d5145] to-[#276456] px-5 py-5 text-white sm:px-7">
+                        <header className="manager-gradient-header relative overflow-hidden bg-gradient-to-br from-[#7c2d12] via-[#c2410c] to-[#f97316] px-5 py-5 text-white sm:px-7">
                           <div className="pointer-events-none absolute -right-10 -top-20 size-48 rounded-full border-[24px] border-white/5" />
                           <div className="relative flex items-start justify-between gap-4">
                             <div>
-                              <p className="text-xs font-semibold uppercase tracking-[0.14em] text-emerald-100">Member record</p>
+                              <p className="text-xs font-semibold uppercase tracking-[0.14em] text-orange-100">Member record</p>
                               <h2 id="member-record-details-title" className="mt-1 text-xl font-bold">{selectedFinancialRecord.title}</h2>
-                              <p className="mt-1 text-sm text-emerald-100">{fullName(selectedMember)} · ID {selectedMember.member_number || 'Not assigned'}</p>
+                              <p className="mt-1 text-sm text-orange-100">{fullName(selectedMember)} · ID {selectedMember.member_number || 'Not assigned'}</p>
                             </div>
                             <button type="button" onClick={() => setSelectedFinancialRecord(null)} aria-label="Close record details" className="flex size-9 items-center justify-center rounded-lg border border-white/20 bg-white/10 text-white hover:bg-white/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white">
                               <X className="size-5" aria-hidden="true" />

@@ -268,6 +268,15 @@ const ManagerDashboard = () => {
 
   return (
     <div className="space-y-6">
+      <header className="manager-gradient-header relative isolate overflow-hidden rounded-2xl bg-gradient-to-br from-[#7c2d12] via-[#c2410c] to-[#f97316] p-6 text-white shadow-xl shadow-orange-950/20 sm:p-8">
+        <div aria-hidden="true" className="pointer-events-none absolute -right-10 -top-20 -z-10 size-64 rounded-full border-[28px] border-white/15" />
+        <div aria-hidden="true" className="pointer-events-none absolute -bottom-24 right-1/3 -z-10 size-48 rounded-full bg-amber-200/25 blur-3xl" />
+        <div className="relative">
+          <p className="text-xs font-bold uppercase tracking-[0.18em] text-orange-100">Management · Cooperative operations</p>
+          <h1 className="mt-2 text-2xl font-bold tracking-tight sm:text-3xl">Manager overview</h1>
+          <p className="mt-2 max-w-2xl text-sm leading-6 text-orange-50">Track member activity, loan requests, transactions, and operational priorities from one place.</p>
+        </div>
+      </header>
       {error && <p role="alert" className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{error}</p>}
       {offlineNotice && <p role="status" className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">{offlineNotice}</p>}
       <DiscrepancyPanel />
@@ -281,6 +290,7 @@ const ManagerDashboard = () => {
             detail={card.detail}
             icon={card.icon}
             tone={card.tone}
+            variant="manager"
             actionLabel="View details"
             onClick={() => navigate(card.path, card.state ? { state: card.state } : undefined)}
           />

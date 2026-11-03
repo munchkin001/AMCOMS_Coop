@@ -995,7 +995,7 @@ export const LegacyLoanRequests = () => {
             }}
           >
             <section role="dialog" aria-modal="true" aria-labelledby="loan-request-details-title" className="flex max-h-[92vh] w-full max-w-3xl flex-col overflow-hidden rounded-2xl border border-white/60 bg-slate-50 shadow-2xl">
-              <header className="relative overflow-hidden bg-gradient-to-br from-[#163c34] via-[#1d5145] to-[#276456] px-5 py-5 text-white sm:px-7">
+              <header className="manager-gradient-header relative overflow-hidden bg-gradient-to-br from-[#7c2d12] via-[#c2410c] to-[#f97316] px-5 py-5 text-white sm:px-7">
                 <div className="pointer-events-none absolute -right-10 -top-20 size-48 rounded-full border-[24px] border-white/5" />
                 <div className="relative flex items-start justify-between gap-4">
                   <div className="min-w-0">

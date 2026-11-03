@@ -1103,16 +1103,16 @@ const Reports = () => {
             className="flex h-[min(92vh,48rem)] max-h-[92vh] w-full max-w-3xl flex-col overflow-hidden rounded-2xl border border-white/60 bg-slate-50 shadow-2xl"
             onClick={(event) => event.stopPropagation()}
           >
-            <header className="relative flex-none overflow-hidden bg-gradient-to-br from-[#163c34] via-[#1d5145] to-[#276456] px-5 py-5 text-white sm:px-7 sm:py-6">
+            <header className="manager-gradient-header relative flex-none overflow-hidden bg-gradient-to-br from-[#7c2d12] via-[#c2410c] to-[#f97316] px-5 py-5 text-white sm:px-7 sm:py-6">
               <div className="pointer-events-none absolute -right-10 -top-20 size-56 rounded-full border-[28px] border-white/5" />
               <div className="pointer-events-none absolute -bottom-24 right-24 size-44 rounded-full bg-white/5" />
               <div className="relative flex items-start justify-between gap-4">
                 <div className="min-w-0">
-                  <span className="inline-flex items-center rounded-full border border-white/20 bg-white/10 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-emerald-50">
+                  <span className="inline-flex items-center rounded-full border border-white/20 bg-white/10 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-orange-50">
                     {selectedAgingEntry.category}
                   </span>
                   <h2 id="aging-entry-details-title" className="mt-3 text-2xl font-bold tracking-tight text-white">Entry details</h2>
-                  <p className="mt-1 break-all text-sm font-medium text-emerald-100">{selectedAgingEntry.reference}</p>
+                  <p className="mt-1 break-all text-sm font-medium text-orange-100">{selectedAgingEntry.reference}</p>
                 </div>
                 <button
                   type="button"
