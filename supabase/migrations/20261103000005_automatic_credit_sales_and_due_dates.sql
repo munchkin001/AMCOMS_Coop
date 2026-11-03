@@ -3,11 +3,6 @@ BEGIN;
 ALTER TABLE public.sales_orders
   ADD COLUMN IF NOT EXISTS due_date DATE;
 
-UPDATE public.sales_orders
-SET due_date = order_date
-WHERE payment_status IN ('pending', 'partial')
-  AND due_date IS NULL;
-
 CREATE OR REPLACE FUNCTION public.record_cooperative_sale_with_contact(p_sale JSONB)
 RETURNS JSONB
 LANGUAGE plpgsql

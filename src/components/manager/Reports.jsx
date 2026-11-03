@@ -27,7 +27,19 @@ const daysPastDue = (asOf, dueDate) => {
   return Math.floor((asOfTime - dueTime) / 86400000);
 };
 
-const createAgingRow = ({ id, category, particulars, reference, party, dueDate, amount, asOf, details }) => {
+const createAgingRow = ({
+  id,
+  category,
+  particulars,
+  reference,
+  party,
+  dueDate,
+  ageDateLabel,
+  agingStatusLabel,
+  amount,
+  asOf,
+  details
+}) => {
   const days = daysPastDue(asOf, dueDate);
   const bucket = days === null || days <= 0
     ? 'current'
@@ -46,6 +58,8 @@ const createAgingRow = ({ id, category, particulars, reference, party, dueDate, 
     reference: reference || '-',
     party: party || '-',
     dueDate,
+    ageDateLabel,
+    agingStatusLabel,
     details,
     daysPastDue: days,
     current: bucket === 'current' ? amount : 0,
@@ -108,9 +122,7 @@ const DataTable = ({
   footer,
   tableClassName = '',
   onRowClick,
-  pageSize,
-  verticalScroll = false,
-  compact = false
+  pageSize
 }) => {
   const [currentPage, setCurrentPage] = useState(1);
   const pageCount = pageSize ? Math.max(1, Math.ceil(rows.length / pageSize)) : 1;
@@ -121,12 +133,12 @@ const DataTable = ({
 
   return (
     <div>
-      <div className={`report-table-scroll ${verticalScroll ? 'max-h-[70vh] overflow-y-auto overflow-x-hidden' : 'overflow-x-auto'}`}>
+      <div className="report-table-scroll overflow-x-auto">
         <table className={`w-full border-collapse text-left text-xs ${tableClassName}`}>
           <thead>
             <tr className="bg-slate-100">
               {columns.map((c) => (
-                <th key={c.label} style={c.width ? { width: c.width } : undefined} className={`border border-slate-300 ${compact ? 'break-words px-1 py-1' : 'px-2 py-1.5'} font-semibold text-slate-800 ${c.right ? 'text-right' : ''}`}>{c.label}</th>
+                <th key={c.label} style={c.width ? { width: c.width } : undefined} className={`border border-slate-300 px-3 py-2 font-semibold text-slate-800 ${c.noWrap ? 'whitespace-nowrap' : ''} ${c.right ? 'text-right' : ''}`}>{c.label}</th>
               ))}
             </tr>
           </thead>
@@ -149,7 +161,7 @@ const DataTable = ({
                 className={`odd:bg-white even:bg-slate-50 ${onRowClick ? 'cursor-pointer hover:bg-blue-50 focus:bg-blue-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-blue-600' : ''}`}
               >
                 {columns.map((c) => (
-                  <td key={c.label} style={c.width ? { width: c.width } : undefined} className={`border border-slate-300 ${compact ? 'break-words px-1 py-1' : 'px-2 py-1.5'} text-slate-800 ${c.right ? 'text-right tabular-nums' : ''}`}>{c.render(row)}</td>
+                  <td key={c.label} style={c.width ? { width: c.width } : undefined} className={`border border-slate-300 px-3 py-2 text-slate-800 ${c.noWrap ? 'whitespace-nowrap' : ''} ${c.right ? 'whitespace-nowrap text-right tabular-nums' : ''}`}>{c.render(row)}</td>
                 ))}
               </tr>
             ))}
@@ -158,7 +170,7 @@ const DataTable = ({
             <tfoot>
               <tr className="bg-slate-100 font-semibold">
                 {footer.map((cell, i) => (
-                  <td key={i} style={columns[i]?.width ? { width: columns[i].width } : undefined} className={`border border-slate-300 ${compact ? 'break-words px-1 py-1' : 'px-2 py-1.5'} ${columns[i]?.right ? 'text-right tabular-nums' : ''}`}>{cell}</td>
+                  <td key={i} style={columns[i]?.width ? { width: columns[i].width } : undefined} className={`border border-slate-300 bg-slate-100 px-3 py-2 ${columns[i]?.noWrap ? 'whitespace-nowrap' : ''} ${columns[i]?.right ? 'whitespace-nowrap text-right tabular-nums' : ''}`}>{cell}</td>
                 ))}
               </tr>
             </tfoot>
@@ -340,13 +352,15 @@ const Reports = () => {
           particulars: items || sale.notes || 'Sales order',
           reference: sale.order_number,
           party: sale.member ? fullName(sale.member) : sale.customer_name || 'Customer',
-          dueDate: sale.due_date || sale.order_date,
+          dueDate: sale.due_date,
+          agingStatusLabel: sale.due_date ? null : 'No payment due date recorded',
           amount: Math.max(netAmount - amountPaid, 0),
           details: [
             ['Record type', 'Sales order'],
             ['Order number', sale.order_number],
             ['Order date', fmtDate(sale.order_date)],
-            ['Due date', fmtDate(sale.due_date || sale.order_date)],
+            ['Due date', sale.due_date ? fmtDate(sale.due_date) : 'Not recorded'],
+            ...(!sale.due_date ? [['Aging status', 'No payment due date recorded; classified as current']] : []),
             ['Customer', sale.member ? fullName(sale.member) : sale.customer_name || 'Customer'],
             ['Payment status', sale.payment_status],
             ['Order status', sale.order_status],
@@ -377,12 +391,15 @@ const Reports = () => {
           particulars: items || purchase.notes || 'Supplier purchase',
           reference: purchase.purchase_number,
           party: purchase.suppliers?.supplier_name || 'Supplier',
-          dueDate: purchase.purchase_date,
+          dueDate: null,
+          agingStatusLabel: 'No payment due date recorded',
           amount: Math.max(netAmount - paid, 0),
           details: [
             ['Record type', 'Supplier purchase'],
             ['Purchase number', purchase.purchase_number],
             ['Purchase date', fmtDate(purchase.purchase_date)],
+            ['Payment due date', 'Not recorded'],
+            ['Aging status', 'No supplier payment due date is recorded; classified as current'],
             ['Supplier', purchase.suppliers?.supplier_name || 'Supplier'],
             ['Payment status', purchase.payment_status],
             ['Purchase status', purchase.status],
@@ -401,7 +418,9 @@ const Reports = () => {
         particulars: `Time deposit${account.interest_rate !== null ? ` · ${Number(account.interest_rate || 0)}% interest` : ''}`,
         reference: account.account_number,
         party: fullName(account.member),
-        dueDate: account.maturity_date,
+        dueDate: null,
+        ageDateLabel: account.maturity_date ? `Maturity: ${fmtDate(account.maturity_date)}` : 'No maturity date',
+        agingStatusLabel: 'Maturity is not treated as overdue',
         amount: Number(account.balance || 0),
         details: [
           ['Record type', 'Time deposit'],
@@ -410,6 +429,7 @@ const Reports = () => {
           ['Member number', account.member?.member_number || '-'],
           ['Opening date', fmtDate(account.opening_date)],
           ['Maturity date', fmtDate(account.maturity_date)],
+          ['Aging status', 'Maturity alone is not treated as an overdue payment obligation'],
           ['Interest rate', account.interest_rate === null ? '-' : `${Number(account.interest_rate || 0)}%`],
           ['Account status', account.status],
           ['Outstanding balance', peso(account.balance)]
@@ -455,58 +475,100 @@ const Reports = () => {
       const payables = [...purchases, ...timeDeposits];
       const agingRows = [...receivables, ...payables];
       const agingColumns = [
-        { label: 'Particulars', render: (row) => row.particulars },
-        { label: 'Reference', render: (row) => row.reference },
-        { label: 'Customer / supplier / member', render: (row) => row.party },
-        { label: 'Age date', render: (row) => fmtDate(row.dueDate) },
-        { label: 'Days past due', right: true, render: (row) => row.daysPastDue === null ? '-' : row.daysPastDue <= 0 ? 'Not due' : num(row.daysPastDue) },
-        ...AGING_BUCKETS.map(({ key, label }) => ({ label, right: true, render: (row) => peso(row[key]) })),
-        { label: 'Total outstanding', right: true, render: (row) => peso(row.total) }
+        { label: 'Particulars', width: '240px', noWrap: true, render: (row) => row.particulars },
+        { label: 'Reference', width: '150px', noWrap: true, render: (row) => row.reference },
+        { label: 'Customer / supplier / member', width: '220px', render: (row) => row.party },
+        {
+          label: 'Due date / aging basis',
+          width: '210px',
+          noWrap: true,
+          render: (row) => (
+            <div>
+              <span className="block">{row.ageDateLabel || (row.dueDate ? fmtDate(row.dueDate) : 'No due date')}</span>
+              {row.agingStatusLabel && <span className="mt-1 block text-xs text-slate-500">{row.agingStatusLabel}</span>}
+            </div>
+          )
+        },
+        { label: 'Days past due', width: '140px', noWrap: true, right: true, render: (row) => row.daysPastDue === null ? '—' : row.daysPastDue <= 0 ? 'Not due' : num(row.daysPastDue) },
+        ...AGING_BUCKETS.map(({ key, label }) => ({ label, width: '150px', noWrap: true, right: true, render: (row) => peso(row[key]) })),
+        { label: 'Total outstanding', width: '175px', noWrap: true, right: true, render: (row) => peso(row.total) }
       ];
       const printAgingColumns = [
-        { label: 'Entry type', render: (row) => row.category },
+        { label: 'Entry type', width: '8%', render: (row) => row.category },
         ...agingColumns
       ];
-      const agingScreenColumns = printAgingColumns.map((column, index) => ({
-        ...column,
-        width: ['8%', '12%', '9%', '13%', '8%', '8%', '7%', '7%', '7%', '7%', '7%', '7%'][index]
-      }));
       const printAgingFooter = (rows) => [
         'TOTAL', '', '', '', '', '',
         ...AGING_BUCKETS.map(({ key }) => peso(rows.reduce((total, row) => total + row[key], 0))),
         peso(rows.reduce((total, row) => total + row.total, 0))
       ];
       const sumOutstanding = (rows) => rows.reduce((total, row) => total + row.total, 0);
+      const currentOutstanding = sumOutstanding(agingRows.filter((row) => row.daysPastDue === null || row.daysPastDue <= 0));
+      const overdueRows = agingRows.filter((row) => row.daysPastDue > 0);
+      const overdueOutstanding = sumOutstanding(overdueRows);
+      const agingFooter = (rows) => [
+        'TOTAL', '', '', '', '',
+        ...AGING_BUCKETS.map(({ key }) => peso(rows.reduce((total, row) => total + row[key], 0))),
+        peso(sumOutstanding(rows))
+      ];
       return (
         <>
+          <div className="mb-4 flex flex-wrap items-end justify-between gap-2">
+            <div>
+              <h2 className="text-xl font-bold text-slate-900">Accounts Aging Report</h2>
+              <p className="mt-1 text-sm font-medium text-slate-600">As of {fmtDate(asOf)}</p>
+            </div>
+            <p className="text-xs text-slate-500">Only recorded payment due dates determine overdue aging.</p>
+          </div>
           <Summary items={[
-            ['Accounts receivable', peso(sumOutstanding(receivables))],
-            ['Accounts payable', peso(sumOutstanding(payables))],
-            ['Sales receivable', peso(sumOutstanding(sales))],
-            ['Time deposits payable', peso(sumOutstanding(timeDeposits))]
+            ['Total outstanding', peso(sumOutstanding(agingRows))],
+            ['Current / not due', peso(currentOutstanding)],
+            ['Overdue amount', peso(overdueOutstanding)],
+            ['Overdue entries', num(overdueRows.length)]
           ]} />
-          <p className="mt-4 text-xs text-slate-600">Aging basis: sale or purchase date, scheduled loan due date, and time-deposit maturity date.</p>
+          <p className="mt-4 text-xs text-slate-600">
+            Sales and loan installments use their payment due dates. Supplier purchases without a recorded payment due date and time deposits are shown as current; time-deposit maturity alone does not make an amount overdue.
+          </p>
           <div className="aging-screen-entries">
-            <Section title="Accounts Receivable & Payable">
+            <Section title="Accounts Receivable — Sales and Loan Installments">
+              <p className="mb-2 text-xs text-slate-600">Outstanding: <strong>{peso(sumOutstanding(receivables))}</strong></p>
               <DataTable
-                rows={agingRows}
-                columns={agingScreenColumns}
-                empty="No outstanding receivables or payables as of this date."
-                footer={printAgingFooter(agingRows)}
-                tableClassName="aging-report-table table-fixed text-[11px]"
+                rows={receivables}
+                columns={agingColumns}
+                empty="No outstanding sales or loan installments as of this date."
+                footer={agingFooter(receivables)}
+                tableClassName="aging-report-table min-w-[1885px] table-fixed"
                 onRowClick={setSelectedAgingEntry}
-                verticalScroll
-                compact
+              />
+            </Section>
+            <Section title="Accounts Payable — Supplier Purchases and Time Deposits">
+              <p className="mb-2 text-xs text-slate-600">Outstanding: <strong>{peso(sumOutstanding(payables))}</strong></p>
+              <DataTable
+                rows={payables}
+                columns={agingColumns}
+                empty="No outstanding supplier purchases or time deposits as of this date."
+                footer={agingFooter(payables)}
+                tableClassName="aging-report-table min-w-[1885px] table-fixed"
+                onRowClick={setSelectedAgingEntry}
               />
             </Section>
           </div>
           <div className="aging-print-table hidden">
-            <Section title="Accounts Receivable & Payable">
+            <Section title="Accounts Receivable — Sales and Loan Installments">
               <DataTable
-                rows={agingRows}
+                rows={receivables}
                 columns={printAgingColumns}
-                empty="No outstanding receivables or payables as of this date."
-                footer={printAgingFooter(agingRows)}
+                empty="No outstanding sales or loan installments as of this date."
+                footer={printAgingFooter(receivables)}
+                tableClassName="aging-report-table min-w-[1200px]"
+              />
+            </Section>
+            <Section title="Accounts Payable — Supplier Purchases and Time Deposits">
+              <DataTable
+                rows={payables}
+                columns={printAgingColumns}
+                empty="No outstanding supplier purchases or time deposits as of this date."
+                footer={printAgingFooter(payables)}
                 tableClassName="aging-report-table min-w-[1200px]"
               />
             </Section>
