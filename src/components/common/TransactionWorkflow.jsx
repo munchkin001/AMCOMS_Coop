@@ -99,6 +99,14 @@ const workflowStatusStyle = (workflow) => (
     : STATUS_STYLES[workflow.status] || 'bg-slate-100 text-slate-800'
 );
 const isCompletedCashIn = (workflow) => workflow.direction === 'cash_in' && workflow.status === 'completed';
+const isPhysicalCashHandoff = (workflow) => {
+  if (workflow.payment_method !== 'cash') return false;
+  const cashAccount = workflow.payload?.p_entry?.cash_account || workflow.payload?.p_sale?.cash_account;
+  if (cashAccount) return cashAccount === 'Cash on Hand';
+  return (workflow.payload?.p_allocations || []).some((allocation) => (
+    allocation.account === 'Cash on Hand' && allocation.side === 'debit'
+  ));
+};
 
 const WorkflowEvidence = ({ document, onOpen }) => {
   const [signedUrl, setSignedUrl] = useState('');
@@ -830,9 +838,23 @@ const TransactionWorkflow = ({ role }) => {
 
               {isTreasurer && selected.direction === 'cash_in' && selected.status === 'completed' && (
                 <section className="mt-5 rounded-xl border border-blue-200 bg-blue-50 p-4">
-                  <h3 className="font-semibold text-blue-950">Cash-in verification (optional)</h3>
-                  <p className="mt-1 text-sm text-blue-900">This records Treasurer verification without changing the amount or posting the transaction a second time.</p>
-                  <button type="button" disabled={busy} onClick={() => runRpc('verify_transaction_workflow_cash_received', { p_workflow_id: selected.id, p_remarks: remarks.trim() || null }, 'Cash receipt verification recorded.')} className="mt-3 rounded-lg bg-blue-800 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">Verify cash received</button>
+                  <h3 className="font-semibold text-blue-950">Bookkeeper cash handoff</h3>
+                  {isPhysicalCashHandoff(selected) ? (
+                    selected.events?.some((event) => event.event_type === 'cash_received_verified') ? (
+                      <p className="mt-1 text-sm font-medium text-emerald-900">
+                        Cash handoff confirmed by the Treasurer
+                        {' · '}
+                        {dateTime(selected.events.find((event) => event.event_type === 'cash_received_verified').created_at)}
+                      </p>
+                    ) : (
+                      <>
+                        <p className="mt-1 text-sm text-blue-900">Confirm this cash was physically received from the Bookkeeper. This does not change or post the transaction again.</p>
+                        <button type="button" disabled={busy} onClick={() => runRpc('verify_transaction_workflow_cash_received', { p_workflow_id: selected.id, p_remarks: remarks.trim() || null }, 'Cash handoff confirmation recorded.')} className="mt-3 rounded-lg bg-blue-800 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">Confirm cash handoff</button>
+                      </>
+                    )
+                  ) : (
+                    <p className="mt-1 text-sm text-blue-900">This transaction was not recorded as cash deposited to Cash on Hand. No physical cash handoff confirmation is available.</p>
+                  )}
                 </section>
               )}
             </div>

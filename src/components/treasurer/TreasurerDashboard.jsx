@@ -7,6 +7,7 @@ import {
   Gem,
   HandCoins,
   Landmark,
+  ShieldCheck,
   Wallet
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
@@ -16,6 +17,7 @@ import { fetchAccountBalances, summarizeAccountBalances, toDateString } from '..
 import DashboardMetricCard from '../common/DashboardMetricCard';
 import DiscrepancyPanel from '../common/DiscrepancyPanel';
 import { getDataLoadErrorMessage } from '../../lib/errorHandler';
+import CashReconciliation from './CashReconciliation';
 
 const EMPTY_DASHBOARD = {
   todayCollections: 0,
@@ -29,6 +31,10 @@ const EMPTY_DASHBOARD = {
   timeDepositTransactionCount: 0,
   collectionCount: 0,
   disbursementCount: 0,
+  verifiedCashHandoffs: 0,
+  verifiedCashHandoffCount: 0,
+  pendingCashHandoffs: 0,
+  pendingCashHandoffCount: 0,
   loanPaymentCount: 0,
   savingsDepositCount: 0,
   savingsWithdrawalCount: 0,
@@ -87,9 +93,13 @@ const TreasurerDashboard = () => {
   const fetchDashboardData = useCallback(async () => {
     const currentRequest = ++requestId.current;
     try {
+      const tomorrowDate = new Date(`${today}T00:00:00`);
+      tomorrowDate.setDate(tomorrowDate.getDate() + 1);
+      const tomorrow = toDateString(tomorrowDate);
       const [
         receiptsResult,
         disbursementsResult,
+        cashHandoffsResult,
         loanPaymentsResult,
         savingsTransactionsResult,
         loanReleasesResult,
@@ -98,11 +108,16 @@ const TreasurerDashboard = () => {
         accountRows
       ] = await Promise.all([
         supabase.from('cash_receipts')
-          .select('id, receipt_date, receipt_number, received_from, description, amount, created_at')
+          .select('id, receipt_date, receipt_number, received_from, description, amount, created_at, payment_method, account:chart_of_accounts(account_name)')
           .eq('status', 'recorded').eq('receipt_date', today).order('created_at', { ascending: false }),
         supabase.from('cash_disbursements')
           .select('id, disbursement_date, voucher_number, payee, description, amount, created_at')
           .eq('status', 'recorded').eq('disbursement_date', today).order('created_at', { ascending: false }),
+        supabase.from('transaction_workflows')
+          .select('business_record_id, amount, events:transaction_workflow_events(event_type)')
+          .eq('direction', 'cash_in').eq('status', 'completed').eq('payment_method', 'cash')
+          .gte('created_at', `${today}T00:00:00+08:00`)
+          .lt('created_at', `${tomorrow}T00:00:00+08:00`),
         supabase.from('loan_payments').select('amount_paid, receipt_id')
           .eq('status', 'recorded').eq('payment_date', today),
         supabase.from('savings_transactions')
@@ -118,6 +133,7 @@ const TreasurerDashboard = () => {
       const failedResult = [
         receiptsResult,
         disbursementsResult,
+        cashHandoffsResult,
         loanPaymentsResult,
         savingsTransactionsResult,
         loanReleasesResult,
@@ -128,6 +144,33 @@ const TreasurerDashboard = () => {
 
       const receipts = receiptsResult.data || [];
       const disbursements = disbursementsResult.data || [];
+      const cashOnHandReceiptIds = new Set(receipts
+        .filter((receipt) => {
+          const account = Array.isArray(receipt.account) ? receipt.account[0] : receipt.account;
+          return receipt.payment_method === 'cash'
+            && account?.account_name?.trim().toLowerCase() === 'cash on hand';
+        })
+        .map((receipt) => receipt.id));
+      let handoffRecordToReceipt = new Map([...cashOnHandReceiptIds].map((receiptId) => [receiptId, receiptId]));
+      if (cashOnHandReceiptIds.size) {
+        const saleOrdersResult = await supabase.from('sales_orders')
+          .select('id, cash_receipt_id')
+          .in('cash_receipt_id', [...cashOnHandReceiptIds]);
+        if (saleOrdersResult.error) throw saleOrdersResult.error;
+        handoffRecordToReceipt = new Map([
+          ...handoffRecordToReceipt,
+          ...(saleOrdersResult.data || []).map((sale) => [sale.id, sale.cash_receipt_id])
+        ]);
+      }
+      const cashHandoffs = (cashHandoffsResult.data || []).filter((workflow) => (
+        handoffRecordToReceipt.has(workflow.business_record_id)
+      ));
+      const verifiedCashHandoffs = cashHandoffs.filter((workflow) => (
+        (workflow.events || []).some((event) => event.event_type === 'cash_received_verified')
+      ));
+      const pendingCashHandoffs = cashHandoffs.filter((workflow) => (
+        !(workflow.events || []).some((event) => event.event_type === 'cash_received_verified')
+      ));
       const loanPayments = loanPaymentsResult.data || [];
       const savingsTransactions = savingsTransactionsResult.data || [];
       const loanReleases = loanReleasesResult.data || [];
@@ -188,6 +231,10 @@ const TreasurerDashboard = () => {
         ...EMPTY_DASHBOARD,
         todayCollections: sum(receipts, 'amount'),
         todayDisbursements: sum(disbursements, 'amount'),
+        verifiedCashHandoffs: sum(verifiedCashHandoffs, 'amount'),
+        verifiedCashHandoffCount: verifiedCashHandoffs.length,
+        pendingCashHandoffs: sum(pendingCashHandoffs, 'amount'),
+        pendingCashHandoffCount: pendingCashHandoffs.length,
         todayLoanPayments: sum(loanPayments, 'amount_paid'),
         todayLoanReleases: sum(loanReleases, 'principal_amount'),
         loanReleaseCount: loanReleases.length,
@@ -242,6 +289,8 @@ const TreasurerDashboard = () => {
   useMultipleRealtimeSubscriptions([
     'cash_receipts',
     'cash_disbursements',
+    'transaction_workflows',
+    'transaction_workflow_events',
     'loan_payments',
     'savings_transactions',
     'loans',
@@ -257,7 +306,8 @@ const TreasurerDashboard = () => {
   const displayCount = (count) => loading && !hasData ? '…' : !hasData ? '—' : count.toLocaleString();
   const totalCashFlow = data.todayCollections - data.todayDisbursements;
   const summaryCards = [
-    { label: "Today's Cash Received", value: displayAmount(data.todayCollections), icon: ArrowDownLeft, tone: 'green', detail: `${displayCount(data.collectionCount)} receipts` },
+    { label: "Today's Bookkeeper-Recorded Receipts", value: displayAmount(data.todayCollections), icon: ArrowDownLeft, tone: 'green', detail: `${displayCount(data.collectionCount)} receipts · before handoff verification` },
+    { label: "Today's Treasurer-Verified Handoffs", value: displayAmount(data.verifiedCashHandoffs), icon: ShieldCheck, tone: 'blue', detail: `${displayCount(data.verifiedCashHandoffCount)} verified · ${displayCount(data.pendingCashHandoffCount)} pending (${displayAmount(data.pendingCashHandoffs)})` },
     { label: "Today's Cash Released", value: displayAmount(data.todayDisbursements), icon: ArrowUpFromLine, tone: 'red', detail: `${displayCount(data.disbursementCount)} disbursements` },
     { label: "Today's Loan Payments", value: displayAmount(data.todayLoanPayments), icon: HandCoins, tone: 'blue', detail: `${displayCount(data.loanPaymentCount)} payments` },
     { label: "Today's Loan Releases", value: displayAmount(data.todayLoanReleases), icon: Banknote, tone: 'orange', detail: `${displayCount(data.loanReleaseCount)} loans` },
@@ -295,6 +345,8 @@ const TreasurerDashboard = () => {
       {error && <p role="alert" className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{error}</p>}
       <DiscrepancyPanel />
 
+      <CashReconciliation />
+
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
         {summaryCards.map((card) => (
           <DashboardMetricCard key={card.label} {...card} />
@@ -303,11 +355,11 @@ const TreasurerDashboard = () => {
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         <section className="rounded-lg border border-gray-200 bg-white p-6 shadow">
-          <h3 className="mb-4 text-lg font-semibold text-gray-900">Today's Cash Receipts</h3>
+          <h3 className="mb-4 text-lg font-semibold text-gray-900">Today's Bookkeeper-Recorded Receipts</h3>
           <div className="space-y-3">
             {renderBreakdown(data.collectionBreakdown, 'No recorded receipts today.', 'bg-green-600')}
             <div className="flex items-center justify-between border-t border-gray-200 pt-3">
-              <span className="font-bold text-gray-900">Total Cash Received</span>
+              <span className="font-bold text-gray-900">Total receipts recorded</span>
               <span className="text-lg font-bold text-green-600">{displayAmount(data.todayCollections)}</span>
             </div>
           </div>
