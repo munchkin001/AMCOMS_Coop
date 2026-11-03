@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   AlertTriangle,
   Check,
@@ -458,6 +458,7 @@ const TransactionWorkflow = ({ role }) => {
   const [reviewedRelease, setReviewedRelease] = useState(false);
   const [releaseFile, setReleaseFile] = useState(null);
   const [releaseProgress, setReleaseProgress] = useState('');
+  const releaseInFlight = useRef(false);
   const [removingDocumentId, setRemovingDocumentId] = useState(null);
   const [proofRemovalAvailable, setProofRemovalAvailable] = useState(true);
   const selectedDocuments = asArray(selected?.documents).filter((document) => document && !document.removed_at);
@@ -811,43 +812,85 @@ const TransactionWorkflow = ({ role }) => {
   };
 
   const confirmRelease = async () => {
+    if (releaseInFlight.current) return;
     if (!selected || !reviewedRelease || (!releaseFile && !registeredReleaseProof)) {
       setError('Review the recipient and approved amount, and attach proof before releasing.');
       return;
     }
+    releaseInFlight.current = true;
     setBusy(true);
     setError('');
     setNotice('');
     setReleaseProgress('');
+    let actionError = null;
     try {
       const documentId = releaseFile
         ? await uploadReleaseProof(selected, releaseFile)
         : registeredReleaseProof.id;
-      setReleaseProgress('Recording release…');
-      const { data: result, error: confirmError } = await supabase.rpc('confirm_transaction_workflow_release', {
-        p_workflow_id: selected.id,
-        p_document_id: documentId,
-        p_remarks: remarks.trim() || null,
-      });
+      setReleaseProgress('Recording release… Please wait.');
+      const controller = new AbortController();
+      const timeoutId = window.setTimeout(() => controller.abort(), 45000);
+      let response;
+      try {
+        response = await supabase.rpc('confirm_transaction_workflow_release', {
+          p_workflow_id: selected.id,
+          p_document_id: documentId,
+          p_remarks: remarks.trim() || null,
+        }).abortSignal(controller.signal);
+      } finally {
+        window.clearTimeout(timeoutId);
+      }
+      const { data: result, error: confirmError } = response;
       if (confirmError) throw confirmError;
       if (result?.status !== 'completed') {
         throw new Error(result?.error || 'The server did not confirm the release.');
       }
-      setNotice(selected.transaction_type === 'loan_disbursement'
-        ? 'Loan disbursed and recorded as Cash released. The Manager and Bookkeeper can review the transaction and proof.'
-        : 'Cash released. The Manager and Bookkeeper can now review the completed transaction and attached proof.');
-      setSelected(null);
-      setReleaseFile(null);
-      setReleaseProgress('');
-      setRemarks('');
-      setReviewedRelease(false);
-      await load();
-    } catch (actionError) {
-      console.error('Unable to confirm cash release:', actionError);
-      setError(`Release was not confirmed: ${actionError.message || 'Please retry.'}`);
+    } catch (releaseError) {
+      actionError = releaseError;
+      console.error('Unable to confirm cash release:', releaseError);
+    }
+
+    if (actionError) {
+      setReleaseProgress('Checking whether the release was recorded…');
+      try {
+        const { data: latestWorkflow, error: statusError } = await supabase
+          .from('transaction_workflows')
+          .select('status, cash_release_status')
+          .eq('id', selected.id)
+          .maybeSingle();
+        if (statusError) throw statusError;
+        if (latestWorkflow?.status === 'completed' && latestWorkflow.cash_release_status === 'released') {
+          actionError = null;
+        }
+      } catch (statusError) {
+        console.error('Unable to verify cash release status:', statusError);
+        actionError = new Error(
+          `${actionError.message || 'The release request failed.'} The release status could not be verified; refresh the queue before retrying.`
+        );
+      }
+    }
+
+    try {
+      if (actionError) {
+        const timedOut = actionError.name === 'AbortError';
+        setError(timedOut
+          ? 'The release request timed out and is not showing as completed. Refresh the queue before retrying to avoid duplicate processing.'
+          : `Release was not confirmed: ${actionError.message || 'Please refresh the queue and retry.'}`);
+      } else {
+        setNotice(selected.transaction_type === 'loan_disbursement'
+          ? 'Loan disbursed and recorded as Cash released. The Manager and Bookkeeper can review the transaction and proof.'
+          : 'Cash released. The Manager and Bookkeeper can now review the completed transaction and attached proof.');
+        setSelected(null);
+        setReleaseFile(null);
+        setReleaseProgress('');
+        setRemarks('');
+        setReviewedRelease(false);
+        await load();
+      }
     } finally {
       setBusy(false);
       setReleaseProgress('');
+      releaseInFlight.current = false;
     }
   };
 
