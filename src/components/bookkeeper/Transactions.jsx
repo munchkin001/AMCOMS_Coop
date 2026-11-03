@@ -320,7 +320,7 @@ const Transactions = ({ initialType = null, startNewTransaction = false }) => {
       {view === 'type-selector' && (
         <TransactionTypeSelector 
           onSelectType={handleSelectType}
-          onCancel={handleCancelForm}
+          onCancel={handleCancel}
         />
       )}
 
