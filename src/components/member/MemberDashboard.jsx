@@ -434,7 +434,7 @@ const MemberDashboard = ({ onNavigate }) => {
                 <th scope="col" className="px-4 py-3 font-semibold">Loan</th>
                 <th scope="col" className="px-4 py-3 font-semibold">Principal</th>
                 <th scope="col" className="px-4 py-3 font-semibold">Installment</th>
-                <th scope="col" className="px-4 py-3 font-semibold">Interest</th>
+                <th scope="col" className="px-4 py-3 font-semibold">Total interest</th>
                 <th scope="col" className="px-4 py-3 text-right font-semibold">Paid to date</th>
                 <th scope="col" className="px-4 py-3 text-right font-semibold">Balance left</th>
                 <th scope="col" className="px-4 py-3 font-semibold">Last payment</th>
@@ -512,7 +512,7 @@ const MemberDashboard = ({ onNavigate }) => {
         </div>
         {(memberData.activeLoans || []).length > 0 && (
           <p className="border-t border-slate-100 px-5 py-3 text-xs text-slate-500">
-            Interest shows total scheduled interest and recorded interest paid. Paid to date includes all recorded loan payments; balances reflect the current loan record.
+            Total interest shows scheduled interest for the full loan and recorded interest paid. Paid to date includes all recorded loan payments; balances reflect the current loan record.
           </p>
         )}
       </section>
