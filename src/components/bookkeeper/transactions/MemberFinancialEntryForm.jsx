@@ -193,30 +193,34 @@ const MemberFinancialEntryForm = ({
       setMembersError('');
       const loanPaymentOnly = entryType === 'loan_payment';
       const cacheKey = `financial-members:${user?.id}`;
+      const withdrawalAccountType = entryType === 'savings_withdrawal'
+        ? 'regular'
+        : entryType === 'time_deposit_withdrawal'
+          ? 'time_deposit'
+          : null;
+      const requiresExistingAccount = Boolean(withdrawalAccountType);
+      const eligibilityCacheKey = `financial-members:${user?.id}:${entryType}`;
       try {
         if (!navigator.onLine || offlineMode) {
-          if (loanPaymentOnly) {
-            if (active) {
-              setMembers([]);
-              setMemberId('');
-              setMembersError('Reconnect to check which members currently have an active loan balance to pay.');
-            }
-            return;
-          }
-          const cached = user?.id ? await offlineDb.cachedData.get(cacheKey) : null;
+          const cached = user?.id
+            ? await offlineDb.cachedData.get(requiresExistingAccount || loanPaymentOnly ? eligibilityCacheKey : cacheKey)
+            : null;
           if (active && cached?.data) {
             setMembers(cached.data);
-            setMembersError('Using member information saved on this device. Account balances and eligibility are not authoritative until the server validates the entry.');
+            setMembersError('Using saved member eligibility. Account balances may be stale; the server will validate the entry before posting.');
           } else if (active) {
-            setMembersError('No member list is available on this device. Reconnect and sign in online to load it.');
+            setMembers([]);
+            setMembersError(requiresExistingAccount
+              ? 'Reconnect to load members with an active account balance available for withdrawal.'
+              : loanPaymentOnly
+                ? 'Reconnect to check which members currently have an active loan balance to pay.'
+                : 'No member list is available on this device. Reconnect and sign in online to load it.');
           }
           return;
         }
 
         let eligibleMemberIds = null;
         if (loanPaymentOnly) {
-          setMembers([]);
-          setMemberId('');
           const { data: activeLoans, error: loanQueryError } = await supabase
             .from('loans')
             .select('member_id')
@@ -227,13 +231,28 @@ const MemberFinancialEntryForm = ({
             return;
           }
           eligibleMemberIds = [...new Set((activeLoans || []).map((loan) => loan.member_id).filter(Boolean))];
-          if (eligibleMemberIds.length === 0) {
-            if (active) {
-              setMembers([]);
-              setMembersError('No members currently have an active loan balance to pay.');
-            }
+        } else if (withdrawalAccountType) {
+          const { data: eligibleAccounts, error: accountQueryError } = await supabase
+            .from('savings_accounts')
+            .select('member_id')
+            .eq('account_type', withdrawalAccountType)
+            .eq('status', 'active')
+            .gt('balance', 0);
+          if (accountQueryError) {
+            if (active) setMembersError(getDataLoadErrorMessage(accountQueryError, 'member withdrawal accounts'));
             return;
           }
+          eligibleMemberIds = [...new Set((eligibleAccounts || []).map((account) => account.member_id).filter(Boolean))];
+        }
+
+        if (eligibleMemberIds && eligibleMemberIds.length === 0) {
+          if (active) {
+            setMembers([]);
+            setMembersError(loanPaymentOnly
+              ? 'No active members currently have an outstanding loan balance to pay.'
+              : `No active members have an available ${withdrawalAccountType === 'regular' ? 'savings' : 'time deposit'} account balance to withdraw.`);
+          }
+          return;
         }
 
         let memberQuery = supabase
@@ -245,34 +264,49 @@ const MemberFinancialEntryForm = ({
         const { data, error: queryError } = await memberQuery.order('last_name');
         if (!active) return;
         if (queryError) {
-          const cached = !loanPaymentOnly && user?.id ? await offlineDb.cachedData.get(cacheKey) : null;
+          const cacheKeyToUse = requiresExistingAccount || loanPaymentOnly ? eligibilityCacheKey : cacheKey;
+          const cached = user?.id ? await offlineDb.cachedData.get(cacheKeyToUse) : null;
           if (cached?.data) {
             setMembers(cached.data);
-            setMembersError('Showing saved member information. Balances and eligibility will be checked when the entry syncs.');
+            setMembersError('Showing saved member eligibility. Balances may be stale; the server will validate the entry before posting.');
             return;
           }
           setMembersError(getDataLoadErrorMessage(queryError, 'members'));
         } else {
           setMembers(data || []);
-          if (loanPaymentOnly && !data?.length) {
-            setMembersError('No active members currently have an outstanding loan balance to pay.');
+          if (!data?.length) {
+            setMembersError(loanPaymentOnly
+              ? 'No active members currently have an outstanding loan balance to pay.'
+              : requiresExistingAccount
+                ? `No active members have an available ${withdrawalAccountType === 'regular' ? 'savings' : 'time deposit'} account balance to withdraw.`
+                : '');
           }
-          if (!loanPaymentOnly && user?.id) {
-            await offlineDb.cachedData.put({
-              key: cacheKey,
-              data: data || [],
-              updatedAt: new Date().toISOString(),
-            });
+          if (user?.id) {
+            if (!requiresExistingAccount && !loanPaymentOnly) {
+              await offlineDb.cachedData.put({
+                key: cacheKey,
+                data: data || [],
+                updatedAt: new Date().toISOString(),
+              });
+            } else {
+              await offlineDb.cachedData.put({
+                key: eligibilityCacheKey,
+                data: data || [],
+                updatedAt: new Date().toISOString(),
+              });
+            }
           }
         }
       } catch (loadError) {
         if (!active) return;
-        const cached = !loanPaymentOnly && user?.id ? await offlineDb.cachedData.get(cacheKey) : null;
+        const cacheKeyToUse = requiresExistingAccount || loanPaymentOnly ? eligibilityCacheKey : cacheKey;
+        const cached = user?.id ? await offlineDb.cachedData.get(cacheKeyToUse) : null;
         if (cached?.data) {
           setMembers(cached.data);
-          setMembersError('Showing saved member information. Balances and eligibility will be checked when the entry syncs.');
+          setMembersError('Showing saved member eligibility. Balances may be stale; the server will validate the entry before posting.');
         } else {
-          setMembersError(getDataLoadErrorMessage(loadError, loanPaymentOnly ? 'loans' : 'members'));
+          setMembersError(getDataLoadErrorMessage(loadError,
+            loanPaymentOnly ? 'loans' : requiresExistingAccount ? 'member withdrawal accounts' : 'members'));
         }
       } finally {
         if (active) setMembersLoading(false);
@@ -616,8 +650,8 @@ const MemberFinancialEntryForm = ({
               <option value="">
                 {membersLoading
                   ? 'Loading members...'
-                  : entryType === 'loan_payment' && !members.length
-                    ? 'No members with loans due'
+                  : (entryType === 'loan_payment' || entryType.includes('withdrawal')) && !members.length
+                    ? entryType === 'loan_payment' ? 'No members with loans due' : 'No members with an available account balance'
                     : 'Select member'}
               </option>
               {members.map((member) => (
@@ -635,6 +669,11 @@ const MemberFinancialEntryForm = ({
                 onChange={(event) => {
                   const nextType = entryTypes.find((type) => type.value === event.target.value);
                   setEntryType(event.target.value);
+                  setMemberId('');
+                  setAccounts([]);
+                  setLoans([]);
+                  setUnpaidMonths([]);
+                  setSelectedMonths([]);
                   const defaultAccount = event.target.value.includes('withdrawal')
                     ? getDefaultAccount(accounts, nextType?.account)
                     : null;
