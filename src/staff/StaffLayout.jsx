@@ -273,7 +273,7 @@ const StaffLayout = ({ children }) => {
                     <hr className="my-1" />
                     <button
                       onClick={handleLogout}
-                      className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-gray-50"
+                      className={`w-full px-4 py-2 text-left text-sm hover:bg-gray-50 ${isBookkeeper ? 'font-medium text-purple-700' : 'text-red-600'}`}
                     >
                       Logout
                     </button>
@@ -296,27 +296,27 @@ const StaffLayout = ({ children }) => {
       {/* Logout Confirmation Modal */}
       {showLogoutModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/55 p-4">
-          <div className="w-full max-w-md rounded-xl border border-[#e9c46a]/50 bg-gradient-to-br from-blue-950 via-blue-900 to-slate-950 text-white shadow-2xl">
+          <div className={`w-full max-w-md rounded-xl border text-white shadow-2xl ${isBookkeeper ? 'border-purple-300/40 bg-gradient-to-br from-[#28134b] via-[#542b86] to-[#8a52bf]' : 'border-[#e9c46a]/50 bg-gradient-to-br from-blue-950 via-blue-900 to-slate-950'}`}>
             <div className="p-6">
-              <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full border border-[#e9c46a]/50 bg-white/10 text-[#f0d995]">
+              <div className={`mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full border bg-white/10 ${isBookkeeper ? 'border-purple-200/50 text-purple-100' : 'border-[#e9c46a]/50 text-[#f0d995]'}`}>
                 <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
                 </svg>
               </div>
               <h3 className="mb-2 text-center text-xl font-bold text-white">Confirm Logout</h3>
-              <p className="mb-6 text-center text-blue-100/85">
+              <p className={`mb-6 text-center ${isBookkeeper ? 'text-purple-100' : 'text-blue-100/85'}`}>
                 Are you sure you want to logout from the Staff Portal?
               </p>
               <div className="flex space-x-3">
                 <button
                   onClick={cancelLogout}
-                  className="min-h-11 flex-1 rounded-lg border border-white/25 bg-white/10 px-4 py-2 font-medium text-white transition-colors hover:bg-white/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#e9c46a]"
+                  className={`min-h-11 flex-1 rounded-lg border border-white/25 bg-white/10 px-4 py-2 font-medium text-white transition-colors hover:bg-white/20 focus-visible:outline-none focus-visible:ring-2 ${isBookkeeper ? 'focus-visible:ring-purple-200' : 'focus-visible:ring-[#e9c46a]'}`}
                 >
                   Cancel
                 </button>
                 <button
                   onClick={confirmLogout}
-                  className="min-h-11 flex-1 rounded-lg bg-gradient-to-r from-[#e9c46a] to-[#d6ab4a] px-4 py-2 font-semibold text-blue-950 transition hover:brightness-105 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#e9c46a] focus-visible:ring-offset-2 focus-visible:ring-offset-blue-950"
+                  className={`min-h-11 flex-1 rounded-lg px-4 py-2 font-semibold transition hover:brightness-105 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 ${isBookkeeper ? 'bg-gradient-to-r from-purple-200 via-fuchsia-200 to-purple-300 text-purple-950 focus-visible:ring-purple-200 focus-visible:ring-offset-purple-900' : 'bg-gradient-to-r from-[#e9c46a] to-[#d6ab4a] text-blue-950 focus-visible:ring-[#e9c46a] focus-visible:ring-offset-blue-950'}`}
                 >
                   Logout
                 </button>

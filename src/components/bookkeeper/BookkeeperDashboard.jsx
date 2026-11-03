@@ -149,8 +149,10 @@ const BookkeeperDashboard = ({ onSelectTransaction, onViewBooks }) => {
   };
   return (
     <div className="space-y-6">
-      <section className="overflow-hidden rounded-2xl bg-gradient-to-br from-[#28134b] via-[#4b2678] to-[#7544a5] p-6 text-white shadow-lg sm:p-8">
-        <div className="flex flex-wrap items-start justify-between gap-5">
+      <section className="relative isolate overflow-hidden rounded-2xl bg-gradient-to-br from-[#28134b] via-[#63349c] to-[#985dd0] p-6 text-white shadow-xl shadow-purple-950/20 sm:p-8">
+        <div aria-hidden="true" className="pointer-events-none absolute -right-10 -top-20 -z-10 size-64 rounded-full border-[28px] border-white/15" />
+        <div aria-hidden="true" className="pointer-events-none absolute -bottom-24 right-1/3 -z-10 size-48 rounded-full bg-fuchsia-300/25 blur-3xl" />
+        <div className="relative flex flex-wrap items-start justify-between gap-5">
           <div className="max-w-2xl">
             <p className="text-xs font-bold uppercase tracking-[0.2em] text-purple-200">Bookkeeping · Financial Control</p>
             <h1 className="mt-2 text-2xl font-bold tracking-tight sm:text-3xl">{greeting}, Bookkeeper</h1>
