@@ -111,8 +111,9 @@ input[type="radio"] {
 }
 
 .amcoms-chairman-portal .ch-sidebar {
-  border-color: rgb(191 219 254 / 22%);
-  background-image: linear-gradient(180deg, #102d5c 0%, #17427f 54%, #0c2146 100%);
+  border-color: rgb(147 197 253 / 32%);
+  background-image: linear-gradient(165deg, #0b2e68 0%, #174f9b 48%, #102b59 100%);
+  box-shadow: 12px 0 36px rgb(11 46 104 / 18%);
 }
 
 .amcoms-bookkeeper-portal .bk-sidebar {
@@ -225,8 +226,20 @@ input[type="radio"] {
 
 #root .amcoms-chairman-portal .amcoms-portal-content {
   background:
-    radial-gradient(ellipse at top right, rgb(211 229 251 / 42%), transparent 38rem),
+    radial-gradient(ellipse at top right, rgb(102 163 239 / 18%), transparent 32rem),
+    radial-gradient(ellipse at bottom left, rgb(184 214 252 / 24%), transparent 34rem),
     var(--amcoms-canvas);
+}
+
+#root .amcoms-chairman-portal .amcoms-portal-content :is(div, section, article)[class~="bg-white"][class~="border"] {
+  border-color: #c9dbf2;
+  background-image: linear-gradient(135deg, #ffffff 58%, #f0f6ff);
+  box-shadow: 0 10px 28px rgb(25 77 145 / 9%), 0 2px 6px rgb(25 77 145 / 4%);
+}
+
+#root .amcoms-chairman-portal .amcoms-portal-content :is(section, article)[class~="bg-white"][class~="border"]:hover {
+  border-color: #a9c8ed;
+  box-shadow: 0 14px 34px rgb(25 77 145 / 13%), 0 3px 8px rgb(25 77 145 / 5%);
 }
 
 #root .amcoms-chairman-portal .amcoms-portal-content :is(input, select, textarea):focus {
@@ -240,6 +253,13 @@ input[type="radio"] {
 
 #root .amcoms-chairman-portal .amcoms-portal-content tbody tr:hover {
   background-color: #f5f8fc;
+}
+
+@media print {
+  #root .amcoms-chairman-portal .amcoms-portal-content :is(div, section, article)[class~="bg-white"][class~="border"] {
+    background-image: none;
+    box-shadow: none;
+  }
 }
 
 @media (max-width: 640px) {

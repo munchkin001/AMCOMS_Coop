@@ -685,8 +685,9 @@ const AuditLog = () => {
 
   return (
     <div className="space-y-6">
-      <header className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-slate-950 via-[#173b64] to-blue-800 p-6 text-white shadow-lg sm:p-8">
-        <div aria-hidden="true" className="pointer-events-none absolute -right-10 -top-20 size-64 rounded-full border-[30px] border-white/5" />
+      <header className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-[#0b2e68] via-[#1454a5] to-[#3180d8] p-6 text-white shadow-xl shadow-blue-900/20 sm:p-8">
+        <div aria-hidden="true" className="pointer-events-none absolute -right-10 -top-20 size-64 rounded-full border-[30px] border-white/15" />
+        <div aria-hidden="true" className="pointer-events-none absolute -bottom-24 right-1/3 size-48 rounded-full bg-blue-300/20 blur-3xl" />
         <div className="relative flex flex-wrap items-start justify-between gap-5">
           <div>
             <span className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-blue-100">
@@ -1012,7 +1013,7 @@ const AuditLog = () => {
             className="flex max-h-[92vh] w-full max-w-3xl flex-col overflow-hidden rounded-2xl border border-white/60 bg-slate-50 shadow-2xl"
             onClick={(event) => event.stopPropagation()}
           >
-            <header className="relative shrink-0 overflow-hidden bg-gradient-to-br from-slate-950 via-[#173b64] to-blue-800 px-5 py-5 text-white sm:px-7">
+            <header className="relative shrink-0 overflow-hidden bg-gradient-to-br from-[#0b2e68] via-[#1454a5] to-[#3180d8] px-5 py-5 text-white sm:px-7">
               <div aria-hidden="true" className="pointer-events-none absolute -right-10 -top-20 size-48 rounded-full border-[24px] border-white/5" />
               <div className="relative flex items-start justify-between gap-4">
                 <div className="min-w-0">

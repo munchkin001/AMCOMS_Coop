@@ -252,13 +252,14 @@ const Policies = () => {
           Policies loaded using the existing database schema. Apply migration <code>20261028000004_separate_policy_audiences.sql</code> to enable member policies; existing policies are treated as staff policies until then.
         </p>
       )}
-      <section className="flex flex-col gap-5 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:flex-row sm:items-center sm:justify-between sm:p-6">
+      <section className="relative isolate flex flex-col gap-5 overflow-hidden rounded-2xl border border-blue-600 bg-gradient-to-r from-[#0b2e68] via-[#1454a5] to-[#3180d8] p-5 text-white shadow-xl shadow-blue-900/20 sm:flex-row sm:items-center sm:justify-between sm:p-6">
+        <div aria-hidden="true" className="pointer-events-none absolute -right-8 -top-20 -z-10 size-56 rounded-full border-[24px] border-white/15" />
         <div className="min-w-0">
-          <p className="text-xs font-semibold uppercase tracking-[0.14em] text-blue-700">Governance library</p>
-          <h2 className="mt-1 text-xl font-bold tracking-tight text-slate-900">Policies and procedures</h2>
-          <p className="mt-1 max-w-2xl text-sm text-slate-600">Create, publish, and maintain the guidance shared with staff and members.</p>
-          <p className="mt-2 inline-flex items-center gap-2 text-xs font-medium text-emerald-700">
-            <span className="h-2 w-2 rounded-full bg-emerald-500" />
+          <p className="text-xs font-semibold uppercase tracking-[0.14em] text-blue-100">Governance library</p>
+          <h2 className="mt-1 text-xl font-bold tracking-tight text-white">Policies and procedures</h2>
+          <p className="mt-1 max-w-2xl text-sm text-blue-100">Create, publish, and maintain the guidance shared with staff and members.</p>
+          <p className="mt-2 inline-flex items-center gap-2 text-xs font-medium text-blue-100">
+            <span className="h-2 w-2 rounded-full bg-sky-300" />
             Live updates enabled
           </p>
         </div>
@@ -274,7 +275,7 @@ const Policies = () => {
             setEditingPolicyId(null);
             setShowCreateModal(true);
           }}
-          className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-blue-800 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-blue-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-700 focus-visible:ring-offset-2"
+          className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-white px-5 py-2.5 text-sm font-semibold text-blue-900 shadow-sm transition-colors hover:bg-blue-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-blue-800"
         >
           <Plus aria-hidden="true" className="h-5 w-5" />
           <span>Create Policy</span>

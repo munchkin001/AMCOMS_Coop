@@ -123,7 +123,7 @@ const StaffLayout = ({ children }) => {
                 }}
                 className={`w-full rounded-lg px-4 py-3 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 ${isChairman ? 'focus-visible:ring-blue-200' : isBookkeeper ? 'focus-visible:ring-purple-300' : 'focus-visible:ring-[#e9c46a]'} ${
                   isActiveRoute(item.path)
-                    ? isChairman ? 'bg-gradient-to-r from-blue-200 to-blue-100 font-semibold text-blue-950 shadow-md' : isBookkeeper ? 'bg-gradient-to-r from-purple-300 to-purple-200 font-semibold text-purple-950 shadow-md' : 'bg-gradient-to-r from-[#e9c46a] to-[#d6ab4a] font-semibold text-blue-950 shadow-md'
+                    ? isChairman ? 'bg-gradient-to-r from-blue-300 to-blue-100 font-semibold text-blue-950 shadow-md' : isBookkeeper ? 'bg-gradient-to-r from-purple-300 to-purple-200 font-semibold text-purple-950 shadow-md' : 'bg-gradient-to-r from-[#e9c46a] to-[#d6ab4a] font-semibold text-blue-950 shadow-md'
                     : isChairman ? 'text-blue-50/90 hover:bg-white/10 hover:text-blue-100' : isBookkeeper ? 'text-purple-50/90 hover:bg-white/10 hover:text-purple-100' : 'text-blue-50/90 hover:bg-white/10 hover:text-[#f0d995]'
                 }`}
               >
@@ -157,7 +157,7 @@ const StaffLayout = ({ children }) => {
                       }}
                       className={`w-full rounded-lg px-4 py-2 text-left text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 ${isChairman ? 'focus-visible:ring-blue-200' : isBookkeeper ? 'focus-visible:ring-purple-300' : 'focus-visible:ring-[#e9c46a]'} ${
                         isActiveRoute(subItem.path)
-                          ? isChairman ? 'bg-gradient-to-r from-blue-200 to-blue-100 font-semibold text-blue-950 shadow-md' : isBookkeeper ? 'bg-gradient-to-r from-purple-300 to-purple-200 font-semibold text-purple-950 shadow-md' : 'bg-gradient-to-r from-[#e9c46a] to-[#d6ab4a] font-semibold text-blue-950 shadow-md'
+                          ? isChairman ? 'bg-gradient-to-r from-blue-300 to-blue-100 font-semibold text-blue-950 shadow-md' : isBookkeeper ? 'bg-gradient-to-r from-purple-300 to-purple-200 font-semibold text-purple-950 shadow-md' : 'bg-gradient-to-r from-[#e9c46a] to-[#d6ab4a] font-semibold text-blue-950 shadow-md'
                           : isChairman ? 'text-blue-50/90 hover:bg-white/10 hover:text-blue-100' : isBookkeeper ? 'text-purple-50/90 hover:bg-white/10 hover:text-purple-100' : 'text-blue-50/90 hover:bg-white/10 hover:text-[#f0d995]'
                       }`}
                     >

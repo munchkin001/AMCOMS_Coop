@@ -319,8 +319,9 @@ const PerformanceReport = () => {
 
   return (
     <div className="space-y-6">
-      <header className="no-print relative overflow-hidden rounded-2xl bg-gradient-to-br from-[#102d5c] via-[#17427f] to-[#2762a7] p-6 text-white shadow-lg sm:p-8">
-        <div aria-hidden="true" className="absolute -right-10 -top-20 size-64 rounded-full border-[28px] border-white/10" />
+      <header className="no-print relative overflow-hidden rounded-2xl bg-gradient-to-br from-[#0b2e68] via-[#1454a5] to-[#3180d8] p-6 text-white shadow-xl shadow-blue-900/20 sm:p-8">
+        <div aria-hidden="true" className="absolute -right-10 -top-20 size-64 rounded-full border-[28px] border-white/15" />
+        <div aria-hidden="true" className="absolute -bottom-24 right-1/3 size-48 rounded-full bg-blue-300/20 blur-3xl" />
         <div className="relative">
           <p className="text-xs font-semibold uppercase tracking-[0.16em] text-blue-200">Executive insights</p>
           <h2 className="mt-2 text-2xl font-bold tracking-tight sm:text-3xl">Performance report</h2>
