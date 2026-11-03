@@ -433,6 +433,7 @@ const TransactionWorkflow = ({ role }) => {
   const registeredReleaseProof = selected?.documents
     ?.filter((document) => document.document_type === 'cash_release_acknowledgment')
     .sort((left, right) => new Date(right.uploaded_at) - new Date(left.uploaded_at))[0];
+  const workflowEvents = Array.isArray(selected?.events) ? selected.events : [];
   const selectedReturnItems = selected?.transaction_type === 'sales_return'
     ? (selected.payload?.p_returned_items || []).map((returnedItem) => {
       const saleItems = selected.saleRecord?.sales_order_items?.filter((item) => item.product_id === returnedItem.product_id) || [];
@@ -944,7 +945,7 @@ const TransactionWorkflow = ({ role }) => {
                 {(isCompletedCashIn(selected)
                   ? [
                     [selected.transaction_type === 'sales_return' ? 'Returned-item value' : 'Requested amount', money(workflowDisplayAmount(selected))],
-                    ['Direction', selected.direction.replace('_', ' ')],
+                    ['Direction', String(selected.direction || 'unknown').replaceAll('_', ' ')],
                     ['Payment method', selected.payment_method || 'Not specified'],
                     ['Status', 'Cash received'],
                     ['Submitted', dateTime(selected.created_at)],
@@ -952,14 +953,14 @@ const TransactionWorkflow = ({ role }) => {
                   ]
                   : [
                     [selected.transaction_type === 'sales_return' ? 'Returned-item value' : 'Approved / requested amount', money(workflowDisplayAmount(selected))],
-                    [selected.transaction_type === 'sales_return' ? 'Accounting effect' : 'Direction', selected.transaction_type === 'sales_return' ? 'Reverse credit sale' : selected.direction.replace('_', ' ')],
+                    [selected.transaction_type === 'sales_return' ? 'Accounting effect' : 'Direction', selected.transaction_type === 'sales_return' ? 'Reverse credit sale' : String(selected.direction || 'unknown').replaceAll('_', ' ')],
                     ['Payment method', selected.transaction_type === 'sales_return' ? 'Not applicable' : selected.payment_method || 'Not specified'],
                     ['Workflow status', isTreasurer && isLoanAwaitingBookkeeper(selected) ? 'Awaiting Bookkeeper Processing' : workflowStatusLabel(selected)],
                     ['Approved by', isCreditSale(selected) ? 'Not required' : relation(selected.approver)?.full_name || 'Not yet approved'],
                     ['Manager decision', isCreditSale(selected) ? 'Not required' : dateTime(selected.manager_decision_at)],
-                    ['Bookkeeper processing', selected.processed_at ? dateTime(selected.processed_at) : selected.accounting_status.replace('_', ' ')],
+                    ['Bookkeeper processing', selected.processed_at ? dateTime(selected.processed_at) : String(selected.accounting_status || 'not recorded').replaceAll('_', ' ')],
                     ['Cash release', selected.cash_release_required
-                      ? selected.cash_release_status === 'released' ? 'Cash released' : selected.cash_release_status.replaceAll('_', ' ')
+                      ? selected.cash_release_status === 'released' ? 'Cash released' : String(selected.cash_release_status || 'not recorded').replaceAll('_', ' ')
                       : 'Not required'],
                     ...(isCreditSale(selected) ? [
                       ['Due date', dateLabel(selected.saleRecord?.due_date || selected.payload?.p_sale?.due_date || selected.approved_payload?.p_sale?.due_date)],
@@ -1140,9 +1141,9 @@ const TransactionWorkflow = ({ role }) => {
                 </section>
                 <section className="rounded-xl border border-slate-200 p-4">
                   <h3 className="font-semibold text-slate-900">Workflow history</h3>
-                  {!selected.events?.length ? <p className="mt-2 text-sm text-slate-500">No event history available.</p> : (
+                  {!workflowEvents.length ? <p className="mt-2 text-sm text-slate-500">No event history available.</p> : (
                     <ol className="mt-4">
-                      {[...selected.events]
+                      {[...workflowEvents]
                         .sort((left, right) => new Date(left.created_at) - new Date(right.created_at))
                         .filter((event) => !isCompletedCashIn(selected)
                           || event.event_type === 'submitted'
@@ -1156,7 +1157,7 @@ const TransactionWorkflow = ({ role }) => {
                               <strong className="font-semibold capitalize text-slate-800">
                                 {isCompletedCashIn(selected) && event.event_type === 'processed'
                                   ? 'Cash received'
-                                  : event.event_type.replaceAll('_', ' ')}
+                                  : String(event.event_type || 'workflow update').replaceAll('_', ' ')}
                               </strong>
                               <time className="text-xs text-slate-500">{dateTime(event.created_at)}</time>
                             </span>
@@ -1241,11 +1242,11 @@ const TransactionWorkflow = ({ role }) => {
                 <section className="mt-5 rounded-xl border border-blue-200 bg-blue-50 p-4">
                   <h3 className="font-semibold text-blue-950">Bookkeeper cash handoff</h3>
                   {isPhysicalCashHandoff(selected) ? (
-                    selected.events?.some((event) => event.event_type === 'cash_received_verified') ? (
+                    workflowEvents.some((event) => event.event_type === 'cash_received_verified') ? (
                       <p className="mt-1 text-sm font-medium text-emerald-900">
                         Cash handoff confirmed by the Treasurer
                         {' · '}
-                        {dateTime(selected.events.find((event) => event.event_type === 'cash_received_verified').created_at)}
+                        {dateTime(workflowEvents.find((event) => event.event_type === 'cash_received_verified').created_at)}
                       </p>
                     ) : (
                       <>
