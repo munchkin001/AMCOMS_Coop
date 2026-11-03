@@ -6,14 +6,16 @@ import Ledger from './books/Ledger';
 
 const Books = () => {
   const [activeBook, setActiveBook] = useState('cash-receipts');
-  const [period, setPeriod] = useState('April 2026');
-
-  const periods = [
-    'April 2026',
-    'March 2026',
-    'February 2026',
-    'January 2026'
-  ];
+  const [period, setPeriod] = useState(() => new Date().toLocaleDateString('en-US', {
+    month: 'long',
+    year: 'numeric',
+  }));
+  const periods = Array.from({ length: 12 }, (_, index) => {
+    const date = new Date();
+    date.setDate(1);
+    date.setMonth(date.getMonth() - index);
+    return date.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+  });
 
   return (
     <div className="space-y-6">
