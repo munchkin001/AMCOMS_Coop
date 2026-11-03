@@ -3,7 +3,6 @@ import { TrendingUp, AlertCircle, CheckCircle, Clock, Award } from 'lucide-react
 import { useAuth } from '../../contexts/AuthContext';
 import { supabase } from '../../lib/supabase';
 import { useMultipleRealtimeSubscriptions } from '../../hooks/useRealtimeSubscription';
-import { getLoanInstallmentBreakdown } from '../../lib/loanInstallments';
 
 const peso = (value) => `₱${Number(value || 0).toLocaleString('en-PH', { 
   minimumFractionDigits: 2, 
@@ -268,15 +267,6 @@ const MSOLoans = () => {
                         {loan.term_months / 12} year term · {loan.payment_frequency} payments
                       </p>
                     </div>
-                    {nextDue && (
-                      <div className="rounded-lg bg-orange-100 px-3 py-2 text-right">
-                        <p className="text-xs font-medium text-orange-700">Next Due</p>
-                        <p className="text-sm font-bold text-orange-900">{fmtDate(nextDue.due_date)}</p>
-                        <p className="text-xs text-orange-700">
-                          {peso(Number(nextDue.amount_due) + Number(nextDue.penalty_amount) - Number(nextDue.amount_paid))}
-                        </p>
-                      </div>
-                    )}
                   </div>
                 </div>
 
@@ -294,17 +284,23 @@ const MSOLoans = () => {
                       <p className="mt-1 text-sm font-semibold text-gray-900">{peso(loan.principal_amount)}</p>
                     </div>
                     <div>
+                      <p className="text-xs text-gray-600">Installment</p>
+                      {nextDue ? (
+                        <>
+                          <p className="mt-1 text-sm font-semibold text-gray-900">
+                            {peso(Number(nextDue.amount_due) + Number(nextDue.penalty_amount) - Number(nextDue.amount_paid))} · #{nextDue.installment_number}
+                          </p>
+                          <p className="mt-1 text-xs text-gray-500">Due {fmtDate(nextDue.due_date)}</p>
+                        </>
+                      ) : <p className="mt-1 text-sm font-semibold text-gray-900">{peso(loan.installment_amount)}</p>}
+                    </div>
+                    <div>
                       <p className="text-xs text-gray-600">Total Interest</p>
                       <p className="mt-1 text-sm font-semibold text-gray-900">{peso(Math.max(Number(loan.total_amount || 0) - Number(loan.principal_amount || 0), 0))}</p>
                     </div>
                     <div>
                       <p className="text-xs text-gray-600">Interest Rate</p>
                       <p className="mt-1 text-sm font-semibold text-gray-900">{loan.interest_rate}% p.a.</p>
-                    </div>
-                    <div>
-                      <p className="text-xs text-gray-600">Installment (with interest)</p>
-                      <p className="mt-1 text-sm font-semibold text-gray-900">{peso(loan.installment_amount)}</p>
-                      <p className="mt-1 text-xs text-gray-500">Principal portion: {peso(getLoanInstallmentBreakdown(loan).principal)}</p>
                     </div>
                     <div>
                       <p className="text-xs text-gray-600">Total Amount</p>
@@ -353,7 +349,6 @@ const MSOLoans = () => {
                             <tr>
                               <th className="px-3 py-2 text-left text-xs font-medium text-gray-600">#</th>
                               <th className="px-3 py-2 text-left text-xs font-medium text-gray-600">Due Date</th>
-                              <th className="px-3 py-2 text-right text-xs font-medium text-gray-600">Principal</th>
                               <th className="px-3 py-2 text-right text-xs font-medium text-gray-600">Amount</th>
                               <th className="px-3 py-2 text-center text-xs font-medium text-gray-600">Status</th>
                             </tr>
@@ -363,9 +358,6 @@ const MSOLoans = () => {
                               <tr key={item.id} className="hover:bg-gray-50">
                                 <td className="px-3 py-2 text-gray-900">{item.installment_number}</td>
                                 <td className="px-3 py-2 text-gray-900">{fmtDate(item.due_date)}</td>
-                                <td className="px-3 py-2 text-right text-gray-900">
-                                  {peso(getLoanInstallmentBreakdown(loan, item.installment_number, item.amount_due).principal)}
-                                </td>
                                 <td className="px-3 py-2 text-right font-medium text-gray-900">
                                   {peso(Number(item.amount_due) + Number(item.penalty_amount))}
                                 </td>

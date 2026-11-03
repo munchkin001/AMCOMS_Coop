@@ -4,7 +4,6 @@ import { supabase } from '../../lib/supabase';
 import { useRealtimeSubscription } from '../../hooks/useRealtimeSubscription';
 import MemberReportSort from '../common/MemberReportSort';
 import { sortMemberReportRows } from '../common/memberReportSorting';
-import { getLoanInstallmentBreakdown } from '../../lib/loanInstallments';
 
 const fullName = (member) => [member.first_name, member.middle_name, member.last_name].filter(Boolean).join(' ');
 
@@ -207,15 +206,14 @@ const MemberManagement = () => {
     ['Loan number', loan.loan_number],
     ['Status', loan.status?.replaceAll('_', ' ')],
     ['Principal amount', formatMoney(loan.principal_amount)],
+    ['Installment amount', formatMoney(loan.installment_amount || loan.monthly_payment)],
+    ['Next unpaid due', nextDue ? formatDate(nextDue.due_date) : 'No unpaid dues'],
+    ['Next installment balance', nextDue ? formatMoney(getInstallmentBalance(nextDue)) : '—'],
     ['Total amount', formatMoney(loan.total_amount)],
     ['Outstanding balance', formatMoney(loan.balance)],
-    ['Installment amount', formatMoney(loan.installment_amount || loan.monthly_payment)],
-    ['Principal per installment', formatMoney(getLoanInstallmentBreakdown(loan, nextDue?.installment_number || 1, nextDue?.amount_due).principal)],
     ['Interest rate', loan.interest_rate === null ? 'Not recorded' : `${loan.interest_rate}%`],
     ['Payment frequency', loan.payment_frequency],
     ['Term', loan.term_months ? `${loan.term_months} months` : 'Not recorded'],
-    ['Next unpaid due', nextDue ? formatDate(nextDue.due_date) : 'No unpaid dues'],
-    ['Next installment balance', nextDue ? formatMoney(getInstallmentBalance(nextDue)) : '—'],
     ['Application date', formatDate(loan.application_date)],
     ['Approval date', formatDate(loan.approval_date)],
     ['Release date', formatDate(loan.release_date)],
@@ -228,7 +226,6 @@ const MemberManagement = () => {
     ['Due date', formatDate(installment.due_date)],
     ['Status', status],
     ['Amount due', formatMoney(installment.amount_due)],
-    ['Principal portion', formatMoney(getLoanInstallmentBreakdown(loan, installment.installment_number, installment.amount_due).principal)],
     ['Penalty amount', formatMoney(installment.penalty_amount)],
     ['Total due', formatMoney(Number(installment.amount_due || 0) + Number(installment.penalty_amount || 0))],
     ['Amount paid', formatMoney(installment.amount_paid)],
@@ -750,9 +747,8 @@ const MemberManagement = () => {
                               <tr>
                                 <th scope="col" className="px-4 py-3 font-semibold">Loan</th>
                                 <th scope="col" className="px-4 py-3 font-semibold">Principal / total</th>
-                                <th scope="col" className="px-4 py-3 font-semibold">Balance</th>
                                 <th scope="col" className="px-4 py-3 font-semibold">Installment</th>
-                                <th scope="col" className="px-4 py-3 font-semibold">Next unpaid due</th>
+                                <th scope="col" className="px-4 py-3 font-semibold">Balance</th>
                                 <th scope="col" className="px-4 py-3 font-semibold">Key dates</th>
                               </tr>
                             </thead>
@@ -793,21 +789,19 @@ const MemberManagement = () => {
                                     <td className="whitespace-nowrap px-4 py-3 font-semibold text-gray-900">{formatMoney(loan.balance)}</td>
                                     <td className="whitespace-nowrap px-4 py-3 text-gray-700">
                                       <p>{formatMoney(loan.installment_amount || loan.monthly_payment)}</p>
-                                      <p className="mt-1 text-xs text-gray-500">Principal {formatMoney(getLoanInstallmentBreakdown(loan).principal)}</p>
-                                    </td>
-                                    <td className="whitespace-nowrap px-4 py-3">
                                       {nextDue ? (
-                                        <>
-                                          <p className={`font-semibold ${nextDue.due_date < today ? 'text-red-700' : nextDue.due_date === today ? 'text-amber-700' : 'text-gray-900'}`}>
+                                        <div className="mt-1">
+                                          <p className={`text-xs font-semibold ${nextDue.due_date < today ? 'text-red-700' : nextDue.due_date === today ? 'text-amber-700' : 'text-gray-900'}`}>
                                             {formatMoney(getInstallmentBalance(nextDue))}
                                           </p>
                                           <p className="mt-1 text-xs text-gray-600">{formatDate(nextDue.due_date)}</p>
-                                          <p className={`mt-1 text-xs font-medium ${nextDue.due_date < today ? 'text-red-700' : nextDue.due_date === today ? 'text-amber-700' : 'text-blue-700'}`}>
+                                          <p className={`text-xs font-medium ${nextDue.due_date < today ? 'text-red-700' : nextDue.due_date === today ? 'text-amber-700' : 'text-blue-700'}`}>
                                             {nextDue.due_date < today ? 'Overdue' : nextDue.due_date === today ? 'Due today' : 'Upcoming'}
                                           </p>
-                                        </>
-                                      ) : <span className="text-gray-500">No unpaid dues</span>}
+                                        </div>
+                                      ) : <p className="mt-1 text-xs text-gray-500">No unpaid dues</p>}
                                     </td>
+                                    <td className="whitespace-nowrap px-4 py-3 font-semibold text-gray-900">{formatMoney(loan.balance)}</td>
                                     <td className="px-4 py-3 text-xs text-gray-600">
                                       <p>Applied {formatDate(loan.application_date)}</p>
                                       <p className="mt-1">Released {formatDate(loan.release_date)}</p>

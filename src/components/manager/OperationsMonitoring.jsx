@@ -2,7 +2,6 @@ import { useCallback, useEffect, useState } from 'react';
 import { Eye, X } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useMultipleRealtimeSubscriptions } from '../../hooks/useRealtimeSubscription';
-import { getLoanInstallmentBreakdown } from '../../lib/loanInstallments';
 
 const peso = (value) => `₱${(Number(value) || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 const formatDate = (value) => value
@@ -193,7 +192,6 @@ const OperationsMonitoring = () => {
         ['Installment number', display(schedule.installment_number)],
         ['Due date', formatDate(schedule.due_date)],
         ['Installment amount', peso(schedule.amount_due)],
-        ['Principal portion', peso(getLoanInstallmentBreakdown(loan, schedule.installment_number, schedule.amount_due).principal)],
         ['Amount paid', peso(schedule.amount_paid)],
         ['Penalty', peso(schedule.penalty_amount)],
         ['Outstanding amount', peso(outstanding)],

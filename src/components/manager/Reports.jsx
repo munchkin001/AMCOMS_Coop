@@ -3,7 +3,6 @@ import { useLocation } from 'react-router-dom';
 import { CalendarDays, ChevronLeft, ChevronRight, Clock3, Printer, RefreshCw, WalletCards, X } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useMultipleRealtimeSubscriptions } from '../../hooks/useRealtimeSubscription';
-import { getLoanInstallmentBreakdown } from '../../lib/loanInstallments';
 import ReportInsights from '../common/ReportInsights';
 import MemberReportSort from '../common/MemberReportSort';
 import { sortMemberReportRows } from '../common/memberReportSorting';
@@ -466,7 +465,6 @@ const Reports = () => {
             ['Due date', fmtDate(schedule.due_date)],
             ['Schedule status', schedule.status],
             ['Installment amount due', peso(due)],
-            ['Principal portion', peso(getLoanInstallmentBreakdown(loan, schedule.installment_number, schedule.amount_due).principal)],
             ['Amount paid', peso(paid)],
             ['Penalty amount', peso(schedule.penalty_amount)],
             ['Outstanding installment', peso(unpaidInstallment)],

@@ -6,7 +6,6 @@ import { useMultipleRealtimeSubscriptions } from '../../hooks/useRealtimeSubscri
 import offlineDb from '../../lib/Offline/OfflineDb';
 import DashboardMetricCard from '../common/DashboardMetricCard';
 import { getDataLoadErrorMessage } from '../../lib/errorHandler';
-import { getLoanInstallmentBreakdown } from '../../lib/loanInstallments';
 
 const formatPeso = (value) => new Intl.NumberFormat('en-PH', {
   style: 'currency',
@@ -434,8 +433,8 @@ const MemberDashboard = ({ onNavigate }) => {
               <tr>
                 <th scope="col" className="px-4 py-3 font-semibold">Loan</th>
                 <th scope="col" className="px-4 py-3 font-semibold">Principal</th>
+                <th scope="col" className="px-4 py-3 font-semibold">Installment</th>
                 <th scope="col" className="px-4 py-3 font-semibold">Interest</th>
-                <th scope="col" className="px-4 py-3 font-semibold">Next due</th>
                 <th scope="col" className="px-4 py-3 text-right font-semibold">Paid to date</th>
                 <th scope="col" className="px-4 py-3 text-right font-semibold">Balance left</th>
                 <th scope="col" className="px-4 py-3 font-semibold">Last payment</th>
@@ -481,17 +480,16 @@ const MemberDashboard = ({ onNavigate }) => {
                         <p className="mt-0.5 text-xs font-normal text-slate-500">Without interest</p>
                       </td>
                       <td className="px-4 py-4">
-                        <p className="font-semibold text-violet-800">{formatPeso(totalInterest)}</p>
-                        <p className="mt-0.5 text-xs text-slate-500">{Number(loan.interest_rate || 0)}% · {formatPeso(interestPaid)} paid</p>
-                      </td>
-                      <td className="px-4 py-4">
                         {nextDue ? (
                           <>
                             <p className="font-semibold text-amber-800">{new Date(`${nextDue.due_date}T00:00:00`).toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' })}</p>
                             <p className="mt-0.5 text-xs text-slate-500">{formatPeso(nextDueAmount)} · installment {nextDue.installment_number}</p>
-                            <p className="mt-0.5 text-xs text-slate-500">Scheduled principal: {formatPeso(getLoanInstallmentBreakdown(loan, nextDue.installment_number, nextDue.amount_due).principal)}</p>
                           </>
-                        ) : <span className="text-slate-400">No upcoming due</span>}
+                        ) : <span className="text-slate-400">No upcoming installment</span>}
+                      </td>
+                      <td className="px-4 py-4">
+                        <p className="font-semibold text-violet-800">{formatPeso(totalInterest)}</p>
+                        <p className="mt-0.5 text-xs text-slate-500">{Number(loan.interest_rate || 0)}% · {formatPeso(interestPaid)} paid</p>
                       </td>
                       <td className="px-4 py-4 text-right font-semibold text-emerald-700">{formatPeso(paidToDate)}</td>
                       <td className="px-4 py-4 text-right font-bold text-slate-900">{formatPeso(loan.balance)}</td>

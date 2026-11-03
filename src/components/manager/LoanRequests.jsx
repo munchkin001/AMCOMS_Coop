@@ -9,7 +9,6 @@ import { queueOperation, getOperation } from '../../lib/Offline/syncQueue';
 import { syncPendingOperations } from '../../lib/Offline/syncOperations';
 import offlineDb from '../../lib/Offline/OfflineDb';
 import SearchableMemberSelect from '../common/SearchableMemberSelect';
-import { getLoanInstallmentBreakdown } from '../../lib/loanInstallments';
 
 const formatMoney = (value) => `₱${Number(value || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })}`;
 const fullName = (member) => [member?.first_name, member?.middle_name, member?.last_name].filter(Boolean).join(' ') || 'Member';
@@ -437,12 +436,10 @@ export const LegacyLoanRequests = () => {
       const interest = Math.round(requestedAmount * Number(activeTerm.annual_rate) / 100 * activeTerm.term_months / 12 * 100) / 100;
       const total = requestedAmount + interest;
       const installment = Math.round(total / installments * 100) / 100;
-      const installmentInterest = Math.round(interest / installments * 100) / 100;
       return {
         interest,
         total,
         installment,
-        principalInstallment: Math.max(installment - installmentInterest, 0),
       };
     })()
     : null;
@@ -888,7 +885,7 @@ export const LegacyLoanRequests = () => {
             {activeTerm && (
               <p className="rounded-lg bg-blue-50 p-3 text-sm text-blue-950 sm:col-span-2">
                 Configured rate: <strong>{activeTerm.annual_rate}% annual interest</strong> · {activeTerm.penalty_rate}% penalty rate for overdue payments.
-                {quotePreview && <> Estimated interest: <strong>{formatMoney(quotePreview.interest)}</strong> · total repayment: <strong>{formatMoney(quotePreview.total)}</strong> · installment: <strong>{formatMoney(quotePreview.installment)}</strong> (principal portion {formatMoney(quotePreview.principalInstallment)} + interest).</>}
+                {quotePreview && <> Principal: <strong>{formatMoney(requestedAmount)}</strong> · installment: <strong>{formatMoney(quotePreview.installment)}</strong> · estimated interest: <strong>{formatMoney(quotePreview.interest)}</strong> · total repayment: <strong>{formatMoney(quotePreview.total)}</strong>.</>}
                 <span className="mt-1 block text-xs">Estimate only; the server recalculates the final quote using the active cooperative terms.</span>
               </p>
             )}
@@ -1053,18 +1050,10 @@ export const LegacyLoanRequests = () => {
                       ['Loan type', data.loan_type || 'Not specified'],
                       ['Loan term and payment schedule', `${data.term_months || '—'} months · ${data.payment_frequency || 'monthly'} payments`],
                       ['Purpose', data.purpose || 'Not provided'],
+                      ['Principal amount', formatMoney(selectedRequest.amount)],
+                      ['Payment amount per installment', formatMoney(data.installment_amount)],
                       ['Total interest', formatMoney(data.total_interest)],
                       ['Total amount to repay', formatMoney(data.total_payable)],
-                      ['Payment amount per installment', formatMoney(data.installment_amount)],
-                      ['Principal per installment', formatMoney(getLoanInstallmentBreakdown({
-                        principal_amount: selectedRequest.amount,
-                        total_amount: data.total_payable,
-                        total_interest: data.total_interest,
-                        installments: data.installments,
-                        installment_amount: data.installment_amount,
-                        term_months: data.term_months,
-                        payment_frequency: data.payment_frequency,
-                      }).principal)],
                       ['Annual interest rate', `${data.annual_rate ?? '—'}%`],
                       ['Late payment penalty rate', `${data.penalty_rate ?? '—'}%`],
                       ['Processing fee / service fee', `${formatMoney(applicationDetails.processing_fee)} / ${formatMoney(applicationDetails.service_fee)}`],
@@ -1139,7 +1128,6 @@ export const LegacyLoanRequests = () => {
                     <td className="whitespace-nowrap px-5 py-4 text-sm text-gray-700">{formatMoney(loan.principal_amount)}</td>
                     <td className="whitespace-nowrap px-5 py-4 text-sm text-gray-700">
                       <p>{formatMoney(loan.installment_amount ?? loan.monthly_payment)} · {loan.payment_frequency}</p>
-                      <p className="mt-1 text-xs text-gray-500">Principal {formatMoney(getLoanInstallmentBreakdown(loan).principal)}</p>
                     </td>
                     <td className="whitespace-nowrap px-5 py-4 text-sm text-gray-700">{formatMoney(loan.balance)}</td>
                     <td className="whitespace-nowrap px-5 py-4 text-sm text-gray-700">{loan.cashReleased
@@ -1190,7 +1178,6 @@ export const LegacyLoanRequests = () => {
                 ['Payment frequency', selectedLoan.payment_frequency || 'Not specified'],
                 ['Installments', selectedLoan.installments ? `${selectedLoan.installments} payments` : 'Not available'],
                 ['Installment amount', formatMoney(selectedLoan.installment_amount ?? selectedLoan.monthly_payment)],
-                ['Principal per installment', formatMoney(getLoanInstallmentBreakdown(selectedLoan).principal)],
                 ['Annual interest rate', `${selectedLoan.interest_rate ?? 0}%`],
                 ['Late-payment penalty rate', `${selectedLoan.penalty_rate ?? 0}%`],
               ];
