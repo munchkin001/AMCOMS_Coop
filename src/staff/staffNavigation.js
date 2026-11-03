@@ -45,6 +45,13 @@ const staffNavigationConfig = {
       component: 'GeneralLedger'
     },
     {
+      id: 'chart-of-accounts',
+      name: 'Chart of Accounts',
+      icon: Library,
+      path: '/staff/chart-of-accounts',
+      component: 'ChartOfAccounts'
+    },
+    {
       id: 'audit-log',
       name: 'Audit Log',
       icon: '📋',
@@ -102,6 +109,13 @@ const staffNavigationConfig = {
       icon: '📒',
       path: '/staff/general-ledger',
       component: 'GeneralLedger'
+    },
+    {
+      id: 'chart-of-accounts',
+      name: 'Chart of Accounts',
+      icon: Library,
+      path: '/staff/chart-of-accounts',
+      component: 'ChartOfAccounts'
     },
     {
       id: 'reports',
@@ -184,6 +198,13 @@ const staffNavigationConfig = {
       component: 'GeneralLedger'
     },
     {
+      id: 'chart-of-accounts',
+      name: 'Chart of Accounts',
+      icon: Library,
+      path: '/staff/chart-of-accounts',
+      component: 'ChartOfAccounts'
+    },
+    {
       id: 'reports',
       name: 'Reports',
       icon: '📑',
@@ -241,6 +262,13 @@ const staffNavigationConfig = {
       icon: '📒',
       path: '/staff/general-ledger',
       component: 'GeneralLedger'
+    },
+    {
+      id: 'chart-of-accounts',
+      name: 'Chart of Accounts',
+      icon: Library,
+      path: '/staff/chart-of-accounts',
+      component: 'ChartOfAccounts'
     },
     {
       id: 'reconciliation',
@@ -350,6 +378,7 @@ export const getNavigationForRole = (role) => {
     transactions: Banknote,
     books: BookOpen,
     'general-ledger': Library,
+    'chart-of-accounts': BookOpen,
     reconciliation: RefreshCw,
     products: Tags,
     stock: Package,

@@ -36,6 +36,7 @@ import TransactionHistory from '../components/treasurer/TransactionHistory';
 import Transactions from '../components/bookkeeper/Transactions';
 import Reconciliation from '../components/bookkeeper/Reconciliation';
 import GeneralLedger from '../components/accounting/GeneralLedger';
+import ChartOfAccounts from '../components/accounting/ChartOfAccounts';
 import FinancialReports from '../components/bookkeeper/FinancialReports';
 import BookkeeperMemberManagement from '../components/bookkeeper/MemberManagement';
 import LoanRequests from '../components/manager/LoanRequests';
@@ -151,6 +152,12 @@ const StaffPortal = () => {
         <Route
           path="/general-ledger"
           element={['bookkeeper', 'treasurer', 'manager', 'chairman'].includes(staff.role) ? <GeneralLedger /> : <Navigate to="/staff/dashboard" replace />}
+        />
+        <Route
+          path="/chart-of-accounts"
+          element={['bookkeeper', 'treasurer', 'manager', 'chairman'].includes(staff.role)
+            ? <ChartOfAccounts />
+            : <Navigate to="/staff/dashboard" replace />}
         />
 
         {/* Inventory Routes */}
