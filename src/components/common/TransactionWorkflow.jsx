@@ -1074,7 +1074,7 @@ const TransactionWorkflow = ({ role }) => {
                       <td className="px-4 py-4">
                         <button type="button" onClick={(event) => { event.stopPropagation(); openWorkflowDetails(row); }} className={`rounded-lg px-3 py-2 text-xs font-semibold ${actionable ? isTreasurer ? 'bg-teal-700 text-white hover:bg-teal-800' : isManager ? 'bg-orange-700 text-white hover:bg-orange-800' : isBookkeeper ? 'bg-purple-800 text-white hover:bg-purple-900' : 'bg-slate-900 text-white hover:bg-slate-700' : 'border border-slate-300 text-slate-700 hover:bg-slate-50'}`}>
                           {isLoanReleaseReconciliationRequired(row)
-                            ? 'Admin review required'
+                            ? 'View reconciliation'
                             : actionable ? isManager ? 'Review' : isBookkeeper ? row.status === 'returned_for_correction' ? 'Edit & resubmit' : 'Process' : 'Verify release' : awaitingBookkeeperRelease ? 'View status' : 'View details'}
                         </button>
                       </td>
@@ -1313,12 +1313,16 @@ const TransactionWorkflow = ({ role }) => {
                       ))}
                     </ul>
                   )}
-                  {isTreasurer && isLoanReleaseReconciliationRequired(selected) && (
+                  {isLoanReleaseReconciliationRequired(selected) && (
                     <section role="status" className="mt-5 rounded-xl border border-red-200 bg-red-50 p-4">
-                      <h3 className="font-semibold text-red-950">Bookkeeper reconciliation required</h3>
-                      <p className="mt-1 text-sm text-red-900">
-                        This loan is marked active, but no linked, posted cash-disbursement record was found. Release is blocked to prevent a duplicate payment. The Treasurer must confirm whether the cash was handed to the member. The Bookkeeper must verify the cash-disbursement voucher and posted journal entry, then reconcile the accounting records. Do not retry the release until both checks are complete.
-                      </p>
+                      <h3 className="font-semibold text-red-950">Loan release needs reconciliation</h3>
+                      <p className="mt-1 text-sm text-red-900">The loan is marked active, but no linked, posted cash-disbursement record was found. Release is blocked to prevent a duplicate payment.</p>
+                      <ul className="mt-3 list-disc space-y-1 pl-5 text-sm text-red-900">
+                        <li><strong>Bookkeeper — reconciliation owner:</strong> Check the disbursement voucher and its posted journal entry in Transactions Management / General Ledger. Reconcile only from verified existing records.</li>
+                        <li><strong>Treasurer:</strong> Confirm from the release proof and your records whether the member actually received the cash; report that result to the Bookkeeper.</li>
+                        <li><strong>Manager:</strong> Review and oversee any correction if the records disagree before staff change the loan or accounting entries.</li>
+                      </ul>
+                      <p className="mt-3 text-sm font-semibold text-red-950">Do not attempt another release until the Bookkeeper and Treasurer have completed their checks.</p>
                     </section>
                   )}
 
