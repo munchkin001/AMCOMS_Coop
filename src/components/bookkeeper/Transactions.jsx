@@ -132,10 +132,10 @@ const Transactions = ({ initialType = null, startNewTransaction = false }) => {
         ? 'noncash'
         : 'cash_in';
       memberId = sale?.member_id || null;
-      counterpartyName = sale?.customer_name || null;
+      counterpartyName = sale?.customer_name || data.p_customer_name || null;
       paymentMethod = sale?.payment_method || null;
       description = data.action === 'cancel-credit-sale'
-        ? `Return/cancel sale ${data.p_sales_order_id}`
+        ? `Return/cancel sale ${data.p_sales_order_number || data.p_sales_order_id}`
         : sale?.flow === 'collection'
           ? `Collection for credit sale ${sale.reference_number}`
           : `Sale to ${sale?.customer_name || 'customer'}`;

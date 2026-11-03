@@ -429,23 +429,41 @@ const TransactionWorkflow = ({ role }) => {
       setError(`Unable to load transactions: ${loadError.message}`);
     } else {
       const workflows = (data || []).filter((workflow) => !isManager || !isCreditSale(workflow));
-      const saleIds = workflows
-        .filter((workflow) => workflow.transaction_type === 'sale' && workflow.business_record_table === 'sales_orders' && workflow.business_record_id)
-        .map((workflow) => workflow.business_record_id);
+      const getRelatedSaleId = (workflow) => workflow.transaction_type === 'sales_return'
+        ? workflow.source_record_id || workflow.payload?.p_sales_order_id
+        : workflow.transaction_type === 'sale' && workflow.business_record_table === 'sales_orders'
+          ? workflow.business_record_id
+          : null;
+      const saleIds = [...new Set(workflows.map(getRelatedSaleId).filter(Boolean))];
       if (saleIds.length) {
         const { data: sales, error: salesError } = await supabase
           .from('sales_orders')
-          .select('id, order_number, due_date, net_amount, amount_paid, payment_status')
+          .select('id, order_number, customer_name, member_id, due_date, net_amount, amount_paid, payment_status')
           .in('id', saleIds);
         if (salesError) {
-          console.error('Unable to load credit sale due details:', salesError);
-          setError(`Unable to load credit sale due details: ${salesError.message}`);
-          setRows(workflows);
+          console.error('Unable to load related sale details:', salesError);
+          setError(`Unable to load related sale details: ${salesError.message}`);
+          setRows(workflows.map((workflow) => ({
+            ...workflow,
+            saleRecord: workflow.transaction_type === 'sales_return'
+              ? {
+                order_number: workflow.payload?.p_sales_order_number,
+                customer_name: workflow.payload?.p_customer_name,
+              }
+              : null,
+          })));
         } else {
           const salesById = new Map((sales || []).map((sale) => [sale.id, sale]));
           setRows(workflows.map((workflow) => ({
             ...workflow,
-            saleRecord: salesById.get(workflow.business_record_id) || null,
+            saleRecord: salesById.get(getRelatedSaleId(workflow)) || (
+              workflow.transaction_type === 'sales_return'
+                ? {
+                  order_number: workflow.payload?.p_sales_order_number,
+                  customer_name: workflow.payload?.p_customer_name,
+                }
+                : null
+            ),
           })));
         }
       } else {
@@ -475,6 +493,8 @@ const TransactionWorkflow = ({ role }) => {
       return [
         row.counterparty_name,
         row.description,
+        row.saleRecord?.order_number,
+        row.saleRecord?.customer_name,
         row.transaction_type,
         row.source_module,
         requester,
@@ -796,11 +816,19 @@ const TransactionWorkflow = ({ role }) => {
                     <tr key={row.id} className="cursor-pointer hover:bg-blue-50/60" onClick={() => openWorkflowDetails(row)}>
                       <td className="px-4 py-4">
                         <p className="font-semibold text-slate-900">{TYPE_LABELS[row.transaction_type] || row.transaction_type}</p>
-                        <p className="mt-1 max-w-xs truncate text-xs text-slate-500">{row.description}</p>
-                        <p className="mt-1 text-[11px] text-slate-400">{row.source_module} · {row.id.slice(0, 8).toUpperCase()}</p>
+                        <p className="mt-1 max-w-xs truncate text-xs text-slate-500">
+                          {row.transaction_type === 'sales_return' && row.saleRecord?.order_number
+                            ? `Credit sale ${row.saleRecord.order_number}`
+                            : row.description}
+                        </p>
+                        <p className="mt-1 text-[11px] text-slate-400">
+                          {row.transaction_type === 'sales_return'
+                            ? row.source_module
+                            : `${row.source_module} · ${row.id.slice(0, 8).toUpperCase()}`}
+                        </p>
                       </td>
                       <td className="px-4 py-4 text-sm text-slate-700">
-                        <p>{row.counterparty_name || requester}</p>
+                        <p>{row.counterparty_name || row.saleRecord?.customer_name || requester}</p>
                         {row.member_id && <p className="mt-1 text-xs text-slate-500">Member-linked</p>}
                       </td>
                       <td className="whitespace-nowrap px-4 py-4 text-sm font-semibold text-slate-900">{money(row.amount)}</td>
@@ -830,7 +858,13 @@ const TransactionWorkflow = ({ role }) => {
             <header className={`flex items-start justify-between gap-4 px-5 py-5 sm:px-7 ${isManager ? 'bg-gradient-to-br from-orange-200 via-orange-300 to-orange-400 text-orange-950' : isBookkeeper ? 'bg-gradient-to-br from-[#28134b] via-[#4b2678] to-[#7544a5] text-white' : isTreasurer ? 'bg-gradient-to-br from-[#142b57] via-[#1c3d76] to-[#244b86] text-white' : 'bg-slate-950 text-white'}`}>
               <div>
                 <p className={`text-xs font-semibold uppercase tracking-wider ${isManager ? 'text-orange-900' : isBookkeeper ? 'text-purple-200' : 'text-amber-300'}`}>{TYPE_LABELS[selected.transaction_type] || selected.transaction_type}</p>
-                <h2 id="workflow-detail-title" className="mt-1 text-xl font-bold sm:text-2xl">{selected.counterparty_name || selected.description}</h2>
+                <h2 id="workflow-detail-title" className="mt-1 text-xl font-bold sm:text-2xl">
+                  {selected.counterparty_name
+                    || selected.saleRecord?.customer_name
+                    || (selected.transaction_type === 'sales_return' && selected.saleRecord?.order_number
+                      ? `Credit sale ${selected.saleRecord.order_number}`
+                      : selected.description)}
+                </h2>
                 <p className={`mt-1 text-sm ${isManager ? 'text-orange-950/75' : 'text-slate-300'}`}>{selected.source_module} · submitted {dateTime(selected.created_at)}</p>
               </div>
               <button type="button" onClick={() => setSelected(null)} disabled={busy} aria-label="Close transaction details" className={`rounded-lg p-2 ${isManager ? 'text-orange-900 hover:bg-white/40 hover:text-orange-950' : 'text-slate-300 hover:bg-slate-800 hover:text-white'}`}>×</button>
@@ -881,7 +915,14 @@ const TransactionWorkflow = ({ role }) => {
               )}
               <div className="mt-4 rounded-xl border border-slate-200 p-4">
                 <h3 className="font-semibold text-slate-900">Purpose and submitted details</h3>
-                <p className="mt-2 whitespace-pre-wrap text-sm text-slate-700">{selected.description}</p>
+                {selected.transaction_type === 'sales_return' && selected.saleRecord?.order_number && (
+                  <p className="mt-2 text-sm font-semibold text-slate-800">Credit sale: {selected.saleRecord.order_number}</p>
+                )}
+                <p className="mt-2 whitespace-pre-wrap text-sm text-slate-700">
+                  {selected.transaction_type === 'sales_return' && selected.saleRecord?.order_number
+                    ? `Return/cancel sale ${selected.saleRecord.order_number}`
+                    : selected.description}
+                </p>
                 {selected.manager_remarks && <p className="mt-3 rounded-lg bg-amber-50 p-3 text-sm text-amber-950"><strong>Manager remarks:</strong> {selected.manager_remarks}</p>}
                 {selected.journal_entry_id && <p className="mt-3 text-sm text-slate-600">Journal entry: <span className="font-mono">{selected.journal_entry_id}</span></p>}
                 {selected.transaction_type === 'loan_disbursement' && (() => {
