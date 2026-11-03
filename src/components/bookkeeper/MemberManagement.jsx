@@ -3,6 +3,8 @@ import { Archive, ChevronLeft, ChevronRight, Eye, KeyRound, Pencil, Plus, Rotate
 import { useRealtimeSubscription } from '../../hooks/useRealtimeSubscription';
 import { supabase } from '../../lib/supabase';
 import { getAppUrl } from '../../lib/appUrl';
+import MemberReportSort from '../common/MemberReportSort';
+import { sortMemberReportRows } from '../common/memberReportSorting';
 
 const emptyForm = {
   first_name: '', middle_name: '', last_name: '', email: '', phone: '', address: '',
@@ -16,9 +18,6 @@ const money = (value) => `₱${(Number(value) || 0).toLocaleString('en-PH', { mi
 const MEMBER_PAGE_SIZE = 10;
 const fullName = (member) => [member.first_name, member.middle_name, member.last_name].filter(Boolean).join(' ');
 const memberNameCollator = new Intl.Collator(undefined, { sensitivity: 'base', numeric: true });
-const compareMembersByName = (left, right) =>
-  memberNameCollator.compare(fullName(left), fullName(right)) ||
-  memberNameCollator.compare(left.member_number || '', right.member_number || '');
 const parseFamilyMembers = (value) => {
   if (Array.isArray(value)) return value;
   if (typeof value !== 'string' || !value.trim()) return [];
@@ -58,6 +57,7 @@ const MemberManagement = ({ canManageMembers = true }) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [search, setSearch] = useState('');
+  const [memberSort, setMemberSort] = useState('newest');
   const [statusFilter, setStatusFilter] = useState('all');
   const [view, setView] = useState('all');
   const [memberPage, setMemberPage] = useState(1);
@@ -179,15 +179,16 @@ const MemberManagement = ({ canManageMembers = true }) => {
   const filteredMembers = useMemo(() => {
     const source = view === 'archived' ? archivedMembers : activeMembers;
     const normalizedSearch = search.trim().toLowerCase();
-    return source.filter((member) => {
+    const filtered = source.filter((member) => {
       const matchesSearch = !normalizedSearch || [
         member.member_number, fullName(member), member.phone, member.address, member.email
       ].some((value) => String(value || '').toLowerCase().includes(normalizedSearch));
       const matchesStatus = statusFilter === 'all' || member.membership_status === statusFilter;
       const matchesType = view === 'all' || view === 'archived' || member.membership_type === view;
       return matchesSearch && matchesStatus && matchesType;
-    }).sort(compareMembersByName);
-  }, [activeMembers, archivedMembers, search, statusFilter, view]);
+    });
+    return sortMemberReportRows(filtered, memberSort);
+  }, [activeMembers, archivedMembers, memberSort, search, statusFilter, view]);
   const memberPageCount = Math.max(1, Math.ceil(filteredMembers.length / MEMBER_PAGE_SIZE));
   const currentMemberPage = Math.min(memberPage, memberPageCount);
   const visibleMembers = filteredMembers.slice(
@@ -565,12 +566,19 @@ const MemberManagement = ({ canManageMembers = true }) => {
         )}
       </div>
 
-      <label className="flex items-center gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-sm transition focus-within:border-blue-400 focus-within:ring-2 focus-within:ring-blue-600/15">
-        <Search size={19} className="shrink-0 text-blue-700" aria-hidden="true" />
-        <span className="sr-only">Search members</span>
-        <input value={search} onChange={(event) => { setSearch(event.target.value); setMemberPage(1); }} placeholder="Search name, member ID, contact, or email" className="min-w-0 flex-1 border-0 bg-transparent text-sm font-medium text-slate-800 outline-none placeholder:font-normal placeholder:text-slate-400 focus:ring-0" />
-        <span className="hidden rounded-md bg-slate-100 px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-slate-500 sm:inline">Search</span>
-      </label>
+      <div className="flex flex-col gap-3 rounded-xl border border-slate-200 bg-white p-3 shadow-sm sm:flex-row sm:items-center sm:justify-between">
+        <label className="flex min-w-0 flex-1 items-center gap-3 rounded-lg border border-slate-200 px-3 py-2 transition focus-within:border-blue-400 focus-within:ring-2 focus-within:ring-blue-600/15">
+          <Search size={19} className="shrink-0 text-blue-700" aria-hidden="true" />
+          <span className="sr-only">Search members</span>
+          <input value={search} onChange={(event) => { setSearch(event.target.value); setMemberPage(1); }} placeholder="Search name, member ID, contact, or email" className="min-w-0 flex-1 border-0 bg-transparent text-sm font-medium text-slate-800 outline-none placeholder:font-normal placeholder:text-slate-400 focus:ring-0" />
+          <span className="hidden rounded-md bg-slate-100 px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-slate-500 sm:inline">Search</span>
+        </label>
+        <MemberReportSort
+          value={memberSort}
+          onChange={(value) => { setMemberSort(value); setMemberPage(1); }}
+          id="bookkeeper-directory-sort"
+        />
+      </div>
 
       {error && <p role="alert" className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{error}</p>}
       {portalNotice && <p role="status" className="whitespace-pre-line rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">{portalNotice}</p>}

@@ -2,6 +2,8 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { AlertCircle, CheckCircle2, Clock3, Eye, HandCoins, Landmark, Printer, Search, UserCheck, UserPlus, Users, Wallet, X } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useRealtimeSubscription } from '../../hooks/useRealtimeSubscription';
+import MemberReportSort from '../common/MemberReportSort';
+import { sortMemberReportRows } from '../common/memberReportSorting';
 
 const fullName = (member) => [member.first_name, member.middle_name, member.last_name].filter(Boolean).join(' ');
 
@@ -83,6 +85,7 @@ const MemberManagement = () => {
   const [members, setMembers] = useState([]);
   const [archivedCount, setArchivedCount] = useState(0);
   const [searchTerm, setSearchTerm] = useState('');
+  const [memberSort, setMemberSort] = useState('newest');
   const [selectedMember, setSelectedMember] = useState(null);
   const [selectedFinancialRecord, setSelectedFinancialRecord] = useState(null);
   const [memberLoans, setMemberLoans] = useState([]);
@@ -320,16 +323,15 @@ const MemberManagement = () => {
 
   const filteredMembers = useMemo(() => {
     const normalizedSearch = searchTerm.trim().toLowerCase();
-    if (!normalizedSearch) return members;
-
-    return members.filter((member) => [
+    const matchingMembers = !normalizedSearch ? members : members.filter((member) => [
       fullName(member),
       member.member_number,
       member.email,
       member.phone,
       member.address
     ].some((value) => String(value || '').toLowerCase().includes(normalizedSearch)));
-  }, [members, searchTerm]);
+    return sortMemberReportRows(matchingMembers, memberSort);
+  }, [members, memberSort, searchTerm]);
 
   const statementRows = useMemo(() => {
     if (!statementStart || !statementEnd || statementStart > statementEnd) return [];
@@ -378,19 +380,24 @@ const MemberManagement = () => {
       </div>
 
       <section className="rounded-lg border border-gray-200 bg-white p-5 shadow-sm">
-        <label htmlFor="member-search" className="mb-2 block text-sm font-medium text-gray-700">
-          Find a member
-        </label>
-        <div className="relative">
-          <Search className="pointer-events-none absolute left-3 top-1/2 size-5 -translate-y-1/2 text-gray-400" aria-hidden="true" />
-          <input
-            id="member-search"
-            type="search"
-            value={searchTerm}
-            onChange={(event) => setSearchTerm(event.target.value)}
-            placeholder="Search by name, member ID, email, or contact number"
-            className="w-full rounded-lg border border-gray-300 py-2.5 pl-10 pr-4 text-sm text-gray-900 placeholder:text-gray-400 focus:border-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-600/20"
-          />
+        <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_auto] md:items-end">
+          <div>
+            <label htmlFor="member-search" className="mb-2 block text-sm font-medium text-gray-700">
+              Find a member
+            </label>
+            <div className="relative">
+              <Search className="pointer-events-none absolute left-3 top-1/2 size-5 -translate-y-1/2 text-gray-400" aria-hidden="true" />
+              <input
+                id="member-search"
+                type="search"
+                value={searchTerm}
+                onChange={(event) => setSearchTerm(event.target.value)}
+                placeholder="Search by name, member ID, email, or contact number"
+                className="w-full rounded-lg border border-gray-300 py-2.5 pl-10 pr-4 text-sm text-gray-900 placeholder:text-gray-400 focus:border-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-600/20"
+              />
+            </div>
+          </div>
+          <MemberReportSort value={memberSort} onChange={setMemberSort} id="manager-directory-sort" />
         </div>
       </section>
 
