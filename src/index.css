@@ -284,11 +284,35 @@ input[type="radio"] {
   .amcoms-print-document * {
     min-width: 0 !important;
     overflow: visible !important;
+    overflow-wrap: anywhere;
   }
 
   .amcoms-document-header {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) !important;
+    align-items: start !important;
+    gap: 8mm !important;
     border-color: #183b34 !important;
     color: #183b34 !important;
+  }
+
+  .document-cooperative-block,
+  .document-title-block {
+    min-width: 0 !important;
+  }
+
+  .document-title-block {
+    text-align: right !important;
+  }
+
+  .document-number {
+    overflow-wrap: anywhere !important;
+    word-break: break-word !important;
+  }
+
+  .amcoms-print-document .document-parties {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    column-gap: 8mm !important;
   }
 
   .amcoms-print-document table {
@@ -296,6 +320,7 @@ input[type="radio"] {
     max-width: 100% !important;
     min-width: 0 !important;
     border-collapse: collapse !important;
+    table-layout: fixed !important;
   }
 
   .amcoms-print-document thead {
@@ -311,6 +336,25 @@ input[type="radio"] {
   .amcoms-print-document td {
     border-bottom: 1px solid #d1d5db;
     color: #111827 !important;
+    white-space: normal !important;
+    overflow-wrap: anywhere !important;
+    word-break: normal !important;
+    vertical-align: top !important;
+  }
+
+  .amcoms-print-document td.whitespace-nowrap {
+    white-space: nowrap !important;
+    overflow-wrap: normal !important;
+  }
+
+  .amcoms-print-document .document-signatures {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    column-gap: 12mm !important;
+  }
+
+  .amcoms-print-document .document-signatures > div {
+    overflow-wrap: anywhere !important;
+    word-break: normal !important;
   }
 
   .amcoms-print-document .document-signatures {

@@ -184,12 +184,12 @@ DECLARE
 BEGIN
   FOR v_workflow IN
     SELECT workflow.id, workflow.created_by_auth_id, workflow.created_by,
-           workflow.payload
+           workflow.payload, workflow.status
     FROM public.transaction_workflows AS workflow
     JOIN public.staff AS staff ON staff.id = workflow.created_by
     WHERE workflow.transaction_type = 'sale'
       AND workflow.payload #>> '{p_sale,payment_type}' = 'credit'
-      AND workflow.status = 'pending_approval'
+      AND workflow.status IN ('pending_approval', 'approved')
       AND workflow.accounting_status = 'not_processed'
       AND workflow.business_record_id IS NULL
       AND staff.role = 'bookkeeper'
@@ -198,14 +198,14 @@ BEGIN
   LOOP
     PERFORM set_config('request.jwt.claim.sub', v_workflow.created_by_auth_id::TEXT, true);
 
-    UPDATE public.transaction_workflows
-    SET approved_payload = payload,
-        status = 'approved',
-        updated_at = now()
-    WHERE id = v_workflow.id
-      AND status = 'pending_approval';
+    IF v_workflow.status = 'pending_approval' THEN
+      UPDATE public.transaction_workflows
+      SET approved_payload = payload,
+          status = 'approved',
+          updated_at = now()
+      WHERE id = v_workflow.id
+        AND status = 'pending_approval';
 
-    IF FOUND THEN
       INSERT INTO public.transaction_workflow_events (
         workflow_id, event_type, previous_status, next_status,
         actor_auth_id, actor_staff_id, remarks, snapshot
@@ -215,12 +215,18 @@ BEGIN
         'Credit sale recorded automatically; Manager approval is not required.',
         jsonb_build_object('payload', v_workflow.payload)
       );
+    ELSE
+      UPDATE public.transaction_workflows
+      SET approved_payload = COALESCE(approved_payload, payload),
+          updated_at = now()
+      WHERE id = v_workflow.id
+        AND status = 'approved';
+    END IF;
 
-      v_result := public.process_transaction_workflow(v_workflow.id);
-      IF v_result->>'status' IS DISTINCT FROM 'completed' THEN
-        RAISE WARNING 'Credit-sale workflow % could not be recorded automatically: %',
-          v_workflow.id, COALESCE(v_result->>'error', v_result->>'status', 'unknown processing result');
-      END IF;
+    v_result := public.process_transaction_workflow(v_workflow.id);
+    IF v_result->>'status' IS DISTINCT FROM 'completed' THEN
+      RAISE EXCEPTION 'Credit-sale workflow % could not be recorded automatically: %',
+        v_workflow.id, COALESCE(v_result->>'error', v_result->>'status', 'unknown processing result');
     END IF;
   END LOOP;
 END;
