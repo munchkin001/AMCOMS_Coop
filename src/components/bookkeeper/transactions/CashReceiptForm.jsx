@@ -4,6 +4,7 @@ import { supabase } from '../../../lib/supabase';
 import offlineDb from '../../../lib/Offline/OfflineDb';
 import { ArrowDownLeft, ArrowLeft, FileText } from 'lucide-react';
 import MemberBalanceSummary from './MemberBalanceSummary';
+import SearchableMemberSelect from '../../common/SearchableMemberSelect';
 
 const getDefaultSide = (account) => ['Cash on Hand', 'Cash in Bank'].includes(account) ? 'debit' : 'credit';
 const receiptParticularsOptions = [
@@ -221,10 +222,13 @@ const CashReceiptForm = ({ onSave, onCancel, transaction = null, title = 'Cash R
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">Member / Customer *</label>
-              <select
+              <SearchableMemberSelect
+                id="cash-receipt-member"
+                members={members}
                 value={formData.memberId || (otherMode ? 'other' : '')}
-                onChange={(e) => {
-                  const value = e.target.value;
+                extraOptions={[{ value: 'other', label: 'Non-member / other customer' }]}
+                placeholder="Search members by name or number"
+                onChange={(value) => {
                   setOtherMode(value === 'other');
                   if (value === 'other' || value === '') {
                     setFormData({ ...formData, memberId: '', member: '' });
@@ -233,14 +237,8 @@ const CashReceiptForm = ({ onSave, onCancel, transaction = null, title = 'Cash R
                   const selected = members.find((m) => m.id === value);
                   setFormData({ ...formData, memberId: value, member: selected ? memberName(selected) : '' });
                 }}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm lg:text-base"
-              >
-                <option value="">Select member</option>
-                {members.map((m) => (
-                  <option key={m.id} value={m.id}>{memberName(m)}{m.member_number ? ` (${m.member_number})` : ''}</option>
-                ))}
-                <option value="other">Non-member / other customer</option>
-              </select>
+                className="text-sm lg:text-base"
+              />
               {otherMode && (
                 <input
                   type="text"

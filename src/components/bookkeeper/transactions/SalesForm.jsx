@@ -5,6 +5,7 @@ import offlineDb from '../../../lib/Offline/OfflineDb';
 import { getDataLoadErrorMessage } from '../../../lib/errorHandler';
 import { ArrowLeft, ShoppingCart } from 'lucide-react';
 import MemberBalanceSummary from './MemberBalanceSummary';
+import SearchableMemberSelect from '../../common/SearchableMemberSelect';
 
 const today = () => new Date().toISOString().slice(0, 10);
 
@@ -228,6 +229,7 @@ const SalesForm = ({ onSave, onCancel }) => {
       return {
         ...payee,
         name: member ? getMemberName(member) : payee.name,
+        memberNumber: member?.member_number || '',
         label: `${payee.memberId ? 'Member' : 'Non-member'} · ${member ? getMemberName(member) : payee.name}`,
       };
     }).sort((left, right) => left.name.localeCompare(right.name));
@@ -466,10 +468,15 @@ const SalesForm = ({ onSave, onCancel }) => {
               <>
                 <label className="text-sm font-medium text-gray-700 sm:col-span-2">
                   Member / non-member with payable sales *
-                  <select
+                  <SearchableMemberSelect
+                    id="sales-collection-payee"
+                    options={creditPayees.map((payee) => ({
+                      value: payee.key,
+                      label: `${payee.name}${payee.memberNumber ? ` (${payee.memberNumber})` : ''} · ${payee.saleCount} credit sale(s) · ₱${payee.balance.toLocaleString('en-PH', { minimumFractionDigits: 2 })}`,
+                      searchText: `${payee.label} ${payee.memberNumber}`
+                    }))}
                     value={collectionPayeeKey}
-                    onChange={(event) => {
-                      const payeeKey = event.target.value;
+                    onChange={(payeeKey) => {
                       setCollectionPayeeKey(payeeKey);
                       const firstSale = outstandingSales.find((sale) => {
                         const key = sale.member_id
@@ -480,15 +487,9 @@ const SalesForm = ({ onSave, onCancel }) => {
                       selectCollectionSale(firstSale?.id || '');
                     }}
                     required
-                    className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2"
-                  >
-                    <option value="">Select a member or non-member payee</option>
-                    {creditPayees.map((payee) => (
-                      <option key={payee.key} value={payee.key}>
-                        {payee.label} · {payee.saleCount} credit sale(s) · ₱{payee.balance.toLocaleString('en-PH', { minimumFractionDigits: 2 })}
-                      </option>
-                    ))}
-                  </select>
+                    placeholder="Search members/payees by name"
+                    className="mt-1"
+                  />
                   {creditPayees.length === 0 && <span className="mt-1 block text-xs text-gray-500">Only members/payees with an outstanding credit sale are listed.</span>}
                 </label>
                 <label className="text-sm font-medium text-gray-700 sm:col-span-2">
@@ -527,10 +528,12 @@ const SalesForm = ({ onSave, onCancel }) => {
               <>
             <label className="text-sm font-medium text-gray-700">
               Customer *
-              <select
+              <SearchableMemberSelect
+                id="sales-customer-member"
+                members={members}
+                extraOptions={[{ value: 'other', label: 'Non-member customer' }]}
                 value={customerMode === 'member' ? form.memberId : customerMode}
-                onChange={(event) => {
-                  const value = event.target.value;
+                onChange={(value) => {
                   if (value === 'other') {
                     setCustomerMode('other');
                     setForm({ ...form, memberId: '' });
@@ -540,13 +543,9 @@ const SalesForm = ({ onSave, onCancel }) => {
                   }
                 }}
                 required
-                className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2"
-              >
-                <option value="other">Non-member customer</option>
-                {members.map((member) => (
-                  <option key={member.id} value={member.id}>{getMemberName(member)}{member.member_number ? ` (${member.member_number})` : ''}</option>
-                ))}
-              </select>
+                placeholder="Search members by name or number"
+                className="mt-1"
+              />
               {customerMode === 'other' && (
                 <>
                   <input value={form.customerName} onChange={(event) => setForm({ ...form, customerName: event.target.value })} placeholder="Customer name" required className="mt-2 w-full rounded-lg border border-gray-300 px-3 py-2" />

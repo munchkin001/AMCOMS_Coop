@@ -5,6 +5,7 @@ import offlineDb from '../../../lib/Offline/OfflineDb';
 import { getDataLoadErrorMessage } from '../../../lib/errorHandler';
 import { ArrowDownLeft, ArrowLeft, ArrowUpRight } from 'lucide-react';
 import MemberBalanceSummary from './MemberBalanceSummary';
+import SearchableMemberSelect from '../../common/SearchableMemberSelect';
 
 const entryTypes = [
   { value: 'savings_deposit', label: 'Savings deposit', receipt: true, account: 'regular' },
@@ -631,11 +632,19 @@ const MemberFinancialEntryForm = ({
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <label className="text-sm font-medium text-gray-700">
             Member *
-            <select
+            <SearchableMemberSelect
+              id="member-financial-entry-member"
+              members={members}
               value={memberId}
               disabled={membersLoading || members.length === 0}
-              onChange={(event) => {
-                setMemberId(event.target.value);
+              loading={membersLoading}
+              placeholder={
+                (entryType === 'loan_payment' || entryType.includes('withdrawal')) && !members.length
+                  ? entryType === 'loan_payment' ? 'No members with loans due' : 'No members with an available account balance'
+                  : 'Search members by name or number'
+              }
+              onChange={(selectedMemberId) => {
+                setMemberId(selectedMemberId);
                 setAccounts([]);
                 setLoans([]);
                 setUnpaidMonths([]);
@@ -645,21 +654,8 @@ const MemberFinancialEntryForm = ({
                 setAmount('');
               }}
               required
-              className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2"
-            >
-              <option value="">
-                {membersLoading
-                  ? 'Loading members...'
-                  : (entryType === 'loan_payment' || entryType.includes('withdrawal')) && !members.length
-                    ? entryType === 'loan_payment' ? 'No members with loans due' : 'No members with an available account balance'
-                    : 'Select member'}
-              </option>
-              {members.map((member) => (
-                <option key={member.id} value={member.id}>
-                  {[member.first_name, member.middle_name, member.last_name].filter(Boolean).join(' ')}{member.member_number ? ` (${member.member_number})` : ''}
-                </option>
-              ))}
-            </select>
+              className="mt-1"
+            />
           </label>
           {visibleEntryTypes.length > 1 && (
             <label className="text-sm font-medium text-gray-700">

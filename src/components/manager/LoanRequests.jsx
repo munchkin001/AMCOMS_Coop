@@ -8,6 +8,7 @@ import { getDataLoadErrorMessage } from '../../lib/errorHandler';
 import { queueOperation, getOperation } from '../../lib/Offline/syncQueue';
 import { syncPendingOperations } from '../../lib/Offline/syncOperations';
 import offlineDb from '../../lib/Offline/OfflineDb';
+import SearchableMemberSelect from '../common/SearchableMemberSelect';
 
 const formatMoney = (value) => `₱${Number(value || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })}`;
 const fullName = (member) => [member?.first_name, member?.middle_name, member?.last_name].filter(Boolean).join(' ') || 'Member';
@@ -820,10 +821,16 @@ export const LegacyLoanRequests = () => {
             <label className="text-sm font-medium text-gray-700">
               Member *
               {membersLoading || members.length > 0 ? (
-                <select required disabled={membersLoading || members.length === 0} value={selectedMember} onChange={(event) => setSelectedMember(event.target.value)} className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 disabled:bg-gray-100">
-                  <option value="">{membersLoading ? 'Loading members...' : 'Select a member'}</option>
-                  {members.map((member) => <option key={member.id} value={member.id}>{fullName(member)}{member.member_number ? ` (${member.member_number})` : ''}</option>)}
-                </select>
+                <SearchableMemberSelect
+                  id="loan-application-member"
+                  members={members}
+                  required
+                  disabled={membersLoading || members.length === 0}
+                  loading={membersLoading}
+                  value={selectedMember}
+                  onChange={setSelectedMember}
+                  className="mt-1 disabled:bg-gray-100"
+                />
               ) : (
                 <>
                   <input required maxLength={200} value={memberName} onChange={(event) => setMemberName(event.target.value)} placeholder="Enter member's full name" className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2" />

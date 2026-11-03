@@ -4,6 +4,7 @@ import { supabase } from '../../../lib/supabase';
 import offlineDb from '../../../lib/Offline/OfflineDb';
 import { ArrowLeft, ArrowUpRight, FileText, Upload, Plus, X, AlertCircle } from 'lucide-react';
 import MemberBalanceSummary from './MemberBalanceSummary';
+import SearchableMemberSelect from '../../common/SearchableMemberSelect';
 
 const CashDisbursementForm = ({
   onSave,
@@ -406,10 +407,12 @@ const CashDisbursementForm = ({
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 Member <span className="text-red-500">*</span>
               </label>
-              <select
+              <SearchableMemberSelect
+                id="cash-disbursement-member"
+                members={members}
                 value={formData.memberId}
-                onChange={(e) => {
-                  const memberId = e.target.value;
+                placeholder="Search members by name or number"
+                onChange={(memberId) => {
                   const member = members.find((item) => item.id === memberId);
                   setFormData((current) => ({
                     ...current,
@@ -418,15 +421,10 @@ const CashDisbursementForm = ({
                   }));
                   if (errors.memberId) setErrors((current) => ({ ...current, memberId: '' }));
                 }}
-                className={`w-full px-3 py-2 border rounded-lg bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+                className={`focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
                   errors.memberId ? 'border-red-500' : 'border-gray-300'
                 }`}
-              >
-                <option value="">Select member</option>
-                {members.map((m) => (
-                  <option key={m.id} value={m.id}>{memberName(m)}</option>
-                ))}
-              </select>
+              />
               {errors.memberId && (
                 <p className="mt-1 text-sm text-red-600">{errors.memberId}</p>
               )}
