@@ -428,10 +428,11 @@ const MemberDashboard = ({ onNavigate }) => {
           </button>
         </div>
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[980px] text-left text-sm">
+          <table className="w-full min-w-[1080px] text-left text-sm">
             <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-600">
               <tr>
                 <th scope="col" className="px-4 py-3 font-semibold">Loan</th>
+                <th scope="col" className="px-4 py-3 font-semibold">Principal</th>
                 <th scope="col" className="px-4 py-3 font-semibold">Interest</th>
                 <th scope="col" className="px-4 py-3 font-semibold">Next due</th>
                 <th scope="col" className="px-4 py-3 text-right font-semibold">Paid to date</th>
@@ -442,10 +443,10 @@ const MemberDashboard = ({ onNavigate }) => {
             </thead>
             <tbody className="divide-y divide-slate-100">
               {loading ? (
-                <tr><td colSpan="7" className="px-4 py-10 text-center text-slate-500">Loading your loan schedule…</td></tr>
+                <tr><td colSpan="8" className="px-4 py-10 text-center text-slate-500">Loading your loan schedule…</td></tr>
               ) : (memberData.activeLoans || []).length === 0 ? (
                 <tr>
-                  <td colSpan="7" className="px-4 py-10 text-center">
+                  <td colSpan="8" className="px-4 py-10 text-center">
                     <span className="mx-auto grid size-11 place-items-center rounded-full bg-emerald-50 text-emerald-700">
                       <BadgeDollarSign aria-hidden="true" size={22} />
                     </span>
@@ -473,6 +474,10 @@ const MemberDashboard = ({ onNavigate }) => {
                       <td className="px-4 py-4">
                         <p className="font-bold text-slate-900">{loan.loan_number || 'Loan'}</p>
                         <p className="mt-0.5 text-xs text-slate-500">{loan.installments || schedule.length} scheduled payments</p>
+                      </td>
+                      <td className="px-4 py-4 font-semibold text-slate-900">
+                        {formatPeso(loan.principal_amount)}
+                        <p className="mt-0.5 text-xs font-normal text-slate-500">Without interest</p>
                       </td>
                       <td className="px-4 py-4">
                         <p className="font-semibold text-violet-800">{formatPeso(totalInterest)}</p>

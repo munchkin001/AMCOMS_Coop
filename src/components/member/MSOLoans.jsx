@@ -289,8 +289,12 @@ const MSOLoans = () => {
                   {/* Loan Details Grid */}
                   <div className="grid grid-cols-2 gap-4 md:grid-cols-3">
                     <div>
-                      <p className="text-xs text-gray-600">Loan Amount</p>
+                      <p className="text-xs text-gray-600">Principal (without interest)</p>
                       <p className="mt-1 text-sm font-semibold text-gray-900">{peso(loan.principal_amount)}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-gray-600">Total Interest</p>
+                      <p className="mt-1 text-sm font-semibold text-gray-900">{peso(Math.max(Number(loan.total_amount || 0) - Number(loan.principal_amount || 0), 0))}</p>
                     </div>
                     <div>
                       <p className="text-xs text-gray-600">Interest Rate</p>

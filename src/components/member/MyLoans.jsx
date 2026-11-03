@@ -106,7 +106,7 @@ const MyLoans = () => {
             </div>
 
             <dl className="grid grid-cols-2 gap-3 text-sm">
-              <div><dt className="text-gray-500">Loan amount</dt><dd className="font-medium">{peso(loan.principal_amount)}</dd></div>
+              <div><dt className="text-gray-500">Principal (without interest)</dt><dd className="font-medium">{peso(loan.principal_amount)}</dd></div>
               <div><dt className="text-gray-500">Total to pay</dt><dd className="font-medium">{peso(loan.total_amount)}</dd></div>
               <div><dt className="text-gray-500">Term</dt><dd className="font-medium">{loan.term_months / 12} yr · {loan.payment_frequency}</dd></div>
               <div><dt className="text-gray-500">Interest</dt><dd className="font-medium">{loan.interest_rate}% per year</dd></div>

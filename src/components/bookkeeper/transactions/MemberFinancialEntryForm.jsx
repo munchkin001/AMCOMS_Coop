@@ -57,6 +57,7 @@ const getLoanInterestPerInstallment = (loan) => {
 const getLoanScheduleSummary = (loan) => {
   if (!loan) return null;
   const installments = Math.max(Number(loan.installments || loan.term_months || 1), 1);
+  const principalAmount = Number(loan.principal_amount || 0);
   const totalInterest = Number(loan.total_interest || 0);
   const regularInterest = getLoanInterestPerInstallment(loan);
   const installmentAmount = Number(loan.installment_amount ?? loan.monthly_payment ?? 0);
@@ -87,6 +88,9 @@ const getLoanScheduleSummary = (loan) => {
 
   return {
     installments,
+    principalAmount,
+    totalInterest,
+    totalRepayment: Number(loan.total_amount ?? (principalAmount + totalInterest)),
     installmentAmount: scheduledAmount,
     interestPerInstallment: scheduledInterest,
     principalPerInstallment: Math.max(scheduledAmount - scheduledInterest, 0),
@@ -97,6 +101,15 @@ const getLoanScheduleSummary = (loan) => {
     openPenalty,
     remainingDue: openBase + openPenalty
   };
+};
+
+const getLoanPaymentPrefill = (loan) => {
+  const summary = getLoanScheduleSummary(loan);
+  if (!summary) return '';
+  const amountDue = summary.oldestUnpaid
+    ? summary.remainingDue
+    : summary.installmentAmount;
+  return amountDue > 0 ? String(amountDue) : '';
 };
 
 const getDefaultAccount = (accounts, accountType) => (
@@ -370,7 +383,7 @@ const MemberFinancialEntryForm = ({
           setAccountId(defaultAccount?.id || '');
           setLoanId(defaultLoan?.id || cachedLoans?.[0]?.id || '');
           if (defaultAccount) setAmount(String(defaultAccount.balance || ''));
-          else if (defaultLoan) setAmount(String(getLoanScheduleSummary(defaultLoan)?.remainingDue || defaultLoan.balance || ''));
+          else if (defaultLoan) setAmount(getLoanPaymentPrefill(defaultLoan));
           setError('Using saved account and loan details. Balances may be stale; the server will revalidate this entry before posting.');
           return;
         }
@@ -382,7 +395,7 @@ const MemberFinancialEntryForm = ({
             .eq('status', 'active')
             .order('created_at'),
           supabase.from('loans')
-            .select('id, loan_number, balance, principal_amount, interest_rate, term_months, monthly_payment, total_interest, payment_frequency, installments, installment_amount, release_date, created_at')
+            .select('id, loan_number, balance, principal_amount, interest_rate, term_months, monthly_payment, total_interest, total_amount, payment_frequency, installments, installment_amount, release_date, created_at')
             .eq('member_id', memberId)
             .eq('status', 'active')
             .gt('balance', 0)
@@ -456,7 +469,7 @@ const MemberFinancialEntryForm = ({
         setAccountId(defaultAccount?.id || '');
         setLoanId(defaultLoan?.id || loansWithSchedule[0]?.id || '');
         if (defaultAccount) setAmount(String(defaultAccount.balance || ''));
-        else if (defaultLoan) setAmount(String(getLoanScheduleSummary(defaultLoan)?.remainingDue || defaultLoan.balance || ''));
+        else if (defaultLoan) setAmount(getLoanPaymentPrefill(defaultLoan));
       } catch (loadError) {
         if (active) setError(getDataLoadErrorMessage(loadError, 'member financial records'));
       } finally {
@@ -679,7 +692,7 @@ const MemberFinancialEntryForm = ({
                     : defaultAccount
                       ? String(defaultAccount.balance || '')
                       : defaultLoan
-                        ? String(getLoanScheduleSummary(defaultLoan)?.remainingDue || defaultLoan.balance || '')
+                        ? getLoanPaymentPrefill(defaultLoan)
                         : '');
                   setParticulars(event.target.value === 'loan_payment'
                     ? loanPaymentParticulars[0]
@@ -699,7 +712,7 @@ const MemberFinancialEntryForm = ({
           </label>
             {entryType !== 'capital_contribution' && !selectedEntry?.dividend && (
             <label className="text-sm font-medium text-gray-700">
-              Amount (₱) *
+              {entryType === 'loan_payment' ? 'Payment amount (₱; includes scheduled interest)' : 'Amount (₱)'} *
               <input
                 type="number"
                 min="0.01"
@@ -715,6 +728,13 @@ const MemberFinancialEntryForm = ({
                 <span id="withdrawal-amount-help" className={`mt-1 block text-xs font-normal ${exceedsSelectedAccountBalance ? 'text-red-700' : 'text-gray-500'}`}>
                   Current account balance: {formatCurrency(selectedAccount.balance)}
                   {exceedsSelectedAccountBalance ? ' · Withdrawal exceeds the available balance.' : ' · Amount was prefilled with the available balance; edit it to the requested amount.'}
+                </span>
+              )}
+              {entryType === 'loan_payment' && selectedLoan && selectedLoanSummary && (
+                <span className="mt-1 block text-xs font-normal text-gray-600">
+                  {selectedLoanSummary.oldestUnpaid
+                    ? `Prefilled with the unpaid scheduled amount including principal and interest${selectedLoanSummary.openPenalty > 0 ? ' and outstanding penalty' : ''}. Change it only for a partial payment or full settlement.`
+                    : `No unpaid schedule row was returned. Prefilled with the regular installment including interest (${formatCurrency(selectedLoanSummary.installmentAmount)}), not just the principal balance. Confirm against the current schedule before posting.`}
                 </span>
               )}
             </label>
@@ -854,7 +874,7 @@ const MemberFinancialEntryForm = ({
                 onChange={(event) => {
                   const nextLoan = loans.find((loan) => loan.id === event.target.value);
                   setLoanId(event.target.value);
-                  if (nextLoan) setAmount(String(getLoanScheduleSummary(nextLoan)?.remainingDue || nextLoan.balance || ''));
+                  if (nextLoan) setAmount(getLoanPaymentPrefill(nextLoan));
                 }}
                 required
                 disabled={loadingMemberData || !loans.length}
@@ -871,6 +891,23 @@ const MemberFinancialEntryForm = ({
             </p>
             {selectedLoan && selectedLoanSummary && (
               <div className="space-y-2 rounded-md border border-blue-100 bg-white p-3 text-sm text-gray-800">
+                <div className="grid gap-2 border-b border-blue-100 pb-2 sm:grid-cols-3">
+                  <div>
+                    <p className="text-xs text-gray-600">Principal (without interest)</p>
+                    <p className="font-semibold">{formatCurrency(selectedLoanSummary.principalAmount)}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-600">Total interest</p>
+                    <p className="font-semibold">{formatCurrency(selectedLoanSummary.totalInterest)}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-600">Total repayment</p>
+                    <p className="font-semibold">{formatCurrency(selectedLoanSummary.totalRepayment)}</p>
+                  </div>
+                </div>
+                <p className="text-xs text-gray-600">
+                  Interest calculation: {formatCurrency(selectedLoanSummary.principalAmount)} × {Number(selectedLoan.interest_rate || 0)}% annual × {selectedLoan.term_months}/12 months = {formatCurrency(selectedLoanSummary.totalInterest)}. Total repayment is principal + interest.
+                </p>
                 <div className="flex flex-wrap justify-between gap-x-4 gap-y-1">
                   <span className="font-medium">
                     {selectedLoan.payment_frequency === 'weekly' ? 'Weekly installment' : 'Monthly installment'}
@@ -880,7 +917,8 @@ const MemberFinancialEntryForm = ({
                 <div className="flex flex-wrap justify-between gap-x-4 gap-y-1 text-xs text-gray-600">
                   <span>
                     Principal {formatCurrency(selectedLoanSummary.principalPerInstallment)}
-                    {' · '}Interest {formatCurrency(selectedLoanSummary.interestPerInstallment)}
+                    {' + '}interest {formatCurrency(selectedLoanSummary.interestPerInstallment)}
+                    {' = '}{formatCurrency(selectedLoanSummary.installmentAmount)}
                     {' · '}{Number(selectedLoan.interest_rate || 0)}% annual
                   </span>
                   <span>
