@@ -674,20 +674,22 @@ const TransactionWorkflow = ({ role }) => {
 
   return (
     <div className="space-y-6">
-      <header className={`rounded-2xl px-6 py-6 text-white shadow-sm sm:px-8 ${
+      <header className={`rounded-2xl px-6 py-6 shadow-sm sm:px-8 ${
         isTreasurer
-          ? 'bg-gradient-to-br from-[#142b57] via-[#1c3d76] to-[#244b86]'
+          ? 'bg-gradient-to-br from-[#142b57] via-[#1c3d76] to-[#244b86] text-white'
           : isBookkeeper
-            ? 'bg-gradient-to-br from-[#28134b] via-[#4b2678] to-[#7544a5]'
-            : 'bg-slate-950'
+            ? 'bg-gradient-to-br from-[#28134b] via-[#4b2678] to-[#7544a5] text-white'
+            : isManager
+              ? 'bg-gradient-to-br from-orange-200 via-orange-300 to-orange-400 text-orange-950'
+              : 'bg-slate-950 text-white'
       }`}>
-        <p className={`text-xs font-semibold uppercase tracking-[0.18em] ${isBookkeeper ? 'text-purple-200' : 'text-amber-300'}`}>AMCOMS · Transaction Control</p>
+        <p className={`text-xs font-semibold uppercase tracking-[0.18em] ${isBookkeeper ? 'text-purple-200' : isManager ? 'text-orange-900' : 'text-amber-300'}`}>AMCOMS · Transaction Control</p>
         <div className="mt-2 flex flex-wrap items-end justify-between gap-4">
           <div>
             <h1 className="text-2xl font-bold sm:text-3xl">
               {isManager ? 'Transactions Management' : isBookkeeper ? 'Accounting Processing' : 'Cash Release & Verification'}
             </h1>
-            <p className="mt-2 max-w-3xl text-sm text-slate-300">
+            <p className={`mt-2 max-w-3xl text-sm ${isManager ? 'text-orange-950/75' : 'text-slate-300'}`}>
               {isManager
                 ? 'Review submitted transactions and record an auditable decision before accounting begins.'
                 : isBookkeeper
@@ -695,13 +697,13 @@ const TransactionWorkflow = ({ role }) => {
                   : 'Verify the approved payee and amount, attach proof, and confirm the actual release.'}
             </p>
           </div>
-          <button type="button" onClick={load} className="inline-flex items-center gap-2 rounded-lg border border-slate-600 px-4 py-2 text-sm font-semibold hover:bg-slate-800">
+          <button type="button" onClick={load} className={`inline-flex items-center gap-2 rounded-lg border px-4 py-2 text-sm font-semibold ${isManager ? 'border-orange-900/20 bg-white/50 text-orange-950 hover:bg-white/75' : 'border-slate-600 hover:bg-slate-800'}`}>
             <RefreshCw size={16} aria-hidden="true" /> Refresh
           </button>
         </div>
         <div className="mt-6 flex flex-wrap gap-2 text-xs font-medium">
           {['Submitted', 'Manager Approved', 'Bookkeeper Processed', ...(isTreasurer ? ['Treasurer Released'] : []), 'Completed'].map((step) => (
-            <span key={step} className="rounded-full border border-slate-700 bg-slate-900 px-3 py-1.5 text-slate-200">{step}</span>
+            <span key={step} className={`rounded-full border px-3 py-1.5 ${isManager ? 'border-orange-900/15 bg-white/45 text-orange-950' : 'border-slate-700 bg-slate-900 text-slate-200'}`}>{step}</span>
           ))}
         </div>
       </header>
@@ -825,13 +827,13 @@ const TransactionWorkflow = ({ role }) => {
       {selected && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-3 backdrop-blur-sm sm:p-6" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget && !busy) setSelected(null); }}>
           <section role="dialog" aria-modal="true" aria-labelledby="workflow-detail-title" className="flex max-h-[94vh] w-full max-w-4xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl">
-            <header className="flex items-start justify-between gap-4 bg-slate-950 px-5 py-5 text-white sm:px-7">
+            <header className={`flex items-start justify-between gap-4 px-5 py-5 sm:px-7 ${isManager ? 'bg-gradient-to-br from-orange-200 via-orange-300 to-orange-400 text-orange-950' : isBookkeeper ? 'bg-gradient-to-br from-[#28134b] via-[#4b2678] to-[#7544a5] text-white' : isTreasurer ? 'bg-gradient-to-br from-[#142b57] via-[#1c3d76] to-[#244b86] text-white' : 'bg-slate-950 text-white'}`}>
               <div>
-                <p className="text-xs font-semibold uppercase tracking-wider text-amber-300">{TYPE_LABELS[selected.transaction_type] || selected.transaction_type}</p>
+                <p className={`text-xs font-semibold uppercase tracking-wider ${isManager ? 'text-orange-900' : isBookkeeper ? 'text-purple-200' : 'text-amber-300'}`}>{TYPE_LABELS[selected.transaction_type] || selected.transaction_type}</p>
                 <h2 id="workflow-detail-title" className="mt-1 text-xl font-bold sm:text-2xl">{selected.counterparty_name || selected.description}</h2>
-                <p className="mt-1 text-sm text-slate-300">{selected.source_module} · submitted {dateTime(selected.created_at)}</p>
+                <p className={`mt-1 text-sm ${isManager ? 'text-orange-950/75' : 'text-slate-300'}`}>{selected.source_module} · submitted {dateTime(selected.created_at)}</p>
               </div>
-              <button type="button" onClick={() => setSelected(null)} disabled={busy} aria-label="Close transaction details" className="rounded-lg p-2 text-slate-300 hover:bg-slate-800 hover:text-white">×</button>
+              <button type="button" onClick={() => setSelected(null)} disabled={busy} aria-label="Close transaction details" className={`rounded-lg p-2 ${isManager ? 'text-orange-900 hover:bg-white/40 hover:text-orange-950' : 'text-slate-300 hover:bg-slate-800 hover:text-white'}`}>×</button>
             </header>
             <div className="overflow-y-auto p-5 sm:p-7">
               {error && <p role="alert" className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{error}</p>}

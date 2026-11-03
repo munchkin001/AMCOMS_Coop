@@ -5,6 +5,7 @@ import {
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useRealtimeSubscription } from '../../hooks/useRealtimeSubscription';
+import { useAuth } from '../../contexts/AuthContext';
 
 const PAGE_SIZE = 20;
 
@@ -345,6 +346,8 @@ const getFinancialContext = async (log) => {
 };
 
 const AuditLog = () => {
+  const { staff } = useAuth();
+  const isManager = staff?.role === 'manager';
   const [filters, setFilters] = useState({
     user: '',
     module: '',
@@ -685,17 +688,17 @@ const AuditLog = () => {
 
   return (
     <div className="space-y-6">
-      <header className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-[#0b2e68] via-[#1454a5] to-[#3180d8] p-6 text-white shadow-xl shadow-blue-900/20 sm:p-8">
-        <div aria-hidden="true" className="pointer-events-none absolute -right-10 -top-20 size-64 rounded-full border-[30px] border-white/15" />
-        <div aria-hidden="true" className="pointer-events-none absolute -bottom-24 right-1/3 size-48 rounded-full bg-blue-300/20 blur-3xl" />
+      <header className={`relative overflow-hidden rounded-2xl p-6 shadow-xl sm:p-8 ${isManager ? 'bg-gradient-to-br from-orange-200 via-orange-300 to-orange-400 text-orange-950 shadow-orange-900/10' : 'bg-gradient-to-br from-[#0b2e68] via-[#1454a5] to-[#3180d8] text-white shadow-blue-900/20'}`}>
+        <div aria-hidden="true" className={`pointer-events-none absolute -right-10 -top-20 size-64 rounded-full border-[30px] ${isManager ? 'border-white/25' : 'border-white/15'}`} />
+        <div aria-hidden="true" className={`pointer-events-none absolute -bottom-24 right-1/3 size-48 rounded-full blur-3xl ${isManager ? 'bg-orange-100/50' : 'bg-blue-300/20'}`} />
         <div className="relative flex flex-wrap items-start justify-between gap-5">
           <div>
-            <span className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-blue-100">
+            <span className={`inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-semibold uppercase tracking-wide ${isManager ? 'border-orange-900/10 bg-white/35 text-orange-950' : 'border-white/15 bg-white/10 text-blue-100'}`}>
               <ShieldCheck aria-hidden="true" className="size-4" />
               Staff activity oversight
             </span>
             <h1 className="mt-4 text-2xl font-bold tracking-tight sm:text-3xl">Audit log</h1>
-            <p className="mt-2 max-w-2xl text-sm leading-6 text-blue-100">
+            <p className={`mt-2 max-w-2xl text-sm leading-6 ${isManager ? 'text-orange-950/75' : 'text-blue-100'}`}>
               Review staff actions, account access, and record changes. Select an entry to inspect its audit details.
             </p>
           </div>
@@ -704,7 +707,7 @@ const AuditLog = () => {
               type="button"
               onClick={() => { setLoading(true); fetchAuditLogs(); }}
               disabled={loading}
-              className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-white/20 bg-white/10 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-white/20 disabled:cursor-not-allowed disabled:opacity-60"
+              className={`inline-flex min-h-10 items-center gap-2 rounded-lg border px-4 py-2 text-sm font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-60 ${isManager ? 'border-orange-900/15 bg-white/35 text-orange-950 hover:bg-white/55' : 'border-white/20 bg-white/10 text-white hover:bg-white/20'}`}
             >
               <RefreshCw aria-hidden="true" className={`size-4 ${loading ? 'animate-spin' : ''}`} />
               Refresh
@@ -713,16 +716,16 @@ const AuditLog = () => {
               type="button"
               onClick={handleExport}
               disabled={!filteredLogs.length}
-              className="inline-flex min-h-10 items-center gap-2 rounded-lg bg-white px-4 py-2 text-sm font-semibold text-blue-950 transition-colors hover:bg-blue-50 disabled:cursor-not-allowed disabled:opacity-60"
+              className={`inline-flex min-h-10 items-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-60 ${isManager ? 'bg-orange-950 text-white hover:bg-orange-900' : 'bg-white text-blue-950 hover:bg-blue-50'}`}
             >
               <Download aria-hidden="true" className="size-4" />
               Export CSV
             </button>
           </div>
         </div>
-        <div className="relative mt-6 flex flex-wrap items-center gap-3 border-t border-white/15 pt-4 text-sm text-blue-100">
+        <div className={`relative mt-6 flex flex-wrap items-center gap-3 border-t pt-4 text-sm ${isManager ? 'border-orange-900/15 text-orange-950/75' : 'border-white/15 text-blue-100'}`}>
           <span className="inline-flex items-center gap-2"><CalendarDays aria-hidden="true" className="size-4" />{displayedMonth}</span>
-          <span className="hidden text-blue-300 sm:inline">•</span>
+          <span className={`hidden sm:inline ${isManager ? 'text-orange-900/50' : 'text-blue-300'}`}>•</span>
           <span className="inline-flex items-center gap-2"><Clock3 aria-hidden="true" className="size-4" />Latest: {latestActivity}</span>
         </div>
       </header>
@@ -1013,19 +1016,19 @@ const AuditLog = () => {
             className="flex max-h-[92vh] w-full max-w-3xl flex-col overflow-hidden rounded-2xl border border-white/60 bg-slate-50 shadow-2xl"
             onClick={(event) => event.stopPropagation()}
           >
-            <header className="relative shrink-0 overflow-hidden bg-gradient-to-br from-[#0b2e68] via-[#1454a5] to-[#3180d8] px-5 py-5 text-white sm:px-7">
+            <header className={`relative shrink-0 overflow-hidden px-5 py-5 sm:px-7 ${isManager ? 'bg-gradient-to-br from-orange-200 via-orange-300 to-orange-400 text-orange-950' : 'bg-gradient-to-br from-[#0b2e68] via-[#1454a5] to-[#3180d8] text-white'}`}>
               <div aria-hidden="true" className="pointer-events-none absolute -right-10 -top-20 size-48 rounded-full border-[24px] border-white/5" />
               <div className="relative flex items-start justify-between gap-4">
                 <div className="min-w-0">
-                  <p className="text-xs font-semibold uppercase tracking-[0.14em] text-blue-100">Audit entry · {getModule(selectedLog.table_name, getRecordData(selectedLog, 'new_data').request_type || getRecordData(selectedLog, 'old_data').request_type)}</p>
+                  <p className={`text-xs font-semibold uppercase tracking-[0.14em] ${isManager ? 'text-orange-900' : 'text-blue-100'}`}>Audit entry · {getModule(selectedLog.table_name, getRecordData(selectedLog, 'new_data').request_type || getRecordData(selectedLog, 'old_data').request_type)}</p>
                   <h2 id="audit-entry-title" className="mt-1 break-words text-xl font-bold">{getActivityLabel(selectedLog)}</h2>
-                  <p className="mt-1 text-sm text-blue-100">{getActorName(selectedLog)}{selectedLog.staff?.role ? ` · ${selectedLog.staff.role}` : ''}</p>
+                  <p className={`mt-1 text-sm ${isManager ? 'text-orange-950/75' : 'text-blue-100'}`}>{getActorName(selectedLog)}{selectedLog.staff?.role ? ` · ${selectedLog.staff.role}` : ''}</p>
                 </div>
                 <button
                   type="button"
                   onClick={closeLogDetails}
                   aria-label="Close audit entry details"
-                  className="flex size-9 shrink-0 items-center justify-center rounded-lg border border-white/20 bg-white/10 text-white hover:bg-white/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
+                  className={`flex size-9 shrink-0 items-center justify-center rounded-lg border focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white ${isManager ? 'border-orange-900/15 bg-white/35 text-orange-950 hover:bg-white/55' : 'border-white/20 bg-white/10 text-white hover:bg-white/20'}`}
                 >
                   <X aria-hidden="true" className="size-5" />
                 </button>
