@@ -109,7 +109,7 @@ const CashReconciliation = () => {
 
   return (
     <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-      <div className="h-1.5 bg-gradient-to-r from-[#d6ab4a] via-[#1e3a72] to-[#1e3a72]" />
+      <div className="h-1.5 bg-gradient-to-r from-[#f3d37a] via-[#0f8e90] to-[#23b6ad]" />
       <div className="p-5 sm:p-6">
       <header className="flex flex-wrap items-start justify-between gap-4">
         <div className="flex items-start gap-3">

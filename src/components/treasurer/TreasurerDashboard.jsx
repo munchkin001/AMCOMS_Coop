@@ -344,15 +344,17 @@ const TreasurerDashboard = () => {
 
   return (
     <div className="space-y-6">
-      <section className="overflow-hidden rounded-2xl bg-gradient-to-br from-[#142b57] via-[#1c3d76] to-[#244b86] p-6 text-white shadow-lg sm:p-8">
-        <div className="flex flex-wrap items-start justify-between gap-5">
+      <section className="relative isolate overflow-hidden rounded-2xl bg-gradient-to-br from-[#063d46] via-[#087f83] to-[#20a9a2] p-6 text-white shadow-xl shadow-teal-950/20 sm:p-8">
+        <div aria-hidden="true" className="pointer-events-none absolute -right-10 -top-20 -z-10 size-64 rounded-full border-[28px] border-white/15" />
+        <div aria-hidden="true" className="pointer-events-none absolute -bottom-24 right-1/3 -z-10 size-48 rounded-full bg-cyan-200/25 blur-3xl" />
+        <div className="relative flex flex-wrap items-start justify-between gap-5">
           <div className="max-w-2xl">
-            <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#f0d995]">Treasury · Cash Control</p>
+            <p className="text-xs font-bold uppercase tracking-[0.2em] text-teal-100">Treasury · Cash Control</p>
             <h1 className="mt-2 text-2xl font-bold tracking-tight sm:text-3xl">Daily Treasury Overview</h1>
-            <p className="mt-2 text-sm leading-6 text-blue-100">
+            <p className="mt-2 text-sm leading-6 text-teal-50">
               Monitor cash custody, member transactions, and daily reconciliation from one place.
             </p>
-            <p className="mt-4 inline-flex rounded-full border border-white/15 bg-white/10 px-3 py-1.5 text-xs font-medium text-blue-50">
+            <p className="mt-4 inline-flex rounded-full border border-white/20 bg-white/10 px-3 py-1.5 text-xs font-medium text-teal-50">
               {new Date(`${today}T00:00:00`).toLocaleDateString('en-PH', {
                 weekday: 'long', month: 'long', day: 'numeric', year: 'numeric'
               })}
@@ -369,7 +371,7 @@ const TreasurerDashboard = () => {
           </button>
         </div>
         <div className="mt-6 flex flex-wrap gap-2">
-          <Link to="/staff/cash-release" className="inline-flex min-h-10 items-center rounded-lg bg-[#e9c46a] px-4 py-2 text-sm font-bold text-[#142b57] transition hover:bg-[#f0d995]">
+          <Link to="/staff/cash-release" className="inline-flex min-h-10 items-center rounded-lg bg-gradient-to-r from-[#f3d37a] to-[#ffe8a6] px-4 py-2 text-sm font-bold text-teal-950 shadow-sm transition hover:brightness-105">
             Review cash release
           </Link>
           <Link to="/staff/savings" className="inline-flex min-h-10 items-center rounded-lg border border-white/25 bg-white/10 px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/20">

@@ -83,6 +83,7 @@ const StaffLayout = ({ children }) => {
         fixed lg:static inset-y-0 left-0 z-50
         w-64 shrink-0 flex flex-col border-r border-[#e9c46a]/30 bg-gradient-to-b from-blue-950 via-blue-900 to-slate-950 shadow-xl
         ${isChairman ? 'ch-sidebar' : ''}
+        ${isTreasurer ? 'tr-sidebar' : ''}
         ${isBookkeeper ? 'bk-sidebar' : ''}
         transform transition-[margin,transform] duration-300 ease-in-out
         ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
@@ -92,14 +93,14 @@ const StaffLayout = ({ children }) => {
         <div className="flex items-center justify-between border-b border-[#e9c46a]/25 p-6">
           <div>
             <h1 className="text-2xl font-bold text-white">AMCOMS</h1>
-            <p className={`mt-1 text-sm font-medium ${isChairman ? 'text-blue-200' : isBookkeeper ? 'text-purple-200' : 'text-[#e9c46a]'}`}>
+            <p className={`mt-1 text-sm font-medium ${isChairman ? 'text-blue-200' : isBookkeeper ? 'text-purple-200' : isTreasurer ? 'text-teal-100' : 'text-[#e9c46a]'}`}>
               {roleDisplayName}
             </p>
           </div>
           {/* Close button for mobile */}
           <button
             onClick={() => setIsMobileMenuOpen(false)}
-            className={`rounded-lg p-2 text-white hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 ${isChairman ? 'focus-visible:ring-blue-200' : 'focus-visible:ring-[#e9c46a]'} lg:hidden`}
+            className={`rounded-lg p-2 text-white hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 ${isChairman ? 'focus-visible:ring-blue-200' : isBookkeeper ? 'focus-visible:ring-purple-200' : isTreasurer ? 'focus-visible:ring-teal-200' : 'focus-visible:ring-[#e9c46a]'} lg:hidden`}
           >
             <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -121,10 +122,10 @@ const StaffLayout = ({ children }) => {
                     setIsMobileMenuOpen(false);
                   }
                 }}
-                className={`w-full rounded-lg px-4 py-3 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 ${isChairman ? 'focus-visible:ring-blue-200' : isBookkeeper ? 'focus-visible:ring-purple-300' : 'focus-visible:ring-[#e9c46a]'} ${
+                className={`w-full rounded-lg px-4 py-3 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 ${isChairman ? 'focus-visible:ring-blue-200' : isBookkeeper ? 'focus-visible:ring-purple-300' : isTreasurer ? 'focus-visible:ring-teal-200' : 'focus-visible:ring-[#e9c46a]'} ${
                   isActiveRoute(item.path)
-                    ? isChairman ? 'bg-gradient-to-r from-blue-300 to-blue-100 font-semibold text-blue-950 shadow-md' : isBookkeeper ? 'bg-gradient-to-r from-purple-300 to-purple-200 font-semibold text-purple-950 shadow-md' : 'bg-gradient-to-r from-[#e9c46a] to-[#d6ab4a] font-semibold text-blue-950 shadow-md'
-                    : isChairman ? 'text-blue-50/90 hover:bg-white/10 hover:text-blue-100' : isBookkeeper ? 'text-purple-50/90 hover:bg-white/10 hover:text-purple-100' : 'text-blue-50/90 hover:bg-white/10 hover:text-[#f0d995]'
+                    ? isChairman ? 'bg-gradient-to-r from-blue-300 to-blue-100 font-semibold text-blue-950 shadow-md' : isBookkeeper ? 'bg-gradient-to-r from-purple-300 to-purple-200 font-semibold text-purple-950 shadow-md' : isTreasurer ? 'bg-gradient-to-r from-teal-200 to-cyan-100 font-semibold text-teal-950 shadow-md' : 'bg-gradient-to-r from-[#e9c46a] to-[#d6ab4a] font-semibold text-blue-950 shadow-md'
+                    : isChairman ? 'text-blue-50/90 hover:bg-white/10 hover:text-blue-100' : isBookkeeper ? 'text-purple-50/90 hover:bg-white/10 hover:text-purple-100' : isTreasurer ? 'text-teal-50/90 hover:bg-white/10 hover:text-teal-100' : 'text-blue-50/90 hover:bg-white/10 hover:text-[#f0d995]'
                 }`}
               >
                 <div className="flex items-center justify-between">
@@ -155,10 +156,10 @@ const StaffLayout = ({ children }) => {
                         navigate(subItem.path);
                         setIsMobileMenuOpen(false);
                       }}
-                      className={`w-full rounded-lg px-4 py-2 text-left text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 ${isChairman ? 'focus-visible:ring-blue-200' : isBookkeeper ? 'focus-visible:ring-purple-300' : 'focus-visible:ring-[#e9c46a]'} ${
+                      className={`w-full rounded-lg px-4 py-2 text-left text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 ${isChairman ? 'focus-visible:ring-blue-200' : isBookkeeper ? 'focus-visible:ring-purple-300' : isTreasurer ? 'focus-visible:ring-teal-200' : 'focus-visible:ring-[#e9c46a]'} ${
                         isActiveRoute(subItem.path)
-                          ? isChairman ? 'bg-gradient-to-r from-blue-300 to-blue-100 font-semibold text-blue-950 shadow-md' : isBookkeeper ? 'bg-gradient-to-r from-purple-300 to-purple-200 font-semibold text-purple-950 shadow-md' : 'bg-gradient-to-r from-[#e9c46a] to-[#d6ab4a] font-semibold text-blue-950 shadow-md'
-                          : isChairman ? 'text-blue-50/90 hover:bg-white/10 hover:text-blue-100' : isBookkeeper ? 'text-purple-50/90 hover:bg-white/10 hover:text-purple-100' : 'text-blue-50/90 hover:bg-white/10 hover:text-[#f0d995]'
+                          ? isChairman ? 'bg-gradient-to-r from-blue-300 to-blue-100 font-semibold text-blue-950 shadow-md' : isBookkeeper ? 'bg-gradient-to-r from-purple-300 to-purple-200 font-semibold text-purple-950 shadow-md' : isTreasurer ? 'bg-gradient-to-r from-teal-200 to-cyan-100 font-semibold text-teal-950 shadow-md' : 'bg-gradient-to-r from-[#e9c46a] to-[#d6ab4a] font-semibold text-blue-950 shadow-md'
+                          : isChairman ? 'text-blue-50/90 hover:bg-white/10 hover:text-blue-100' : isBookkeeper ? 'text-purple-50/90 hover:bg-white/10 hover:text-purple-100' : isTreasurer ? 'text-teal-50/90 hover:bg-white/10 hover:text-teal-100' : 'text-blue-50/90 hover:bg-white/10 hover:text-[#f0d995]'
                       }`}
                     >
                       {subItem.name}
@@ -203,7 +204,7 @@ const StaffLayout = ({ children }) => {
               <button
                 type="button"
                 onClick={() => setIsDesktopSidebarOpen((open) => !open)}
-                className={`hidden shrink-0 items-center justify-center rounded-lg p-2 text-gray-600 transition-colors hover:bg-gray-100 hover:text-gray-900 focus-visible:outline-none focus-visible:ring-2 ${isChairman ? 'focus-visible:ring-blue-600' : 'focus-visible:ring-[#e9c46a]'} lg:inline-flex`}
+                className={`hidden shrink-0 items-center justify-center rounded-lg p-2 text-gray-600 transition-colors hover:bg-gray-100 hover:text-gray-900 focus-visible:outline-none focus-visible:ring-2 ${isChairman ? 'focus-visible:ring-blue-600' : isBookkeeper ? 'focus-visible:ring-purple-600' : isTreasurer ? 'focus-visible:ring-teal-600' : 'focus-visible:ring-[#e9c46a]'} lg:inline-flex`}
                 aria-label={isDesktopSidebarOpen ? 'Close staff sidebar' : 'Open staff sidebar'}
                 aria-expanded={isDesktopSidebarOpen}
                 aria-controls="staff-sidebar"
@@ -273,7 +274,7 @@ const StaffLayout = ({ children }) => {
                     <hr className="my-1" />
                     <button
                       onClick={handleLogout}
-                      className={`w-full px-4 py-2 text-left text-sm hover:bg-gray-50 ${isBookkeeper ? 'font-medium text-purple-700' : 'text-red-600'}`}
+                      className={`w-full px-4 py-2 text-left text-sm hover:bg-gray-50 ${isBookkeeper ? 'font-medium text-purple-700' : isTreasurer ? 'font-medium text-teal-700' : 'text-red-600'}`}
                     >
                       Logout
                     </button>
@@ -296,27 +297,27 @@ const StaffLayout = ({ children }) => {
       {/* Logout Confirmation Modal */}
       {showLogoutModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/55 p-4">
-          <div className={`w-full max-w-md rounded-xl border text-white shadow-2xl ${isBookkeeper ? 'border-purple-300/40 bg-gradient-to-br from-[#28134b] via-[#542b86] to-[#8a52bf]' : 'border-[#e9c46a]/50 bg-gradient-to-br from-blue-950 via-blue-900 to-slate-950'}`}>
+          <div className={`w-full max-w-md rounded-xl border text-white shadow-2xl ${isBookkeeper ? 'border-purple-300/40 bg-gradient-to-br from-[#28134b] via-[#542b86] to-[#8a52bf]' : isTreasurer ? 'border-teal-200/50 bg-gradient-to-br from-[#064e50] via-[#087f83] to-[#19a4a0]' : 'border-[#e9c46a]/50 bg-gradient-to-br from-blue-950 via-blue-900 to-slate-950'}`}>
             <div className="p-6">
-              <div className={`mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full border bg-white/10 ${isBookkeeper ? 'border-purple-200/50 text-purple-100' : 'border-[#e9c46a]/50 text-[#f0d995]'}`}>
+              <div className={`mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full border bg-white/10 ${isBookkeeper ? 'border-purple-200/50 text-purple-100' : isTreasurer ? 'border-teal-100/60 text-teal-100' : 'border-[#e9c46a]/50 text-[#f0d995]'}`}>
                 <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
                 </svg>
               </div>
               <h3 className="mb-2 text-center text-xl font-bold text-white">Confirm Logout</h3>
-              <p className={`mb-6 text-center ${isBookkeeper ? 'text-purple-100' : 'text-blue-100/85'}`}>
+              <p className={`mb-6 text-center ${isBookkeeper ? 'text-purple-100' : isTreasurer ? 'text-teal-50' : 'text-blue-100/85'}`}>
                 Are you sure you want to logout from the Staff Portal?
               </p>
               <div className="flex space-x-3">
                 <button
                   onClick={cancelLogout}
-                  className={`min-h-11 flex-1 rounded-lg border border-white/25 bg-white/10 px-4 py-2 font-medium text-white transition-colors hover:bg-white/20 focus-visible:outline-none focus-visible:ring-2 ${isBookkeeper ? 'focus-visible:ring-purple-200' : 'focus-visible:ring-[#e9c46a]'}`}
+                  className={`min-h-11 flex-1 rounded-lg border border-white/25 bg-white/10 px-4 py-2 font-medium text-white transition-colors hover:bg-white/20 focus-visible:outline-none focus-visible:ring-2 ${isBookkeeper ? 'focus-visible:ring-purple-200' : isTreasurer ? 'focus-visible:ring-teal-200' : 'focus-visible:ring-[#e9c46a]'}`}
                 >
                   Cancel
                 </button>
                 <button
                   onClick={confirmLogout}
-                  className={`min-h-11 flex-1 rounded-lg px-4 py-2 font-semibold transition hover:brightness-105 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 ${isBookkeeper ? 'bg-gradient-to-r from-purple-200 via-fuchsia-200 to-purple-300 text-purple-950 focus-visible:ring-purple-200 focus-visible:ring-offset-purple-900' : 'bg-gradient-to-r from-[#e9c46a] to-[#d6ab4a] text-blue-950 focus-visible:ring-[#e9c46a] focus-visible:ring-offset-blue-950'}`}
+                  className={`min-h-11 flex-1 rounded-lg px-4 py-2 font-semibold transition hover:brightness-105 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 ${isBookkeeper ? 'bg-gradient-to-r from-purple-200 via-fuchsia-200 to-purple-300 text-purple-950 focus-visible:ring-purple-200 focus-visible:ring-offset-purple-900' : isTreasurer ? 'bg-gradient-to-r from-teal-100 via-cyan-100 to-teal-200 text-teal-950 focus-visible:ring-teal-100 focus-visible:ring-offset-teal-900' : 'bg-gradient-to-r from-[#e9c46a] to-[#d6ab4a] text-blue-950 focus-visible:ring-[#e9c46a] focus-visible:ring-offset-blue-950'}`}
                 >
                   Logout
                 </button>

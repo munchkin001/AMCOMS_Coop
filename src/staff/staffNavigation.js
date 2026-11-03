@@ -413,11 +413,11 @@ export const getRoleColors = (role) => {
       hover: 'hover:bg-green-50'
     },
     treasurer: {
-      primary: 'blue',
-      gradient: 'from-blue-900 to-blue-800',
-      bg: 'bg-blue-800',
-      text: 'text-blue-800',
-      hover: 'hover:bg-blue-50'
+      primary: 'teal',
+      gradient: 'from-teal-800 to-teal-700',
+      bg: 'bg-teal-700',
+      text: 'text-teal-700',
+      hover: 'hover:bg-teal-50'
     },
     bookkeeper: {
       primary: 'purple',

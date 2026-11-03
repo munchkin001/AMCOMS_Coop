@@ -29,7 +29,7 @@ const DashboardMetricCard = ({ label, value, icon: Icon, tone = 'teal', actionLa
   const brandedVariant = treasurerVariant || bookkeeperVariant;
   const Container = onClick ? 'button' : 'article';
   const interactionClasses = onClick
-    ? 'w-full cursor-pointer text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:ring-offset-2'
+    ? `w-full cursor-pointer text-left focus-visible:outline-none focus-visible:ring-2 ${treasurerVariant ? 'focus-visible:ring-teal-600' : bookkeeperVariant ? 'focus-visible:ring-purple-600' : 'focus-visible:ring-blue-600'} focus-visible:ring-offset-2`
     : '';
 
   if (solid) {
@@ -39,7 +39,7 @@ const DashboardMetricCard = ({ label, value, icon: Icon, tone = 'teal', actionLa
         onClick={onClick}
         aria-label={onClick ? `View ${label.toLowerCase()} details` : undefined}
         className={`${interactionClasses} min-w-0 rounded-xl bg-gradient-to-br p-3 text-white shadow-md sm:p-4 ${
-          treasurerVariant ? 'from-[#173264] to-[#244a88]' : bookkeeperVariant ? 'from-[#4b2678] to-[#7544a5]' : solidTones[tone] || solidTones.teal
+          treasurerVariant ? 'from-[#064e50] via-[#087f83] to-[#18a6a0]' : bookkeeperVariant ? 'from-[#4b2678] to-[#7544a5]' : solidTones[tone] || solidTones.teal
         }`}
       >
         <div className="flex items-start justify-between gap-3">
@@ -59,7 +59,7 @@ const DashboardMetricCard = ({ label, value, icon: Icon, tone = 'teal', actionLa
               </button>
             ) : null}
           </div>
-          <span className={`hidden size-10 shrink-0 place-items-center rounded-md sm:grid ${treasurerVariant ? 'bg-[#e9c46a] text-blue-950' : bookkeeperVariant ? 'bg-purple-200 text-purple-950' : 'bg-white/20'}`}>
+          <span className={`hidden size-10 shrink-0 place-items-center rounded-md sm:grid ${treasurerVariant ? 'bg-[#f3d37a] text-teal-950' : bookkeeperVariant ? 'bg-purple-200 text-purple-950' : 'bg-white/20'}`}>
             {Icon && <Icon aria-hidden="true" className="size-5" />}
           </span>
         </div>
@@ -73,7 +73,7 @@ const DashboardMetricCard = ({ label, value, icon: Icon, tone = 'teal', actionLa
       onClick={onClick}
       aria-label={onClick ? `View ${label.toLowerCase()} details` : undefined}
       className={`${interactionClasses} min-w-0 rounded-xl border border-slate-200 ${
-        treasurerVariant ? 'border-t-4 border-t-[#d6ab4a]' : bookkeeperVariant ? 'border-t-4 border-t-purple-700' : `border-t-4 ${toneClasses.accent}`
+        treasurerVariant ? 'border-t-4 border-t-teal-700' : bookkeeperVariant ? 'border-t-4 border-t-purple-700' : `border-t-4 ${toneClasses.accent}`
       } bg-white p-4 shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md`}
     >
       <div className="flex items-start justify-between gap-3">
@@ -93,7 +93,7 @@ const DashboardMetricCard = ({ label, value, icon: Icon, tone = 'teal', actionLa
             </button>
           ) : null}
         </div>
-        <span className={`grid size-11 shrink-0 place-items-center rounded-xl ${toneClasses.iconBg} ${toneClasses.iconText}`}>
+        <span className={`grid size-11 shrink-0 place-items-center rounded-xl ${treasurerVariant ? 'bg-teal-50 text-teal-800' : `${toneClasses.iconBg} ${toneClasses.iconText}`}`}>
           {Icon && <Icon aria-hidden="true" className="size-5" />}
         </span>
       </div>
