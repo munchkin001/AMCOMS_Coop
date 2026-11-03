@@ -36,7 +36,7 @@ const Transactions = ({ initialType = null, startNewTransaction = false }) => {
   const handleSelectType = (type) => {
     operationId.current = crypto.randomUUID();
     if (type === 'loan-disbursement') {
-      navigate('/staff/loan-requests');
+      navigate('/staff/approved-transactions');
       return;
     }
 

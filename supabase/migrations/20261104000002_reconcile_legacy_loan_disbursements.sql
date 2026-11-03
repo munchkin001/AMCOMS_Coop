@@ -50,7 +50,7 @@ SET status = 'completed',
     release_remarks = NULLIF(
       btrim(replace(
         COALESCE(workflow.release_remarks, ''),
-        'SYSTEM_RECONCILIATION_REQUIRED: Loan is active but no linked, posted cash disbursement was found. Verify the cash handoff and accounting records before taking any further action.',
+        'SYSTEM_RECONCILIATION_REQUIRED: Loan is active but no linked, posted cash disbursement was found. The Treasurer must confirm whether cash was handed to the member. The Bookkeeper must verify the voucher and posted journal entry. Do not retry the release until both checks are complete.',
         ''
       )),
       ''

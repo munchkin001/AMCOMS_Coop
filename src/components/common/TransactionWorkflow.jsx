@@ -1315,9 +1315,9 @@ const TransactionWorkflow = ({ role }) => {
                   )}
                   {isTreasurer && isLoanReleaseReconciliationRequired(selected) && (
                     <section role="status" className="mt-5 rounded-xl border border-red-200 bg-red-50 p-4">
-                      <h3 className="font-semibold text-red-950">Administrator reconciliation required</h3>
+                      <h3 className="font-semibold text-red-950">Bookkeeper reconciliation required</h3>
                       <p className="mt-1 text-sm text-red-900">
-                        This loan is marked active, but no linked, posted cash-disbursement record was found. Release is blocked to prevent a duplicate payment. An administrator must verify whether the cash was handed to the member and reconcile the accounting records before this workflow can continue.
+                        This loan is marked active, but no linked, posted cash-disbursement record was found. Release is blocked to prevent a duplicate payment. The Treasurer must confirm whether the cash was handed to the member. The Bookkeeper must verify the cash-disbursement voucher and posted journal entry, then reconcile the accounting records. Do not retry the release until both checks are complete.
                       </p>
                     </section>
                   )}
