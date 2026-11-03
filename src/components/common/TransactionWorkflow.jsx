@@ -116,7 +116,7 @@ const isLoanReleaseReconciliationRequired = (workflow) => (
 );
 const workflowStatusLabel = (workflow) => (
   isLoanReleaseReconciliationRequired(workflow)
-    ? 'Admin Reconciliation Required'
+    ? 'Existing Voucher Needs Review'
     : workflow.transaction_type === 'loan_disbursement' && workflow.status === 'completed'
     ? 'Cash released'
     : isCreditSale(workflow) && ['approved', 'completed'].includes(workflow.status)
@@ -1074,7 +1074,7 @@ const TransactionWorkflow = ({ role }) => {
                       <td className="px-4 py-4">
                         <button type="button" onClick={(event) => { event.stopPropagation(); openWorkflowDetails(row); }} className={`rounded-lg px-3 py-2 text-xs font-semibold ${actionable ? isTreasurer ? 'bg-teal-700 text-white hover:bg-teal-800' : isManager ? 'bg-orange-700 text-white hover:bg-orange-800' : isBookkeeper ? 'bg-purple-800 text-white hover:bg-purple-900' : 'bg-slate-900 text-white hover:bg-slate-700' : 'border border-slate-300 text-slate-700 hover:bg-slate-50'}`}>
                           {isLoanReleaseReconciliationRequired(row)
-                            ? 'View reconciliation'
+                            ? 'Review existing voucher'
                             : actionable ? isManager ? 'Review' : isBookkeeper ? row.status === 'returned_for_correction' ? 'Edit & resubmit' : 'Process' : 'Verify release' : awaitingBookkeeperRelease ? 'View status' : 'View details'}
                         </button>
                       </td>
@@ -1315,14 +1315,13 @@ const TransactionWorkflow = ({ role }) => {
                   )}
                   {isLoanReleaseReconciliationRequired(selected) && (
                     <section role="status" className="mt-5 rounded-xl border border-red-200 bg-red-50 p-4">
-                      <h3 className="font-semibold text-red-950">Loan release needs reconciliation</h3>
-                      <p className="mt-1 text-sm text-red-900">The loan is marked active, but no linked, posted cash-disbursement record was found. Release is blocked to prevent a duplicate payment.</p>
+                      <h3 className="font-semibold text-red-950">Existing disbursement needs reconciliation</h3>
+                      <p className="mt-1 text-sm text-red-900">A matching disbursement record already exists, but it is not linked to a verified posted release. The Bookkeeper must reconcile the existing voucher and journal entry before the system can prevent a duplicate accounting entry.</p>
                       <ul className="mt-3 list-disc space-y-1 pl-5 text-sm text-red-900">
-                        <li><strong>Bookkeeper — reconciliation owner:</strong> Check the disbursement voucher and its posted journal entry in Transactions Management / General Ledger. Reconcile only from verified existing records.</li>
-                        <li><strong>Treasurer:</strong> Confirm from the release proof and your records whether the member actually received the cash; report that result to the Bookkeeper.</li>
-                        <li><strong>Manager:</strong> Review and oversee any correction if the records disagree before staff change the loan or accounting entries.</li>
+                        <li><strong>Bookkeeper — reconciliation owner:</strong> Check the disbursement voucher and posted journal entry in Transactions Management / General Ledger.</li>
+                        <li><strong>Treasurer:</strong> Confirm the real-world handoff from the release proof and report the result to the Bookkeeper.</li>
                       </ul>
-                      <p className="mt-3 text-sm font-semibold text-red-950">Do not attempt another release until the Bookkeeper and Treasurer have completed their checks.</p>
+                      <p className="mt-3 text-sm font-semibold text-red-950">Do not mark this loan as given again until the existing record has been reconciled.</p>
                     </section>
                   )}
 
@@ -1401,11 +1400,20 @@ const TransactionWorkflow = ({ role }) => {
                 <section className="mt-5 space-y-3 rounded-xl border border-emerald-200 bg-emerald-50 p-4">
                   <div className="flex gap-3">
                     <ShieldCheck className="mt-0.5 shrink-0 text-emerald-800" size={20} />
-                    <div><h3 className="font-semibold text-emerald-950">Release approved loan</h3><p className="mt-1 text-sm text-emerald-900">Verify the recipient and approved amount, attach a photo or proof, then select Release. The server uses the approved amount and will not release without a registered attachment.</p></div>
+                    <div>
+                      <h3 className="font-semibold text-emerald-950">{selected.transaction_type === 'loan_disbursement' ? 'Confirm loan was given' : 'Confirm cash release'}</h3>
+                      <p className="mt-1 text-sm text-emerald-900">
+                        {selected.transaction_type === 'loan_disbursement'
+                          ? 'The Treasurer gives the money to the member outside AMCOMS. After the handoff, verify the member and approved amount, attach proof, then select Mark as given. AMCOMS records the disbursement and accounting entry; it does not transfer money.'
+                          : 'Verify the recipient and approved amount, attach proof, then confirm the cash release.'}
+                      </p>
+                    </div>
                   </div>
                   <label className="flex items-start gap-2 text-sm text-slate-800">
                     <input type="checkbox" checked={reviewedRelease} onChange={(event) => setReviewedRelease(event.target.checked)} className="mt-1" />
-                    I verified the recipient and approved amount of <strong>{money(selected.amount)}</strong>.
+                    {selected.transaction_type === 'loan_disbursement'
+                      ? <>I confirm I gave the verified member the approved amount of <strong>{money(selected.amount)}</strong> outside AMCOMS.</>
+                      : <>I verified the recipient and approved amount of <strong>{money(selected.amount)}</strong>.</>}
                   </label>
                   <label className="block text-sm font-medium text-slate-700">Release note
                     <span className="ml-1 font-normal text-slate-500">(optional for release; required for hold or issue)</span>
@@ -1426,7 +1434,7 @@ const TransactionWorkflow = ({ role }) => {
                   <div className="flex flex-wrap justify-end gap-2">
                     <button type="button" disabled={busy} onClick={() => { if (!remarks.trim()) { setError('Enter a reason before placing this release on hold.'); return; } runRpc('place_transaction_workflow_on_hold', { p_workflow_id: selected.id, p_reason: remarks.trim() }, 'Transaction placed on hold.'); }} className="rounded-lg border border-slate-400 bg-white px-4 py-2 text-sm font-semibold text-slate-800 disabled:opacity-50">Place on hold</button>
                     <button type="button" disabled={busy} onClick={() => { if (!remarks.trim()) { setError('Enter the discrepancy before reporting this issue.'); return; } runRpc('report_transaction_workflow_release_issue', { p_workflow_id: selected.id, p_reason: remarks.trim() }, 'Release issue recorded for review.'); }} className="inline-flex items-center gap-2 rounded-lg border border-red-300 bg-white px-4 py-2 text-sm font-semibold text-red-800 disabled:opacity-50"><AlertTriangle size={16} /> Report issue</button>
-                    <button type="button" disabled={busy || !reviewedRelease || (!releaseFile && !registeredReleaseProof)} onClick={confirmRelease} className="rounded-lg bg-emerald-800 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-900 disabled:opacity-50">{busy ? releaseProgress || 'Releasing…' : 'Release'}</button>
+                    <button type="button" disabled={busy || !reviewedRelease || (!releaseFile && !registeredReleaseProof)} onClick={confirmRelease} className="rounded-lg bg-emerald-800 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-900 disabled:opacity-50">{busy ? releaseProgress || 'Recording…' : selected.transaction_type === 'loan_disbursement' ? 'Mark as given' : 'Confirm release'}</button>
                   </div>
                   {!busy && !reviewedRelease && (
                     <p className="text-right text-xs text-slate-600">Confirm that you verified the recipient and approved amount to enable release.</p>
