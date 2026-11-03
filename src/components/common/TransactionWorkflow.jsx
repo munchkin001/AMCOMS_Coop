@@ -109,6 +109,47 @@ const isPhysicalCashHandoff = (workflow) => {
   ));
 };
 
+const WorkflowEvidence = ({ document, onOpen }) => {
+  const [signedUrl, setSignedUrl] = useState('');
+  const [previewError, setPreviewError] = useState('');
+  const isImage = document.mime_type === 'image/jpeg' || document.mime_type === 'image/png';
+
+  useEffect(() => {
+    let active = true;
+    supabase.storage
+      .from('transaction-evidence')
+      .createSignedUrl(document.object_name, 60)
+      .then(({ data, error }) => {
+        if (!active) return;
+        if (error) {
+          setPreviewError(error.message);
+          return;
+        }
+        setSignedUrl(data.signedUrl);
+      })
+      .catch((error) => {
+        if (active) setPreviewError(error.message || 'The evidence preview could not be loaded.');
+      });
+    return () => { active = false; };
+  }, [document.object_name]);
+
+  return (
+    <div className="mt-2">
+      {isImage && signedUrl && (
+        <a href={signedUrl} target="_blank" rel="noreferrer" className="block overflow-hidden rounded-lg border border-slate-200 bg-slate-100">
+          <img src={signedUrl} alt={`Release proof: ${document.file_name}`} className="max-h-72 w-full object-contain" />
+        </a>
+      )}
+      {!signedUrl && previewError && <p className="text-xs text-amber-800">Preview unavailable: {previewError}</p>}
+      {(!isImage || !signedUrl) && (
+        <button type="button" onClick={() => onOpen(document)} className="text-xs font-semibold text-blue-800 underline underline-offset-2">
+          {isImage ? 'Open proof image' : 'Open attached proof'}
+        </button>
+      )}
+    </div>
+  );
+};
+
 const profileDate = (value) => value
   ? new Date(`${String(value).slice(0, 10)}T00:00:00`).toLocaleDateString('en-PH', { dateStyle: 'medium' })
   : '—';
@@ -119,45 +160,61 @@ const profileValue = (value) => {
   return String(value);
 };
 
-const MemberProfileDisclosure = ({ memberId }) => {
+const MemberProfileDisclosure = ({ memberId, transactionType }) => {
   const [expanded, setExpanded] = useState(false);
   const [member, setMember] = useState(null);
+  const [savingsAccounts, setSavingsAccounts] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const isSavingsWithdrawal = transactionType === 'savings_withdrawal';
 
   useEffect(() => {
     if (!expanded || !memberId) return undefined;
     let active = true;
 
-    supabase.from('members')
-      .select(`
-        member_number, first_name, middle_name, last_name, email, phone, address,
-        date_of_birth, gender, marital_status, membership_type, membership_status,
-        date_joined, shares_owned, total_capital, emergency_contact_name,
-        emergency_contact_phone, emergency_contact_relationship,
-        additional_emergency_contacts, family_members, rsbsa, tin, ncfrs,
-        pca_id, occupation, barangay, municipality, province
-      `)
-      .eq('id', memberId)
-      .maybeSingle()
-      .then(({ data, error: queryError }) => {
+    const loadProfile = async () => {
+      try {
+        const [profileResult, accountsResult] = await Promise.all([
+          supabase.from('members')
+            .select(`
+              member_number, first_name, middle_name, last_name, email, phone, address,
+              date_of_birth, gender, marital_status, membership_type, membership_status,
+              date_joined, shares_owned, total_capital, emergency_contact_name,
+              emergency_contact_phone, emergency_contact_relationship,
+              additional_emergency_contacts, family_members, rsbsa, tin, ncfrs,
+              pca_id, occupation, barangay, municipality, province
+            `)
+            .eq('id', memberId)
+            .maybeSingle(),
+          isSavingsWithdrawal
+            ? supabase.from('savings_accounts')
+              .select('id, account_number, balance')
+              .eq('member_id', memberId)
+              .eq('account_type', 'regular')
+              .eq('status', 'active')
+              .order('created_at')
+            : Promise.resolve({ data: [], error: null })
+        ]);
+        if (profileResult.error) throw profileResult.error;
+        if (accountsResult.error) throw accountsResult.error;
+        if (!profileResult.data) throw new Error('The linked member profile could not be found.');
         if (!active) return;
-        if (queryError) throw queryError;
-        if (!data) throw new Error('The linked member profile could not be found.');
-        setMember(data);
-      })
-      .catch((loadError) => {
+        setMember(profileResult.data);
+        setSavingsAccounts(accountsResult.data || []);
+      } catch (loadError) {
         if (!active) return;
         console.error('Unable to load transaction member profile:', loadError);
         setMember(null);
+        setSavingsAccounts([]);
         setError(loadError.message || 'Member profile could not be loaded.');
-      })
-      .finally(() => {
+      } finally {
         if (active) setLoading(false);
-      });
+      }
+    };
 
+    loadProfile();
     return () => { active = false; };
-  }, [expanded, memberId]);
+  }, [expanded, isSavingsWithdrawal, memberId]);
 
   if (!memberId) return null;
 
@@ -189,7 +246,7 @@ const MemberProfileDisclosure = ({ memberId }) => {
         ['Membership type', member.membership_type],
         ['Date joined', profileDate(member.date_joined)],
         ['Shares owned', member.shares_owned],
-        ['Share capital', money(member.total_capital)]
+        ['Share capital', member.total_capital === null ? null : money(member.total_capital)]
       ]
     },
     {
@@ -211,6 +268,7 @@ const MemberProfileDisclosure = ({ memberId }) => {
       ]
     }
   ] : [];
+  const savingsBalance = savingsAccounts.reduce((total, account) => total + Number(account.balance || 0), 0);
 
   return (
     <section className="mt-4 overflow-hidden rounded-xl border border-blue-200 bg-white">
@@ -231,6 +289,11 @@ const MemberProfileDisclosure = ({ memberId }) => {
           <span className="mt-0.5 block text-xs text-slate-500">
             {member ? `${[member.first_name, member.middle_name, member.last_name].filter(Boolean).join(' ')} · ${member.member_number || 'No member number'}` : 'Expand to view the linked member’s details'}
           </span>
+          {isSavingsWithdrawal && !expanded && member && (
+            <span className="mt-1 block text-sm font-semibold tabular-nums text-blue-900">
+              Current savings balance: {money(savingsBalance)}
+            </span>
+          )}
         </span>
         <ChevronDown size={18} aria-hidden="true" className={`shrink-0 text-slate-500 transition-transform ${expanded ? 'rotate-180' : ''}`} />
       </button>
@@ -240,6 +303,22 @@ const MemberProfileDisclosure = ({ memberId }) => {
           {error && <p role="alert" className="text-sm text-red-700">{error}</p>}
           {member && (
             <div className="space-y-4">
+              {isSavingsWithdrawal && (
+                <section className="rounded-lg border border-blue-200 bg-blue-50/60 p-3">
+                  <h3 className="text-sm font-semibold text-slate-900">Current savings balance</h3>
+                  <p className="mt-1 text-xl font-bold tabular-nums text-blue-950">{money(savingsBalance)}</p>
+                  {savingsAccounts.length ? (
+                    <ul className="mt-2 space-y-1 text-sm text-slate-600">
+                      {savingsAccounts.map((account) => (
+                        <li key={account.id} className="flex flex-wrap justify-between gap-2">
+                          <span>{account.account_number}</span>
+                          <span className="font-medium tabular-nums">{money(account.balance)}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : <p className="mt-1 text-sm text-slate-600">No active regular savings accounts.</p>}
+                </section>
+              )}
               {sections.map((section) => (
                 <section key={section.title}>
                   <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-500">{section.title}</h3>
@@ -289,47 +368,6 @@ const MemberProfileDisclosure = ({ memberId }) => {
         </div>
       )}
     </section>
-  );
-};
-
-const WorkflowEvidence = ({ document, onOpen }) => {
-  const [signedUrl, setSignedUrl] = useState('');
-  const [previewError, setPreviewError] = useState('');
-  const isImage = document.mime_type === 'image/jpeg' || document.mime_type === 'image/png';
-
-  useEffect(() => {
-    let active = true;
-    supabase.storage
-      .from('transaction-evidence')
-      .createSignedUrl(document.object_name, 60)
-      .then(({ data, error }) => {
-        if (!active) return;
-        if (error) {
-          setPreviewError(error.message);
-          return;
-        }
-        setSignedUrl(data.signedUrl);
-      })
-      .catch((error) => {
-        if (active) setPreviewError(error.message || 'The evidence preview could not be loaded.');
-      });
-    return () => { active = false; };
-  }, [document.object_name]);
-
-  return (
-    <div className="mt-2">
-      {isImage && signedUrl && (
-        <a href={signedUrl} target="_blank" rel="noreferrer" className="block overflow-hidden rounded-lg border border-slate-200 bg-slate-100">
-          <img src={signedUrl} alt={`Release proof: ${document.file_name}`} className="max-h-72 w-full object-contain" />
-        </a>
-      )}
-      {!signedUrl && previewError && <p className="text-xs text-amber-800">Preview unavailable: {previewError}</p>}
-      {(!isImage || !signedUrl) && (
-        <button type="button" onClick={() => onOpen(document)} className="text-xs font-semibold text-blue-800 underline underline-offset-2">
-          {isImage ? 'Open proof image' : 'Open attached proof'}
-        </button>
-      )}
-    </div>
   );
 };
 
@@ -827,7 +865,11 @@ const TransactionWorkflow = ({ role }) => {
                 ))}
               </div>
               {isManager && selected.member_id && (
-                <MemberProfileDisclosure memberId={selected.member_id} />
+                <MemberProfileDisclosure
+                  key={selected.member_id}
+                  memberId={selected.member_id}
+                  transactionType={selected.transaction_type}
+                />
               )}
               <div className="mt-4 rounded-xl border border-slate-200 p-4">
                 <h3 className="font-semibold text-slate-900">Purpose and submitted details</h3>
