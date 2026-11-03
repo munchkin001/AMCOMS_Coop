@@ -9,6 +9,7 @@ import {
   RefreshCw,
   Search,
   ShieldCheck,
+  X,
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useMultipleRealtimeSubscriptions } from '../../hooks/useRealtimeSubscription';
@@ -457,13 +458,17 @@ const TransactionWorkflow = ({ role }) => {
   const [reviewedRelease, setReviewedRelease] = useState(false);
   const [releaseFile, setReleaseFile] = useState(null);
   const [releaseProgress, setReleaseProgress] = useState('');
-  const selectedDocuments = asArray(selected?.documents);
+  const [removingDocumentId, setRemovingDocumentId] = useState(null);
+  const selectedDocuments = asArray(selected?.documents).filter((document) => document && !document.removed_at);
   const selectedPayload = asObject(selected?.payload);
   const selectedApprovedPayload = asObject(selected?.approved_payload);
   const registeredReleaseProof = selectedDocuments
     .filter(Boolean)
     .filter((document) => document?.document_type === 'cash_release_acknowledgment')
     .sort((left, right) => new Date(right.uploaded_at) - new Date(left.uploaded_at))[0];
+  const releaseProofCount = selectedDocuments.filter(
+    (document) => document.document_type === 'cash_release_acknowledgment'
+  ).length;
   const returnedItems = asArray(selectedPayload.p_returned_items).filter(Boolean);
   const workflowEvents = asArray(selected?.events).filter(Boolean);
   const selectedReturnItems = selected?.transaction_type === 'sales_return'
@@ -501,7 +506,7 @@ const TransactionWorkflow = ({ role }) => {
         requester:staff!transaction_workflows_created_by_fkey(full_name),
         approver:staff!transaction_workflows_manager_id_fkey(full_name),
         events:transaction_workflow_events(id, event_type, previous_status, next_status, actor_staff_id, remarks, created_at),
-        documents:transaction_workflow_documents(id, document_type, object_name, file_name, mime_type, uploaded_at)
+        documents:transaction_workflow_documents(id, document_type, object_name, file_name, mime_type, uploaded_at, removed_at)
       `)
       .is('superseded_by', null)
       .order('created_at', { ascending: false })
@@ -516,7 +521,12 @@ const TransactionWorkflow = ({ role }) => {
       console.error('Unable to load transaction workflow:', loadError);
       setError(`Unable to load transactions: ${loadError.message}`);
     } else {
-      const workflows = (data || []).filter((workflow) => !isManager || !isCreditSale(workflow));
+      const workflows = (data || [])
+        .filter((workflow) => !isManager || !isCreditSale(workflow))
+        .map((workflow) => ({
+          ...workflow,
+          documents: asArray(workflow.documents).filter((document) => document && !document.removed_at),
+        }));
       const getRelatedSaleId = (workflow) => workflow.transaction_type === 'sales_return'
         ? workflow.source_record_id || workflow.payload?.p_sales_order_id
         : workflow.transaction_type === 'sale' && workflow.business_record_table === 'sales_orders'
@@ -733,6 +743,61 @@ const TransactionWorkflow = ({ role }) => {
     });
     if (registerError) throw registerError;
     return data;
+  };
+
+  const removeDuplicateReleaseProof = async (document) => {
+    if (!selected || removingDocumentId) return;
+    const confirmed = window.confirm(
+      `Remove the duplicate proof file "${document.file_name}"? Another release proof will remain attached.`
+    );
+    if (!confirmed) return;
+
+    setRemovingDocumentId(document.id);
+    setError('');
+    let objectName;
+    let storageRemoved = false;
+    try {
+      const { data: reservedObjectName, error: reserveError } = await supabase.rpc(
+        'reserve_transaction_workflow_document_removal',
+        { p_document_id: document.id }
+      );
+      if (reserveError) throw reserveError;
+      if (!reservedObjectName) throw new Error('The proof file could not be identified for removal.');
+      objectName = reservedObjectName;
+
+      const { error: storageError } = await supabase.storage
+        .from('transaction-evidence')
+        .remove([objectName]);
+      if (storageError) throw storageError;
+      storageRemoved = true;
+
+      const { error: finalizeError } = await supabase.rpc(
+        'finalize_transaction_workflow_document_removal',
+        { p_document_id: document.id }
+      );
+      if (finalizeError) throw finalizeError;
+
+      setSelected((current) => current && current.id === selected.id
+        ? { ...current, documents: asArray(current.documents).filter((item) => item.id !== document.id) }
+        : current);
+      setNotice('Duplicate release proof removed.');
+    } catch (removeError) {
+      console.error('Unable to remove duplicate release proof:', removeError);
+      if (objectName && !storageRemoved) {
+        const { error: cancelError } = await supabase.rpc(
+          'cancel_transaction_workflow_document_removal',
+          { p_document_id: document.id }
+        );
+        if (cancelError) {
+          console.error('Unable to cancel duplicate proof removal:', cancelError);
+        }
+      }
+      setError(storageRemoved
+        ? `The file was removed from storage, but the attachment record could not be updated. Refresh the queue before trying again. ${removeError.message || ''}`.trim()
+        : `Duplicate proof was not removed: ${removeError.message || 'Please retry.'}`);
+    } finally {
+      setRemovingDocumentId(null);
+    }
   };
 
   const confirmRelease = async () => {
@@ -1154,7 +1219,25 @@ const TransactionWorkflow = ({ role }) => {
                         <li key={document.id} className="rounded-lg bg-slate-50 p-3">
                           <div className="flex items-center justify-between gap-2">
                             <span className="flex min-w-0 items-center gap-2 text-sm text-slate-700"><FileText size={16} className="shrink-0 text-slate-500" /><span className="truncate">{document.file_name}</span></span>
-                            <button type="button" onClick={() => createDocumentLink(document)} className={`rounded p-1 ${isTreasurer ? 'text-teal-800 hover:bg-teal-50' : 'text-blue-800 hover:bg-blue-50'}`} aria-label={`Open ${document.file_name}`}><Download size={16} /></button>
+                            <span className="flex shrink-0 items-center gap-1">
+                              <button type="button" onClick={() => createDocumentLink(document)} className={`rounded p-1 ${isTreasurer ? 'text-teal-800 hover:bg-teal-50' : 'text-blue-800 hover:bg-blue-50'}`} aria-label={`Open ${document.file_name}`}><Download size={16} /></button>
+                              {isTreasurer
+                                && document.document_type === 'cash_release_acknowledgment'
+                                && releaseProofCount > 1
+                                && selected.cash_release_required
+                                && ['awaiting_release', 'on_hold', 'release_issue'].includes(selected.status) && (
+                                <button
+                                  type="button"
+                                  onClick={() => removeDuplicateReleaseProof(document)}
+                                  disabled={busy || Boolean(removingDocumentId)}
+                                  className="rounded p-1 text-red-700 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
+                                  aria-label={`Remove duplicate release proof ${document.file_name}`}
+                                  title="Remove duplicate release proof"
+                                >
+                                  <X size={16} aria-hidden="true" />
+                                </button>
+                              )}
+                            </span>
                           </div>
                           <WorkflowEvidence document={document} onOpen={createDocumentLink} />
                         </li>
