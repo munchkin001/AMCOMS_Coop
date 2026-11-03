@@ -4,6 +4,8 @@ import { useMultipleRealtimeSubscriptions } from '../../hooks/useRealtimeSubscri
 import { fetchAccountBalances, summarizeAccountBalances, toDateString } from '../../lib/dashboardAccounting';
 import { getDataLoadErrorMessage } from '../../lib/errorHandler';
 import ReportInsights from '../common/ReportInsights';
+import MemberReportSort from '../common/MemberReportSort';
+import { sortMemberReportRows } from '../common/memberReportSorting';
 
 const getPeriodRange = (period) => {
   const [yearText, periodType] = period.split('-');
@@ -40,6 +42,7 @@ const PerformanceReport = () => {
     ]);
   const [reportPeriod, setReportPeriod] = useState(`${currentYear}-Q${currentQuarter}`);
   const [reportType, setReportType] = useState('comprehensive');
+  const [memberSort, setMemberSort] = useState('newest');
   const [showPreview, setShowPreview] = useState(false);
   const [error, setError] = useState('');
   const [reportData, setReportData] = useState(null);
@@ -70,7 +73,9 @@ const PerformanceReport = () => {
           .eq('status', 'recorded').gte('receipt_date', range.start).lte('receipt_date', range.end),
         supabase.from('cash_disbursements').select('amount')
           .gte('disbursement_date', range.start).lte('disbursement_date', range.end),
-        supabase.from('members').select('membership_status, date_joined, total_capital'),
+        supabase.from('members')
+          .select('id, member_number, first_name, middle_name, last_name, membership_status, membership_type, date_joined, total_capital')
+          .order('date_joined', { ascending: false, nullsFirst: false }),
         supabase.from('savings_accounts').select('balance, account_type').eq('status', 'active'),
         supabase.from('loans').select('principal_amount, balance, status, maturity_date'),
         supabase.from('loan_payments').select('amount_paid')
@@ -149,6 +154,7 @@ const PerformanceReport = () => {
         members: {
           total: members.length,
           active: members.filter((member) => member.membership_status === 'active').length,
+          records: members,
           newInPeriod: members.filter((member) =>
             member.date_joined && member.date_joined >= range.start && member.date_joined <= range.end
           ).length,
@@ -214,6 +220,12 @@ const PerformanceReport = () => {
     setError('');
     loadReport();
   };
+
+  const sortedMembers = useMemo(() => (
+    reportData?.members?.records
+      ? sortMemberReportRows(reportData.members.records, memberSort)
+      : []
+  ), [memberSort, reportData]);
 
   const analysis = useMemo(() => {
     if (!reportData) return null;
@@ -405,6 +417,51 @@ const PerformanceReport = () => {
                         {metric('Total Time Deposits', formatMoney(reportData.members.timeDeposits))}
                         {metric('Total Share Capital', formatMoney(reportData.members.shareCapital))}
                       </div>
+                    </div>
+                  </section>
+                  <section>
+                    <div className="mb-3 flex flex-wrap items-end justify-between gap-3 border-b border-gray-300 pb-2">
+                      <div>
+                        <h2 className="text-xl font-bold">Member Register</h2>
+                        <p className="mt-1 text-sm text-gray-600">Choose a sort order. Newest members are shown first by default.</p>
+                      </div>
+                      <MemberReportSort value={memberSort} onChange={setMemberSort} id="chairman-member-report-sort" />
+                    </div>
+                    <div className="overflow-x-auto">
+                      <table className="min-w-full text-left text-sm">
+                        <thead className="bg-slate-100 text-xs uppercase text-slate-600">
+                          <tr>
+                            <th className="whitespace-nowrap px-3 py-2">Member ID</th>
+                            <th className="px-3 py-2">Member name</th>
+                            <th className="whitespace-nowrap px-3 py-2">Date joined</th>
+                            <th className="px-3 py-2">Type</th>
+                            <th className="px-3 py-2">Status</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {sortedMembers.map((member) => (
+                            <tr key={member.id} className="border-t border-slate-200 odd:bg-white even:bg-slate-50">
+                              <td className="whitespace-nowrap px-3 py-2 font-medium text-slate-800">{member.member_number || '—'}</td>
+                              <td className="px-3 py-2 text-slate-800">{[member.first_name, member.middle_name, member.last_name].filter(Boolean).join(' ') || '—'}</td>
+                              <td className="whitespace-nowrap px-3 py-2 text-slate-700">{member.date_joined ? new Date(`${member.date_joined}T00:00:00`).toLocaleDateString('en-PH') : '—'}</td>
+                              <td className="px-3 py-2 capitalize text-slate-700">{member.membership_type || '—'}</td>
+                              <td className="px-3 py-2">
+                                <span className="inline-flex items-center gap-2">
+                                  <span className={`rounded-full px-2 py-1 text-xs font-semibold ${member.membership_status === 'active' ? 'bg-blue-100 text-blue-800' : 'bg-slate-100 text-slate-700'}`}>
+                                    {member.membership_status || 'Unknown'}
+                                  </span>
+                                  {member.date_joined && member.date_joined >= range.start && member.date_joined <= range.end && (
+                                    <span className="rounded-full bg-emerald-100 px-2 py-1 text-xs font-semibold text-emerald-800">New</span>
+                                  )}
+                                </span>
+                              </td>
+                            </tr>
+                          ))}
+                          {sortedMembers.length === 0 && (
+                            <tr><td colSpan={5} className="px-3 py-6 text-center text-slate-500">No member records found.</td></tr>
+                          )}
+                        </tbody>
+                      </table>
                     </div>
                   </section>
 

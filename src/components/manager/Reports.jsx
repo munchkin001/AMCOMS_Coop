@@ -4,6 +4,8 @@ import { CalendarDays, ChevronLeft, ChevronRight, Clock3, Printer, RefreshCw, Wa
 import { supabase } from '../../lib/supabase';
 import { useMultipleRealtimeSubscriptions } from '../../hooks/useRealtimeSubscription';
 import ReportInsights from '../common/ReportInsights';
+import MemberReportSort from '../common/MemberReportSort';
+import { sortMemberReportRows } from '../common/memberReportSorting';
 
 const peso = (v) => `PHP ${(Number(v) || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 const num = (v) => (Number(v) || 0).toLocaleString('en-PH');
@@ -226,6 +228,7 @@ const Summary = ({ items }) => (
 const Reports = () => {
   const location = useLocation();
   const [reportType, setReportType] = useState(location.state?.reportType || 'aging');
+  const [memberSort, setMemberSort] = useState('newest');
   const [period, setPeriod] = useState('monthly');
   const [anchor, setAnchor] = useState(iso(new Date()));
   const [data, setData] = useState({});
@@ -802,6 +805,7 @@ const Reports = () => {
       const accounts = data.accounts || [];
       const activeMembers = members.filter((m) => m.membership_status === 'active' && !m.archived_at);
       const joined = members.filter((m) => m.date_joined >= range.from && m.date_joined <= range.to);
+      const sortedJoined = sortMemberReportRows(joined, memberSort);
       const savings = accounts.filter((a) => a.account_type !== 'time_deposit' && a.status !== 'closed');
       const deposits = accounts.filter((a) => a.account_type === 'time_deposit' && a.status !== 'closed');
       const sum = (rows) => rows.reduce((s, a) => s + Number(a.balance || 0), 0);
@@ -842,8 +846,12 @@ const Reports = () => {
             ]}
           />
           <Section title="New Members">
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+              <p className="text-sm text-slate-600">All entries are new members from the selected period; sort changes their order only.</p>
+              <MemberReportSort value={memberSort} onChange={setMemberSort} id="manager-new-member-sort" />
+            </div>
             <DataTable
-              rows={joined}
+              rows={sortedJoined}
               columns={[
                 { label: 'Member No.', render: (m) => m.member_number },
                 { label: 'Name', render: (m) => fullName(m) },
