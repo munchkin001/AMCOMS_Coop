@@ -101,7 +101,17 @@ const Section = ({ title, children }) => (
   </section>
 );
 
-const DataTable = ({ columns, rows, empty = 'No records for this period.', footer, tableClassName = '', onRowClick, pageSize }) => {
+const DataTable = ({
+  columns,
+  rows,
+  empty = 'No records for this period.',
+  footer,
+  tableClassName = '',
+  onRowClick,
+  pageSize,
+  verticalScroll = false,
+  compact = false
+}) => {
   const [currentPage, setCurrentPage] = useState(1);
   const pageCount = pageSize ? Math.max(1, Math.ceil(rows.length / pageSize)) : 1;
   const page = Math.min(currentPage, pageCount);
@@ -111,12 +121,12 @@ const DataTable = ({ columns, rows, empty = 'No records for this period.', foote
 
   return (
     <div>
-      <div className="report-table-scroll overflow-x-auto">
+      <div className={`report-table-scroll ${verticalScroll ? 'max-h-[70vh] overflow-y-auto overflow-x-hidden' : 'overflow-x-auto'}`}>
         <table className={`w-full border-collapse text-left text-xs ${tableClassName}`}>
           <thead>
             <tr className="bg-slate-100">
               {columns.map((c) => (
-                <th key={c.label} className={`border border-slate-300 px-2 py-1.5 font-semibold text-slate-800 ${c.right ? 'text-right' : ''}`}>{c.label}</th>
+                <th key={c.label} style={c.width ? { width: c.width } : undefined} className={`border border-slate-300 ${compact ? 'break-words px-1 py-1' : 'px-2 py-1.5'} font-semibold text-slate-800 ${c.right ? 'text-right' : ''}`}>{c.label}</th>
               ))}
             </tr>
           </thead>
@@ -139,7 +149,7 @@ const DataTable = ({ columns, rows, empty = 'No records for this period.', foote
                 className={`odd:bg-white even:bg-slate-50 ${onRowClick ? 'cursor-pointer hover:bg-blue-50 focus:bg-blue-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-blue-600' : ''}`}
               >
                 {columns.map((c) => (
-                  <td key={c.label} className={`border border-slate-300 px-2 py-1.5 text-slate-800 ${c.right ? 'text-right tabular-nums' : ''}`}>{c.render(row)}</td>
+                  <td key={c.label} style={c.width ? { width: c.width } : undefined} className={`border border-slate-300 ${compact ? 'break-words px-1 py-1' : 'px-2 py-1.5'} text-slate-800 ${c.right ? 'text-right tabular-nums' : ''}`}>{c.render(row)}</td>
                 ))}
               </tr>
             ))}
@@ -148,7 +158,7 @@ const DataTable = ({ columns, rows, empty = 'No records for this period.', foote
             <tfoot>
               <tr className="bg-slate-100 font-semibold">
                 {footer.map((cell, i) => (
-                  <td key={i} className={`border border-slate-300 px-2 py-1.5 ${columns[i]?.right ? 'text-right tabular-nums' : ''}`}>{cell}</td>
+                  <td key={i} style={columns[i]?.width ? { width: columns[i].width } : undefined} className={`border border-slate-300 ${compact ? 'break-words px-1 py-1' : 'px-2 py-1.5'} ${columns[i]?.right ? 'text-right tabular-nums' : ''}`}>{cell}</td>
                 ))}
               </tr>
             </tfoot>
@@ -457,6 +467,10 @@ const Reports = () => {
         { label: 'Entry type', render: (row) => row.category },
         ...agingColumns
       ];
+      const agingScreenColumns = printAgingColumns.map((column, index) => ({
+        ...column,
+        width: ['8%', '12%', '9%', '13%', '8%', '8%', '7%', '7%', '7%', '7%', '7%', '7%'][index]
+      }));
       const printAgingFooter = (rows) => [
         'TOTAL', '', '', '', '', '',
         ...AGING_BUCKETS.map(({ key }) => peso(rows.reduce((total, row) => total + row[key], 0))),
@@ -473,34 +487,16 @@ const Reports = () => {
           ]} />
           <p className="mt-4 text-xs text-slate-600">Aging basis: sale or purchase date, scheduled loan due date, and time-deposit maturity date.</p>
           <div className="aging-screen-entries">
-            <Section title="Accounts Receivable — Sales and Loan Installments">
+            <Section title="Accounts Receivable & Payable">
               <DataTable
-                rows={receivables}
-                columns={agingColumns}
-                empty="No outstanding sales or loan installments as of this date."
-                tableClassName="aging-report-table min-w-[1200px]"
+                rows={agingRows}
+                columns={agingScreenColumns}
+                empty="No outstanding receivables or payables as of this date."
+                footer={printAgingFooter(agingRows)}
+                tableClassName="aging-report-table table-fixed text-[11px]"
                 onRowClick={setSelectedAgingEntry}
-                pageSize={10}
-              />
-            </Section>
-            <Section title="Accounts Payable — Supplier Purchases">
-              <DataTable
-                rows={purchases}
-                columns={agingColumns}
-                empty="No outstanding supplier purchases as of this date."
-                tableClassName="aging-report-table min-w-[1200px]"
-                onRowClick={setSelectedAgingEntry}
-                pageSize={10}
-              />
-            </Section>
-            <Section title="Accounts Payable — Time Deposits">
-              <DataTable
-                rows={timeDeposits}
-                columns={agingColumns}
-                empty="No active time deposits with an outstanding balance."
-                tableClassName="aging-report-table min-w-[1200px]"
-                onRowClick={setSelectedAgingEntry}
-                pageSize={10}
+                verticalScroll
+                compact
               />
             </Section>
           </div>
