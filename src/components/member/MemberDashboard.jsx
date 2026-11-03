@@ -1,5 +1,5 @@
 import React, { useCallback, useState, useEffect } from 'react';
-import { Building2, CalendarClock, ChartNoAxesCombined, HandCoins, Landmark, PiggyBank } from 'lucide-react';
+import { ArrowRight, BadgeDollarSign, Building2, CalendarClock, CalendarDays, ChartNoAxesCombined, HandCoins, Landmark, PiggyBank, Sparkles } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import { useMultipleRealtimeSubscriptions } from '../../hooks/useRealtimeSubscription';
@@ -35,6 +35,9 @@ const MemberDashboard = ({ onNavigate }) => {
     fullName: '',
     firstName: '',
     dueDates: [],
+    activeLoans: [],
+    loanSchedule: [],
+    loanPaymentSummary: [],
     totalSavings: 0,
     totalTimeDeposit: 0,
     totalCapital: 0,
@@ -114,7 +117,7 @@ const MemberDashboard = ({ onNavigate }) => {
       // Fetch active loans and calculate balance
       const { data: activeLoans, error: loansError } = await supabase
         .from('loans')
-        .select('id, loan_number, principal_amount, balance, monthly_payment, release_date, maturity_date, status')
+        .select('id, loan_number, principal_amount, total_amount, balance, interest_rate, installments, installment_amount, release_date, maturity_date, status')
         .eq('member_id', memberId)
         .in('status', ['active'])
         .order('created_at', { ascending: false });
@@ -122,17 +125,35 @@ const MemberDashboard = ({ onNavigate }) => {
       if (loansError) throw loansError;
       const totalLoanBalance = activeLoans?.reduce((sum, loan) => sum + parseFloat(loan.balance || 0), 0) || 0;
 
-      // Next payments come from the repayment schedule
-      const { data: dueRows, error: dueError } = await supabase
-        .from('loan_schedule')
-        .select('id, installment_number, due_date, amount_due, amount_paid, penalty_amount, loans!inner(loan_number, member_id, status)')
-        .eq('loans.member_id', memberId)
-        .eq('loans.status', 'active')
-        .neq('status', 'paid')
-        .order('due_date', { ascending: true })
-        .limit(4);
-      if (dueError) throw dueError;
-      const dueDates = dueRows || [];
+      const activeLoanIds = (activeLoans || []).map((loan) => loan.id);
+      let loanSchedule = [];
+      let loanPaymentSummary = [];
+      if (activeLoanIds.length) {
+        const [
+          { data: scheduleRows, error: scheduleError },
+          { data: paymentRows, error: paymentSummaryError }
+        ] = await Promise.all([
+          supabase
+            .from('loan_schedule')
+            .select('id, loan_id, installment_number, due_date, amount_due, amount_paid, penalty_amount, status')
+            .in('loan_id', activeLoanIds)
+            .order('due_date', { ascending: true }),
+          supabase
+            .from('loan_payments')
+            .select('loan_id, payment_date, amount_paid, interest_paid')
+            .in('loan_id', activeLoanIds)
+            .eq('status', 'recorded')
+            .order('payment_date', { ascending: false })
+        ]);
+        if (scheduleError) throw scheduleError;
+        if (paymentSummaryError) throw paymentSummaryError;
+        loanSchedule = scheduleRows || [];
+        loanPaymentSummary = paymentRows || [];
+      }
+
+      const dueDates = loanSchedule
+        .filter((row) => row.status !== 'paid')
+        .sort((a, b) => a.due_date.localeCompare(b.due_date));
       const nextPaymentAmount = dueDates[0]
         ? Number(dueDates[0].amount_due) + Number(dueDates[0].penalty_amount) - Number(dueDates[0].amount_paid)
         : 0;
@@ -241,6 +262,9 @@ const MemberDashboard = ({ onNavigate }) => {
         fullName: `${memberInfo.first_name} ${memberInfo.last_name}`,
         firstName: memberInfo.first_name,
         dueDates,
+        activeLoans: activeLoans || [],
+        loanSchedule,
+        loanPaymentSummary,
         totalSavings,
         totalTimeDeposit,
         totalCapital: Number(memberInfo.total_capital || 0),
@@ -314,8 +338,24 @@ const MemberDashboard = ({ onNavigate }) => {
       {error && <p role="alert" className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{error}</p>}
       {offlineNotice && <p role="status" className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950">{offlineNotice}</p>}
       {/* Greeting and account summary */}
+      <div className="overflow-hidden rounded-2xl bg-gradient-to-r from-[#0d3b2d] via-[#146344] to-[#0f766e] p-5 text-white shadow-lg sm:p-7">
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <div>
+            <p className="mb-2 inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.14em] text-emerald-50">
+              <Sparkles aria-hidden="true" size={14} /> Member account overview
+            </p>
+            <h2 className="text-2xl font-extrabold tracking-tight sm:text-3xl">Hi, {memberData.firstName || 'Member'}!</h2>
+            <p className="mt-1 text-sm text-emerald-50/90">Here’s a clear view of your cooperative accounts and upcoming payments.</p>
+          </div>
+          {memberData.memberNumber && (
+            <div className="rounded-xl border border-white/20 bg-white/10 px-4 py-3 backdrop-blur-sm">
+              <p className="text-xs font-medium uppercase tracking-wide text-emerald-50/80">Member number</p>
+              <p className="mt-1 font-bold tracking-wide">{memberData.memberNumber}</p>
+            </div>
+          )}
+        </div>
+      </div>
       <div>
-        <h2 className="text-xl font-bold text-gray-900 sm:text-2xl">Hi, {memberData.firstName || 'Member'}!</h2>
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4 xl:grid-cols-6">
           <DashboardMetricCard
             label="Savings"
@@ -368,36 +408,109 @@ const MemberDashboard = ({ onNavigate }) => {
         </div>
       </div>
 
-      {/* Upcoming due dates */}
-      <div className="bg-white rounded-lg shadow border border-gray-200 p-4 sm:p-6">
-        <h3 className="text-lg font-semibold text-gray-900 mb-3">Upcoming Loan Due Dates</h3>
-        {memberData.dueDates.length === 0 ? (
-          <p className="text-sm text-gray-500">No upcoming loan payments.</p>
-        ) : (
-          <ul className="divide-y divide-gray-100">
-            {memberData.dueDates.map((item) => {
-              const days = Math.round((new Date(`${item.due_date}T00:00:00`) - new Date(new Date().toDateString())) / 86400000);
-              const overdue = days < 0;
-              return (
-                <li key={item.id} className="flex items-center justify-between py-3 gap-3">
-                  <div>
-                    <p className="text-sm font-medium text-gray-900">
-                      {new Date(`${item.due_date}T00:00:00`).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
-                    </p>
-                    <p className="text-xs text-gray-500">{item.loans?.loan_number} · payment {item.installment_number}</p>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-sm font-semibold text-gray-900">₱{(Number(item.amount_due) + Number(item.penalty_amount) - Number(item.amount_paid)).toLocaleString('en-US', { minimumFractionDigits: 2 })}</p>
-                    <p className={`text-xs font-medium ${overdue ? 'text-red-600' : days <= 7 ? 'text-orange-600' : 'text-gray-500'}`}>
-                      {overdue ? `${-days} day${days === -1 ? '' : 's'} overdue` : days === 0 ? 'Due today' : `in ${days} day${days === 1 ? '' : 's'}`}
-                    </p>
-                  </div>
-                </li>
-              );
-            })}
-          </ul>
+      <section className="overflow-hidden rounded-2xl border border-emerald-100 bg-white shadow-sm">
+        <div className="flex flex-wrap items-center justify-between gap-3 bg-gradient-to-r from-emerald-50 via-teal-50 to-cyan-50 px-5 py-4 sm:px-6">
+          <div className="flex items-center gap-3">
+            <span className="grid size-10 place-items-center rounded-xl bg-gradient-to-br from-emerald-600 to-teal-600 text-white shadow-sm">
+              <CalendarDays aria-hidden="true" size={20} />
+            </span>
+            <div>
+              <h3 className="text-lg font-bold text-slate-900">Loan payment overview</h3>
+              <p className="text-xs text-slate-600">Due dates, paid amounts, interest, and remaining balances</p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => onNavigate?.('loans')}
+            className="inline-flex items-center gap-1 rounded-lg px-3 py-2 text-sm font-semibold text-emerald-800 transition hover:bg-white/80"
+          >
+            View loan details <ArrowRight aria-hidden="true" size={16} />
+          </button>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[980px] text-left text-sm">
+            <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-600">
+              <tr>
+                <th scope="col" className="px-4 py-3 font-semibold">Loan</th>
+                <th scope="col" className="px-4 py-3 font-semibold">Interest</th>
+                <th scope="col" className="px-4 py-3 font-semibold">Next due</th>
+                <th scope="col" className="px-4 py-3 text-right font-semibold">Paid to date</th>
+                <th scope="col" className="px-4 py-3 text-right font-semibold">Balance left</th>
+                <th scope="col" className="px-4 py-3 font-semibold">Last payment</th>
+                <th scope="col" className="px-4 py-3 font-semibold">Following due</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {loading ? (
+                <tr><td colSpan="7" className="px-4 py-10 text-center text-slate-500">Loading your loan schedule…</td></tr>
+              ) : (memberData.activeLoans || []).length === 0 ? (
+                <tr>
+                  <td colSpan="7" className="px-4 py-10 text-center">
+                    <span className="mx-auto grid size-11 place-items-center rounded-full bg-emerald-50 text-emerald-700">
+                      <BadgeDollarSign aria-hidden="true" size={22} />
+                    </span>
+                    <p className="mt-3 font-semibold text-slate-800">No active loan payments</p>
+                    <p className="mt-1 text-sm text-slate-500">When a loan is released, its due dates and payment progress will appear here.</p>
+                  </td>
+                </tr>
+              ) : (
+                memberData.activeLoans.map((loan) => {
+                  const schedule = (memberData.loanSchedule || [])
+                    .filter((row) => row.loan_id === loan.id)
+                    .sort((a, b) => a.due_date.localeCompare(b.due_date));
+                  const unpaidSchedule = schedule.filter((row) => row.status !== 'paid');
+                  const nextDue = unpaidSchedule[0];
+                  const followingDue = unpaidSchedule[1];
+                  const payments = (memberData.loanPaymentSummary || []).filter((payment) => payment.loan_id === loan.id);
+                  const paidToDate = payments.reduce((total, payment) => total + Number(payment.amount_paid || 0), 0);
+                  const interestPaid = payments.reduce((total, payment) => total + Number(payment.interest_paid || 0), 0);
+                  const totalInterest = Math.max(Number(loan.total_amount || 0) - Number(loan.principal_amount || 0), 0);
+                  const nextDueAmount = nextDue
+                    ? Math.max(Number(nextDue.amount_due || 0) + Number(nextDue.penalty_amount || 0) - Number(nextDue.amount_paid || 0), 0)
+                    : 0;
+                  return (
+                    <tr key={loan.id} className="transition-colors hover:bg-emerald-50/40">
+                      <td className="px-4 py-4">
+                        <p className="font-bold text-slate-900">{loan.loan_number || 'Loan'}</p>
+                        <p className="mt-0.5 text-xs text-slate-500">{loan.installments || schedule.length} scheduled payments</p>
+                      </td>
+                      <td className="px-4 py-4">
+                        <p className="font-semibold text-violet-800">{formatPeso(totalInterest)}</p>
+                        <p className="mt-0.5 text-xs text-slate-500">{Number(loan.interest_rate || 0)}% · {formatPeso(interestPaid)} paid</p>
+                      </td>
+                      <td className="px-4 py-4">
+                        {nextDue ? (
+                          <>
+                            <p className="font-semibold text-amber-800">{new Date(`${nextDue.due_date}T00:00:00`).toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' })}</p>
+                            <p className="mt-0.5 text-xs text-slate-500">{formatPeso(nextDueAmount)} · installment {nextDue.installment_number}</p>
+                          </>
+                        ) : <span className="text-slate-400">No upcoming due</span>}
+                      </td>
+                      <td className="px-4 py-4 text-right font-semibold text-emerald-700">{formatPeso(paidToDate)}</td>
+                      <td className="px-4 py-4 text-right font-bold text-slate-900">{formatPeso(loan.balance)}</td>
+                      <td className="px-4 py-4 text-slate-700">
+                        {payments[0]
+                          ? new Date(`${payments[0].payment_date}T00:00:00`).toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' })
+                          : 'No payment yet'}
+                      </td>
+                      <td className="px-4 py-4 text-slate-700">
+                        {followingDue
+                          ? new Date(`${followingDue.due_date}T00:00:00`).toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' })
+                          : '—'}
+                      </td>
+                    </tr>
+                  );
+                })
+              )}
+            </tbody>
+          </table>
+        </div>
+        {(memberData.activeLoans || []).length > 0 && (
+          <p className="border-t border-slate-100 px-5 py-3 text-xs text-slate-500">
+            Interest shows total scheduled interest and recorded interest paid. Paid to date includes all recorded loan payments; balances reflect the current loan record.
+          </p>
         )}
-      </div>
+      </section>
 
       {/* Two Column Layout */}
       <div className="grid grid-cols-1 gap-6">
