@@ -135,14 +135,16 @@ const DailyCollection = () => {
 
   return (
     <div className="space-y-6">
-      <section className="no-print flex flex-col gap-4 rounded-xl border border-gray-200 bg-white p-5 shadow-sm sm:flex-row sm:items-end sm:justify-between">
+      <section className="no-print flex flex-col gap-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:flex-row sm:items-end sm:justify-between sm:p-6">
         <div>
-          <h2 className="text-xl font-semibold text-gray-900">Daily Collections</h2>
+          <p className="text-xs font-bold uppercase tracking-[0.16em] text-blue-700">Treasury · Cash received</p>
+          <h2 className="mt-1 text-xl font-semibold text-gray-900">Daily Collections</h2>
+          <p className="mt-1 text-sm text-gray-600">Review posted receipts, daily totals, and member payment references.</p>
         </div>
         <div className="flex flex-wrap items-end gap-3">
           <Link
             to="/staff/cash-disbursements"
-            className="rounded-lg bg-teal-700 px-4 py-2 text-sm font-medium text-white hover:bg-teal-800"
+            className="rounded-lg bg-[#1e3a72] px-4 py-2 text-sm font-semibold text-white hover:bg-[#172d59]"
           >
             Record a transaction
           </Link>
@@ -152,7 +154,7 @@ const DailyCollection = () => {
               type="date"
               value={selectedDate}
               onChange={handleDateChange}
-              className="mt-1 block rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-teal-600 focus:outline-none focus:ring-2 focus:ring-teal-600/20"
+              className="mt-1 block rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-700/20"
             />
           </label>
           <button
@@ -168,7 +170,7 @@ const DailyCollection = () => {
             type="button"
             onClick={exportCsv}
             disabled={loading || collections.length === 0}
-            className="inline-flex items-center gap-2 rounded-lg bg-teal-700 px-4 py-2 text-sm font-medium text-white hover:bg-teal-800 disabled:cursor-not-allowed disabled:opacity-50"
+            className="inline-flex items-center gap-2 rounded-lg bg-[#1e3a72] px-4 py-2 text-sm font-semibold text-white hover:bg-[#172d59] disabled:cursor-not-allowed disabled:opacity-50"
           >
             <Download size={16} aria-hidden="true" />
             Export CSV
@@ -179,20 +181,20 @@ const DailyCollection = () => {
       {error && <p role="alert" className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{error}</p>}
 
       <div className="amcoms-print-document space-y-6">
-      <header className="amcoms-document-header border-b-4 pb-4 text-center">
-        <p className="text-xs font-semibold uppercase tracking-[0.16em]">Agay-ayan Multi-Purpose Cooperative</p>
+      <header className="amcoms-document-header border-b-4 border-[#1e3a72] pb-4 text-center">
+        <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-600">Agay-ayan Multi-Purpose Cooperative</p>
         <h2 className="mt-2 text-lg font-semibold text-gray-900">Daily Collection Report</h2>
         <p className="text-sm text-gray-600">Date: {selectedDate}</p>
       </header>
       <section className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
+        <div className="rounded-xl border border-slate-200 border-t-4 border-t-[#d6ab4a] bg-white p-5 shadow-sm">
           <p className="text-sm font-medium text-gray-500">Total cash received</p>
           <p className="mt-2 text-3xl font-semibold tracking-tight text-gray-900">
             {loading ? 'Loading…' : error ? 'Unavailable' : formatMoney(totalCollections)}
           </p>
           <p className="print:hidden mt-2 text-sm text-gray-500">{selectedDate}</p>
         </div>
-        <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
+        <div className="rounded-xl border border-slate-200 border-t-4 border-t-blue-800 bg-white p-5 shadow-sm">
           <p className="text-sm font-medium text-gray-500">Recorded receipts</p>
           <p className="mt-2 text-3xl font-semibold tracking-tight text-gray-900">
             {loading ? '…' : error ? '—' : totalTransactions.toLocaleString()}
@@ -201,7 +203,7 @@ const DailyCollection = () => {
         </div>
       </section>
 
-      <section className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
+      <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
         <div className="mb-4">
           <h3 className="text-base font-semibold text-gray-900">Collection breakdown</h3>
         </div>
@@ -224,7 +226,7 @@ const DailyCollection = () => {
         ) : null}
       </section>
 
-      <section className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
+      <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
         <div className="border-b border-gray-200 px-5 py-4">
           <h3 className="text-base font-semibold text-gray-900">Receipt details</h3>
         </div>

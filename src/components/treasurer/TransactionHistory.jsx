@@ -225,9 +225,11 @@ const TransactionHistory = () => {
 
   return (
     <div className="space-y-6">
-      <section className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
+      <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
         <div className="mb-5">
+          <p className="text-xs font-bold uppercase tracking-[0.16em] text-blue-700">Treasury · Cash activity</p>
           <h2 className="text-xl font-semibold text-gray-900">Transaction History</h2>
+          <p className="mt-1 text-sm text-gray-600">Search and review recorded receipts, releases, and member transactions.</p>
         </div>
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
           <label className="text-sm font-medium text-gray-700">
@@ -235,7 +237,7 @@ const TransactionHistory = () => {
             <select
               value={filters.type}
               onChange={(event) => setFilters((current) => ({ ...current, type: event.target.value }))}
-              className="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2 font-normal focus:border-teal-600 focus:outline-none focus:ring-2 focus:ring-teal-600/20"
+              className="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2 font-normal focus:border-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-700/20"
             >
               <option value="">All types</option>
               {types.map((type) => <option key={type} value={type}>{type}</option>)}
@@ -248,7 +250,7 @@ const TransactionHistory = () => {
               value={filters.search}
               onChange={(event) => setFilters((current) => ({ ...current, search: event.target.value }))}
               placeholder="Reference, counterparty, description"
-              className="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2 font-normal focus:border-teal-600 focus:outline-none focus:ring-2 focus:ring-teal-600/20"
+              className="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2 font-normal focus:border-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-700/20"
             />
           </label>
           <label className="text-sm font-medium text-gray-700">
@@ -260,7 +262,7 @@ const TransactionHistory = () => {
                 setLoading(true);
                 setFilters((current) => ({ ...current, dateFrom: event.target.value }));
               }}
-              className="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2 font-normal focus:border-teal-600 focus:outline-none focus:ring-2 focus:ring-teal-600/20"
+              className="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2 font-normal focus:border-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-700/20"
             />
           </label>
           <label className="text-sm font-medium text-gray-700">
@@ -272,7 +274,7 @@ const TransactionHistory = () => {
                 setLoading(true);
                 setFilters((current) => ({ ...current, dateTo: event.target.value }));
               }}
-              className="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2 font-normal focus:border-teal-600 focus:outline-none focus:ring-2 focus:ring-teal-600/20"
+              className="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2 font-normal focus:border-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-700/20"
             />
           </label>
         </div>
@@ -289,7 +291,7 @@ const TransactionHistory = () => {
             type="button"
             onClick={exportCsv}
             disabled={loading || filteredTransactions.length === 0}
-            className="inline-flex items-center gap-2 rounded-lg bg-teal-700 px-4 py-2 text-sm font-medium text-white hover:bg-teal-800 disabled:cursor-not-allowed disabled:opacity-50"
+            className="inline-flex items-center gap-2 rounded-lg bg-[#1e3a72] px-4 py-2 text-sm font-semibold text-white hover:bg-[#172d59] disabled:cursor-not-allowed disabled:opacity-50"
           >
             <Download size={16} aria-hidden="true" />
             Export CSV
@@ -301,11 +303,11 @@ const TransactionHistory = () => {
 
       <section className="grid grid-cols-1 gap-4 md:grid-cols-3">
         {[
-          ['Cash received', totals.received, 'text-green-700'],
-          ['Cash released', totals.released, 'text-red-700'],
-          ['Net cash flow', netFlow, netFlow >= 0 ? 'text-teal-700' : 'text-red-700']
+          ['Cash received', totals.received, 'text-emerald-700'],
+          ['Cash released', totals.released, 'text-rose-700'],
+          ['Net cash flow', netFlow, netFlow >= 0 ? 'text-blue-800' : 'text-rose-700']
         ].map(([label, amount, color]) => (
-          <div key={label} className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
+          <div key={label} className="rounded-xl border border-slate-200 border-t-4 border-t-[#d6ab4a] bg-white p-5 shadow-sm">
             <p className="text-sm font-medium text-gray-500">{label}</p>
             <p className={`mt-2 text-2xl font-semibold tabular-nums ${color}`}>
               {loading ? 'Loading…' : error ? 'Unavailable' : formatMoney(amount)}
@@ -314,7 +316,7 @@ const TransactionHistory = () => {
         ))}
       </section>
 
-      <section className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
+      <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
         <div className="flex flex-col gap-1 border-b border-gray-200 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h3 className="font-semibold text-gray-900">Cash book entries</h3>

@@ -108,20 +108,22 @@ const CashReconciliation = () => {
   ];
 
   return (
-    <section className="rounded-xl border border-emerald-200 bg-white p-5 shadow-sm sm:p-6">
+    <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+      <div className="h-1.5 bg-gradient-to-r from-[#d6ab4a] via-[#1e3a72] to-[#1e3a72]" />
+      <div className="p-5 sm:p-6">
       <header className="flex flex-wrap items-start justify-between gap-4">
         <div className="flex items-start gap-3">
-          <span className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-emerald-50 text-emerald-800">
+          <span className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-blue-50 text-blue-800">
             <Wallet size={22} aria-hidden="true" />
           </span>
           <div>
             <h2 className="text-lg font-semibold text-gray-900">Daily Cash Reconciliation</h2>
-            <p className="mt-1 max-w-3xl text-sm text-gray-600">
+            <p className="mt-1 max-w-3xl text-sm leading-6 text-gray-600">
               Compare posted Cash on Hand activity with the physical cash received from the Bookkeeper and counted by the Treasurer.
             </p>
           </div>
         </div>
-        <button type="button" onClick={load} disabled={loading} className="inline-flex items-center gap-2 rounded-lg border border-gray-300 px-3 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50 disabled:opacity-50">
+        <button type="button" onClick={load} disabled={loading} className="inline-flex items-center gap-2 rounded-lg border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50">
           <RefreshCw size={15} aria-hidden="true" />
           Refresh
         </button>
@@ -144,8 +146,8 @@ const CashReconciliation = () => {
             className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2"
           />
         </label>
-        <div className="rounded-lg bg-slate-50 px-4 py-3">
-          <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Cash account</p>
+        <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
+          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Cash account</p>
           <p className="mt-1 font-semibold text-slate-900">Cash on Hand · {displayDate(reconciliationDate)}</p>
         </div>
       </div>
@@ -155,7 +157,7 @@ const CashReconciliation = () => {
 
       <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         {positionCards.map(([label, amount]) => (
-          <div key={label} className="rounded-lg border border-slate-200 bg-slate-50 p-4">
+          <div key={label} className="rounded-xl border border-slate-200 bg-gradient-to-br from-white to-slate-50 p-4">
             <p className="text-xs font-medium uppercase tracking-wide text-slate-500">{label}</p>
             <p className="mt-2 text-lg font-bold tabular-nums text-slate-900">
               {loading ? 'Loading…' : position ? money(amount) : 'Unavailable'}
@@ -178,7 +180,7 @@ const CashReconciliation = () => {
             onChange={(event) => setActualCash(event.target.value)}
             disabled={loading || saving || !position}
             required
-            className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2"
+            className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 focus:border-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-700/15"
           />
         </label>
         <label className="text-sm font-medium text-gray-700">
@@ -189,10 +191,10 @@ const CashReconciliation = () => {
             onChange={(event) => setRemarks(event.target.value)}
             disabled={saving}
             placeholder="Optional handoff or count notes"
-            className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2"
+            className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 focus:border-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-700/15"
           />
         </label>
-        <button type="submit" disabled={saving || loading || !position || !hasValidCount} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg bg-emerald-800 px-4 py-2 font-semibold text-white hover:bg-emerald-900 disabled:cursor-not-allowed disabled:opacity-50">
+        <button type="submit" disabled={saving || loading || !position || !hasValidCount} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg bg-[#1e3a72] px-4 py-2 font-semibold text-white shadow-sm hover:bg-[#172d59] disabled:cursor-not-allowed disabled:opacity-50">
           <CheckCircle2 size={16} aria-hidden="true" />
           {saving ? 'Saving…' : 'Save cash count'}
         </button>
@@ -200,7 +202,7 @@ const CashReconciliation = () => {
 
       {variance !== null && position && (
         <div className={`mt-4 flex flex-wrap items-center justify-between gap-3 rounded-lg border px-4 py-3 ${
-          variance === 0 ? 'border-emerald-200 bg-emerald-50 text-emerald-950' : 'border-amber-200 bg-amber-50 text-amber-950'
+          variance === 0 ? 'border-emerald-200 bg-emerald-50 text-emerald-950' : 'border-amber-300 bg-amber-50 text-amber-950'
         }`}>
           <div className="flex items-center gap-2">
             {variance === 0
@@ -217,7 +219,7 @@ const CashReconciliation = () => {
       {history.length > 0 && (
         <div className="mt-5 border-t border-slate-200 pt-4">
           <h3 className="text-sm font-semibold text-slate-900">Recent counts for {displayDate(reconciliationDate)}</h3>
-          <div className="mt-3 overflow-x-auto rounded-lg border border-slate-200">
+          <div className="mt-3 overflow-x-auto rounded-xl border border-slate-200">
             <table className="min-w-full divide-y divide-slate-200 text-sm">
               <thead className="bg-slate-50 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
                 <tr>
@@ -245,6 +247,7 @@ const CashReconciliation = () => {
           </div>
         </div>
       )}
+      </div>
     </section>
   );
 };

@@ -83,6 +83,15 @@ input[type="radio"] {
   --amcoms-focus: #16835a;
 }
 
+.amcoms-treasurer-portal {
+  --amcoms-primary: #1e3a72;
+  --amcoms-primary-hover: #172d59;
+  --amcoms-focus: #d6ab4a;
+  --amcoms-canvas: #f2f5fa;
+  --amcoms-border: #dce4ef;
+  --amcoms-card-shadow: 0 8px 24px rgb(23 45 89 / 5%);
+}
+
 .amcoms-portal-content {
   background:
     radial-gradient(ellipse at top right, rgb(220 232 246 / 28%), transparent 34rem),

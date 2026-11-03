@@ -407,15 +407,19 @@ const MemberAccounts = () => {
 
   return (
     <div className="space-y-6">
-      <section className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
+      <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <h2 className="text-xl font-semibold text-gray-900">Member Accounts</h2>
+          <div>
+            <p className="text-xs font-bold uppercase tracking-[0.16em] text-blue-700">Treasury · Member reference</p>
+            <h2 className="mt-1 text-xl font-semibold text-gray-900">Member Accounts</h2>
+            <p className="mt-1 text-sm text-gray-600">Review member balances, active accounts, and recent cash activity.</p>
+          </div>
           <button
             type="button"
             aria-expanded={showMemberSortFilter}
             aria-controls="treasurer-member-sort-filter"
             onClick={() => setShowMemberSortFilter((open) => !open)}
-            className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-teal-200 bg-teal-50 px-3 py-2 text-sm font-semibold text-teal-800 transition hover:bg-teal-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600 focus-visible:ring-offset-2"
+            className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-sm font-semibold text-blue-900 transition hover:bg-blue-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-700 focus-visible:ring-offset-2"
           >
             <Filter size={16} aria-hidden="true" />
             Filter / Sort
@@ -430,11 +434,11 @@ const MemberAccounts = () => {
               value={searchTerm}
               onChange={handleSearch}
               placeholder="Search by member name or number"
-              className="w-full rounded-lg border border-gray-300 py-2.5 pl-10 pr-4 text-sm focus:border-teal-600 focus:outline-none focus:ring-2 focus:ring-teal-600/20"
+              className="w-full rounded-lg border border-gray-300 py-2.5 pl-10 pr-4 text-sm focus:border-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-700/20"
             />
           </label>
           {showMemberSortFilter && (
-            <div id="treasurer-member-sort-filter" className="rounded-lg border border-gray-100 bg-slate-50 p-3">
+            <div id="treasurer-member-sort-filter" className="rounded-xl border border-slate-200 bg-slate-50 p-3">
               <MemberReportSort
                 value={memberSort}
                 onChange={(value) => {
@@ -452,15 +456,15 @@ const MemberAccounts = () => {
       {error && <p role="alert" className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{error}</p>}
 
       <section className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-        <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
+        <div className="rounded-xl border border-slate-200 border-t-4 border-t-[#d6ab4a] bg-white p-5 shadow-sm">
           <p className="text-sm font-medium text-gray-500">Members matching search</p>
           <p className="mt-2 text-2xl font-semibold tabular-nums text-gray-900">{loading ? '…' : totalCount.toLocaleString()}</p>
         </div>
-        <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
+        <div className="rounded-xl border border-slate-200 border-t-4 border-t-blue-800 bg-white p-5 shadow-sm">
           <p className="text-sm font-medium text-gray-500">Members on this page</p>
           <p className="mt-2 text-2xl font-semibold tabular-nums text-gray-900">{loading ? '…' : members.length.toLocaleString()}</p>
         </div>
-        <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
+        <div className="rounded-xl border border-slate-200 border-t-4 border-t-slate-400 bg-white p-5 shadow-sm">
           <p className="text-sm font-medium text-gray-500">Page</p>
           <p className="mt-2 text-2xl font-semibold tabular-nums text-gray-900">{loading ? '…' : `${page + 1} of ${totalPages}`}</p>
         </div>
@@ -489,7 +493,7 @@ const MemberAccounts = () => {
           const expanded = expandedMemberId === member.id;
 
           return (
-            <article key={member.id} className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
+            <article key={member.id} className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm transition-shadow hover:shadow-md">
               <div className="grid grid-cols-1 gap-5 p-5 lg:grid-cols-[minmax(220px,1.2fr)_repeat(3,minmax(140px,1fr))_auto] lg:items-center">
                 <div className="min-w-0">
                   <h3 className="truncate font-semibold text-gray-900">{getMemberName(member)}</h3>
@@ -521,7 +525,7 @@ const MemberAccounts = () => {
                   type="button"
                   aria-expanded={expanded}
                   onClick={() => setExpandedMemberId(expanded ? null : member.id)}
-                  className="inline-flex items-center justify-center gap-2 rounded-lg border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+                  className="inline-flex items-center justify-center gap-2 rounded-lg border border-blue-200 px-3 py-2 text-sm font-semibold text-blue-900 hover:bg-blue-50"
                 >
                   {expanded ? 'Hide details' : 'View details'}
                   {expanded ? <ChevronUp size={16} aria-hidden="true" /> : <ChevronDown size={16} aria-hidden="true" />}
@@ -536,7 +540,7 @@ const MemberAccounts = () => {
         }) : null}
       </section>
 
-      <div className="flex items-center justify-between rounded-xl border border-gray-200 bg-white px-5 py-3 shadow-sm">
+      <div className="flex items-center justify-between rounded-xl border border-slate-200 bg-white px-5 py-3 shadow-sm">
         <p className="text-sm text-gray-500">
           {totalCount ? `Showing ${page * PAGE_SIZE + 1}–${Math.min((page + 1) * PAGE_SIZE, totalCount)} of ${totalCount}` : 'No results'}
         </p>

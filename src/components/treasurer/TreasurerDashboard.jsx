@@ -7,6 +7,7 @@ import {
   Gem,
   HandCoins,
   Landmark,
+  RefreshCw,
   ShieldCheck,
   Wallet
 } from 'lucide-react';
@@ -92,6 +93,7 @@ const TreasurerDashboard = () => {
 
   const fetchDashboardData = useCallback(async () => {
     const currentRequest = ++requestId.current;
+    setLoading(true);
     try {
       const tomorrowDate = new Date(`${today}T00:00:00`);
       tomorrowDate.setDate(tomorrowDate.getDate() + 1);
@@ -342,6 +344,42 @@ const TreasurerDashboard = () => {
 
   return (
     <div className="space-y-6">
+      <section className="overflow-hidden rounded-2xl bg-gradient-to-br from-[#142b57] via-[#1c3d76] to-[#244b86] p-6 text-white shadow-lg sm:p-8">
+        <div className="flex flex-wrap items-start justify-between gap-5">
+          <div className="max-w-2xl">
+            <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#f0d995]">Treasury · Cash Control</p>
+            <h1 className="mt-2 text-2xl font-bold tracking-tight sm:text-3xl">Daily Treasury Overview</h1>
+            <p className="mt-2 text-sm leading-6 text-blue-100">
+              Monitor cash custody, member transactions, and daily reconciliation from one place.
+            </p>
+            <p className="mt-4 inline-flex rounded-full border border-white/15 bg-white/10 px-3 py-1.5 text-xs font-medium text-blue-50">
+              {new Date(`${today}T00:00:00`).toLocaleDateString('en-PH', {
+                weekday: 'long', month: 'long', day: 'numeric', year: 'numeric'
+              })}
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={fetchDashboardData}
+            disabled={loading}
+            className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-white/25 bg-white/10 px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/20 disabled:opacity-60"
+          >
+            <RefreshCw size={16} aria-hidden="true" className={loading ? 'animate-spin' : ''} />
+            {loading ? 'Refreshing…' : 'Refresh overview'}
+          </button>
+        </div>
+        <div className="mt-6 flex flex-wrap gap-2">
+          <Link to="/staff/cash-release" className="inline-flex min-h-10 items-center rounded-lg bg-[#e9c46a] px-4 py-2 text-sm font-bold text-[#142b57] transition hover:bg-[#f0d995]">
+            Review cash release
+          </Link>
+          <Link to="/staff/savings" className="inline-flex min-h-10 items-center rounded-lg border border-white/25 bg-white/10 px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/20">
+            Member accounts
+          </Link>
+          <Link to="/staff/loan-collections" className="inline-flex min-h-10 items-center rounded-lg border border-white/25 bg-white/10 px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/20">
+            Loan collections
+          </Link>
+        </div>
+      </section>
       {error && <p role="alert" className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{error}</p>}
       <DiscrepancyPanel />
 
@@ -349,13 +387,13 @@ const TreasurerDashboard = () => {
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
         {summaryCards.map((card) => (
-          <DashboardMetricCard key={card.label} {...card} />
+          <DashboardMetricCard key={card.label} {...card} variant="treasurer" />
         ))}
       </div>
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-        <section className="rounded-lg border border-gray-200 bg-white p-6 shadow">
-          <h3 className="mb-4 text-lg font-semibold text-gray-900">Today's Bookkeeper-Recorded Receipts</h3>
+        <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+          <h3 className="mb-4 border-b border-slate-100 pb-3 text-lg font-semibold text-slate-900">Today's Bookkeeper-Recorded Receipts</h3>
           <div className="space-y-3">
             {renderBreakdown(data.collectionBreakdown, 'No recorded receipts today.', 'bg-green-600')}
             <div className="flex items-center justify-between border-t border-gray-200 pt-3">
@@ -365,8 +403,8 @@ const TreasurerDashboard = () => {
           </div>
         </section>
 
-        <section className="rounded-lg border border-gray-200 bg-white p-6 shadow">
-          <h3 className="mb-4 text-lg font-semibold text-gray-900">Today's Cash Disbursements</h3>
+        <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+          <h3 className="mb-4 border-b border-slate-100 pb-3 text-lg font-semibold text-slate-900">Today's Cash Disbursements</h3>
           <div className="space-y-3">
             {renderBreakdown(data.disbursementBreakdown, 'No recorded disbursements today.', 'bg-red-600')}
             <div className="flex items-center justify-between border-t border-gray-200 pt-3">
@@ -377,8 +415,8 @@ const TreasurerDashboard = () => {
         </section>
       </div>
 
-      <section className="rounded-lg border border-gray-200 bg-white p-6 shadow">
-        <h3 className="mb-4 text-lg font-semibold text-gray-900">Today's Transaction Counts</h3>
+      <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+        <h3 className="mb-4 border-b border-slate-100 pb-3 text-lg font-semibold text-slate-900">Today's Transaction Counts</h3>
         <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-5">
           {[
             ['Loan payments', data.loanPaymentCount, data.todayLoanPayments],
@@ -387,7 +425,7 @@ const TreasurerDashboard = () => {
             ['Savings withdrawals', data.savingsWithdrawalCount, data.todaySavingsWithdrawals],
             ['Time deposit transactions', data.timeDepositTransactionCount, data.todayTimeDepositTransactions]
           ].map(([label, count, amount]) => (
-            <div key={label} className="rounded-lg border border-gray-200 bg-gray-50 p-4">
+            <div key={label} className="rounded-xl border border-slate-200 bg-slate-50 p-4">
               <p className="text-sm text-gray-600">{label}</p>
               <p className="mt-1 text-2xl font-bold text-gray-900">{displayCount(count)}</p>
               <p className="mt-1 text-xs text-gray-500">{displayAmount(amount)} total</p>

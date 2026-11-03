@@ -38,6 +38,7 @@ const StaffLayout = ({ children }) => {
   const navigationItems = getNavigationForRole(staff?.role);
   const roleColors = getRoleColors(staff?.role);
   const roleDisplayName = getRoleDisplayName(staff?.role);
+  const isTreasurer = staff?.role === 'treasurer';
 
   const handleLogout = () => {
     setShowUserMenu(false);
@@ -66,7 +67,7 @@ const StaffLayout = ({ children }) => {
   };
 
   return (
-    <div className="amcoms-portal-shell flex h-screen">
+    <div className={`amcoms-portal-shell flex h-screen ${isTreasurer ? 'amcoms-treasurer-portal' : ''}`}>
       {/* Mobile Overlay */}
       {isMobileMenuOpen && (
         <div 
