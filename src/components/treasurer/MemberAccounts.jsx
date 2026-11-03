@@ -1,8 +1,9 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { ChevronDown, ChevronUp, Search } from 'lucide-react';
+import { ChevronDown, ChevronUp, Filter, Search } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useMultipleRealtimeSubscriptions } from '../../hooks/useRealtimeSubscription';
 import { getDataLoadErrorMessage } from '../../lib/errorHandler';
+import MemberReportSort from '../common/MemberReportSort';
 
 const PAGE_SIZE = 50;
 
@@ -322,6 +323,8 @@ const MemberAccountDetails = ({ member, accounts, loans }) => {
 
 const MemberAccounts = () => {
   const [searchTerm, setSearchTerm] = useState('');
+  const [memberSort, setMemberSort] = useState('newest');
+  const [showMemberSortFilter, setShowMemberSortFilter] = useState(false);
   const [members, setMembers] = useState([]);
   const [totalCount, setTotalCount] = useState(0);
   const [page, setPage] = useState(0);
@@ -347,8 +350,24 @@ const MemberAccounts = () => {
         );
       }
 
+      if (memberSort === 'newest' || memberSort === 'oldest') {
+        query = query.order('date_joined', {
+          ascending: memberSort === 'oldest',
+          nullsFirst: false
+        });
+        query = query.order('member_number', { ascending: false });
+      } else if (memberSort === 'id-asc' || memberSort === 'id-desc') {
+        query = query.order('member_number', { ascending: memberSort === 'id-asc' });
+      } else {
+        const ascending = memberSort === 'name-asc';
+        query = query
+          .order('last_name', { ascending })
+          .order('first_name', { ascending })
+          .order('middle_name', { ascending })
+          .order('member_number', { ascending: true });
+      }
+
       const { data, count, error: queryError } = await query
-        .order('last_name', { ascending: true })
         .range(page * PAGE_SIZE, (page + 1) * PAGE_SIZE - 1);
       if (queryError) throw queryError;
 
@@ -363,7 +382,7 @@ const MemberAccounts = () => {
     } finally {
       if (currentRequest === requestId.current) setLoading(false);
     }
-  }, [page, searchTerm]);
+  }, [memberSort, page, searchTerm]);
 
   useEffect(() => {
     loadMembers();
@@ -389,20 +408,45 @@ const MemberAccounts = () => {
   return (
     <div className="space-y-6">
       <section className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
-        <div>
+        <div className="flex flex-wrap items-center justify-between gap-3">
           <h2 className="text-xl font-semibold text-gray-900">Member Accounts</h2>
+          <button
+            type="button"
+            aria-expanded={showMemberSortFilter}
+            aria-controls="treasurer-member-sort-filter"
+            onClick={() => setShowMemberSortFilter((open) => !open)}
+            className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-teal-200 bg-teal-50 px-3 py-2 text-sm font-semibold text-teal-800 transition hover:bg-teal-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600 focus-visible:ring-offset-2"
+          >
+            <Filter size={16} aria-hidden="true" />
+            Filter / Sort
+          </button>
         </div>
-        <label className="relative mt-5 block max-w-xl">
-          <span className="sr-only">Search members</span>
-          <Search size={18} aria-hidden="true" className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-          <input
-            type="search"
-            value={searchTerm}
-            onChange={handleSearch}
-            placeholder="Search by member name or number"
-            className="w-full rounded-lg border border-gray-300 py-2.5 pl-10 pr-4 text-sm focus:border-teal-600 focus:outline-none focus:ring-2 focus:ring-teal-600/20"
-          />
-        </label>
+        <div className="mt-5 grid gap-3 md:grid-cols-[minmax(0,1fr)_auto] md:items-center">
+          <label className="relative block max-w-xl">
+            <span className="sr-only">Search members</span>
+            <Search size={18} aria-hidden="true" className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+            <input
+              type="search"
+              value={searchTerm}
+              onChange={handleSearch}
+              placeholder="Search by member name or number"
+              className="w-full rounded-lg border border-gray-300 py-2.5 pl-10 pr-4 text-sm focus:border-teal-600 focus:outline-none focus:ring-2 focus:ring-teal-600/20"
+            />
+          </label>
+          {showMemberSortFilter && (
+            <div id="treasurer-member-sort-filter" className="rounded-lg border border-gray-100 bg-slate-50 p-3">
+              <MemberReportSort
+                value={memberSort}
+                onChange={(value) => {
+                  setLoading(true);
+                  setPage(0);
+                  setMemberSort(value);
+                }}
+                id="treasurer-directory-sort"
+              />
+            </div>
+          )}
+        </div>
       </section>
 
       {error && <p role="alert" className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{error}</p>}
