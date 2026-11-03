@@ -167,9 +167,11 @@ const TransactionDetail = ({ transaction, onBack, onEdit, onDelete }) => {
         </div>
 
         <div className="flex items-center gap-4 mb-4">
-          <div className={`${typeConfig.bgColor} ${typeConfig.textColor} p-3 rounded-lg`}>
-            <TypeIcon className="w-6 h-6" />
-          </div>
+          {transaction.type === 'sale' && (
+            <div className={`${typeConfig.bgColor} ${typeConfig.textColor} p-3 rounded-lg`}>
+              <TypeIcon className="w-6 h-6" />
+            </div>
+          )}
           <div>
             <h1 className="text-2xl font-bold text-gray-900">{typeConfig.label}</h1>
             <p className="text-gray-600">{transaction.referenceNo}</p>
