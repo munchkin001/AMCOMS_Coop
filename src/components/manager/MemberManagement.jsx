@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { AlertCircle, CheckCircle2, Clock3, Eye, HandCoins, Landmark, Printer, Search, UserCheck, UserPlus, Users, Wallet, X } from 'lucide-react';
+import { AlertCircle, CheckCircle2, Clock3, Eye, Filter, HandCoins, Landmark, Printer, Search, UserCheck, UserPlus, Users, Wallet, X } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useRealtimeSubscription } from '../../hooks/useRealtimeSubscription';
 import MemberReportSort from '../common/MemberReportSort';
@@ -86,6 +86,7 @@ const MemberManagement = () => {
   const [archivedCount, setArchivedCount] = useState(0);
   const [searchTerm, setSearchTerm] = useState('');
   const [memberSort, setMemberSort] = useState('newest');
+  const [showMemberSortFilter, setShowMemberSortFilter] = useState(false);
   const [selectedMember, setSelectedMember] = useState(null);
   const [selectedFinancialRecord, setSelectedFinancialRecord] = useState(null);
   const [memberLoans, setMemberLoans] = useState([]);
@@ -397,7 +398,6 @@ const MemberManagement = () => {
               />
             </div>
           </div>
-          <MemberReportSort value={memberSort} onChange={setMemberSort} id="manager-directory-sort" />
         </div>
       </section>
 
@@ -413,11 +413,31 @@ const MemberManagement = () => {
           </div>
         ) : (
           <>
-            <div className="flex flex-wrap items-center justify-between gap-2 border-b border-gray-200 px-4 py-3">
-              <h2 className="text-sm font-semibold text-gray-800">Member directory</h2>
-              <p className="text-sm text-gray-500">
-                {filteredMembers.length} {filteredMembers.length === 1 ? 'member' : 'members'}
-              </p>
+            <div className="border-b border-gray-200">
+              <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3">
+                <h2 className="text-sm font-semibold text-gray-800">Member directory</h2>
+                <div className="flex flex-wrap items-center gap-3">
+                  <p className="text-sm text-gray-500">
+                    {filteredMembers.length} {filteredMembers.length === 1 ? 'member' : 'members'}
+                  </p>
+                  <button
+                    type="button"
+                    aria-expanded={showMemberSortFilter}
+                    aria-controls="manager-member-sort-filter"
+                    onClick={() => setShowMemberSortFilter((open) => !open)}
+                    className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-sm font-semibold text-blue-800 transition hover:bg-blue-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:ring-offset-2"
+                  >
+                    <Filter size={16} aria-hidden="true" />
+                    Filter / Sort
+                  </button>
+                </div>
+              </div>
+              {showMemberSortFilter && (
+                <div id="manager-member-sort-filter" className="flex flex-wrap items-center justify-between gap-3 border-t border-gray-100 bg-slate-50 px-4 py-3">
+                  <p className="text-sm text-slate-600">Choose how members are ordered. Newest joined is the default.</p>
+                  <MemberReportSort value={memberSort} onChange={setMemberSort} id="manager-directory-sort" />
+                </div>
+              )}
             </div>
             <div className="overflow-x-auto">
               <table className="w-full min-w-[1000px] text-left text-sm">
