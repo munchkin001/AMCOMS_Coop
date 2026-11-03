@@ -459,6 +459,7 @@ const TransactionWorkflow = ({ role }) => {
   const [releaseFile, setReleaseFile] = useState(null);
   const [releaseProgress, setReleaseProgress] = useState('');
   const [removingDocumentId, setRemovingDocumentId] = useState(null);
+  const [proofRemovalAvailable, setProofRemovalAvailable] = useState(true);
   const selectedDocuments = asArray(selected?.documents).filter((document) => document && !document.removed_at);
   const selectedPayload = asObject(selected?.payload);
   const selectedApprovedPayload = asObject(selected?.approved_payload);
@@ -494,9 +495,10 @@ const TransactionWorkflow = ({ role }) => {
   const load = useCallback(async () => {
     setLoading(true);
     setError('');
-    let query = supabase
-      .from('transaction_workflows')
-      .select(`
+    const buildWorkflowQuery = (includeRemovalTimestamp) => {
+      let query = supabase
+        .from('transaction_workflows')
+        .select(`
         id, transaction_type, direction, source_module, source_record_id, superseded_by, member_id,
         counterparty_name, amount, payment_method, description, payload, approved_payload,
         status, cash_release_required, cash_release_status, accounting_status,
@@ -506,17 +508,25 @@ const TransactionWorkflow = ({ role }) => {
         requester:staff!transaction_workflows_created_by_fkey(full_name),
         approver:staff!transaction_workflows_manager_id_fkey(full_name),
         events:transaction_workflow_events(id, event_type, previous_status, next_status, actor_staff_id, remarks, created_at),
-        documents:transaction_workflow_documents(id, document_type, object_name, file_name, mime_type, uploaded_at, removed_at)
+        documents:transaction_workflow_documents(id, document_type, object_name, file_name, mime_type, uploaded_at${includeRemovalTimestamp ? ', removed_at' : ''})
       `)
-      .is('superseded_by', null)
-      .order('created_at', { ascending: false })
-      .limit(500);
+        .is('superseded_by', null)
+        .order('created_at', { ascending: false })
+        .limit(500);
 
-    if (isManager) query = query.neq('direction', 'cash_in');
-    if (dateFrom) query = query.gte('created_at', `${dateFrom}T00:00:00`);
-    if (dateTo) query = query.lt('created_at', `${dateTo}T23:59:59.999`);
+      if (isManager) query = query.neq('direction', 'cash_in');
+      if (dateFrom) query = query.gte('created_at', `${dateFrom}T00:00:00`);
+      if (dateTo) query = query.lt('created_at', `${dateTo}T23:59:59.999`);
+      return query;
+    };
 
-    const { data, error: loadError } = await query;
+    let supportsProofRemoval = true;
+    let { data, error: loadError } = await buildWorkflowQuery(true);
+    if (loadError?.message?.toLowerCase().includes('removed_at does not exist')) {
+      supportsProofRemoval = false;
+      ({ data, error: loadError } = await buildWorkflowQuery(false));
+    }
+    setProofRemovalAvailable(supportsProofRemoval);
     if (loadError) {
       console.error('Unable to load transaction workflow:', loadError);
       setError(`Unable to load transactions: ${loadError.message}`);
@@ -1222,6 +1232,7 @@ const TransactionWorkflow = ({ role }) => {
                             <span className="flex shrink-0 items-center gap-1">
                               <button type="button" onClick={() => createDocumentLink(document)} className={`rounded p-1 ${isTreasurer ? 'text-teal-800 hover:bg-teal-50' : 'text-blue-800 hover:bg-blue-50'}`} aria-label={`Open ${document.file_name}`}><Download size={16} /></button>
                               {isTreasurer
+                                && proofRemovalAvailable
                                 && document.document_type === 'cash_release_acknowledgment'
                                 && releaseProofCount > 1
                                 && selected.cash_release_required
