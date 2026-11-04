@@ -134,7 +134,7 @@ const MemberPortal = () => {
       <button
         type="button"
         onClick={() => handleModuleChange('dashboard')}
-        className="inline-flex items-center gap-1 text-sm font-semibold text-[#146344] md:hidden"
+        className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-[#146344]/20 bg-white px-3 text-sm font-semibold text-[#146344] shadow-sm transition hover:bg-emerald-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#146344] focus-visible:ring-offset-2"
       >
         <ArrowLeft aria-hidden="true" size={18} /> Back to dashboard
       </button>

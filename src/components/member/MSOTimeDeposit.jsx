@@ -14,7 +14,12 @@ const maturityInstructionLabel = (instruction) => ({
   release_principal_and_interest: 'Release principal and interest',
   renew_principal: 'Request renewal of principal only',
   renew_principal_and_interest: 'Request renewal of principal and interest'
-}[instruction] || 'Release principal and interest');
+}[instruction] || 'Maturity preference not available');
+
+const isMissingMaturityInstruction = (error) => (
+  ['42703', 'PGRST204'].includes(error?.code)
+  || /maturity_instruction.*(does not exist|not found|schema cache)/i.test(error?.message || '')
+);
 
 const MSOTimeDeposit = () => {
   const { staff } = useAuth();
@@ -35,12 +40,24 @@ const MSOTimeDeposit = () => {
 
     try {
       // Fetch time deposit accounts
-      const { data: accounts, error: accountError } = await supabase
+      let { data: accounts, error: accountError } = await supabase
         .from('savings_accounts')
         .select('id, account_number, balance, account_type, status, opening_date, interest_rate, maturity_date, maturity_instruction')
         .eq('member_id', staff.member_id)
         .eq('account_type', 'time_deposit')
         .order('opening_date', { ascending: false });
+
+      if (accountError && isMissingMaturityInstruction(accountError)) {
+        console.warn('Time deposit maturity preferences are unavailable until the database migration is applied:', accountError);
+        const accountResponse = await supabase
+          .from('savings_accounts')
+          .select('id, account_number, balance, account_type, status, opening_date, interest_rate, maturity_date')
+          .eq('member_id', staff.member_id)
+          .eq('account_type', 'time_deposit')
+          .order('opening_date', { ascending: false });
+        accounts = accountResponse.data;
+        accountError = accountResponse.error;
+      }
 
       if (accountError) throw accountError;
 
