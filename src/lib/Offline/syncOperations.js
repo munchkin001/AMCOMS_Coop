@@ -1,6 +1,6 @@
 import { supabase } from "../supabase";
 import offlineDb from "./OfflineDb";
-import { notifyQueueUpdated, pruneSyncedHistory } from "./syncQueue";
+import { isRetryableInvoiceDuplicate, notifyQueueUpdated, pruneSyncedHistory } from "./syncQueue";
 
 let activeSync = null;
 
@@ -163,7 +163,8 @@ async function runSync() {
     .filter((operation) =>
       operation.status === "pending" ||
       operation.status === "syncing" ||
-      (operation.status === "failed" && operation.retryable !== false)
+      (operation.status === "failed" &&
+        (operation.retryable !== false || isRetryableInvoiceDuplicate(operation)))
     )
     .sort((left, right) => left.createdAt.localeCompare(right.createdAt));
 
