@@ -6,6 +6,7 @@ const tones = {
   emerald: { accent: 'border-t-emerald-600', iconBg: 'bg-emerald-50', iconText: 'text-emerald-700' },
   green: { accent: 'border-t-green-600', iconBg: 'bg-green-50', iconText: 'text-green-700' },
   indigo: { accent: 'border-t-indigo-600', iconBg: 'bg-indigo-50', iconText: 'text-indigo-700' },
+  lime: { accent: 'border-t-lime-600', iconBg: 'bg-lime-50', iconText: 'text-lime-700' },
   orange: { accent: 'border-t-orange-600', iconBg: 'bg-orange-50', iconText: 'text-orange-700' },
   purple: { accent: 'border-t-violet-600', iconBg: 'bg-violet-50', iconText: 'text-violet-700' },
   red: { accent: 'border-t-red-600', iconBg: 'bg-red-50', iconText: 'text-red-700' },
@@ -15,6 +16,7 @@ const tones = {
 
 const solidTones = {
   green: 'from-green-500 to-green-700',
+  lime: 'from-lime-500 to-green-700',
   indigo: 'from-indigo-500 to-indigo-700',
   orange: 'from-orange-500 to-orange-600',
   red: 'from-rose-500 to-red-600',
@@ -27,7 +29,8 @@ const DashboardMetricCard = ({ label, value, icon: Icon, tone = 'teal', actionLa
   const treasurerVariant = variant === 'treasurer';
   const bookkeeperVariant = variant === 'bookkeeper';
   const managerVariant = variant === 'manager';
-  const brandedVariant = treasurerVariant || bookkeeperVariant || managerVariant;
+  const inventoryVariant = variant === 'inventory';
+  const brandedVariant = treasurerVariant || bookkeeperVariant || managerVariant || inventoryVariant;
   const Container = onClick ? 'button' : 'article';
   const interactionClasses = onClick
     ? `w-full cursor-pointer text-left focus-visible:outline-none focus-visible:ring-2 ${treasurerVariant ? 'focus-visible:ring-teal-600' : bookkeeperVariant ? 'focus-visible:ring-purple-600' : 'focus-visible:ring-blue-600'} focus-visible:ring-offset-2`
@@ -47,7 +50,7 @@ const DashboardMetricCard = ({ label, value, icon: Icon, tone = 'teal', actionLa
           <div className="min-w-0">
             <p className={`text-xs font-semibold uppercase ${managerVariant ? 'text-orange-950/75' : 'text-white/80'}`}>{label}</p>
             <p className="mt-2 whitespace-nowrap text-lg font-semibold tabular-nums sm:mt-3 sm:text-2xl">{value}</p>
-            {brandedVariant && detail && <p className="mt-2 text-xs leading-5 text-white/75">{detail}</p>}
+            {brandedVariant && detail && <p className={`mt-2 text-xs leading-5 ${managerVariant ? 'text-orange-950/70' : 'text-white/75'}`}>{detail}</p>}
             {onClick ? (
               <span className="mt-3 inline-flex items-center gap-1 text-xs font-semibold text-white">
                 {actionLabel || 'View details'}
@@ -60,7 +63,7 @@ const DashboardMetricCard = ({ label, value, icon: Icon, tone = 'teal', actionLa
               </button>
             ) : null}
           </div>
-          <span className={`hidden size-10 shrink-0 place-items-center rounded-md sm:grid ${treasurerVariant ? 'bg-[#f3d37a] text-teal-950' : bookkeeperVariant ? 'bg-purple-200 text-purple-950' : managerVariant ? 'bg-white/70 text-orange-800' : 'bg-white/20'}`}>
+          <span className={`hidden size-10 shrink-0 place-items-center rounded-md sm:grid ${treasurerVariant ? 'bg-[#f3d37a] text-teal-950' : bookkeeperVariant ? 'bg-purple-200 text-purple-950' : managerVariant ? 'bg-white/70 text-orange-800' : inventoryVariant ? 'bg-lime-100 text-green-950' : 'bg-white/20'}`}>
             {Icon && <Icon aria-hidden="true" className="size-5" />}
           </span>
         </div>

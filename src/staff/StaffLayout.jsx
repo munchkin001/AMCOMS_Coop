@@ -42,6 +42,7 @@ const StaffLayout = ({ children }) => {
   const isManager = staff?.role === 'manager';
   const isTreasurer = staff?.role === 'treasurer';
   const isBookkeeper = staff?.role === 'bookkeeper';
+  const isInventory = staff?.role === 'inventory';
 
   const handleLogout = () => {
     setShowUserMenu(false);
@@ -70,7 +71,7 @@ const StaffLayout = ({ children }) => {
   };
 
   return (
-    <div className={`amcoms-portal-shell flex h-screen ${isChairman ? 'amcoms-chairman-portal' : ''} ${isManager ? 'amcoms-manager-portal' : ''} ${isTreasurer ? 'amcoms-treasurer-portal' : ''} ${isBookkeeper ? 'amcoms-bookkeeper-portal' : ''}`}>
+    <div className={`amcoms-portal-shell flex h-screen ${isChairman ? 'amcoms-chairman-portal' : ''} ${isManager ? 'amcoms-manager-portal' : ''} ${isTreasurer ? 'amcoms-treasurer-portal' : ''} ${isBookkeeper ? 'amcoms-bookkeeper-portal' : ''} ${isInventory ? 'amcoms-inventory-portal' : ''}`}>
       {/* Mobile Overlay */}
       {isMobileMenuOpen && (
         <div 
@@ -87,6 +88,7 @@ const StaffLayout = ({ children }) => {
         ${isManager ? 'mgr-sidebar' : ''}
         ${isTreasurer ? 'tr-sidebar' : ''}
         ${isBookkeeper ? 'bk-sidebar' : ''}
+        ${isInventory ? 'inv-sidebar' : ''}
         transform transition-[margin,transform] duration-300 ease-in-out
         ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
         ${isDesktopSidebarOpen ? 'lg:ml-0' : 'lg:-ml-64'}
@@ -95,7 +97,7 @@ const StaffLayout = ({ children }) => {
         <div className="flex items-center justify-between border-b border-[#e9c46a]/25 p-6">
           <div>
             <h1 className={`text-2xl font-bold ${isManager ? 'text-orange-950' : 'text-white'}`}>AMCOMS</h1>
-            <p className={`mt-1 text-sm font-medium ${isChairman ? 'text-blue-200' : isManager ? 'text-orange-950/80' : isBookkeeper ? 'text-purple-200' : isTreasurer ? 'text-teal-100' : 'text-[#e9c46a]'}`}>
+            <p className={`mt-1 text-sm font-medium ${isChairman ? 'text-blue-200' : isManager ? 'text-orange-950/80' : isBookkeeper ? 'text-purple-200' : isTreasurer ? 'text-teal-100' : isInventory ? 'text-lime-200' : 'text-[#e9c46a]'}`}>
               {roleDisplayName}
             </p>
           </div>
@@ -129,6 +131,7 @@ const StaffLayout = ({ children }) => {
                     ? isChairman ? 'bg-gradient-to-r from-blue-300 to-blue-100 font-semibold text-blue-950 shadow-md' : isManager ? 'bg-gradient-to-r from-white/90 to-orange-100 font-semibold text-orange-950 shadow-md' : isBookkeeper ? 'bg-gradient-to-r from-purple-300 to-purple-200 font-semibold text-purple-950 shadow-md' : isTreasurer ? 'bg-gradient-to-r from-teal-200 to-cyan-100 font-semibold text-teal-950 shadow-md' : 'bg-gradient-to-r from-[#e9c46a] to-[#d6ab4a] font-semibold text-blue-950 shadow-md'
                     : isChairman ? 'text-blue-50/90 hover:bg-white/10 hover:text-blue-100' : isManager ? 'text-orange-950/85 hover:bg-white/45 hover:text-orange-950' : isBookkeeper ? 'text-purple-50/90 hover:bg-white/10 hover:text-purple-100' : isTreasurer ? 'text-teal-50/90 hover:bg-white/10 hover:text-teal-100' : 'text-blue-50/90 hover:bg-white/10 hover:text-[#f0d995]'
                 }`}
+                aria-current={isActiveRoute(item.path) ? 'page' : undefined}
               >
                 <div className="flex items-center justify-between">
                   <div className="flex items-center space-x-3">
@@ -163,6 +166,7 @@ const StaffLayout = ({ children }) => {
                           ? isChairman ? 'bg-gradient-to-r from-blue-300 to-blue-100 font-semibold text-blue-950 shadow-md' : isManager ? 'bg-gradient-to-r from-white/90 to-orange-100 font-semibold text-orange-950 shadow-md' : isBookkeeper ? 'bg-gradient-to-r from-purple-300 to-purple-200 font-semibold text-purple-950 shadow-md' : isTreasurer ? 'bg-gradient-to-r from-teal-200 to-cyan-100 font-semibold text-teal-950 shadow-md' : 'bg-gradient-to-r from-[#e9c46a] to-[#d6ab4a] font-semibold text-blue-950 shadow-md'
                           : isChairman ? 'text-blue-50/90 hover:bg-white/10 hover:text-blue-100' : isManager ? 'text-orange-950/85 hover:bg-white/45 hover:text-orange-950' : isBookkeeper ? 'text-purple-50/90 hover:bg-white/10 hover:text-purple-100' : isTreasurer ? 'text-teal-50/90 hover:bg-white/10 hover:text-teal-100' : 'text-blue-50/90 hover:bg-white/10 hover:text-[#f0d995]'
                       }`}
+                      aria-current={isActiveRoute(subItem.path) ? 'page' : undefined}
                     >
                       {subItem.name}
                     </button>

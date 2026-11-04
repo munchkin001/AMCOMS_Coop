@@ -456,11 +456,11 @@ export const getRoleColors = (role) => {
       hover: 'hover:bg-purple-50'
     },
     inventory: {
-      primary: 'orange',
-      gradient: 'from-orange-700 to-orange-800',
-      bg: 'bg-orange-600',
-      text: 'text-orange-600',
-      hover: 'hover:bg-orange-50'
+      primary: 'lime',
+      gradient: 'from-lime-800 to-emerald-700',
+      bg: 'bg-lime-600',
+      text: 'text-lime-700',
+      hover: 'hover:bg-lime-50'
     }
   };
   return colors[role] || colors.manager;

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { AlertTriangle, ArrowDownToLine, ArrowUpFromLine, Boxes, Factory, Package, PackageCheck } from 'lucide-react';
+import { AlertTriangle, ArrowDownToLine, ArrowUpFromLine, Boxes, Factory, Package, PackageCheck, Sparkles } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useMultipleRealtimeSubscriptions } from '../../hooks/useRealtimeSubscription';
 import { getDataLoadErrorMessage } from '../../lib/errorHandler';
@@ -160,12 +160,12 @@ const InventoryDashboard = () => {
   );
 
   const summaryCards = [
-    { label: 'Total Products', value: loading ? '...' : dashboardData.totalProducts.toString(), detail: 'Active products', icon: Package, tone: 'blue' },
-    { label: 'Low Stock', value: loading ? '...' : dashboardData.lowStockCount.toString(), detail: 'Needs attention', icon: AlertTriangle, tone: 'yellow' },
+    { label: 'Total Products', value: loading ? '...' : dashboardData.totalProducts.toString(), detail: 'Active products', icon: Package, tone: 'lime' },
+    { label: 'Low Stock', value: loading ? '...' : dashboardData.lowStockCount.toString(), detail: 'Needs attention', icon: AlertTriangle, tone: 'orange' },
     { label: 'Out of Stock', value: loading ? '...' : dashboardData.outOfStockCount.toString(), detail: dashboardData.outOfStockCount === 0 ? 'No issues' : 'Action needed', icon: Boxes, tone: dashboardData.outOfStockCount > 0 ? 'red' : 'green' },
-    { label: "Today's Production", value: loading ? '...' : `${dashboardData.todayProduction} units`, detail: 'Items produced', icon: Factory, tone: 'green' },
-    { label: "Today's Stock In", value: loading ? '...' : dashboardData.todayStockIn.toString(), detail: 'Units received', icon: ArrowDownToLine, tone: 'emerald' },
-    { label: "Today's Stock Out", value: loading ? '...' : dashboardData.todayStockOut.toString(), detail: 'Units sold/released', icon: ArrowUpFromLine, tone: 'red' }
+    { label: "Today's Production", value: loading ? '...' : `${dashboardData.todayProduction} units`, detail: 'Items produced', icon: Factory, tone: 'indigo' },
+    { label: "Today's Stock In", value: loading ? '...' : dashboardData.todayStockIn.toString(), detail: 'Units received', icon: ArrowDownToLine, tone: 'teal' },
+    { label: "Today's Stock Out", value: loading ? '...' : dashboardData.todayStockOut.toString(), detail: 'Units sold/released', icon: ArrowUpFromLine, tone: 'blue' }
   ];
 
   const recentActivities = dashboardData.recentActivities;
@@ -190,17 +190,34 @@ const InventoryDashboard = () => {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="inventory-dashboard space-y-6">
       {error && <p role="alert" className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{error}</p>}
-      {/* Greeting */}
-      <div>
-        <h2 className="text-2xl font-bold text-gray-900">{greeting}, Inventory Staff</h2>
+      <div className="inventory-hero relative overflow-hidden rounded-2xl p-6 text-white shadow-lg sm:p-8">
+        <div className="relative z-10 flex flex-wrap items-end justify-between gap-5">
+          <div className="max-w-2xl">
+            <span className="inline-flex items-center gap-2 rounded-full border border-white/25 bg-white/10 px-3 py-1 text-xs font-bold uppercase tracking-[0.16em] text-lime-100">
+              <Sparkles aria-hidden="true" size={14} /> Inventory operations
+            </span>
+            <h2 className="mt-4 text-3xl font-extrabold tracking-tight sm:text-4xl">{greeting}, Inventory Staff</h2>
+            <p className="mt-2 max-w-xl text-sm leading-6 text-white/80 sm:text-base">
+              A live snapshot of stock health, production, and today’s movement.
+            </p>
+          </div>
+          <div className="inventory-hero-date rounded-xl border border-white/20 bg-white/10 px-4 py-3 backdrop-blur-sm">
+            <p className="text-xs font-semibold uppercase tracking-wide text-lime-100">Today</p>
+            <p className="mt-1 text-sm font-bold text-white">
+              {new Date().toLocaleDateString('en-PH', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}
+            </p>
+          </div>
+        </div>
+        <div aria-hidden="true" className="inventory-hero-orb inventory-hero-orb-one" />
+        <div aria-hidden="true" className="inventory-hero-orb inventory-hero-orb-two" />
       </div>
 
       {/* Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6 gap-4">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6">
         {summaryCards.map((card) => (
-          <DashboardMetricCard key={card.label} label={card.label} value={card.value} detail={card.detail} icon={card.icon} tone={card.tone} />
+          <DashboardMetricCard key={card.label} label={card.label} value={card.value} detail={card.detail} icon={card.icon} tone={card.tone} solid variant="inventory" />
         ))}
       </div>
 
@@ -289,7 +306,7 @@ const InventoryDashboard = () => {
             <h3 className="text-lg font-semibold text-gray-900">Recent Activities</h3>
             <button 
               onClick={() => navigate('/staff/sales')}
-              className="text-sm text-orange-600 hover:text-orange-700 font-medium cursor-pointer"
+              className="inventory-link text-sm font-semibold cursor-pointer"
             >
               View All →
             </button>
@@ -342,27 +359,27 @@ const InventoryDashboard = () => {
       {/* Quick Actions */}
       <div className="bg-white rounded-lg border border-gray-200 p-6">
         <h3 className="text-lg font-semibold text-gray-900 mb-4">Quick Actions</h3>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-          <button onClick={() => navigate('/staff/products')} className="flex flex-col items-center justify-center p-4 border-2 border-orange-300 bg-orange-50 rounded-lg hover:bg-orange-100 transition-colors">
-            <svg className="w-8 h-8 text-orange-600 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+          <button onClick={() => navigate('/staff/products')} className="inventory-quick-action flex flex-col items-center justify-center rounded-xl border-2 p-4 transition-colors">
+            <svg className="mb-2 h-8 w-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
             </svg>
             <span className="text-sm font-medium text-gray-900">Add Product</span>
           </button>
-          <button onClick={() => navigate('/staff/stock')} className="flex flex-col items-center justify-center p-4 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors">
-            <svg className="w-8 h-8 text-green-600 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <button onClick={() => navigate('/staff/stock')} className="inventory-quick-action flex flex-col items-center justify-center rounded-xl border p-4 transition-colors">
+            <svg className="mb-2 h-8 w-8 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4" />
             </svg>
             <span className="text-sm font-medium text-gray-900">Stock In</span>
           </button>
-          <button onClick={() => navigate('/staff/stock')} className="flex flex-col items-center justify-center p-4 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors">
-            <svg className="w-8 h-8 text-red-600 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <button onClick={() => navigate('/staff/stock')} className="inventory-quick-action flex flex-col items-center justify-center rounded-xl border p-4 transition-colors">
+            <svg className="mb-2 h-8 w-8 text-rose-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4" />
             </svg>
             <span className="text-sm font-medium text-gray-900">Stock Out</span>
           </button>
-          <button onClick={() => navigate('/staff/production')} className="flex flex-col items-center justify-center p-4 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors">
-            <svg className="w-8 h-8 text-blue-600 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <button onClick={() => navigate('/staff/production')} className="inventory-quick-action flex flex-col items-center justify-center rounded-xl border p-4 transition-colors">
+            <svg className="mb-2 h-8 w-8 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" />
             </svg>
             <span className="text-sm font-medium text-gray-900">Record Production</span>
