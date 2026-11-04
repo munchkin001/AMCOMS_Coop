@@ -149,17 +149,19 @@ const Products = () => {
             aria-label="Search products"
             className="rounded-lg border border-gray-300 px-3 py-2 text-sm"
           />
-          <label htmlFor="product-sort-order" className="sr-only">Sort products</label>
-          <select
-            id="product-sort-order"
-            value={sortOrder}
-            onChange={(event) => setSortOrder(event.target.value)}
-            aria-label="Sort products alphabetically"
-            className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm"
-          >
-            <option value="asc">Name: A–Z</option>
-            <option value="desc">Name: Z–A</option>
-          </select>
+          <div className="flex items-center gap-2">
+            <label htmlFor="product-sort-order" className="text-sm font-medium text-gray-700">Filter/Sort</label>
+            <select
+              id="product-sort-order"
+              value={sortOrder}
+              onChange={(event) => setSortOrder(event.target.value)}
+              aria-label="Filter/Sort products"
+              className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm"
+            >
+              <option value="asc">A–Z</option>
+              <option value="desc">Z–A</option>
+            </select>
+          </div>
           <button
             type="button"
             onClick={() => setModal({ type: 'add' })}
