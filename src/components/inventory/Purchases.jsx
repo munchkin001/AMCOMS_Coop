@@ -291,7 +291,17 @@ const Purchases = () => {
                           {isOpen ? <ChevronDown size={18} /> : <ChevronRight size={18} />}
                         </button>
                       </td>
-                      <td className="px-4 py-3 text-sm font-semibold text-gray-900">{purchase.purchase_number}</td>
+                      <td className="px-4 py-3 text-sm font-semibold">
+                        <button
+                          type="button"
+                          onClick={() => toggle(purchase.id)}
+                          aria-expanded={isOpen}
+                          aria-label={`${isOpen ? 'Hide' : 'View'} details for purchase order ${purchase.purchase_number}`}
+                          className="rounded font-semibold text-green-800 underline decoration-green-300 underline-offset-4 transition hover:text-green-950 hover:decoration-green-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-600 focus-visible:ring-offset-2"
+                        >
+                          {purchase.purchase_number}
+                        </button>
+                      </td>
                       <td className="px-4 py-3 text-sm text-gray-700">{purchase.purchase_date}</td>
                       <td className="px-4 py-3 text-sm text-gray-700">{purchase.suppliers?.supplier_name || 'No supplier'}</td>
                       <td className="px-4 py-3"><Badge value={purchase.status} styles={STATUS_STYLES} /></td>
