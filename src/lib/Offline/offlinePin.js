@@ -80,6 +80,14 @@ const findPinRecord = async (username) => {
   return matches[0];
 };
 
+export async function hasOfflineAccess(userId) {
+  if (!userId) return false;
+  const record = await offlineDb.cachedData.get(`${ACCESS_PREFIX}${userId}`);
+  return record?.data?.userId === userId
+    && typeof record.data.pinHash === "string"
+    && typeof record.data.salt === "string";
+}
+
 export async function enableOfflineAccess({ user, staff, pin }) {
   validatePin(pin);
   requireSecureCrypto();

@@ -5,7 +5,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import offlineDb from '../../lib/Offline/OfflineDb';
 import { queueOperation, getOperation } from '../../lib/Offline/syncQueue';
 import { syncPendingOperations } from '../../lib/Offline/syncOperations';
-import { enableOfflineAccess, removeOfflineAccess } from '../../lib/Offline/offlinePin';
+import { enableOfflineAccess, hasOfflineAccess, removeOfflineAccess } from '../../lib/Offline/offlinePin';
 
 const emptyProfile = {
   first_name: '',
@@ -61,7 +61,36 @@ const ProfileEditor = ({ profileType = 'staff', roleLabel, headerColor = 'green'
   const [offlineSetup, setOfflineSetup] = useState({ busy: false, message: '', error: '' });
   const [offlinePin, setOfflinePin] = useState('');
   const [offlinePinConfirm, setOfflinePinConfirm] = useState('');
+  const [offlineAccessConfigured, setOfflineAccessConfigured] = useState(false);
+  const [offlineAccessChecking, setOfflineAccessChecking] = useState(true);
   const [otherSessions, setOtherSessions] = useState({ busy: false, message: '', error: '' });
+
+  useEffect(() => {
+    let active = true;
+    setOfflineAccessChecking(true);
+    setOfflineSetup((current) => ({ ...current, error: '' }));
+
+    hasOfflineAccess(user?.id)
+      .then((configured) => {
+        if (active) setOfflineAccessConfigured(configured);
+      })
+      .catch((error) => {
+        console.error('Unable to check offline PIN access on this device:', error);
+        if (active) {
+          setOfflineSetup((current) => ({
+            ...current,
+            error: 'Offline PIN status could not be checked on this device.'
+          }));
+        }
+      })
+      .finally(() => {
+        if (active) setOfflineAccessChecking(false);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [user?.id]);
 
   useEffect(() => {
     let active = true;
@@ -275,6 +304,7 @@ const ProfileEditor = ({ profileType = 'staff', roleLabel, headerColor = 'green'
       await enableOfflineAccess({ user, staff, pin: offlinePin });
       setOfflinePin('');
       setOfflinePinConfirm('');
+      setOfflineAccessConfigured(true);
       setOfflineSetup({
         busy: false,
         message: 'Offline sign-in is set up on this device.',
@@ -295,6 +325,9 @@ const ProfileEditor = ({ profileType = 'staff', roleLabel, headerColor = 'green'
     setOfflineSetup({ busy: true, message: '', error: '' });
     try {
       await removeOfflineAccess(user.id);
+      setOfflineAccessConfigured(false);
+      setOfflinePin('');
+      setOfflinePinConfirm('');
       setOfflineSetup({
         busy: false,
         message: 'Offline PIN access was removed from this device.',
@@ -531,7 +564,18 @@ const ProfileEditor = ({ profileType = 'staff', roleLabel, headerColor = 'green'
 
       <section className="rounded-2xl border border-amber-200 bg-amber-50 p-5">
         <h3 className="font-semibold text-amber-950">Set offline sign in on this device</h3>
-        {!offlineMode && (
+        {offlineAccessChecking ? (
+          <p role="status" className="mt-3 text-sm text-amber-900">Checking offline sign-in setup on this device…</p>
+        ) : offlineAccessConfigured ? (
+          <div className="mt-3 rounded-lg border border-emerald-200 bg-emerald-50 p-3">
+            <p role="status" className="text-sm font-semibold text-emerald-900">
+              Offline sign-in is set up on this device.
+            </p>
+            <p className="mt-1 text-xs text-emerald-800">
+              Your PIN is saved securely here and cannot be viewed. Remove offline PIN access below if you want to set it up again.
+            </p>
+          </div>
+        ) : !offlineMode && (
           <div className="mt-4 grid gap-3 sm:grid-cols-2">
             <label className="text-sm font-medium text-amber-950">
               Six-digit PIN
@@ -568,27 +612,29 @@ const ProfileEditor = ({ profileType = 'staff', roleLabel, headerColor = 'green'
         <div className="mt-4 flex flex-col items-start gap-3">
           {offlineMode ? (
             <p className="text-sm font-medium text-amber-950">You are currently using local offline access. Reconnect and sign in online before making server-side changes.</p>
-          ) : (
+          ) : !offlineAccessConfigured && !offlineAccessChecking && (
             <button
               type="button"
               onClick={setupOfflineAccess}
               disabled={offlineSetup.busy || !navigator.onLine || !user?.id || staff?.must_change_password || offlinePin.length !== 6 || offlinePinConfirm.length !== 6}
               className="rounded-lg bg-amber-700 px-4 py-2 text-sm font-semibold text-white hover:bg-amber-800 disabled:cursor-not-allowed disabled:opacity-50"
             >
-              {offlineSetup.busy ? 'Setting up PIN access…' : 'Set up or update offline PIN'}
+              {offlineSetup.busy ? 'Setting up PIN access…' : 'Set up offline PIN'}
             </button>
           )}
           {!navigator.onLine && !offlineMode && (
             <p className="text-xs text-amber-900">Connect to the internet and sign in normally to set up this device.</p>
           )}
-          <button
-            type="button"
-            onClick={removeOfflineAccessFromDevice}
-            disabled={offlineSetup.busy || !user?.id}
-            className="rounded-lg border border-amber-700 px-4 py-2 text-sm font-semibold text-amber-900 hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            Remove offline PIN access
-          </button>
+          {offlineAccessConfigured && !offlineAccessChecking && (
+            <button
+              type="button"
+              onClick={removeOfflineAccessFromDevice}
+              disabled={offlineSetup.busy || !user?.id}
+              className="rounded-lg border border-amber-700 px-4 py-2 text-sm font-semibold text-amber-900 hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              Remove offline PIN access
+            </button>
+          )}
         </div>
         <div className="mt-4 border-t border-amber-200 pt-4">
           {otherSessions.error && <p role="alert" className="mb-2 text-sm text-red-800">{otherSessions.error}</p>}
