@@ -1,3 +1,4 @@
+-- Version reassigned to avoid colliding with the member profile migration.
 CREATE OR REPLACE FUNCTION public.enforce_active_auth_session()
 RETURNS VOID
 LANGUAGE plpgsql

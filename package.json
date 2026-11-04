@@ -9,6 +9,7 @@
     "build:member": "vite build --mode member",
     "build:staff": "vite build --mode staff",
     "lint": "oxlint",
+    "test:db": "supabase db reset --local --no-seed && supabase test db --local",
     "preview": "vite preview",
     "cleanup:staff-auth": "node scripts/cleanup-staff-auth.js",
     "reset:inventory-password": "node scripts/reset-inventory-password.js",

@@ -1,7 +1,0 @@
-id,term_months,payment_frequency,annual_rate,penalty_rate,is_active
-35c6589f-3ce8-42de-8560-219057a8ebec,12,weekly,11.00,0.50,true
-3db94aff-b551-4140-8f09-83c9732b1eb8,36,weekly,15.00,0.50,true
-5664f631-32c8-462d-8796-7ef0ee3bbacd,24,weekly,13.00,0.50,true
-ed784ed8-37ae-4bf5-8084-7f0116ab3a15,36,monthly,16.00,2.00,true
-f72bc9d5-3904-4694-973e-a60af7d68734,12,monthly,12.00,2.00,true
-fc305e1d-b210-4170-a2fa-f0838709c99c,24,monthly,14.00,2.00,true

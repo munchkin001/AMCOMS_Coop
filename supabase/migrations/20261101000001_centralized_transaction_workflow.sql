@@ -1,5 +1,6 @@
 -- REVIEW ONLY: centralized transaction lifecycle and role-scoped evidence.
 -- Do not apply until the workflow RPC migration and deployment plan are reviewed.
+-- Version moved before the Nov 2 workflow RPC migrations to preserve dependency order.
 
 BEGIN;
 
