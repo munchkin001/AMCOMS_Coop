@@ -32,13 +32,17 @@ const MSOLoans = () => {
   });
   const [loading, setLoading] = useState(true);
   const [expandedLoan, setExpandedLoan] = useState(null);
+  const [loadError, setLoadError] = useState('');
 
   const load = useCallback(async () => {
     if (!staff?.member_id) {
+      setLoadError('Your member profile is not linked to a member record.');
       setLoading(false);
       return;
     }
 
+    setLoading(true);
+    setLoadError('');
     try {
       // Fetch all loans
       const { data: loans, error: loanError } = await supabase
@@ -82,7 +86,7 @@ const MSOLoans = () => {
           .select(`
             id, loan_id, payment_date, amount_paid, principal_paid, 
             interest_paid, penalty_paid, balance_after, payment_method, 
-            receipt_number, notes, loans!inner(loan_number)
+            reference_number, loans!inner(loan_number)
           `)
           .in('loan_id', loans.map(l => l.id))
           .eq('status', 'recorded')
@@ -130,8 +134,10 @@ const MSOLoans = () => {
           paymentScore
         }
       });
+      setLoadError('');
     } catch (error) {
       console.error('Error loading loan data:', error);
+      setLoadError('We couldn’t load your loan details. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -155,6 +161,21 @@ const MSOLoans = () => {
           <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-orange-600 border-r-transparent"></div>
           <p className="mt-3 text-sm text-gray-600">Loading loan information...</p>
         </div>
+      </div>
+    );
+  }
+
+  if (loadError) {
+    return (
+      <div role="alert" className="rounded-xl border border-rose-200 bg-rose-50 p-5 text-rose-800">
+        <p className="font-semibold">{loadError}</p>
+        <button
+          type="button"
+          onClick={load}
+          className="mt-3 min-h-10 rounded-lg border border-rose-300 bg-white px-4 text-sm font-semibold text-rose-800 transition hover:bg-rose-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-600 focus-visible:ring-offset-2"
+        >
+          Try again
+        </button>
       </div>
     );
   }
