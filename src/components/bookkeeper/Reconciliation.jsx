@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { ChevronDown, ChevronRight } from 'lucide-react';
+import { AlertTriangle, ArrowLeft, ArrowRight, CheckCircle2 } from 'lucide-react';
 import { useMultipleRealtimeSubscriptions } from '../../hooks/useRealtimeSubscription';
 import { getDataLoadErrorMessage } from '../../lib/errorHandler';
 import {
@@ -64,64 +64,158 @@ const getDetailSections = (row, day) => {
   ];
 };
 
-const ReconciliationDetails = ({ row, day, date }) => {
+const ReconciliationDetails = ({ row, day, date, onBack }) => {
   const sections = getDetailSections(row, day);
   const mismatched = !same(row.books, row.ledger);
 
   return (
-    <div className="space-y-4 rounded-lg border border-purple-100 bg-purple-50/60 p-4">
-      <div>
-        <h4 className="font-semibold text-gray-900">{row.label} history for {date}</h4>
-        <p className="mt-1 text-sm text-gray-700">
+    <div className="mx-auto max-w-6xl space-y-6">
+      <button
+        type="button"
+        onClick={onBack}
+        className="inline-flex items-center gap-2 rounded-lg border border-purple-200 bg-white px-4 py-2 text-sm font-semibold text-purple-900 shadow-sm transition hover:bg-purple-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-600"
+      >
+        <ArrowLeft size={17} aria-hidden="true" />
+        Back to reconciliation
+      </button>
+
+      <header className="overflow-hidden rounded-2xl border border-purple-200 bg-white shadow-sm">
+        <div className="bg-gradient-to-r from-[#28134b] via-[#63349c] to-[#985dd0] px-6 py-7 text-white sm:px-8">
+          <p className="text-xs font-bold uppercase tracking-[0.18em] text-purple-100">Reconciliation detail · {date}</p>
+          <div className="mt-3 flex flex-wrap items-center justify-between gap-4">
+            <div>
+              <h1 className="text-2xl font-bold sm:text-3xl">{row.label}</h1>
+              <p className="mt-2 max-w-3xl text-sm leading-6 text-purple-100">
+                Review the source records and corresponding ledger or member records used to calculate this comparison.
+              </p>
+            </div>
+            <span className={`inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-bold ${
+              mismatched ? 'bg-red-100 text-red-800' : 'bg-green-100 text-green-800'
+            }`}>
+              {mismatched
+                ? <AlertTriangle size={17} aria-hidden="true" />
+                : <CheckCircle2 size={17} aria-hidden="true" />}
+              {mismatched ? 'Difference to review' : 'Totals match'}
+            </span>
+          </div>
+        </div>
+
+        <div className="grid gap-px bg-purple-100 sm:grid-cols-3">
+          <div className="bg-white p-5 sm:px-6">
+            <p className="text-xs font-bold uppercase tracking-wide text-gray-500">Cash books / source records</p>
+            <p className="mt-2 text-2xl font-bold tabular-nums text-gray-900">{row.count ? row.books : peso(row.books)}</p>
+          </div>
+          <div className="bg-white p-5 sm:px-6">
+            <p className="text-xs font-bold uppercase tracking-wide text-gray-500">Ledger / member records</p>
+            <p className="mt-2 text-2xl font-bold tabular-nums text-gray-900">{row.count ? row.ledger : peso(row.ledger)}</p>
+          </div>
+          <div className="bg-white p-5 sm:px-6">
+            <p className="text-xs font-bold uppercase tracking-wide text-gray-500">Difference</p>
+            <p className={`mt-2 text-2xl font-bold tabular-nums ${mismatched ? 'text-red-700' : 'text-green-700'}`}>
+              {mismatched ? row.count ? Math.abs(row.books - row.ledger) : peso(Math.abs(row.books - row.ledger)) : row.count ? '0' : peso(0)}
+            </p>
+          </div>
+        </div>
+      </header>
+
+      <section className={`rounded-xl border p-5 sm:p-6 ${
+        mismatched ? 'border-amber-300 bg-amber-50' : 'border-blue-200 bg-blue-50'
+      }`}>
+        <h2 className={`text-base font-bold ${mismatched ? 'text-amber-950' : 'text-blue-950'}`}>
+          {mismatched ? 'What to review' : 'How to read this detail'}
+        </h2>
+        <p className={`mt-2 text-sm leading-6 ${mismatched ? 'text-amber-900' : 'text-blue-900'}`}>
           {mismatched
             ? row.count
-              ? 'The number of source records and matching cash-book journal entries differs. Check for a missing or duplicate CR/CD journal entry.'
-              : 'Compare each source record with its posted cash journal lines. Correct the source transaction through the normal accounting workflow; do not adjust totals just to force a match.'
-            : 'The totals match. Review the underlying records and journal details below.'}
+              ? 'The source-record count and cash receipt/disbursement journal count differ. Compare the references below and check for a missing or duplicate CR/CD journal entry. Do not create a balancing entry solely to force the counts to match.'
+              : 'Compare the source amounts with their posted cash or member records below. Correct the originating transaction through its normal accounting workflow; do not edit totals solely to force a match.'
+            : 'The totals shown here agree for this date. The records below are the underlying entries included in each side of the comparison.'}
         </p>
-      </div>
-      {sections.map((section) => (
-        <section key={section.title}>
-          <h5 className="text-sm font-semibold text-gray-800">{section.title} ({section.records.length})</h5>
-          {section.note && <p className="mt-1 text-xs text-gray-600">{section.note}</p>}
-          {section.records.length === 0 ? (
-            <p className="mt-2 text-sm text-gray-500">No records for this category on this date.</p>
-          ) : (
-            <ul className="mt-2 divide-y divide-purple-100 rounded-lg border border-purple-100 bg-white">
-              {section.records.map((record) => (
-                <li key={record.id} className="p-3">
-                  <div className="flex flex-wrap items-start justify-between gap-2">
-                    <div className="min-w-0">
-                      <p className="text-sm font-medium text-gray-900">
-                        {record.reference || 'No reference'} · {record.description}
+      </section>
+
+      <div className="grid items-start gap-5 lg:grid-cols-2">
+        {sections.map((section, index) => (
+          <section key={section.title} className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
+            <div className="border-b border-gray-200 bg-gray-50 px-5 py-4">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <h2 className="font-bold text-gray-900">{section.title}</h2>
+                  <p className="mt-1 text-sm text-gray-600">
+                    {section.records.length} record{section.records.length === 1 ? '' : 's'} · {date}
+                  </p>
+                </div>
+                <span className={`rounded-full px-3 py-1 text-xs font-bold ${
+                  mismatched && index === 1 ? 'bg-red-100 text-red-800' : 'bg-purple-100 text-purple-900'
+                }`}>
+                  {section.records.length}
+                </span>
+              </div>
+              {section.note && <p className="mt-3 text-sm leading-5 text-gray-600">{section.note}</p>}
+            </div>
+            {section.records.length === 0 ? (
+              <p className="px-5 py-8 text-center text-sm text-gray-500">No records for this category on this date.</p>
+            ) : (
+              <ul className="divide-y divide-gray-100">
+                {section.records.map((record) => (
+                  <li key={record.id} className="p-5">
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="break-words font-semibold text-gray-900">{record.description}</p>
+                        <p className="mt-1 break-all text-sm font-medium text-purple-800">{record.reference || 'No reference'}</p>
+                        <p className="mt-1 text-xs text-gray-500">{record.date}</p>
+                      </div>
+                      <p className="shrink-0 text-lg font-bold tabular-nums text-gray-900">
+                        {record.isCashBookEntry === undefined ? peso(record.amount) : `Cash debit ${peso(record.cashDebit)} · credit ${peso(record.cashCredit)}`}
                       </p>
-                      <p className="text-xs text-gray-500">{record.date}</p>
                     </div>
-                    <p className="shrink-0 text-sm font-semibold text-gray-900">
-                      {record.isCashBookEntry === undefined ? peso(record.amount) : `Cash debit ${peso(record.cashDebit)} · credit ${peso(record.cashCredit)}`}
-                    </p>
-                  </div>
-                  {record.lines?.length > 0 && (
-                    <ul className="mt-2 space-y-1 border-l-2 border-purple-100 pl-3 text-xs text-gray-600">
-                      {record.lines.map((line, index) => (
-                        <li key={`${record.id}-${line.account}-${index}`} className="flex flex-wrap justify-between gap-x-4">
-                          <span>{line.account}</span>
-                          <span>Debit {peso(line.debit)} · Credit {peso(line.credit)}</span>
-                        </li>
-                      ))}
-                    </ul>
-                  )}
-                  {record.isCashBookEntry === false && (
-                    <p className="mt-2 text-xs text-gray-600">
-                      Journal totals: debit {peso(record.debitTotal)} · credit {peso(record.creditTotal)}
-                    </p>
-                  )}
-                </li>
-              ))}
-            </ul>
-          )}
-        </section>
-      ))}
+                    {record.lines?.length > 0 && (
+                      <div className="mt-4 overflow-x-auto rounded-lg border border-gray-200">
+                        <table className="w-full min-w-[380px] text-sm">
+                          <thead className="bg-gray-50 text-xs uppercase tracking-wide text-gray-600">
+                            <tr>
+                              <th className="px-3 py-2 text-left">Account</th>
+                              <th className="px-3 py-2 text-right">Debit</th>
+                              <th className="px-3 py-2 text-right">Credit</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-gray-100">
+                            {record.lines.map((line, lineIndex) => (
+                              <tr key={`${record.id}-${line.account}-${lineIndex}`}>
+                                <td className="px-3 py-2 font-medium text-gray-800">{line.account}</td>
+                                <td className="px-3 py-2 text-right tabular-nums text-gray-700">{peso(line.debit)}</td>
+                                <td className="px-3 py-2 text-right tabular-nums text-gray-700">{peso(line.credit)}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                          {record.isCashBookEntry === false && (
+                            <tfoot className="border-t-2 border-gray-200 bg-gray-50 font-bold text-gray-900">
+                              <tr>
+                                <td className="px-3 py-2">Journal totals</td>
+                                <td className="px-3 py-2 text-right tabular-nums">{peso(record.debitTotal)}</td>
+                                <td className="px-3 py-2 text-right tabular-nums">{peso(record.creditTotal)}</td>
+                              </tr>
+                            </tfoot>
+                          )}
+                        </table>
+                      </div>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
+        ))}
+      </div>
+
+      <button
+        type="button"
+        onClick={onBack}
+        className="inline-flex items-center gap-2 rounded-lg bg-purple-700 px-5 py-3 text-sm font-bold text-white shadow-sm transition hover:bg-purple-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-600 focus-visible:ring-offset-2"
+      >
+        <ArrowLeft size={17} aria-hidden="true" />
+        Return to reconciliation
+        <ArrowRight size={17} aria-hidden="true" />
+      </button>
     </div>
   );
 };
@@ -133,7 +227,7 @@ const Reconciliation = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [lastRun, setLastRun] = useState(null);
-  const [expandedRow, setExpandedRow] = useState(null);
+  const [selectedDetailLabel, setSelectedDetailLabel] = useState(null);
 
   const load = useCallback(async () => {
     try {
@@ -164,6 +258,7 @@ const Reconciliation = () => {
 
   const today = days[selectedDate] || emptyReconciliationDay();
   const rows = rowsFor(today);
+  const selectedDetailRow = rows.find((row) => row.label === selectedDetailLabel);
   const mismatches = rows.filter((row) => !same(row.books, row.ledger)).length + (today.unbalanced ? 1 : 0);
   const isMatched = mismatches === 0;
   const netBooks = today.receipts - today.disbursements;
@@ -178,6 +273,17 @@ const Reconciliation = () => {
     const empty = d.receiptCount + d.disbursementCount + d.journalCount === 0;
     return { key, d, diff, bad, empty };
   }), [days, selectedDate]);
+
+  if (selectedDetailRow) {
+    return (
+      <ReconciliationDetails
+        row={selectedDetailRow}
+        day={today}
+        date={selectedDate}
+        onBack={() => setSelectedDetailLabel(null)}
+      />
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -247,42 +353,28 @@ const Reconciliation = () => {
                   </tr>
                 </thead>
                 <tbody>
-                  {rows.map((row) => {
-                    const isExpanded = expandedRow === row.label;
-                    return (
-                      <React.Fragment key={row.label}>
-                        <tr className={`border-b border-gray-200 ${isExpanded ? 'bg-purple-50/50' : ''}`}>
-                          <td className="px-4 py-3 text-sm font-medium text-gray-900">
-                            <button
-                              type="button"
-                              aria-expanded={isExpanded}
-                              onClick={() => setExpandedRow(isExpanded ? null : row.label)}
-                              className="inline-flex items-start gap-2 rounded text-left text-purple-900 underline decoration-purple-200 underline-offset-4 hover:text-purple-700 hover:decoration-purple-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-600 focus-visible:ring-offset-2"
-                            >
-                              {isExpanded ? <ChevronDown size={16} className="mt-0.5 shrink-0" /> : <ChevronRight size={16} className="mt-0.5 shrink-0" />}
-                              <span>
-                                {row.label}
-                                {row.detail && <span className="mt-0.5 block text-xs font-normal text-gray-500">{row.detail}</span>}
-                              </span>
-                            </button>
-                          </td>
-                          <td className={`px-4 py-3 text-right text-sm font-semibold ${row.tone}`}>{row.count ? row.books : peso(row.books)}</td>
-                          <td className={`px-4 py-3 text-right text-sm font-semibold ${row.tone}`}>{row.count ? row.ledger : peso(row.ledger)}</td>
-                          <td className="px-4 py-3 text-right text-sm text-gray-700">
-                            {same(row.books, row.ledger) ? '-' : row.count ? Math.abs(row.books - row.ledger) : peso(Math.abs(row.books - row.ledger))}
-                          </td>
-                          <td className="px-4 py-3 text-center">{badge(same(row.books, row.ledger))}</td>
-                        </tr>
-                        {isExpanded && (
-                          <tr className="border-b border-gray-200">
-                            <td colSpan={5} className="p-3 sm:p-4">
-                              <ReconciliationDetails row={row} day={today} date={selectedDate} />
-                            </td>
-                          </tr>
-                        )}
-                      </React.Fragment>
-                    );
-                  })}
+                  {rows.map((row) => (
+                    <tr key={row.label} className="border-b border-gray-200">
+                      <td className="px-4 py-3 text-sm font-medium text-gray-900">
+                        <button
+                          type="button"
+                          onClick={() => setSelectedDetailLabel(row.label)}
+                          aria-label={`Open ${row.label} reconciliation details for ${selectedDate}`}
+                          className="group inline-flex items-center gap-2 rounded text-left text-purple-900 hover:text-purple-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-600 focus-visible:ring-offset-2"
+                        >
+                          <span className="underline decoration-purple-200 underline-offset-4 group-hover:decoration-purple-500">{row.label}</span>
+                          <ArrowRight size={15} className="text-purple-500 transition-transform group-hover:translate-x-0.5" aria-hidden="true" />
+                        </button>
+                        {row.detail && <span className="mt-0.5 block text-xs font-normal text-gray-500">{row.detail}</span>}
+                      </td>
+                      <td className={`px-4 py-3 text-right text-sm font-semibold ${row.tone}`}>{row.count ? row.books : peso(row.books)}</td>
+                      <td className={`px-4 py-3 text-right text-sm font-semibold ${row.tone}`}>{row.count ? row.ledger : peso(row.ledger)}</td>
+                      <td className="px-4 py-3 text-right text-sm text-gray-700">
+                        {same(row.books, row.ledger) ? '-' : row.count ? Math.abs(row.books - row.ledger) : peso(Math.abs(row.books - row.ledger))}
+                      </td>
+                      <td className="px-4 py-3 text-center">{badge(same(row.books, row.ledger))}</td>
+                    </tr>
+                  ))}
                   <tr className="border-b border-gray-200 bg-purple-50">
                     <td className="px-4 py-3 text-sm font-bold text-gray-900">Net cash movement</td>
                     <td className="px-4 py-3 text-right text-sm font-bold text-purple-600">{peso(netBooks)}</td>
