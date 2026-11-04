@@ -13,7 +13,7 @@ const InventoryDashboard = () => {
   const navigate = useNavigate();
   const { staff } = useAuth();
   const greeting = useTimeOfDayGreeting();
-  const staffName = staff?.full_name?.trim() || 'Inventory Staff';
+  const staffName = staff?.full_name?.trim().split(/\s+/)[0] || 'Inventory Staff';
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [dashboardData, setDashboardData] = useState({
