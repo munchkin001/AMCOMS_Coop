@@ -537,23 +537,6 @@ input[type="radio"] {
   color: #365314;
 }
 
-#root .amcoms-inventory-portal .inventory-quick-action {
-  border-color: #dce8c8;
-  background: linear-gradient(145deg, #fff, #f7fbea);
-  color: #1f2937;
-}
-
-#root .amcoms-inventory-portal .inventory-quick-action:first-child {
-  border-color: #a3c95a;
-  background: linear-gradient(145deg, #f7fee7, #ecfccb);
-  color: #3f6212;
-}
-
-#root .amcoms-inventory-portal .inventory-quick-action:hover {
-  border-color: #a3c95a;
-  background-color: #f0f9dc;
-}
-
 #root .amcoms-inventory-portal > .fixed.inset-0 > div {
   border-color: rgb(217 249 157 / 35%);
   background-image: linear-gradient(135deg, #173b2a, #285c30 58%, #365314);

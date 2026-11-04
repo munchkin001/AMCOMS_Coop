@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { AlertTriangle, ArrowDownToLine, ArrowUpFromLine, Boxes, Factory, Package, PackageCheck, Sparkles } from 'lucide-react';
+import { useAuth } from '../../contexts/AuthContext';
 import { supabase } from '../../lib/supabase';
 import { useMultipleRealtimeSubscriptions } from '../../hooks/useRealtimeSubscription';
 import { getDataLoadErrorMessage } from '../../lib/errorHandler';
@@ -10,7 +11,9 @@ import DashboardMetricCard from '../common/DashboardMetricCard';
 
 const InventoryDashboard = () => {
   const navigate = useNavigate();
+  const { staff } = useAuth();
   const greeting = useTimeOfDayGreeting();
+  const staffName = staff?.full_name?.trim() || 'Inventory Staff';
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [dashboardData, setDashboardData] = useState({
@@ -198,7 +201,7 @@ const InventoryDashboard = () => {
             <span className="inline-flex items-center gap-2 rounded-full border border-white/25 bg-white/10 px-3 py-1 text-xs font-bold uppercase tracking-[0.16em] text-lime-100">
               <Sparkles aria-hidden="true" size={14} /> Inventory operations
             </span>
-            <h2 className="mt-4 text-3xl font-extrabold tracking-tight sm:text-4xl">{greeting}, Inventory Staff</h2>
+            <h2 className="mt-4 text-3xl font-extrabold tracking-tight sm:text-4xl">{greeting}, {staffName}</h2>
             <p className="mt-2 max-w-xl text-sm leading-6 text-white/80 sm:text-base">
               A live snapshot of stock health, production, and today’s movement.
             </p>
@@ -356,36 +359,6 @@ const InventoryDashboard = () => {
         </div>
       </div>
 
-      {/* Quick Actions */}
-      <div className="bg-white rounded-lg border border-gray-200 p-6">
-        <h3 className="text-lg font-semibold text-gray-900 mb-4">Quick Actions</h3>
-        <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-          <button onClick={() => navigate('/staff/products')} className="inventory-quick-action flex flex-col items-center justify-center rounded-xl border-2 p-4 transition-colors">
-            <svg className="mb-2 h-8 w-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-            </svg>
-            <span className="text-sm font-medium text-gray-900">Add Product</span>
-          </button>
-          <button onClick={() => navigate('/staff/stock')} className="inventory-quick-action flex flex-col items-center justify-center rounded-xl border p-4 transition-colors">
-            <svg className="mb-2 h-8 w-8 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4" />
-            </svg>
-            <span className="text-sm font-medium text-gray-900">Stock In</span>
-          </button>
-          <button onClick={() => navigate('/staff/stock')} className="inventory-quick-action flex flex-col items-center justify-center rounded-xl border p-4 transition-colors">
-            <svg className="mb-2 h-8 w-8 text-rose-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4" />
-            </svg>
-            <span className="text-sm font-medium text-gray-900">Stock Out</span>
-          </button>
-          <button onClick={() => navigate('/staff/production')} className="inventory-quick-action flex flex-col items-center justify-center rounded-xl border p-4 transition-colors">
-            <svg className="mb-2 h-8 w-8 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" />
-            </svg>
-            <span className="text-sm font-medium text-gray-900">Record Production</span>
-          </button>
-        </div>
-      </div>
     </div>
   );
 };
