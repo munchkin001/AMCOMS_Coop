@@ -31,6 +31,11 @@ WITH share_audit AS (
   FROM public.audit_logs al
   WHERE al.table_name = 'members'
     AND al.record_id IS NOT NULL
+    AND EXISTS (
+      SELECT 1
+      FROM public.members m
+      WHERE m.id = al.record_id
+    )
     AND al.new_data ? 'shares_owned'
     AND COALESCE(al.new_data->>'shares_owned', '') ~ '^-?[0-9]+$'
 ),
@@ -76,6 +81,11 @@ WITH share_audit AS (
   FROM public.audit_logs al
   WHERE al.table_name = 'members'
     AND al.record_id IS NOT NULL
+    AND EXISTS (
+      SELECT 1
+      FROM public.members m
+      WHERE m.id = al.record_id
+    )
     AND al.new_data ? 'shares_owned'
     AND COALESCE(al.new_data->>'shares_owned', '') ~ '^-?[0-9]+$'
 )
