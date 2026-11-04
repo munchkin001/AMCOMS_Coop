@@ -54,6 +54,7 @@ const Products = () => {
   const [notice, setNotice] = useState('');
   const [search, setSearch] = useState('');
   const [sortOrder, setSortOrder] = useState('asc');
+  const [stockFilter, setStockFilter] = useState('all');
   const [modal, setModal] = useState(null);
   const [expandedId, setExpandedId] = useState(null);
   const requestId = useRef(0);
@@ -95,18 +96,26 @@ const Products = () => {
 
   const visibleProducts = useMemo(() => {
     const term = search.trim().toLowerCase();
-    const filteredProducts = term
+    const searchFilteredProducts = term
       ? products.filter((product) =>
         product.product_name.toLowerCase().includes(term) || product.product_code.toLowerCase().includes(term)
       )
       : products;
+    const filteredProducts = searchFilteredProducts.filter((product) => {
+      const onHand = getQuantityOnHand(product);
+      const status = getStockStatus(onHand, product.reorder_level);
+      if (stockFilter === 'low') return status === 'Low';
+      if (stockFilter === 'out') return status === 'Out of Stock';
+      if (stockFilter === 'high') return status === 'Good';
+      return true;
+    });
     const collator = new Intl.Collator('en', { numeric: true, sensitivity: 'base' });
     return [...filteredProducts].sort((left, right) => {
       const nameOrder = collator.compare(left.product_name || '', right.product_name || '');
       const order = sortOrder === 'asc' ? nameOrder : -nameOrder;
       return order || collator.compare(left.product_code || '', right.product_code || '');
     });
-  }, [products, search, sortOrder]);
+  }, [products, search, sortOrder, stockFilter]);
 
   const nextProductCode = () => {
     const highest = products.reduce((max, product) => {
@@ -161,6 +170,19 @@ const Products = () => {
               <option value="asc">A–Z</option>
               <option value="desc">Z–A</option>
             </select>
+            <label htmlFor="product-stock-filter" className="sr-only">Filter products by stock status</label>
+            <select
+              id="product-stock-filter"
+              value={stockFilter}
+              onChange={(event) => setStockFilter(event.target.value)}
+              aria-label="Filter products by stock status"
+              className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm"
+            >
+              <option value="all">All stock</option>
+              <option value="low">Low stock</option>
+              <option value="out">Out of stock</option>
+              <option value="high">High stock</option>
+            </select>
           </div>
           <button
             type="button"
@@ -176,7 +198,11 @@ const Products = () => {
         {loading && <p className="py-10 text-center text-gray-500">Loading products…</p>}
         {!loading && visibleProducts.length === 0 && (
           <p className="rounded-lg border border-gray-200 bg-white py-10 text-center text-gray-500">
-            {products.length === 0 ? 'No products have been added yet.' : 'No products match your search.'}
+            {products.length === 0
+              ? 'No products have been added yet.'
+              : search || stockFilter !== 'all'
+                ? 'No products match the selected search and stock filters.'
+                : 'No products are available.'}
           </p>
         )}
         {visibleProducts.map((product) => {
