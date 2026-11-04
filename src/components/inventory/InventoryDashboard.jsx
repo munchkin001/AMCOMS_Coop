@@ -217,7 +217,7 @@ const InventoryDashboard = () => {
       {/* Summary Cards */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6">
         {summaryCards.map((card) => (
-          <DashboardMetricCard key={card.label} label={card.label} value={card.value} detail={card.detail} icon={card.icon} tone={card.tone} solid variant="inventory" />
+          <DashboardMetricCard key={card.label} label={card.label} value={card.value} detail={card.detail} icon={card.icon} tone={card.tone} variant="inventory" />
         ))}
       </div>
 
