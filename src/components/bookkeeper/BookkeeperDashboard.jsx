@@ -181,7 +181,7 @@ const BookkeeperDashboard = ({ onSelectTransaction, onViewBooks }) => {
         </div>
       </section>
       {error && <p role="alert" className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{error}</p>}
-      <DiscrepancyPanel />
+      <DiscrepancyPanel reconciliationDate={selectedDate} />
       {/* Welcome Section */}
       <section className="flex flex-col gap-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:flex-row sm:items-end sm:justify-between">
         <div>

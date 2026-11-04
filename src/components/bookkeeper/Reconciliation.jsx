@@ -1,47 +1,130 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { supabase } from '../../lib/supabase';
+import { ChevronDown, ChevronRight } from 'lucide-react';
 import { useMultipleRealtimeSubscriptions } from '../../hooks/useRealtimeSubscription';
 import { getDataLoadErrorMessage } from '../../lib/errorHandler';
+import {
+  emptyReconciliationDay,
+  loadReconciliationDays,
+  localDate,
+  reconciliationRows,
+  sameReconciliationValue,
+  shiftDate,
+} from '../../lib/dailyReconciliation';
 
-const CASH_ACCOUNTS = ['Cash on Hand', 'Cash in Bank'];
 const peso = (value) => `₱${Number(value || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-const localDate = (date = new Date()) => {
-  const d = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
-  return d.toISOString().slice(0, 10);
-};
-const shiftDate = (iso, days) => {
-  const d = new Date(`${iso}T00:00:00`);
-  d.setDate(d.getDate() + days);
-  return localDate(d);
-};
-const sum = (rows, pick) => rows.reduce((total, row) => total + Number(pick(row) || 0), 0);
-const same = (a, b) => Math.abs(a - b) < 0.01;
-
-const emptyDay = () => ({
-  receipts: 0, receiptCount: 0, disbursements: 0, disbursementCount: 0,
-  ledgerDebits: 0, ledgerCredits: 0, journalCount: 0,
-  loanReceipts: 0, loanPayments: 0, loansDisbursed: 0, loansReleased: 0, unbalanced: 0
-});
-
-const rowsFor = (d) => [
-  { label: 'Cash received', books: d.receipts, ledger: d.ledgerDebits, tone: 'text-green-600' },
-  { label: 'Cash disbursed', books: d.disbursements, ledger: d.ledgerCredits, tone: 'text-red-600' },
-  {
-    label: 'Loan principal applied',
-    detail: 'Excludes interest and penalties',
-    books: d.loanReceipts,
-    ledger: d.loanPayments,
-    tone: 'text-gray-900'
-  },
-  { label: 'Loans released', books: d.loansDisbursed, ledger: d.loansReleased, tone: 'text-gray-900' },
-  { label: 'Entries recorded', books: d.receiptCount + d.disbursementCount, ledger: d.journalCount, count: true, tone: 'text-gray-900' }
-];
+const same = sameReconciliationValue;
+const rowsFor = (day) => reconciliationRows(day).map((row) => ({
+  ...row,
+  tone: row.label === 'Cash received'
+    ? 'text-green-600'
+    : row.label === 'Cash disbursed'
+      ? 'text-red-600'
+      : 'text-gray-900',
+}));
 
 const badge = (ok) => (
   <span className={`inline-block rounded-full px-3 py-1 text-xs font-medium ${ok ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
     {ok ? 'Match' : 'Difference'}
   </span>
 );
+
+const getDetailSections = (row, day) => {
+  if (row.label === 'Cash received') {
+    return [
+      { title: 'Recorded cash receipts', records: day.receiptRecords },
+      { title: 'Posted journals affecting cash', records: day.cashJournalEntries.filter((entry) => entry.cashDebit > 0) },
+    ];
+  }
+  if (row.label === 'Cash disbursed') {
+    return [
+      { title: 'Recorded cash disbursements', records: day.disbursementRecords },
+      { title: 'Posted journals affecting cash', records: day.cashJournalEntries.filter((entry) => entry.cashCredit > 0) },
+    ];
+  }
+  if (row.label === 'Loan principal applied') {
+    return [
+      { title: 'Loan principal on cash receipts', records: day.loanReceiptRecords },
+      { title: 'Recorded member loan payments', records: day.loanPaymentRecords },
+    ];
+  }
+  if (row.label === 'Loans released') {
+    return [
+      { title: 'Loan amounts in disbursements', records: day.loanDisbursementRecords },
+      { title: 'Recorded loan releases', records: day.loanReleaseRecords },
+    ];
+  }
+  return [
+    { title: 'Cash-book records', records: [...day.receiptRecords, ...day.disbursementRecords] },
+    { title: 'Cash receipt/disbursement journal entries counted above', records: day.cashJournalEntries },
+    {
+      title: 'Other posted journals (not cash-book entries)',
+      records: day.journalEntries.filter((entry) => !entry.isCashBookEntry),
+      note: 'These can include valid entries such as cost of goods sold. They are shown for context but are not counted as cash receipts or disbursements.',
+    },
+  ];
+};
+
+const ReconciliationDetails = ({ row, day, date }) => {
+  const sections = getDetailSections(row, day);
+  const mismatched = !same(row.books, row.ledger);
+
+  return (
+    <div className="space-y-4 rounded-lg border border-purple-100 bg-purple-50/60 p-4">
+      <div>
+        <h4 className="font-semibold text-gray-900">{row.label} history for {date}</h4>
+        <p className="mt-1 text-sm text-gray-700">
+          {mismatched
+            ? row.count
+              ? 'The number of source records and matching cash-book journal entries differs. Check for a missing or duplicate CR/CD journal entry.'
+              : 'Compare each source record with its posted cash journal lines. Correct the source transaction through the normal accounting workflow; do not adjust totals just to force a match.'
+            : 'The totals match. Review the underlying records and journal details below.'}
+        </p>
+      </div>
+      {sections.map((section) => (
+        <section key={section.title}>
+          <h5 className="text-sm font-semibold text-gray-800">{section.title} ({section.records.length})</h5>
+          {section.note && <p className="mt-1 text-xs text-gray-600">{section.note}</p>}
+          {section.records.length === 0 ? (
+            <p className="mt-2 text-sm text-gray-500">No records for this category on this date.</p>
+          ) : (
+            <ul className="mt-2 divide-y divide-purple-100 rounded-lg border border-purple-100 bg-white">
+              {section.records.map((record) => (
+                <li key={record.id} className="p-3">
+                  <div className="flex flex-wrap items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium text-gray-900">
+                        {record.reference || 'No reference'} · {record.description}
+                      </p>
+                      <p className="text-xs text-gray-500">{record.date}</p>
+                    </div>
+                    <p className="shrink-0 text-sm font-semibold text-gray-900">
+                      {record.isCashBookEntry === undefined ? peso(record.amount) : `Cash debit ${peso(record.cashDebit)} · credit ${peso(record.cashCredit)}`}
+                    </p>
+                  </div>
+                  {record.lines?.length > 0 && (
+                    <ul className="mt-2 space-y-1 border-l-2 border-purple-100 pl-3 text-xs text-gray-600">
+                      {record.lines.map((line, index) => (
+                        <li key={`${record.id}-${line.account}-${index}`} className="flex flex-wrap justify-between gap-x-4">
+                          <span>{line.account}</span>
+                          <span>Debit {peso(line.debit)} · Credit {peso(line.credit)}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                  {record.isCashBookEntry === false && (
+                    <p className="mt-2 text-xs text-gray-600">
+                      Journal totals: debit {peso(record.debitTotal)} · credit {peso(record.creditTotal)}
+                    </p>
+                  )}
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+      ))}
+    </div>
+  );
+};
 
 const Reconciliation = () => {
   const [selectedDate, setSelectedDate] = useState(localDate());
@@ -50,82 +133,20 @@ const Reconciliation = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [lastRun, setLastRun] = useState(null);
+  const [expandedRow, setExpandedRow] = useState(null);
 
   const load = useCallback(async () => {
-    const from = shiftDate(selectedDate, -6);
-    const [receiptsRes, disbursementsRes, journalRes, paymentsRes, loansRes] = await Promise.all([
-      supabase.from('cash_receipts')
-        .select('id, receipt_date, amount, status, lines:cash_receipt_lines(amount, side, account:chart_of_accounts(account_name))')
-        .gte('receipt_date', from).lte('receipt_date', selectedDate),
-      supabase.from('cash_disbursements')
-        .select('id, disbursement_date, amount, status, lines:cash_disbursement_lines(amount, account:chart_of_accounts(account_name))')
-        .gte('disbursement_date', from).lte('disbursement_date', selectedDate),
-      supabase.from('journal_entries')
-        .select('id, entry_date, status, lines:journal_entry_lines(debit_amount, credit_amount, account:chart_of_accounts(account_name))')
-        .eq('status', 'posted')
-        .is('reversed_by_entry_id', null)
-        .neq('entry_type', 'reversing')
-        .gte('entry_date', from).lte('entry_date', selectedDate),
-      supabase.from('loan_payments').select('id, payment_date, principal_paid, receipt_id')
-        .eq('status', 'recorded').not('receipt_id', 'is', null)
-        .gte('payment_date', from).lte('payment_date', selectedDate),
-      supabase.from('loans').select('id, release_date, principal_amount, status')
-        .gte('release_date', from).lte('release_date', selectedDate).neq('status', 'rejected')
-    ]);
-
-    const failed = [receiptsRes, disbursementsRes, journalRes, paymentsRes, loansRes].find((res) => res.error);
-    if (failed) {
-      setError(getDataLoadErrorMessage(failed.error, 'reconciliation data'));
+    try {
+      const { days: result, draftCount: drafts } = await loadReconciliationDays(selectedDate);
+      setDays(result);
+      setDraftCount(drafts);
+      setError('');
+      setLastRun(new Date());
       setLoading(false);
-      return;
+    } catch (loadError) {
+      setError(getDataLoadErrorMessage(loadError, 'reconciliation data'));
+      setLoading(false);
     }
-    setError('');
-
-    const result = {};
-    const day = (key) => (result[key] = result[key] || emptyDay());
-
-    let drafts = 0;
-    (receiptsRes.data || []).forEach((receipt) => {
-      if (receipt.status === 'draft') { drafts += 1; return; }
-      if (receipt.status !== 'recorded') return;
-      const d = day(receipt.receipt_date);
-      d.receipts += Number(receipt.amount);
-      d.receiptCount += 1;
-      d.loanReceipts += sum(
-        (receipt.lines || []).filter((line) => line.side === 'credit' && line.account?.account_name === 'Loan Receivable'),
-        (line) => line.amount
-      );
-    });
-    (disbursementsRes.data || []).forEach((disbursement) => {
-      if (disbursement.status === 'draft') { drafts += 1; return; }
-      if (disbursement.status !== 'recorded') return;
-      const d = day(disbursement.disbursement_date);
-      d.disbursements += Number(disbursement.amount);
-      d.disbursementCount += 1;
-      d.loansDisbursed += sum(
-        (disbursement.lines || []).filter((line) => line.account?.account_name === 'Loan Payable' || line.account?.account_name === 'Loan Receivable'),
-        (line) => line.amount
-      );
-    });
-    (journalRes.data || []).forEach((entry) => {
-      const d = day(entry.entry_date);
-      const lines = entry.lines || [];
-      d.journalCount += 1;
-      lines.filter((line) => CASH_ACCOUNTS.includes(line.account?.account_name)).forEach((line) => {
-        d.ledgerDebits += Number(line.debit_amount);
-        d.ledgerCredits += Number(line.credit_amount);
-      });
-      if (!same(sum(lines, (line) => line.debit_amount), sum(lines, (line) => line.credit_amount))) d.unbalanced += 1;
-    });
-    (paymentsRes.data || []).forEach((payment) => {
-      day(payment.payment_date).loanPayments += Number(payment.principal_paid);
-    });
-    (loansRes.data || []).forEach((loan) => { day(loan.release_date).loansReleased += Number(loan.principal_amount); });
-
-    setDays(result);
-    setDraftCount(drafts);
-    setLastRun(new Date());
-    setLoading(false);
   }, [selectedDate]);
 
   useEffect(() => { setLoading(true); load(); }, [load]);
@@ -141,7 +162,7 @@ const Reconciliation = () => {
     { table: 'loans', onUpdate: load }
   ], [load]);
 
-  const today = days[selectedDate] || emptyDay();
+  const today = days[selectedDate] || emptyReconciliationDay();
   const rows = rowsFor(today);
   const mismatches = rows.filter((row) => !same(row.books, row.ledger)).length + (today.unbalanced ? 1 : 0);
   const isMatched = mismatches === 0;
@@ -150,7 +171,7 @@ const Reconciliation = () => {
 
   const history = useMemo(() => Array.from({ length: 7 }, (_, i) => {
     const key = shiftDate(selectedDate, -i);
-    const d = days[key] || emptyDay();
+    const d = days[key] || emptyReconciliationDay();
     const dayRows = rowsFor(d);
     const diff = dayRows.filter((row) => !row.count).reduce((total, row) => total + Math.abs(row.books - row.ledger), 0);
     const bad = dayRows.some((row) => !same(row.books, row.ledger)) || d.unbalanced > 0;
@@ -226,20 +247,42 @@ const Reconciliation = () => {
                   </tr>
                 </thead>
                 <tbody>
-                  {rows.map((row) => (
-                    <tr key={row.label} className="border-b border-gray-200">
-                      <td className="px-4 py-3 text-sm font-medium text-gray-900">
-                        {row.label}
-                        {row.detail && <span className="mt-0.5 block text-xs font-normal text-gray-500">{row.detail}</span>}
-                      </td>
-                      <td className={`px-4 py-3 text-right text-sm font-semibold ${row.tone}`}>{row.count ? row.books : peso(row.books)}</td>
-                      <td className={`px-4 py-3 text-right text-sm font-semibold ${row.tone}`}>{row.count ? row.ledger : peso(row.ledger)}</td>
-                      <td className="px-4 py-3 text-right text-sm text-gray-700">
-                        {same(row.books, row.ledger) ? '-' : row.count ? Math.abs(row.books - row.ledger) : peso(Math.abs(row.books - row.ledger))}
-                      </td>
-                      <td className="px-4 py-3 text-center">{badge(same(row.books, row.ledger))}</td>
-                    </tr>
-                  ))}
+                  {rows.map((row) => {
+                    const isExpanded = expandedRow === row.label;
+                    return (
+                      <React.Fragment key={row.label}>
+                        <tr className={`border-b border-gray-200 ${isExpanded ? 'bg-purple-50/50' : ''}`}>
+                          <td className="px-4 py-3 text-sm font-medium text-gray-900">
+                            <button
+                              type="button"
+                              aria-expanded={isExpanded}
+                              onClick={() => setExpandedRow(isExpanded ? null : row.label)}
+                              className="inline-flex items-start gap-2 rounded text-left text-purple-900 underline decoration-purple-200 underline-offset-4 hover:text-purple-700 hover:decoration-purple-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-600 focus-visible:ring-offset-2"
+                            >
+                              {isExpanded ? <ChevronDown size={16} className="mt-0.5 shrink-0" /> : <ChevronRight size={16} className="mt-0.5 shrink-0" />}
+                              <span>
+                                {row.label}
+                                {row.detail && <span className="mt-0.5 block text-xs font-normal text-gray-500">{row.detail}</span>}
+                              </span>
+                            </button>
+                          </td>
+                          <td className={`px-4 py-3 text-right text-sm font-semibold ${row.tone}`}>{row.count ? row.books : peso(row.books)}</td>
+                          <td className={`px-4 py-3 text-right text-sm font-semibold ${row.tone}`}>{row.count ? row.ledger : peso(row.ledger)}</td>
+                          <td className="px-4 py-3 text-right text-sm text-gray-700">
+                            {same(row.books, row.ledger) ? '-' : row.count ? Math.abs(row.books - row.ledger) : peso(Math.abs(row.books - row.ledger))}
+                          </td>
+                          <td className="px-4 py-3 text-center">{badge(same(row.books, row.ledger))}</td>
+                        </tr>
+                        {isExpanded && (
+                          <tr className="border-b border-gray-200">
+                            <td colSpan={5} className="p-3 sm:p-4">
+                              <ReconciliationDetails row={row} day={today} date={selectedDate} />
+                            </td>
+                          </tr>
+                        )}
+                      </React.Fragment>
+                    );
+                  })}
                   <tr className="border-b border-gray-200 bg-purple-50">
                     <td className="px-4 py-3 text-sm font-bold text-gray-900">Net cash movement</td>
                     <td className="px-4 py-3 text-right text-sm font-bold text-purple-600">{peso(netBooks)}</td>
