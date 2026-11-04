@@ -9,6 +9,7 @@ import MyProfile from '../components/member/MyProfile';
 import MSOSavings from '../components/member/MSOSavings';
 import MSOTimeDeposit from '../components/member/MSOTimeDeposit';
 import MSOLoans from '../components/member/MSOLoans';
+import MemberEquityHistory from '../components/member/MemberEquityHistory';
 import MemberTransactionHistory from '../components/member/MemberTransactionHistory';
 import MemberAnnouncements from '../components/member/MemberAnnouncements';
 import MemberAuditLog from '../components/member/MemberAuditLog';
@@ -149,6 +150,10 @@ const MemberPortal = () => {
         return renderAccountPage(<MSOSavings />);
       case 'time-deposit':
         return renderAccountPage(<MSOTimeDeposit />);
+      case 'capital-share':
+        return renderAccountPage(<MemberEquityHistory kind="capital" />);
+      case 'shares-owned':
+        return renderAccountPage(<MemberEquityHistory kind="shares" />);
       case 'loans':
         return renderAccountPage(<MSOLoans />);
       case 'profile':
@@ -174,6 +179,10 @@ const MemberPortal = () => {
         return 'Savings';
       case 'time-deposit':
         return 'Time Deposit';
+      case 'capital-share':
+        return 'Capital Share History';
+      case 'shares-owned':
+        return 'Shares Owned History';
       case 'loans':
         return 'Loans';
       case 'profile':

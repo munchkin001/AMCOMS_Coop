@@ -58,18 +58,24 @@ const MSOTimeDeposit = () => {
       const accountIds = accounts.map(a => a.id);
 
       // Fetch transactions
-      const { data: transactions, error: txError } = await supabase
-        .from('savings_transactions')
-        .select('id, savings_account_id, transaction_type, amount, balance_after, transaction_date, description')
-        .in('savings_account_id', accountIds)
-        .eq('status', 'recorded')
-        .order('transaction_date', { ascending: false })
-        .limit(100);
+      const transactions = [];
+      for (let offset = 0; ; offset += 1000) {
+        const { data: page, error: txError } = await supabase
+          .from('savings_transactions')
+          .select('id, savings_account_id, transaction_type, amount, balance_after, transaction_date, description')
+          .in('savings_account_id', accountIds)
+          .eq('status', 'recorded')
+          .order('transaction_date', { ascending: false })
+          .order('id', { ascending: false })
+          .range(offset, offset + 999);
 
-      if (txError) throw txError;
+        if (txError) throw txError;
+        transactions.push(...(page || []));
+        if (!page || page.length < 1000) break;
+      }
 
       // Calculate total interest earned across all deposits
-      const txList = transactions || [];
+      const txList = transactions;
       const totalInterest = txList
         .filter(tx => /interest/i.test(tx.transaction_type))
         .reduce((sum, tx) => sum + Number(tx.amount || 0), 0);
@@ -140,7 +146,7 @@ const MSOTimeDeposit = () => {
             <div>
               <p className="text-sm font-medium text-purple-100">Total Time Deposits</p>
               <p className="mt-2 text-3xl font-bold">{peso(timeDepositData.totalBalance)}</p>
-              <p className="mt-1 text-xs text-purple-200">{timeDepositData.deposits.length} active {timeDepositData.deposits.length === 1 ? 'deposit' : 'deposits'}</p>
+              <p className="mt-1 text-xs text-purple-200">{timeDepositData.deposits.length} {timeDepositData.deposits.length === 1 ? 'deposit' : 'deposits'}</p>
             </div>
             <div className="rounded-full bg-white/20 p-2 backdrop-blur-sm">
               <Banknote className="h-6 w-6" />
@@ -161,7 +167,7 @@ const MSOTimeDeposit = () => {
         </div>
       </div>
 
-      {/* Active Deposits */}
+      {/* Time Deposit Accounts */}
       <div className="space-y-4">
         <h3 className="text-lg font-semibold text-gray-900">Time Deposit Accounts</h3>
         

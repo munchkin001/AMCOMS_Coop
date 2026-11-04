@@ -36,7 +36,6 @@ const MSOSavings = () => {
         .select('id, account_number, balance, account_type, status, date_opened')
         .eq('member_id', staff.member_id)
         .neq('account_type', 'time_deposit')
-        .eq('status', 'active')
         .order('date_opened', { ascending: false });
 
       if (accountError) throw accountError;
@@ -58,20 +57,30 @@ const MSOSavings = () => {
 
       const account = accounts[0];
       const accountIds = accounts.map(a => a.id);
+      const accountNumbers = new Map(accounts.map((item) => [item.id, item.account_number]));
 
       // Fetch all transactions for these accounts
-      const { data: transactions, error: txError } = await supabase
-        .from('savings_transactions')
-        .select('id, transaction_type, amount, balance_after, transaction_date, description, reference_number')
-        .in('savings_account_id', accountIds)
-        .eq('status', 'recorded')
-        .order('transaction_date', { ascending: false })
-        .limit(50);
+      const transactions = [];
+      for (let offset = 0; ; offset += 1000) {
+        const { data: page, error: txError } = await supabase
+          .from('savings_transactions')
+          .select('id, savings_account_id, transaction_type, amount, balance_after, transaction_date, description, reference_number')
+          .in('savings_account_id', accountIds)
+          .eq('status', 'recorded')
+          .order('transaction_date', { ascending: false })
+          .order('id', { ascending: false })
+          .range(offset, offset + 999);
 
-      if (txError) throw txError;
+        if (txError) throw txError;
+        transactions.push(...(page || []).map((transaction) => ({
+          ...transaction,
+          account_number: accountNumbers.get(transaction.savings_account_id) || ''
+        })));
+        if (!page || page.length < 1000) break;
+      }
 
       // Calculate totals
-      const txList = transactions || [];
+      const txList = transactions;
       const totalDeposits = txList
         .filter(tx => !/(withdraw|interest)/i.test(tx.transaction_type))
         .reduce((sum, tx) => sum + Number(tx.amount || 0), 0);
@@ -191,7 +200,8 @@ const MSOSavings = () => {
                         </span>
                       </td>
                       <td className="px-6 py-4 text-sm text-gray-600">
-                        {tx.description || tx.reference_number || '—'}
+                        <p>{tx.description || tx.reference_number || '—'}</p>
+                        {tx.account_number && <p className="mt-1 text-xs text-gray-500">Account {tx.account_number}</p>}
                       </td>
                       <td className={`whitespace-nowrap px-6 py-4 text-right text-sm font-semibold ${
                         isWithdrawal ? 'text-rose-600' : 'text-emerald-600'

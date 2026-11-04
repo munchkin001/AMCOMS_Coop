@@ -364,6 +364,8 @@ const MemberDashboard = ({ onNavigate }) => {
             icon={PiggyBank}
             tone="green"
             solid
+            actionLabel="View history"
+            onClick={() => onNavigate?.('savings')}
           />
           <DashboardMetricCard
             label="Time Deposit"
@@ -372,6 +374,8 @@ const MemberDashboard = ({ onNavigate }) => {
             icon={Landmark}
             tone="indigo"
             solid
+            actionLabel="View history"
+            onClick={() => onNavigate?.('time-deposit')}
           />
           <DashboardMetricCard
             label="Capital Share"
@@ -380,6 +384,8 @@ const MemberDashboard = ({ onNavigate }) => {
             icon={Building2}
             tone="blue"
             solid
+            actionLabel="View history"
+            onClick={() => onNavigate?.('capital-share')}
           />
           <DashboardMetricCard
             label="Shares Owned"
@@ -388,6 +394,8 @@ const MemberDashboard = ({ onNavigate }) => {
             icon={ChartNoAxesCombined}
             tone="teal"
             solid
+            actionLabel="View history"
+            onClick={() => onNavigate?.('shares-owned')}
           />
           <DashboardMetricCard
             label="Loan Balance"
