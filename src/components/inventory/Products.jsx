@@ -53,6 +53,7 @@ const Products = () => {
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
   const [search, setSearch] = useState('');
+  const [sortOrder, setSortOrder] = useState('asc');
   const [modal, setModal] = useState(null);
   const [expandedId, setExpandedId] = useState(null);
   const requestId = useRef(0);
@@ -94,11 +95,18 @@ const Products = () => {
 
   const visibleProducts = useMemo(() => {
     const term = search.trim().toLowerCase();
-    if (!term) return products;
-    return products.filter((product) =>
-      product.product_name.toLowerCase().includes(term) || product.product_code.toLowerCase().includes(term)
-    );
-  }, [products, search]);
+    const filteredProducts = term
+      ? products.filter((product) =>
+        product.product_name.toLowerCase().includes(term) || product.product_code.toLowerCase().includes(term)
+      )
+      : products;
+    const collator = new Intl.Collator('en', { numeric: true, sensitivity: 'base' });
+    return [...filteredProducts].sort((left, right) => {
+      const nameOrder = collator.compare(left.product_name || '', right.product_name || '');
+      const order = sortOrder === 'asc' ? nameOrder : -nameOrder;
+      return order || collator.compare(left.product_code || '', right.product_code || '');
+    });
+  }, [products, search, sortOrder]);
 
   const nextProductCode = () => {
     const highest = products.reduce((max, product) => {
@@ -132,7 +140,7 @@ const Products = () => {
       )}
 
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
           <input
             type="search"
             value={search}
@@ -141,6 +149,17 @@ const Products = () => {
             aria-label="Search products"
             className="rounded-lg border border-gray-300 px-3 py-2 text-sm"
           />
+          <label htmlFor="product-sort-order" className="sr-only">Sort products</label>
+          <select
+            id="product-sort-order"
+            value={sortOrder}
+            onChange={(event) => setSortOrder(event.target.value)}
+            aria-label="Sort products alphabetically"
+            className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm"
+          >
+            <option value="asc">Name: A–Z</option>
+            <option value="desc">Name: Z–A</option>
+          </select>
           <button
             type="button"
             onClick={() => setModal({ type: 'add' })}
