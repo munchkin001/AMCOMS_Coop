@@ -1,7 +1,8 @@
 import React, { useCallback, useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-import { unlockWithOfflinePin } from '../lib/Offline/offlinePin';
+import { OFFLINE_PIN_NOT_CONFIGURED_MESSAGE, unlockWithOfflinePin } from '../lib/Offline/offlinePin';
+import { setRememberMePreference } from '../lib/supabase';
 
 const Login = ({ portalType }) => {
   const navigate = useNavigate();
@@ -54,7 +55,13 @@ const Login = ({ portalType }) => {
   }, [portalType, navigate]);
 
   useEffect(() => {
-    const handleOnline = () => setOnline(true);
+    const handleOnline = () => {
+      setOnline(true);
+      setOfflinePin('');
+      setError((currentError) => (
+        currentError === OFFLINE_PIN_NOT_CONFIGURED_MESSAGE ? '' : currentError
+      ));
+    };
     const handleOffline = () => setOnline(false);
     window.addEventListener('online', handleOnline);
     window.addEventListener('offline', handleOffline);
@@ -132,6 +139,8 @@ const Login = ({ portalType }) => {
     setLoading(true);
 
     try {
+      setRememberMePreference(rememberMe);
+
       // Authenticate with the username.
       const result = await login(fullName, password);
 
@@ -143,17 +152,6 @@ const Login = ({ portalType }) => {
 
       // Login successful - the useEffect will handle the redirect when staff loads
       console.log('Login successful, staff profile should load automatically');
-      
-      // Remember-me is optional and must not turn a successful login into an error.
-      try {
-        if (rememberMe) {
-          localStorage.setItem('amcoms_remember', 'true');
-        } else {
-          localStorage.removeItem('amcoms_remember');
-        }
-      } catch (storageError) {
-        console.warn('Unable to save remember-me preference:', storageError);
-      }
 
       // Don't set loading to false here - let the useEffect handle it after redirect
       
@@ -189,7 +187,14 @@ const Login = ({ portalType }) => {
       redirectToPortal(role);
     } catch (unlockError) {
       console.error('Offline PIN unlock failed:', unlockError);
-      setError(unlockError instanceof Error ? unlockError.message : 'Offline unlock failed.');
+      const isStaleOfflineSetupError = navigator.onLine
+        && unlockError instanceof Error
+        && unlockError.message === OFFLINE_PIN_NOT_CONFIGURED_MESSAGE;
+      if (isStaleOfflineSetupError) {
+        setError('');
+      } else {
+        setError(unlockError instanceof Error ? unlockError.message : 'Offline unlock failed.');
+      }
       setLoading(false);
     }
   };
@@ -329,6 +334,11 @@ const Login = ({ portalType }) => {
                   Forgot Password?
                 </Link>
               </div>
+              )}
+              {online && (
+                <p className="-mt-4 mb-5 text-xs text-gray-500">
+                  Leave this unchecked on a shared device; your sign-in will stay in this browser tab only.
+                </p>
               )}
 
               {/* Login Button */}

@@ -6,6 +6,8 @@ const LEGACY_ACCESS_PREFIX = "offline-access:";
 const PIN_ITERATIONS = 310_000;
 const MAX_FAILED_ATTEMPTS = 5;
 const LOCKOUT_MS = 15 * 60 * 1000;
+export const OFFLINE_PIN_NOT_CONFIGURED_MESSAGE =
+  "Offline PIN access is not set up for this username on this device. Connect and enable it from your Profile first.";
 
 const toBase64 = (bytes) => {
   let binary = "";
@@ -70,7 +72,7 @@ const findPinRecord = async (username) => {
   );
 
   if (!matches.length) {
-    throw new Error("Offline PIN access is not set up for this username on this device. Connect and enable it from your Profile first.");
+    throw new Error(OFFLINE_PIN_NOT_CONFIGURED_MESSAGE);
   }
   if (matches.length > 1) {
     throw new Error("More than one offline account matches this username. Connect and set up offline PIN access again.");

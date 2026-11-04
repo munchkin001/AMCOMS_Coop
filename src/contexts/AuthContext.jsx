@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
-import { supabase } from '../lib/supabase';
+import { clearRememberMePreference, supabase } from '../lib/supabase';
 import { getAppUrl } from '../lib/appUrl';
 import { findStaffByLoginIdentifier } from '../lib/authHelpers';
 import { useRealtimeSubscription } from '../hooks/useRealtimeSubscription';
@@ -390,6 +390,7 @@ export const AuthProvider = ({ children }) => {
 
   const signOut = async () => {
     if (offlineMode) {
+      clearRememberMePreference();
       setStaff(null);
       setUser(null);
       setSession(null);
@@ -401,6 +402,7 @@ export const AuthProvider = ({ children }) => {
 
     try {
       setAuthError(null);
+      clearRememberMePreference();
       await logAuthEvent('sign out');
       const { error } = await supabase.auth.signOut();
       if (error) throw error;
