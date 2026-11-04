@@ -22,6 +22,12 @@ const OPERATION_METADATA = {
 };
 const QUEUE_UPDATED_EVENT = "amcoms-offline-queue-updated";
 
+export function isRetryableInvoiceDuplicate(operation) {
+  return operation?.type === "inventory_movement"
+    && typeof operation.lastError === "string"
+    && operation.lastError.includes("This product is already recorded against supplier invoice");
+}
+
 export async function queueOperation({
   type,
   payload,
@@ -164,13 +170,14 @@ export async function retryOperation(operationId, userId) {
   if (!operation || operation.userId !== userId) {
     throw new Error("This offline activity is not available for the signed-in account.");
   }
-  if (operation.status !== "failed" || operation.retryable === false) {
+  if (operation.status !== "failed" || (operation.retryable === false && !isRetryableInvoiceDuplicate(operation))) {
     throw new Error("This operation cannot be retried from the activity history.");
   }
   await offlineDb.syncQueue.update(operation.id, {
     status: "pending",
     lastError: null,
     updatedAt: new Date().toISOString(),
+    retryable: true,
   });
   notifyQueueUpdated();
 }

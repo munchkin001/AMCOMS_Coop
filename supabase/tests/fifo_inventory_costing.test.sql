@@ -1,5 +1,5 @@
 BEGIN;
-SELECT plan(13);
+SELECT plan(15);
 
 CREATE TEMP TABLE fifo_test_ids (
   valued_product UUID,
@@ -43,6 +43,21 @@ INSERT INTO public.stock_movements (product_id, movement_type, quantity, unit_co
 SELECT valued_product, 'purchase', 3, 20, 'FIFO-LOT-2', CURRENT_DATE, 'FIFO test second cost layer' FROM fifo_test_ids;
 INSERT INTO public.stock_movements (product_id, movement_type, quantity, unit_cost, reference_number, movement_date, description)
 SELECT production_product, 'production', 3, 15, 'FIFO-PR-TEST', CURRENT_DATE, 'FIFO test production layer' FROM fifo_test_ids;
+INSERT INTO public.stock_movements (product_id, movement_type, quantity, unit_cost, reference_number, movement_date, description)
+SELECT unvalued_product, 'purchase', 2, 3, 'FIFO-DUP-TEST', CURRENT_DATE, 'FIFO test first invoice line' FROM fifo_test_ids;
+INSERT INTO public.stock_movements (product_id, movement_type, quantity, unit_cost, reference_number, movement_date, description)
+SELECT unvalued_product, 'purchase', 3, 3, 'FIFO-DUP-TEST', CURRENT_DATE, 'FIFO test second invoice line' FROM fifo_test_ids;
+
+SELECT is(
+  (SELECT count(*)::INTEGER FROM public.stock_movements WHERE reference_number = 'FIFO-DUP-TEST'),
+  2,
+  'Same-product lines from one supplier invoice can be recorded separately'
+);
+SELECT is(
+  (SELECT count(*)::INTEGER FROM public.journal_entries WHERE reference_number = 'FIFO-DUP-TEST'),
+  2,
+  'Each same-invoice restock line receives its own journal entry'
+);
 
 UPDATE public.stock_inventory si
 SET quantity_on_hand = 8
