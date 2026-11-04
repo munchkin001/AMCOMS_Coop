@@ -612,6 +612,30 @@ input[type="radio"] {
   background-image: linear-gradient(110deg, #365314, #3f6212 65%, #4d7c0f);
 }
 
+#root .amcoms-inventory-portal .inventory-production-input:focus,
+#root .amcoms-inventory-portal .inventory-history-input:focus {
+  border-color: #65a30d;
+  box-shadow: 0 0 0 3px rgb(101 163 13 / 14%);
+}
+
+#root .amcoms-inventory-portal .inventory-production-submit {
+  background-image: linear-gradient(110deg, #3f6212, #4d7c0f 65%, #65a30d);
+}
+
+#root .amcoms-inventory-portal .inventory-production-submit:hover {
+  background-image: linear-gradient(110deg, #365314, #3f6212 65%, #4d7c0f);
+}
+
+#root .amcoms-inventory-portal .inventory-history-metric {
+  background-image: linear-gradient(135deg, #ffffff 62%, #f7fbea);
+  box-shadow: 0 8px 22px rgb(77 124 15 / 7%);
+}
+
+#root .amcoms-inventory-portal .inventory-history-page tbody tr:hover,
+#root .amcoms-inventory-portal .inventory-production-page tbody tr:hover {
+  background-color: #f7fbea;
+}
+
 #root .amcoms-inventory-portal > .fixed.inset-0 > div {
   border-color: rgb(217 249 157 / 35%);
   background-image: linear-gradient(135deg, #173b2a, #285c30 58%, #365314);
