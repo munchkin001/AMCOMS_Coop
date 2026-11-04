@@ -28,6 +28,16 @@ export function isRetryableInvoiceDuplicate(operation) {
     && operation.lastError.includes("This product is already recorded against supplier invoice");
 }
 
+export function isRetryableTransactionWorkflowValidationError(operation) {
+  return operation?.type === "transaction_workflow"
+    && operation.lastError === "Unsupported or invalid offline operation";
+}
+
+export function isRetryableKnownSyncFailure(operation) {
+  return isRetryableInvoiceDuplicate(operation)
+    || isRetryableTransactionWorkflowValidationError(operation);
+}
+
 export async function queueOperation({
   type,
   payload,
@@ -170,7 +180,7 @@ export async function retryOperation(operationId, userId) {
   if (!operation || operation.userId !== userId) {
     throw new Error("This offline activity is not available for the signed-in account.");
   }
-  if (operation.status !== "failed" || (operation.retryable === false && !isRetryableInvoiceDuplicate(operation))) {
+  if (operation.status !== "failed" || (operation.retryable === false && !isRetryableKnownSyncFailure(operation))) {
     throw new Error("This operation cannot be retried from the activity history.");
   }
   await offlineDb.syncQueue.update(operation.id, {

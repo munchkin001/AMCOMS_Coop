@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { useAuth } from "../../contexts/AuthContext";
-import { getActivityHistory, isRetryableInvoiceDuplicate, retryOperation } from "../../lib/Offline/syncQueue";
+import { getActivityHistory, isRetryableKnownSyncFailure, retryOperation } from "../../lib/Offline/syncQueue";
 import { syncPendingOperations } from "../../lib/Offline/syncOperations";
 
 const moduleLabels = {
@@ -68,7 +68,7 @@ export default function OfflineActivityHistory({ open, online, offlineMode }) {
     }
   };
 
-  const canRetry = (activity) => activity.retryable !== false || isRetryableInvoiceDuplicate(activity);
+  const canRetry = (activity) => activity.retryable !== false || isRetryableKnownSyncFailure(activity);
 
   if (!open) return null;
 

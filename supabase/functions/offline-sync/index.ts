@@ -105,12 +105,13 @@ Deno.serve(async (req) => {
     );
   }
 
+  const isTransactionWorkflow = operation.type === "transaction_workflow";
   const { data, error } = operation.type === "bookkeeper_loan_application"
     ? await supabase.rpc("sync_bookkeeper_loan_application", {
       p_operation_id: operation.operationId,
       p_payload: operation.payload,
     })
-    : operation.type === "transaction_workflow"
+    : isTransactionWorkflow
     ? await supabase.rpc("submit_transaction_workflow", operation.payload)
     : await supabase.rpc("sync_offline_operation", {
       p_operation_id: operation.operationId,
@@ -123,6 +124,28 @@ Deno.serve(async (req) => {
     return Response.json(
       { error: error.message },
       { status: 422, headers: corsHeaders },
+    );
+  }
+
+  if (isTransactionWorkflow) {
+    if (data?.accepted !== true || typeof data.workflow_id !== "string") {
+      console.error("Transaction workflow sync returned an unexpected result:", data);
+      return Response.json(
+        { error: "The transaction workflow was not confirmed by the server." },
+        { status: 502, headers: corsHeaders },
+      );
+    }
+
+    return Response.json(
+      {
+        accepted: true,
+        stored: true,
+        operationId: operation.operationId,
+        replayed: data.replayed === true,
+        serverConfirmedAt: new Date().toISOString(),
+        result: data,
+      },
+      { status: 200, headers: corsHeaders },
     );
   }
 
