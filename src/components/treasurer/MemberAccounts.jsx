@@ -408,25 +408,15 @@ const MemberAccounts = () => {
   return (
     <div className="space-y-6">
       <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
-        <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
           <div>
             <p className="text-xs font-bold uppercase tracking-[0.16em] text-blue-700">Treasury · Member reference</p>
             <h2 className="mt-1 text-xl font-semibold text-gray-900">Member Accounts</h2>
             <p className="mt-1 text-sm text-gray-600">Review member balances, active accounts, and recent cash activity.</p>
           </div>
-          <button
-            type="button"
-            aria-expanded={showMemberSortFilter}
-            aria-controls="treasurer-member-sort-filter"
-            onClick={() => setShowMemberSortFilter((open) => !open)}
-            className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-sm font-semibold text-blue-900 transition hover:bg-blue-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-700 focus-visible:ring-offset-2"
-          >
-            <Filter size={16} aria-hidden="true" />
-            Filter / Sort
-          </button>
         </div>
-        <div className="mt-5 grid gap-3 md:grid-cols-[minmax(0,1fr)_auto] md:items-center">
-          <label className="relative block max-w-xl">
+        <div className="mt-5 flex flex-col gap-3 sm:flex-row sm:items-center">
+          <label className="relative block min-w-0 flex-1">
             <span className="sr-only">Search members</span>
             <Search size={18} aria-hidden="true" className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
             <input
@@ -437,20 +427,30 @@ const MemberAccounts = () => {
               className="w-full rounded-lg border border-gray-300 py-2.5 pl-10 pr-4 text-sm focus:border-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-700/20"
             />
           </label>
-          {showMemberSortFilter && (
-            <div id="treasurer-member-sort-filter" className="rounded-xl border border-slate-200 bg-slate-50 p-3">
-              <MemberReportSort
-                value={memberSort}
-                onChange={(value) => {
-                  setLoading(true);
-                  setPage(0);
-                  setMemberSort(value);
-                }}
-                id="treasurer-directory-sort"
-              />
-            </div>
-          )}
+          <button
+            type="button"
+            aria-expanded={showMemberSortFilter}
+            aria-controls="treasurer-member-sort-filter"
+            onClick={() => setShowMemberSortFilter((open) => !open)}
+            className="inline-flex min-h-10 shrink-0 items-center justify-center gap-2 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-sm font-semibold text-blue-900 transition hover:bg-blue-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-700 focus-visible:ring-offset-2"
+          >
+            <Filter size={16} aria-hidden="true" />
+            Filter / Sort
+          </button>
         </div>
+        {showMemberSortFilter && (
+          <div id="treasurer-member-sort-filter" className="mt-3 flex justify-end rounded-xl border border-slate-200 bg-slate-50 p-3">
+            <MemberReportSort
+              value={memberSort}
+              onChange={(value) => {
+                setLoading(true);
+                setPage(0);
+                setMemberSort(value);
+              }}
+              id="treasurer-directory-sort"
+            />
+          </div>
+        )}
       </section>
 
       {error && <p role="alert" className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{error}</p>}
