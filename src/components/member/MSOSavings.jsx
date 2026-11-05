@@ -3,6 +3,9 @@ import { Wallet } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { supabase } from '../../lib/supabase';
 import { useMultipleRealtimeSubscriptions } from '../../hooks/useRealtimeSubscription';
+import { getDataLoadErrorMessage } from '../../lib/errorHandler';
+import MonthFilter from '../common/MonthFilter';
+import { getMonthKey } from '../common/monthFilterUtils';
 
 const peso = (value, decimals = 2) => `₱${Number(value || 0).toLocaleString('en-PH', { 
   minimumFractionDigits: decimals, 
@@ -22,6 +25,8 @@ const MSOSavings = () => {
     transactions: []
   });
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [selectedMonth, setSelectedMonth] = useState('all');
 
   const load = useCallback(async () => {
     if (!staff?.member_id) {
@@ -33,10 +38,10 @@ const MSOSavings = () => {
       // Fetch savings accounts (exclude time deposits)
       const { data: accounts, error: accountError } = await supabase
         .from('savings_accounts')
-        .select('id, account_number, balance, account_type, status, date_opened')
+        .select('id, account_number, balance, account_type, status, opening_date')
         .eq('member_id', staff.member_id)
         .neq('account_type', 'time_deposit')
-        .order('date_opened', { ascending: false });
+        .order('opening_date', { ascending: false });
 
       if (accountError) throw accountError;
 
@@ -103,8 +108,10 @@ const MSOSavings = () => {
         openDate: account.date_opened,
         transactions: txList
       });
+      setError('');
     } catch (error) {
       console.error('Error loading savings data:', error);
+      setError(getDataLoadErrorMessage(error, 'savings history'));
     } finally {
       setLoading(false);
     }
@@ -143,24 +150,41 @@ const MSOSavings = () => {
     );
   }
 
+  const filteredTransactions = selectedMonth === 'all'
+    ? savingsData.transactions
+    : savingsData.transactions.filter((transaction) => getMonthKey(transaction.transaction_date) === selectedMonth);
+
   return (
     <div className="space-y-6">
+      {error && <p role="alert" className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{error}</p>}
       {/* Transaction History */}
       <div className="rounded-xl border border-gray-200 bg-white shadow-sm">
-        <div className="border-b border-gray-200 px-6 py-4">
-          <h3 className="text-lg font-semibold text-gray-900">Transaction History</h3>
-          <p className="mt-1 text-sm text-gray-600">
-            All deposits, withdrawals, and interest credits to your savings account
-          </p>
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-gray-200 px-6 py-4">
+          <div>
+            <h3 className="text-lg font-semibold text-gray-900">Transaction History</h3>
+            <p className="mt-1 text-sm text-gray-600">
+              All deposits, withdrawals, and interest credits to your savings account
+            </p>
+          </div>
+          <MonthFilter
+            dates={savingsData.transactions.map((transaction) => transaction.transaction_date)}
+            value={selectedMonth}
+            onChange={setSelectedMonth}
+            id="member-savings-history-month"
+          />
         </div>
 
-        {savingsData.transactions.length === 0 ? (
+        {error ? (
+          <p className="px-6 py-10 text-center text-sm text-gray-600">Savings history could not be loaded. Please try again.</p>
+        ) : savingsData.transactions.length === 0 ? (
           <div className="px-6 py-12 text-center">
             <svg className="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
             </svg>
             <p className="mt-3 text-sm text-gray-600">No transactions yet</p>
           </div>
+        ) : filteredTransactions.length === 0 ? (
+          <p className="px-6 py-10 text-center text-sm text-gray-600">No transactions for this month.</p>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full">
@@ -174,7 +198,7 @@ const MSOSavings = () => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200 bg-white">
-                {savingsData.transactions.map((tx) => {
+                {filteredTransactions.map((tx) => {
                   const isWithdrawal = /withdraw/i.test(tx.transaction_type);
                   const isInterest = /interest/i.test(tx.transaction_type);
                   const txDate = new Date(tx.transaction_date);
