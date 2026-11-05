@@ -356,14 +356,12 @@ const MemberAccounts = () => {
           nullsFirst: false
         });
         query = query.order('member_number', { ascending: false });
-      } else if (memberSort === 'id-asc' || memberSort === 'id-desc') {
-        query = query.order('member_number', { ascending: memberSort === 'id-asc' });
       } else {
         const ascending = memberSort === 'name-asc';
         query = query
-          .order('last_name', { ascending })
-          .order('first_name', { ascending })
-          .order('middle_name', { ascending })
+          .order('first_name', { ascending, nullsFirst: false })
+          .order('middle_name', { ascending, nullsFirst: false })
+          .order('last_name', { ascending, nullsFirst: false })
           .order('member_number', { ascending: true });
       }
 

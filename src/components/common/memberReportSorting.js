@@ -1,8 +1,6 @@
 export const MEMBER_REPORT_SORT_OPTIONS = [
   { value: 'newest', label: 'Newest members first' },
   { value: 'oldest', label: 'Oldest members first' },
-  { value: 'id-asc', label: 'Member ID: low to high' },
-  { value: 'id-desc', label: 'Member ID: high to low' },
   { value: 'name-asc', label: 'Name: A–Z' },
   { value: 'name-desc', label: 'Name: Z–A' }
 ];
@@ -22,10 +20,9 @@ export const sortMemberReportRows = (members, sortBy = 'newest') => {
       if (!joinedDate(right)) return -1;
       return collator.compare(joinedDate(left), joinedDate(right));
     }
-    if (sortBy === 'id-desc') return collator.compare(right.member_number || '', left.member_number || '');
     if (sortBy === 'name-desc') return collator.compare(memberName(right), memberName(left));
     if (sortBy === 'name-asc') return collator.compare(memberName(left), memberName(right));
-    return collator.compare(left.member_number || '', right.member_number || '');
+    return collator.compare(joinedDate(right), joinedDate(left));
   };
 
   return members
