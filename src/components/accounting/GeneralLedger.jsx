@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useLocation } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import LedgerView from './LedgerView';
 import JournalEntries from './JournalEntries';
@@ -17,6 +18,7 @@ const tabs = [
 
 const GeneralLedger = () => {
   const { staff } = useAuth();
+  const location = useLocation();
   const [active, setActive] = useState('ledger');
   const canPost = ['bookkeeper', 'treasurer'].includes(staff?.role);
   const chairmanTheme = staff?.role === 'chairman';
@@ -48,7 +50,12 @@ const GeneralLedger = () => {
         </div>
       </div>
 
-      {current === 'ledger' && <LedgerView />}
+      {current === 'ledger' && (
+        <LedgerView
+          initialAccountType={location.state?.ledgerAccountType || ''}
+          initialFullHistory={Boolean(location.state?.ledgerFullHistory)}
+        />
+      )}
       {current === 'journal' && <JournalEntries canPost={canPost} />}
       {current === 'trial-balance' && <TrialBalance />}
       {current === 'statements' && <FinancialStatements />}

@@ -46,6 +46,7 @@ const BookkeeperPortal = () => {
           <BookkeeperDashboard
             onSelectTransaction={handleQuickTransaction}
             onViewBooks={handleViewBooks}
+            onViewTransactions={() => handleModuleChange('transactions')}
           />
         );
       case 'transactions':

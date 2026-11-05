@@ -82,7 +82,10 @@ const StaffPortal = () => {
                 ? { initialTransactionType: type }
                 : { startNewTransaction: true }
             })}
-            onViewBooks={() => navigate('/staff/general-ledger')}
+            onViewBooks={(accountType) => navigate('/staff/general-ledger', {
+              state: { ledgerAccountType: accountType, ledgerFullHistory: true }
+            })}
+            onViewTransactions={() => navigate('/staff/transactions')}
           />
         );
       case 'inventory':

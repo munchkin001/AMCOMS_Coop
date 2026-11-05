@@ -375,10 +375,11 @@ const EntryDetails = ({ line, onClose }) => {
   );
 };
 
-const LedgerView = () => {
+const LedgerView = ({ initialAccountType = '', initialFullHistory = false }) => {
   const accounts = useAccounts();
   const [accountId, setAccountId] = useState('');
-  const [from, setFrom] = useState(startOfYearISO());
+  const [accountType, setAccountType] = useState(initialAccountType);
+  const [from, setFrom] = useState(initialFullHistory ? '' : startOfYearISO());
   const [to, setTo] = useState(todayISO());
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -386,11 +387,11 @@ const LedgerView = () => {
   const [selectedEntry, setSelectedEntry] = useState(null);
 
   useEffect(() => {
-    if (!accountId && accounts.length) {
+    if (!accountType && !accountId && accounts.length) {
       const cash = accounts.find((account) => account.account_name === 'Cash on Hand');
       if (cash) setAccountId(cash.id);
     }
-  }, [accounts]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [accounts, accountType]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const load = useCallback(async () => {
     if (from && to && from > to) {
@@ -423,21 +424,40 @@ const LedgerView = () => {
 
   const groups = useMemo(() => {
     const map = new Map();
+    const includedTypes = accountType === 'equity-summary'
+      ? ['equity', 'revenue', 'expense']
+      : accountType ? [accountType] : [];
     rows.forEach((row) => {
+      if (includedTypes.length && !includedTypes.includes(row.account_type)) return;
       if (!map.has(row.account_id)) {
         map.set(row.account_id, { id: row.account_id, code: row.account_code, name: row.account_name, type: row.account_type, lines: [] });
       }
       map.get(row.account_id).lines.push(row);
     });
     return [...map.values()];
-  }, [rows]);
+  }, [accountType, rows]);
+
+  const includedAccountTypes = accountType === 'equity-summary'
+    ? ['equity', 'revenue', 'expense']
+    : accountType ? [accountType] : [];
+  const filteredAccounts = includedAccountTypes.length
+    ? accounts.filter((account) => includedAccountTypes.includes(account.account_type))
+    : accounts;
+  const accountTypeLabel = {
+    asset: 'Assets',
+    liability: 'Liabilities',
+    equity: 'Equity',
+    'equity-summary': 'Equity, revenue, and expenses',
+    revenue: 'Revenue',
+    expense: 'Expenses'
+  }[accountType] || '';
 
   const selectedName = accounts.find((account) => account.id === accountId)?.account_name;
 
   const exportCsv = () => {
     const escape = (value) => `"${String(value ?? '').replace(/"/g, '""')}"`;
     const lines = [['Account', 'Date', 'Particulars', 'Reference', 'Debit', 'Credit', 'Running Balance'].map(escape).join(',')];
-    rows.forEach((row) => {
+    rows.filter((row) => !includedAccountTypes.length || includedAccountTypes.includes(row.account_type)).forEach((row) => {
       lines.push([
         row.account_name,
         row.is_opening ? '' : String(row.entry_date).slice(0, 10),
@@ -451,7 +471,7 @@ const LedgerView = () => {
     const url = URL.createObjectURL(new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8' }));
     const link = document.createElement('a');
     link.href = url;
-    link.download = `general-ledger-${from || 'start'}-to-${to || 'today'}.csv`;
+    link.download = `general-ledger-${accountType || 'all-accounts'}-${from || 'start'}-to-${to || 'today'}.csv`;
     link.click();
     URL.revokeObjectURL(url);
   };
@@ -460,11 +480,28 @@ const LedgerView = () => {
     <div className="space-y-4">
       <PrintStyles />
       <div className="no-print rounded-xl border border-gray-200 bg-white p-4 shadow-sm sm:p-5">
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-[2fr_1fr_1fr_auto]">
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-[1.3fr_1.7fr_1fr_1fr_auto]">
+          <label className="text-xs font-medium text-gray-600">Account type
+            <select
+              value={accountType}
+              onChange={(event) => {
+                setAccountType(event.target.value);
+                setAccountId('');
+              }}
+              className={`${inputClass} mt-1`}
+            >
+              <option value="">All account types</option>
+              <option value="asset">Assets</option>
+              <option value="liability">Liabilities</option>
+              <option value="equity-summary">Equity, revenue, and expenses</option>
+              <option value="revenue">Revenue</option>
+              <option value="expense">Expenses</option>
+            </select>
+          </label>
           <label className="text-xs font-medium text-gray-600">Account
             <select value={accountId} onChange={(e) => setAccountId(e.target.value)} className={`${inputClass} mt-1`}>
-              <option value="">All accounts with activity</option>
-              {accounts.map((account) => (
+              <option value="">{accountTypeLabel ? `All ${accountTypeLabel.toLowerCase()} accounts` : 'All accounts with activity'}</option>
+              {filteredAccounts.map((account) => (
                 <option key={account.id} value={account.id}>{account.account_name}</option>
               ))}
             </select>
@@ -491,7 +528,7 @@ const LedgerView = () => {
       <div id="gl-print" className="amcoms-print-document space-y-8">
         <div className="amcoms-document-header border-b-4 pb-4 text-center">
           <p className="text-xs font-semibold uppercase tracking-[0.16em]">Agay-ayan Multi-Purpose Cooperative</p>
-          <h2 className="mt-2 text-lg font-semibold">General Ledger{selectedName ? `: ${selectedName}` : ''}</h2>
+          <h2 className="mt-2 text-lg font-semibold">General Ledger{selectedName ? `: ${selectedName}` : accountTypeLabel ? `: ${accountTypeLabel}` : ''}</h2>
           <p className="text-sm">{formatDate(from)} to {formatDate(to)}</p>
         </div>
 

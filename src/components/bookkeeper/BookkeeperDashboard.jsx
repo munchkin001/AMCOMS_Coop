@@ -8,7 +8,7 @@ import { useTimeOfDayGreeting } from '../../hooks/useTimeOfDayGreeting';
 import DashboardMetricCard from '../common/DashboardMetricCard';
 import DiscrepancyPanel from '../common/DiscrepancyPanel';
 
-const BookkeeperDashboard = ({ onSelectTransaction, onViewBooks }) => {
+const BookkeeperDashboard = ({ onSelectTransaction, onViewBooks, onViewTransactions }) => {
   const greeting = useTimeOfDayGreeting();
   const [selectedDate, setSelectedDate] = useState(toDateString(new Date()));
   const [loading, setLoading] = useState(true);
@@ -134,9 +134,9 @@ const BookkeeperDashboard = ({ onSelectTransaction, onViewBooks }) => {
   ];
 
   const accountingCards = [
-    { label: 'Total Assets', amount: dashboardData.totalAssets, detail: 'From general ledger', icon: Building2, tone: 'blue' },
-    { label: 'Total Liabilities', amount: dashboardData.totalLiabilities, detail: 'From general ledger', icon: Scale, tone: 'red' },
-    { label: 'Total Equity', amount: dashboardData.totalEquity, detail: 'From general ledger', icon: Landmark, tone: 'green' }
+    { label: 'Total Assets', amount: dashboardData.totalAssets, detail: 'Open the full asset account history', icon: Building2, tone: 'blue', accountType: 'asset' },
+    { label: 'Total Liabilities', amount: dashboardData.totalLiabilities, detail: 'Open the full liability account history', icon: Scale, tone: 'red', accountType: 'liability' },
+    { label: 'Total Equity', amount: dashboardData.totalEquity, detail: 'Open equity, revenue, and expense history', icon: Landmark, tone: 'green', accountType: 'equity-summary' }
   ];
 
   const changeDate = (days) => {
@@ -314,6 +314,8 @@ const BookkeeperDashboard = ({ onSelectTransaction, onViewBooks }) => {
               detail={card.detail}
               icon={card.icon}
               tone={card.tone}
+              onClick={() => onViewBooks?.(card.accountType)}
+              actionLabel="View account history"
             />
           ))}
         </div>
@@ -343,8 +345,9 @@ const BookkeeperDashboard = ({ onSelectTransaction, onViewBooks }) => {
         <div className="p-6 border-b border-gray-200">
           <div className="flex items-center justify-between">
             <h3 className="text-lg font-semibold text-gray-900">Recent Transactions</h3>
-          <button 
-            onClick={() => alert('Navigate to the Books or Transactions section using the sidebar menu to view detailed transaction records.')}
+          <button
+            type="button"
+            onClick={onViewTransactions}
             className="text-sm text-purple-600 hover:text-purple-700 font-medium cursor-pointer"
           >
             View All Transactions →
