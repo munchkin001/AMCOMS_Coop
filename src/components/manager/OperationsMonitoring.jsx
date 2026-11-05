@@ -387,9 +387,22 @@ const OperationsMonitoring = () => {
       ]
     };
   });
+  const savingsTransactionRows = transactionRows.filter((transaction) => transaction.account?.account_type !== 'time_deposit');
+  const timeDepositTransactionRows = transactionRows.filter((transaction) => transaction.account?.account_type === 'time_deposit');
   const todayTransactions = savingsTx.filter((transaction) => transaction.created_at && new Date(transaction.created_at).toDateString() === new Date().toDateString());
-  const todayDeposits = todayTransactions.filter((transaction) => /deposit/i.test(transaction.transaction_type || '')).length;
-  const todayWithdrawals = todayTransactions.filter((transaction) => /withdraw/i.test(transaction.transaction_type || '')).length;
+  const todaySavingsTransactions = todayTransactions.filter((transaction) => {
+    const account = Array.isArray(transaction.savings_accounts) ? transaction.savings_accounts[0] : transaction.savings_accounts;
+    return account?.account_type !== 'time_deposit';
+  });
+  const todayTimeDepositTransactions = todayTransactions.filter((transaction) => {
+    const account = Array.isArray(transaction.savings_accounts) ? transaction.savings_accounts[0] : transaction.savings_accounts;
+    return account?.account_type === 'time_deposit';
+  });
+  const transactionSummary = (rows) => {
+    const deposits = rows.filter((transaction) => /deposit/i.test(transaction.transaction_type || '')).length;
+    const withdrawals = rows.filter((transaction) => /withdraw/i.test(transaction.transaction_type || '')).length;
+    return `${deposits} deposit(s) and ${withdrawals} withdrawal(s) recorded today.`;
+  };
 
   const stockRows = stock.map((product) => ({
     ...product,
@@ -412,7 +425,8 @@ const OperationsMonitoring = () => {
 
   const tabs = [
     ['loans', 'Loan Monitoring'],
-    ['savings', 'Savings & Time Deposits'],
+    ['savings', 'Savings'],
+    ['time-deposits', 'Time Deposits'],
     ['inventory', 'Inventory Monitoring']
   ];
 
@@ -509,6 +523,26 @@ const OperationsMonitoring = () => {
             ]}
           />
           <TableSection
+            title="Recent savings transactions"
+            caption={transactionSummary(todaySavingsTransactions)}
+            rows={savingsTransactionRows}
+            empty="No recorded savings transactions."
+            onSelect={setSelectedRecord}
+            columns={[
+              { label: 'Date', render: (transaction) => formatDate(transaction.transaction_date) },
+              { label: 'Member', render: (transaction) => memberName(transaction.account?.member) },
+              { label: 'Account', render: (transaction) => display(transaction.account?.account_number) },
+              { label: 'Activity', render: (transaction) => <span className="capitalize">{display(transaction.transaction_type).replaceAll('_', ' ')}</span> },
+              { label: 'Description', render: (transaction) => <span className="block max-w-[280px] truncate" title={transaction.description || ''}>{display(transaction.description)}</span> },
+              { label: 'Amount', right: true, render: (transaction) => <span className="font-semibold text-slate-900">{peso(transaction.amount)}</span> }
+            ]}
+          />
+        </div>
+      )}
+
+      {activeTab === 'time-deposits' && (
+        <div className="space-y-5">
+          <TableSection
             title="Time deposits"
             caption={`${timeDeposits.length} accounts · ${peso(timeDeposits.reduce((sum, account) => sum + Number(account.balance || 0), 0))} total time-deposit balance`}
             rows={timeDepositRows}
@@ -523,10 +557,10 @@ const OperationsMonitoring = () => {
             ]}
           />
           <TableSection
-            title="Recent account transactions"
-            caption={`${todayDeposits} deposit(s) and ${todayWithdrawals} withdrawal(s) recorded today.`}
-            rows={transactionRows}
-            empty="No recorded savings transactions."
+            title="Recent time-deposit transactions"
+            caption={transactionSummary(todayTimeDepositTransactions)}
+            rows={timeDepositTransactionRows}
+            empty="No recorded time-deposit transactions."
             onSelect={setSelectedRecord}
             columns={[
               { label: 'Date', render: (transaction) => formatDate(transaction.transaction_date) },
