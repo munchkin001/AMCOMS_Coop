@@ -389,7 +389,7 @@ const MemberDashboard = ({ onNavigate }) => {
           />
           <DashboardMetricCard
             label="Shares Owned"
-            value={loading ? '...' : Number(memberData.sharesOwned || 0).toLocaleString('en-US')}
+            value={loading ? '...' : Number(memberData.sharesOwned || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
             detail="Member shares"
             icon={ChartNoAxesCombined}
             tone="teal"
