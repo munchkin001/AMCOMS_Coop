@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { CalendarDays, Check, ChevronLeft, ChevronRight, Clock3, ExternalLink, Filter, RefreshCw, Search, X } from 'lucide-react';
+import { CalendarDays, Check, ChevronLeft, ChevronRight, Clock3, ExternalLink, Filter, HandCoins, RefreshCw, Search, X } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import { useMultipleRealtimeSubscriptions } from '../../hooks/useRealtimeSubscription';
@@ -9,6 +9,11 @@ import { queueOperation, getOperation } from '../../lib/Offline/syncQueue';
 import { syncPendingOperations } from '../../lib/Offline/syncOperations';
 import offlineDb from '../../lib/Offline/OfflineDb';
 import SearchableMemberSelect from '../common/SearchableMemberSelect';
+import {
+  loanApplicationFieldClass,
+  loanApplicationFieldsetClass,
+  loanApplicationLabelClass,
+} from '../common/loanApplicationStyles';
 
 const formatMoney = (value) => `₱${Number(value || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })}`;
 const fullName = (member) => [member?.first_name, member?.middle_name, member?.last_name].filter(Boolean).join(' ') || 'Member';
@@ -827,10 +832,19 @@ export const LegacyLoanRequests = () => {
       )}
 
       {canSubmitApplication && (
-        <section className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
-          <h2 className="text-lg font-semibold text-gray-900">Enter a loan application</h2>
-          <form onSubmit={submitApplication} className="mt-4 grid gap-4 sm:grid-cols-2">
-            <label className="text-sm font-medium text-gray-700">
+        <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+          <header className="flex items-start gap-3 border-b border-slate-200 bg-gradient-to-r from-slate-50 to-white px-5 py-5 sm:px-7">
+            <span className="grid size-11 shrink-0 place-items-center rounded-xl bg-emerald-100 text-emerald-800">
+              <HandCoins aria-hidden="true" size={22} />
+            </span>
+            <div>
+              <p className="text-xs font-bold uppercase tracking-[0.14em] text-emerald-700">Loan services</p>
+              <h2 className="mt-1 text-xl font-bold tracking-tight text-slate-950">Enter a loan application</h2>
+              <p className="mt-1 text-sm text-slate-600">Confirm the member, requested amount, repayment terms, and supporting details.</p>
+            </div>
+          </header>
+          <form onSubmit={submitApplication} className="grid gap-4 p-5 sm:grid-cols-2 sm:p-7">
+            <label className={loanApplicationLabelClass}>
               Member *
               {membersLoading || members.length > 0 ? (
                 <SearchableMemberSelect
@@ -841,33 +855,33 @@ export const LegacyLoanRequests = () => {
                   loading={membersLoading}
                   value={selectedMember}
                   onChange={setSelectedMember}
-                  className="mt-1 disabled:bg-gray-100"
+                  className={`mt-1 ${loanApplicationFieldClass}`}
                 />
               ) : (
                 <>
-                  <input required maxLength={200} value={memberName} onChange={(event) => setMemberName(event.target.value)} placeholder="Enter member's full name" className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2" />
+                  <input required maxLength={200} value={memberName} onChange={(event) => setMemberName(event.target.value)} placeholder="Enter member's full name" className={loanApplicationFieldClass} />
                   <span className="mt-1 block text-xs text-amber-800">The server will submit only if exactly one active member has this full name.</span>
                 </>
               )}
             </label>
-            <label className="text-sm font-medium text-gray-700">
+            <label className={loanApplicationLabelClass}>
               Loan type *
-              <select required value={loanType} onChange={(event) => setLoanType(event.target.value)} className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2">
+              <select required value={loanType} onChange={(event) => setLoanType(event.target.value)} className={loanApplicationFieldClass}>
                 <option value="">Select a loan type</option>
                 {loanTypes.map((type) => <option key={type} value={type}>{type}</option>)}
               </select>
             </label>
-            <label className="text-sm font-medium text-gray-700">
+            <label className={loanApplicationLabelClass}>
               Amount *
-              <input required type="number" min="0.01" step="0.01" value={amount} onChange={(event) => setAmount(event.target.value)} className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2" />
+              <input required type="number" min="0.01" step="0.01" value={amount} onChange={(event) => setAmount(event.target.value)} className={loanApplicationFieldClass} />
             </label>
-            <label className="text-sm font-medium text-gray-700">
+            <label className={loanApplicationLabelClass}>
               Repayment term *
               {terms.length === 0 ? (
                 <>
                   <div className="mt-1 grid grid-cols-2 gap-2">
-                    <input required type="number" min="1" step="1" value={termMonths} onChange={(event) => setTermMonths(event.target.value)} placeholder="Months" aria-label="Repayment term in months" className="w-full rounded-lg border border-gray-300 px-3 py-2" />
-                    <select required value={paymentFrequency} onChange={(event) => setPaymentFrequency(event.target.value)} aria-label="Payment frequency" className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2">
+                    <input required type="number" min="1" step="1" value={termMonths} onChange={(event) => setTermMonths(event.target.value)} placeholder="Months" aria-label="Repayment term in months" className={loanApplicationFieldClass} />
+                    <select required value={paymentFrequency} onChange={(event) => setPaymentFrequency(event.target.value)} aria-label="Payment frequency" className={loanApplicationFieldClass}>
                       <option value="" disabled>Select frequency</option>
                       <option value="monthly">Monthly</option>
                       <option value="weekly">Weekly</option>
@@ -876,38 +890,38 @@ export const LegacyLoanRequests = () => {
                   <span className="mt-1 block text-xs text-amber-800">The server will accept this only if it matches an active configured repayment term.</span>
                 </>
               ) : (
-                <select required value={selectedTerm} onChange={(event) => setSelectedTerm(event.target.value)} className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2">
+                <select required value={selectedTerm} onChange={(event) => setSelectedTerm(event.target.value)} className={loanApplicationFieldClass}>
                   <option value="">Select a term</option>
                   {terms.map((term) => <option key={term.id} value={term.id}>{term.term_months} months · {term.payment_frequency} · {term.annual_rate}% annual interest</option>)}
                 </select>
               )}
             </label>
             {activeTerm && (
-              <p className="rounded-lg bg-blue-50 p-3 text-sm text-blue-950 sm:col-span-2">
+              <p className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-950 sm:col-span-2">
                 Configured rate: <strong>{activeTerm.annual_rate}% annual interest</strong> · {activeTerm.penalty_rate}% penalty rate for overdue payments.
                 {quotePreview && <> Principal: <strong>{formatMoney(requestedAmount)}</strong> · installment: <strong>{formatMoney(quotePreview.installment)}</strong> · estimated interest: <strong>{formatMoney(quotePreview.interest)}</strong> · total repayment: <strong>{formatMoney(quotePreview.total)}</strong>.</>}
                 <span className="mt-1 block text-xs">Estimate only; the server recalculates the final quote using the active cooperative terms.</span>
               </p>
             )}
-            <label className="text-sm font-medium text-gray-700 sm:col-span-2">
+            <label className={`${loanApplicationLabelClass} sm:col-span-2`}>
               Purpose *
-              <textarea required maxLength={500} value={purpose} onChange={(event) => setPurpose(event.target.value)} rows={3} className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2" />
+              <textarea required maxLength={500} value={purpose} onChange={(event) => setPurpose(event.target.value)} rows={3} className={loanApplicationFieldClass} />
             </label>
-            <fieldset className="grid gap-3 rounded-lg border border-gray-200 p-4 sm:col-span-2 sm:grid-cols-2">
-              <legend className="px-1 text-sm font-semibold text-gray-800">Security and guarantor (if applicable)</legend>
-              <label className="text-sm font-medium text-gray-700">
+            <fieldset className={loanApplicationFieldsetClass}>
+              <legend className="px-2 text-sm font-bold text-slate-800">Security and guarantor <span className="font-normal text-slate-500">(if applicable)</span></legend>
+              <label className={loanApplicationLabelClass}>
                 Collateral type
-                <input maxLength={80} value={collateralType} onChange={(event) => setCollateralType(event.target.value)} placeholder="e.g. savings, equipment, property" className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2" />
+                <input maxLength={80} value={collateralType} onChange={(event) => setCollateralType(event.target.value)} placeholder="e.g. savings, equipment, property" className={loanApplicationFieldClass} />
               </label>
-              <label className="text-sm font-medium text-gray-700">
+              <label className={loanApplicationLabelClass}>
                 Collateral details
-                <input maxLength={300} value={collateralDescription} onChange={(event) => setCollateralDescription(event.target.value)} placeholder="Description or identifying details" className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2" />
+                <input maxLength={300} value={collateralDescription} onChange={(event) => setCollateralDescription(event.target.value)} placeholder="Description or identifying details" className={loanApplicationFieldClass} />
               </label>
-              <label className="text-sm font-medium text-gray-700">
+              <label className={loanApplicationLabelClass}>
                 Co-maker / guarantor name
-                <input maxLength={160} value={guarantorName} onChange={(event) => setGuarantorName(event.target.value)} className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2" />
+                <input maxLength={160} value={guarantorName} onChange={(event) => setGuarantorName(event.target.value)} className={loanApplicationFieldClass} />
               </label>
-              <label className="text-sm font-medium text-gray-700">
+              <label className={loanApplicationLabelClass}>
                 Co-maker / guarantor contact
                 <input
                   type="tel"
@@ -916,24 +930,24 @@ export const LegacyLoanRequests = () => {
                   maxLength={15}
                   value={guarantorContact}
                   onChange={(event) => setGuarantorContact(event.target.value.replace(/\D/g, '').slice(0, 15))}
-                  className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2"
+                  className={loanApplicationFieldClass}
                 />
               </label>
               <p className="text-xs text-gray-500 sm:col-span-2">These details are subject to cooperative policy and Manager verification.</p>
             </fieldset>
-            <fieldset className="grid gap-3 rounded-lg border border-gray-200 p-4 sm:col-span-2 sm:grid-cols-2">
-              <legend className="px-1 text-sm font-semibold text-gray-800">Fees (if applicable)</legend>
-              <label className="text-sm font-medium text-gray-700">
+            <fieldset className={loanApplicationFieldsetClass}>
+              <legend className="px-2 text-sm font-bold text-slate-800">Fees <span className="font-normal text-slate-500">(if applicable)</span></legend>
+              <label className={loanApplicationLabelClass}>
                 Processing fee (₱)
-                <input type="number" min="0" step="0.01" value={processingFee} onChange={(event) => setProcessingFee(event.target.value)} className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2" />
+                <input type="number" min="0" step="0.01" value={processingFee} onChange={(event) => setProcessingFee(event.target.value)} className={loanApplicationFieldClass} />
               </label>
-              <label className="text-sm font-medium text-gray-700">
+              <label className={loanApplicationLabelClass}>
                 Other / service fee (₱)
-                <input type="number" min="0" step="0.01" value={serviceFee} onChange={(event) => setServiceFee(event.target.value)} className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2" />
+                <input type="number" min="0" step="0.01" value={serviceFee} onChange={(event) => setServiceFee(event.target.value)} className={loanApplicationFieldClass} />
               </label>
               <p className="text-xs text-gray-500 sm:col-span-2">Enter only fees confirmed by cooperative policy. Fees are recorded separately and are not included in the interest quote.</p>
             </fieldset>
-            <button type="submit" disabled={savingApplication} className="rounded-lg bg-blue-700 px-4 py-2 font-semibold text-white hover:bg-blue-800 disabled:opacity-50 sm:col-span-2">
+            <button type="submit" disabled={savingApplication} className="inline-flex min-h-12 items-center justify-center rounded-lg bg-emerald-700 px-5 py-3 font-semibold text-white shadow-sm transition hover:bg-emerald-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-700 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 sm:col-span-2">
               {savingApplication ? 'Submitting...' : !navigator.onLine || offlineMode ? 'Save loan application offline' : 'Send for Manager approval'}
             </button>
           </form>

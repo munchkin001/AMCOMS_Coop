@@ -1,11 +1,15 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Clock3, Send } from 'lucide-react';
+import { Clock3, HandCoins, Send } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { supabase } from '../../lib/supabase';
 import offlineDb from '../../lib/Offline/OfflineDb';
 import { getActivityHistory, queueOperation } from '../../lib/Offline/syncQueue';
 import { useRealtimeSubscription } from '../../hooks/useRealtimeSubscription';
 import { getDataLoadErrorMessage } from '../../lib/errorHandler';
+import {
+  loanApplicationFieldClass,
+  loanApplicationLabelClass,
+} from '../common/loanApplicationStyles';
 
 const money = (amount) => `₱${Number(amount || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })}`;
 const statusText = (status) => status.replaceAll('_', ' ');
@@ -178,23 +182,31 @@ const LoanApplicationForm = () => {
   };
 
   return (
-    <section className="space-y-4 rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
-      <div>
-        <h2 className="text-lg font-bold text-gray-900">Loan Applications</h2>
-      </div>
+    <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+      <header className="flex items-start gap-3 border-b border-slate-200 bg-gradient-to-r from-slate-50 to-white px-5 py-5 sm:px-7">
+        <span className="grid size-11 shrink-0 place-items-center rounded-xl bg-emerald-100 text-emerald-800">
+          <HandCoins aria-hidden="true" size={22} />
+        </span>
+        <div>
+          <p className="text-xs font-bold uppercase tracking-[0.14em] text-emerald-700">Member services</p>
+          <h2 className="mt-1 text-xl font-bold tracking-tight text-slate-950">Loan applications</h2>
+          <p className="mt-1 text-sm text-slate-600">Review your requests or submit an application for Manager review.</p>
+        </div>
+      </header>
 
-      {error && <p role="alert" className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">{error}</p>}
-      {notice && <p role="status" className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-800">{notice}</p>}
+      <div className="space-y-5 p-5 sm:p-7">
+      {error && <p role="alert" className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{error}</p>}
+      {notice && <p role="status" className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">{notice}</p>}
 
       {applications.length > 0 && (
         <div className="space-y-2">
-          <h3 className="text-sm font-semibold text-gray-800">Your requests</h3>
+          <h3 className="text-sm font-bold text-slate-900">Your requests</h3>
           {applications.map((application) => (
-            <article key={application.id} className="flex flex-wrap items-start justify-between gap-3 rounded-lg border border-gray-200 bg-gray-50 p-3">
+            <article key={application.id} className="flex flex-wrap items-start justify-between gap-3 rounded-xl border border-slate-200 bg-slate-50/70 p-4">
               <div>
-                <p className="font-medium text-gray-900">{application.request_number} · {money(application.amount)}</p>
-                <p className="mt-1 text-xs text-gray-600">{application.request_data?.loan_type || 'Loan'} · {new Date(application.created_at).toLocaleDateString('en-PH')}</p>
-                {(application.review_notes || application.approval_notes) && <p className="mt-2 text-sm text-gray-700">{application.approval_notes || application.review_notes}</p>}
+                <p className="font-semibold text-slate-900">{application.request_number} · {money(application.amount)}</p>
+                <p className="mt-1 text-sm text-slate-600">{application.request_data?.loan_type || 'Loan'} · {new Date(application.created_at).toLocaleDateString('en-PH')}</p>
+                {(application.review_notes || application.approval_notes) && <p className="mt-2 text-sm leading-5 text-slate-700">{application.approval_notes || application.review_notes}</p>}
               </div>
               <span className={`rounded-full px-3 py-1 text-xs font-semibold capitalize ${applicationStatusStyle(application.status)}`}>
                 {statusText(application.status)}
@@ -204,42 +216,43 @@ const LoanApplicationForm = () => {
         </div>
       )}
 
-      {loading ? <p className="text-sm text-gray-500">Loading application options...</p> : (
-        <form onSubmit={submit} className="grid gap-4 border-t border-gray-100 pt-4 sm:grid-cols-2">
-          <label className="text-sm font-medium text-gray-700">
+      {loading ? <p className="text-sm text-slate-500">Loading application options...</p> : (
+        <form onSubmit={submit} className="grid gap-4 border-t border-slate-200 pt-5 sm:grid-cols-2">
+          <label className={loanApplicationLabelClass}>
             Loan type *
-            <input value={loanType} onChange={(event) => setLoanType(event.target.value)} maxLength={60} required className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2" />
+            <input value={loanType} onChange={(event) => setLoanType(event.target.value)} maxLength={60} required className={loanApplicationFieldClass} />
           </label>
-          <label className="text-sm font-medium text-gray-700">
+          <label className={loanApplicationLabelClass}>
             Amount requested (₱) *
-            <input type="number" min="0.01" step="0.01" value={amount} onChange={(event) => setAmount(event.target.value)} required className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2" />
+            <input type="number" min="0.01" step="0.01" value={amount} onChange={(event) => setAmount(event.target.value)} required className={loanApplicationFieldClass} />
           </label>
-          <label className="text-sm font-medium text-gray-700 sm:col-span-2">
+          <label className={`${loanApplicationLabelClass} sm:col-span-2`}>
             Purpose *
-            <textarea value={purpose} onChange={(event) => setPurpose(event.target.value)} maxLength={500} rows={3} required className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2" />
+            <textarea value={purpose} onChange={(event) => setPurpose(event.target.value)} maxLength={500} rows={3} required className={loanApplicationFieldClass} />
           </label>
-          <label className="text-sm font-medium text-gray-700 sm:col-span-2">
+          <label className={`${loanApplicationLabelClass} sm:col-span-2`}>
             Repayment terms *
-            <select value={termId || terms[0]?.id || ''} onChange={(event) => setTermId(event.target.value)} required className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2">
+            <select value={termId || terms[0]?.id || ''} onChange={(event) => setTermId(event.target.value)} required className={loanApplicationFieldClass}>
               {terms.map((term) => <option key={term.id} value={term.id}>{term.term_months} months · {term.payment_frequency} · {term.annual_rate}% annual interest</option>)}
             </select>
           </label>
           {terms.length === 0 && <p role="alert" className="text-sm text-amber-800 sm:col-span-2">No loan terms are currently available. Please contact the cooperative office.</p>}
           {quote && (
-            <div className="grid gap-3 rounded-lg bg-green-50 p-3 text-sm text-green-950 sm:col-span-2 sm:grid-cols-4">
-              <p>Principal <strong className="block">{money(amountNumber)}</strong></p>
-              <p>Estimated installment <strong className="block">{money(quote.installment)}</strong></p>
-              <p>Estimated interest <strong className="block">{money(quote.interest)}</strong></p>
-              <p>Estimated total repayment <strong className="block">{money(quote.total)}</strong></p>
+            <div className="grid gap-3 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-950 sm:col-span-2 sm:grid-cols-2 lg:grid-cols-4">
+              <p>Principal <strong className="mt-1 block text-base tabular-nums">{money(amountNumber)}</strong></p>
+              <p>Estimated installment <strong className="mt-1 block text-base tabular-nums">{money(quote.installment)}</strong></p>
+              <p>Estimated interest <strong className="mt-1 block text-base tabular-nums">{money(quote.interest)}</strong></p>
+              <p>Estimated total repayment <strong className="mt-1 block text-base tabular-nums">{money(quote.total)}</strong></p>
             </div>
           )}
           {hasOpenApplication && <p className="text-sm text-amber-800 sm:col-span-2"><Clock3 aria-hidden="true" className="mr-1 inline" size={16} />You have an application awaiting review. You can submit another after a decision.</p>}
-          <button type="submit" disabled={saving || hasOpenApplication || terms.length === 0} className="inline-flex items-center justify-center gap-2 rounded-lg bg-green-700 px-4 py-2 font-semibold text-white hover:bg-green-800 disabled:cursor-not-allowed disabled:opacity-50 sm:col-span-2">
+          <button type="submit" disabled={saving || hasOpenApplication || terms.length === 0} className="inline-flex min-h-12 items-center justify-center gap-2 rounded-lg bg-emerald-700 px-5 py-3 font-semibold text-white shadow-sm transition hover:bg-emerald-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-700 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 sm:col-span-2">
             <Send aria-hidden="true" size={16} />
             {saving ? 'Submitting...' : 'Submit loan application'}
           </button>
         </form>
       )}
+      </div>
     </section>
   );
 };
