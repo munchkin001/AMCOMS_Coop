@@ -25,7 +25,7 @@ const STATUS_LABELS = {
   awaiting_release: 'Awaiting Release',
   on_hold: 'On Hold',
   release_issue: 'Release Issue',
-  released: 'Cash released',
+  released: 'Handoff recorded',
   completed: 'Completed',
   rejected: 'Rejected',
   accounting_error: 'Accounting Error',
@@ -117,8 +117,8 @@ const isLoanReleaseReconciliationRequired = (workflow) => (
 const workflowStatusLabel = (workflow) => (
   isLoanReleaseReconciliationRequired(workflow)
     ? 'Existing Voucher Needs Review'
-    : workflow.transaction_type === 'loan_disbursement' && workflow.status === 'completed'
-    ? 'Cash released'
+    : workflow.cash_release_required && workflow.status === 'completed'
+    ? 'Handoff recorded'
     : isCreditSale(workflow) && ['approved', 'completed'].includes(workflow.status)
       && !['paid', 'cancelled'].includes(workflow.saleRecord?.payment_status)
       ? 'Payable'
@@ -738,7 +738,7 @@ const TransactionWorkflow = ({ role }) => {
   };
 
   const uploadReleaseProof = async (workflow, file) => {
-    if (!file) throw new Error('Attach proof of release before confirming.');
+    if (!file) throw new Error('Attach proof of the completed physical handoff.');
     if (!ALLOWED_FILES.has(file.type)) throw new Error('Proof must be a PDF, JPG, or PNG file.');
     if (file.size <= 0 || file.size > FILE_LIMIT) throw new Error('Proof must be no larger than 10 MB.');
 
@@ -821,7 +821,7 @@ const TransactionWorkflow = ({ role }) => {
   const confirmRelease = async () => {
     if (releaseInFlight.current) return;
     if (!selected || !reviewedRelease || (!releaseFile && !registeredReleaseProof)) {
-      setError('Review the recipient and approved amount, and attach proof before releasing.');
+      setError('Confirm the physical handoff and attach proof before recording it.');
       return;
     }
     if (!navigator.onLine) {
@@ -889,8 +889,8 @@ const TransactionWorkflow = ({ role }) => {
           : `Release was not confirmed: ${actionError.message || 'Please refresh the queue and retry.'}`);
       } else {
         setNotice(selected.transaction_type === 'loan_disbursement'
-          ? 'Loan disbursed and recorded as Cash released. The Manager and Bookkeeper can review the transaction and proof.'
-          : 'Cash released. The Manager and Bookkeeper can now review the completed transaction and attached proof.');
+          ? 'Loan disbursement recorded after the physical handoff. AMCOMS posted the accounting entry; it does not transfer money.'
+          : 'Physical handoff recorded. AMCOMS posted the approved accounting entry; it does not transfer money.');
         setSelected(null);
         setReleaseFile(null);
         setReleaseProgress('');
@@ -952,7 +952,7 @@ const TransactionWorkflow = ({ role }) => {
           </button>
         </div>
         <div className="mt-6 flex flex-wrap gap-2 text-xs font-medium">
-          {['Submitted', 'Manager Approved', 'Bookkeeper Processed', ...(isTreasurer ? ['Treasurer Released'] : []), 'Completed'].map((step) => (
+          {['Submitted', 'Manager Approved', 'Bookkeeper Processed', ...(isTreasurer ? ['Handoff recorded outside AMCOMS'] : []), 'Completed'].map((step) => (
             <span key={step} className={`rounded-full border px-3 py-1.5 ${isManager ? 'border-orange-900/15 bg-white/45 text-orange-950' : isTreasurer ? 'border-white/20 bg-white/10 text-white' : isBookkeeper ? 'border-purple-200/20 bg-black/10 text-purple-100' : 'border-slate-700 bg-slate-900 text-slate-200'}`}>{step}</span>
           ))}
         </div>
@@ -996,7 +996,17 @@ const TransactionWorkflow = ({ role }) => {
           <label className="min-w-0 text-sm text-slate-600">
             Status
             <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} className="mt-1 min-h-11 w-full min-w-0 rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-900">
-              {visibleStatuses.map((status) => <option key={status} value={status}>{status === 'all' ? 'All statuses' : status === 'completed' ? 'Completed / Payable / Cash released' : isTreasurer && status === 'awaiting_release' ? 'Awaiting Release / Bookkeeper Processing' : STATUS_LABELS[status]}</option>)}
+              {visibleStatuses.map((status) => (
+                <option key={status} value={status}>
+                  {status === 'all'
+                    ? 'All statuses'
+                    : status === 'completed'
+                      ? 'Completed / Payable / Handoff recorded'
+                      : isTreasurer && status === 'awaiting_release'
+                        ? 'Awaiting Release / Bookkeeper Processing'
+                        : STATUS_LABELS[status]}
+                </option>
+              ))}
             </select>
           </label>
           <label className="min-w-0 text-sm text-slate-600">
@@ -1125,8 +1135,8 @@ const TransactionWorkflow = ({ role }) => {
                     ['Approved by', isCreditSale(selected) ? 'Not required' : relation(selected.approver)?.full_name || 'Not yet approved'],
                     ['Manager decision', isCreditSale(selected) ? 'Not required' : dateTime(selected.manager_decision_at)],
                     ['Bookkeeper processing', selected.processed_at ? dateTime(selected.processed_at) : String(selected.accounting_status || 'not recorded').replaceAll('_', ' ')],
-                    ['Cash release', selected.cash_release_required
-                      ? selected.cash_release_status === 'released' ? 'Cash released' : String(selected.cash_release_status || 'not recorded').replaceAll('_', ' ')
+                    ['Physical handoff', selected.cash_release_required
+                      ? selected.cash_release_status === 'released' ? 'Recorded outside AMCOMS' : String(selected.cash_release_status || 'not recorded').replaceAll('_', ' ')
                       : 'Not required'],
                     ...(isCreditSale(selected) ? [
                       ['Due date', dateLabel(selected.saleRecord?.due_date || selectedPayload.p_sale?.due_date || selectedApprovedPayload.p_sale?.due_date)],
@@ -1327,7 +1337,7 @@ const TransactionWorkflow = ({ role }) => {
 
                   {isTreasurer && selected.cash_release_required && !isLoanReleaseReconciliationRequired(selected) && ['awaiting_release', 'on_hold', 'release_issue'].includes(selected.status) && (
                     <label className="mt-4 block text-sm font-medium text-slate-700">
-                      Photo or proof of release (PDF, JPG, PNG; up to 10 MB){registeredReleaseProof ? ' — proof already attached' : ' *'}
+                      Proof of completed handoff (PDF, JPG, PNG; up to 10 MB) *
                       <input type="file" accept="application/pdf,image/jpeg,image/png" capture="environment" onChange={(event) => setReleaseFile(event.target.files?.[0] || null)} className="mt-2 block w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" />
                       {registeredReleaseProof && !releaseFile && (
                         <span className="mt-1 block text-xs font-normal text-emerald-800">
@@ -1355,7 +1365,9 @@ const TransactionWorkflow = ({ role }) => {
                               <strong className="font-semibold capitalize text-slate-800">
                                 {isCompletedCashIn(selected) && event.event_type === 'processed'
                                   ? 'Cash received'
-                                  : String(event.event_type || 'workflow update').replaceAll('_', ' ')}
+                                  : event.event_type === 'release_confirmed'
+                                    ? 'Physical handoff recorded outside AMCOMS'
+                                    : String(event.event_type || 'workflow update').replaceAll('_', ' ')}
                               </strong>
                               <time className="text-xs text-slate-500">{dateTime(event.created_at)}</time>
                             </span>
@@ -1401,19 +1413,19 @@ const TransactionWorkflow = ({ role }) => {
                   <div className="flex gap-3">
                     <ShieldCheck className="mt-0.5 shrink-0 text-emerald-800" size={20} />
                     <div>
-                      <h3 className="font-semibold text-emerald-950">{selected.transaction_type === 'loan_disbursement' ? 'Confirm loan was given' : 'Confirm cash release'}</h3>
+                      <h3 className="font-semibold text-emerald-950">Record completed physical handoff</h3>
                       <p className="mt-1 text-sm text-emerald-900">
                         {selected.transaction_type === 'loan_disbursement'
-                          ? 'The Treasurer gives the money to the member outside AMCOMS. After the handoff, verify the member and approved amount, attach proof, then select Mark as given. AMCOMS records the disbursement and accounting entry; it does not transfer money.'
-                          : 'Verify the recipient and approved amount, attach proof, then confirm the cash release.'}
+                          ? 'After the people responsible complete the handoff outside AMCOMS, record it here. AMCOMS activates the approved loan and posts its disbursement; it does not transfer money.'
+                          : ['savings_withdrawal', 'time_deposit_withdrawal'].includes(selected.transaction_type)
+                            ? 'After the people responsible complete the handoff outside AMCOMS, record it here. AMCOMS posts the withdrawal; it does not transfer money.'
+                            : 'After the people responsible complete the handoff outside AMCOMS, record it here. AMCOMS posts the approved transaction; it does not transfer money.'}
                       </p>
                     </div>
                   </div>
                   <label className="flex items-start gap-2 text-sm text-slate-800">
                     <input type="checkbox" checked={reviewedRelease} onChange={(event) => setReviewedRelease(event.target.checked)} className="mt-1" />
-                    {selected.transaction_type === 'loan_disbursement'
-                      ? <>I confirm I gave the verified member the approved amount of <strong>{money(selected.amount)}</strong> outside AMCOMS.</>
-                      : <>I verified the recipient and approved amount of <strong>{money(selected.amount)}</strong>.</>}
+                    I confirm the physical handoff was completed outside AMCOMS for the approved recipient and amount of <strong>{money(selected.amount)}</strong>.
                   </label>
                   <label className="block text-sm font-medium text-slate-700">Release note
                     <span className="ml-1 font-normal text-slate-500">(optional for release; required for hold or issue)</span>
@@ -1434,13 +1446,13 @@ const TransactionWorkflow = ({ role }) => {
                   <div className="flex flex-wrap justify-end gap-2">
                     <button type="button" disabled={busy} onClick={() => { if (!remarks.trim()) { setError('Enter a reason before placing this release on hold.'); return; } runRpc('place_transaction_workflow_on_hold', { p_workflow_id: selected.id, p_reason: remarks.trim() }, 'Transaction placed on hold.'); }} className="rounded-lg border border-slate-400 bg-white px-4 py-2 text-sm font-semibold text-slate-800 disabled:opacity-50">Place on hold</button>
                     <button type="button" disabled={busy} onClick={() => { if (!remarks.trim()) { setError('Enter the discrepancy before reporting this issue.'); return; } runRpc('report_transaction_workflow_release_issue', { p_workflow_id: selected.id, p_reason: remarks.trim() }, 'Release issue recorded for review.'); }} className="inline-flex items-center gap-2 rounded-lg border border-red-300 bg-white px-4 py-2 text-sm font-semibold text-red-800 disabled:opacity-50"><AlertTriangle size={16} /> Report issue</button>
-                    <button type="button" disabled={busy || !reviewedRelease || (!releaseFile && !registeredReleaseProof)} onClick={confirmRelease} className="rounded-lg bg-emerald-800 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-900 disabled:opacity-50">{busy ? releaseProgress || 'Recording…' : selected.transaction_type === 'loan_disbursement' ? 'Mark as given' : 'Confirm release'}</button>
+                    <button type="button" disabled={busy || !reviewedRelease || (!releaseFile && !registeredReleaseProof)} onClick={confirmRelease} className="rounded-lg bg-emerald-800 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-900 disabled:opacity-50">{busy ? releaseProgress || 'Recording…' : 'Record completed handoff'}</button>
                   </div>
                   {!busy && !reviewedRelease && (
-                    <p className="text-right text-xs text-slate-600">Confirm that you verified the recipient and approved amount to enable release.</p>
+                    <p className="text-right text-xs text-slate-600">Confirm the completed handoff to enable recording.</p>
                   )}
                   {!busy && reviewedRelease && !releaseFile && !registeredReleaseProof && (
-                    <p className="text-right text-xs text-slate-600">Attach the required photo or proof of release to enable the Release button. A release note is optional.</p>
+                    <p className="text-right text-xs text-slate-600">Attach photo or document proof of the completed handoff to enable recording.</p>
                   )}
                 </section>
               )}
