@@ -551,8 +551,8 @@ const MemberManagement = ({ canManageMembers = true, bookkeeperTheme = false }) 
   const sectionGridClass = 'grid gap-4 sm:grid-cols-2 lg:grid-cols-3';
   const memberViews = [
     { id: 'all', label: 'All Members', count: activeMembers.length },
-    { id: 'regular', label: 'Regular Members', count: 100 },
-    { id: 'associate', label: 'Associate Members', count: 180 },
+    { id: 'regular', label: 'Regular Members', count: activeMembers.filter((member) => member.membership_type === 'regular').length },
+    { id: 'associate', label: 'Associate Members', count: activeMembers.filter((member) => member.membership_type === 'associate').length },
     { id: 'archived', label: 'Archived Members', count: archivedMembers.length }
   ];
 
