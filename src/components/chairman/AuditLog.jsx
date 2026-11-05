@@ -124,7 +124,7 @@ const flattenAuditRecord = (record, prefix = '') => {
   if (!record || typeof record !== 'object' || Array.isArray(record)) return prefix ? { [prefix]: record } : {};
   return Object.entries(record).reduce((fields, [key, value]) => {
     const path = prefix ? `${prefix}.${key}` : key;
-    if (sensitiveAuditFieldPattern.test(key) || hiddenAuditFields.has(key)) return fields;
+    if (sensitiveAuditFieldPattern.test(key) || hiddenAuditFields.has(key) || key.endsWith('_id')) return fields;
     if (value && typeof value === 'object' && !Array.isArray(value) && Object.keys(value).length > 0) {
       return { ...fields, ...flattenAuditRecord(value, path) };
     }
@@ -141,8 +141,8 @@ const getAuditFieldChanges = (log) => {
 
   return [...keys]
     .filter((key) => {
-      if (isCreated) return Object.prototype.hasOwnProperty.call(newFields, key);
-      if (isDeleted) return Object.prototype.hasOwnProperty.call(oldFields, key);
+      if (isCreated) return Object.prototype.hasOwnProperty.call(newFields, key) && newFields[key] !== null && newFields[key] !== '';
+      if (isDeleted) return Object.prototype.hasOwnProperty.call(oldFields, key) && oldFields[key] !== null && oldFields[key] !== '';
       return JSON.stringify(oldFields[key]) !== JSON.stringify(newFields[key]);
     })
     .map((key) => ({
@@ -1156,25 +1156,31 @@ const AuditLog = () => {
                   </p>
                 </header>
                 {selectedLogChanges.length > 0 ? (
-                  <div className="overflow-x-auto">
-                    <table className="w-full min-w-[560px] text-left text-sm">
-                      <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
-                        <tr>
-                          <th scope="col" className="px-4 py-3 font-semibold">Field</th>
-                          <th scope="col" className="px-4 py-3 font-semibold">Previous value</th>
-                          <th scope="col" className="px-4 py-3 font-semibold">New value</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-100">
-                        {selectedLogChanges.map((change) => (
-                          <tr key={change.field}>
-                            <th scope="row" className="max-w-56 break-words px-4 py-3 font-medium text-slate-700">{change.label}</th>
-                            <td className="max-w-64 break-words px-4 py-3 text-slate-600">{formatAuditValue(change.oldValue, change.field.split('.').at(-1))}</td>
-                            <td className="max-w-64 break-words px-4 py-3 font-medium text-slate-900">{formatAuditValue(change.newValue, change.field.split('.').at(-1))}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
+                  <div className="grid gap-3 p-4 sm:grid-cols-2">
+                    {selectedLogChanges.map((change) => (
+                        <div key={change.field} className="min-w-0 rounded-lg bg-slate-50 px-3 py-2.5">
+                          <p className="text-xs font-medium text-slate-500">{change.label}</p>
+                          {selectedLog.action?.startsWith('Updated ') ? (
+                            <div className="mt-1.5 space-y-1">
+                              <p className="break-words text-xs text-slate-500">
+                                <span className="font-medium">Before:</span>{' '}
+                                {formatAuditValue(change.oldValue, change.field.split('.').at(-1))}
+                              </p>
+                              <p className="break-words text-sm font-semibold text-slate-900">
+                                <span className="font-medium text-emerald-700">After:</span>{' '}
+                                {formatAuditValue(change.newValue, change.field.split('.').at(-1))}
+                              </p>
+                            </div>
+                          ) : (
+                            <p className="mt-1 break-words text-sm font-semibold text-slate-900">
+                              {formatAuditValue(
+                                selectedLog.action?.startsWith('Deleted ') ? change.oldValue : change.newValue,
+                                change.field.split('.').at(-1)
+                              )}
+                            </p>
+                          )}
+                        </div>
+                    ))}
                   </div>
                 ) : (
                   <p className="px-4 py-5 text-sm text-slate-500">No field-level record details were stored for this event.</p>
