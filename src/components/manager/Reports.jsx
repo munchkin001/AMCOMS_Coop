@@ -479,13 +479,12 @@ const Reports = () => {
       const payables = [...purchases, ...timeDeposits];
       const agingRows = [...receivables, ...payables];
       const agingColumns = [
-        { label: 'Particulars', width: '240px', noWrap: true, render: (row) => row.particulars },
-        { label: 'Reference', width: '150px', noWrap: true, render: (row) => row.reference },
-        { label: 'Customer / supplier / member', width: '220px', render: (row) => row.party },
+        { label: 'Particulars', width: '14%', render: (row) => row.particulars },
+        { label: 'Reference', width: '10%', render: (row) => row.reference },
+        { label: 'Customer / supplier / member', width: '14%', render: (row) => row.party },
         {
           label: 'Due date / aging basis',
-          width: '210px',
-          noWrap: true,
+          width: '15%',
           render: (row) => (
             <div>
               <span className="block">{row.ageDateLabel || (row.dueDate ? fmtDate(row.dueDate) : 'No due date')}</span>
@@ -493,9 +492,9 @@ const Reports = () => {
             </div>
           )
         },
-        { label: 'Days past due', width: '140px', noWrap: true, right: true, render: (row) => row.daysPastDue === null ? '—' : row.daysPastDue <= 0 ? 'Not due' : num(row.daysPastDue) },
-        ...AGING_BUCKETS.map(({ key, label }) => ({ label, width: '150px', noWrap: true, right: true, render: (row) => peso(row[key]) })),
-        { label: 'Total outstanding', width: '175px', noWrap: true, right: true, render: (row) => peso(row.total) }
+        { label: 'Days past due', width: '8%', right: true, render: (row) => row.daysPastDue === null ? '—' : row.daysPastDue <= 0 ? 'Not due' : num(row.daysPastDue) },
+        ...AGING_BUCKETS.map(({ key, label }) => ({ label, width: '6%', right: true, render: (row) => peso(row[key]) })),
+        { label: 'Total outstanding', width: '9%', noWrap: true, right: true, render: (row) => peso(row.total) }
       ];
       const printAgingColumns = [
         { label: 'Entry type', width: '8%', render: (row) => row.category },
@@ -580,7 +579,7 @@ const Reports = () => {
                 columns={agingColumns}
                 empty="No outstanding sales or loan installments as of this date."
                 footer={agingFooter(receivables)}
-                tableClassName="aging-report-table min-w-[1885px] table-fixed"
+                tableClassName="aging-report-table table-fixed"
                 onRowClick={setSelectedAgingEntry}
               />
             </Section>
@@ -591,7 +590,7 @@ const Reports = () => {
                 columns={agingColumns}
                 empty="No outstanding supplier purchases or time deposits as of this date."
                 footer={agingFooter(payables)}
-                tableClassName="aging-report-table min-w-[1885px] table-fixed"
+                tableClassName="aging-report-table table-fixed"
                 onRowClick={setSelectedAgingEntry}
               />
             </Section>
@@ -1004,18 +1003,18 @@ const Reports = () => {
           .aging-screen-entries { display: none !important; }
           .aging-print-table { display: block !important; }
           .aging-print-table .break-inside-avoid-page { break-inside: auto !important; }
-          .aging-report-table th:nth-child(1), .aging-report-table td:nth-child(1) { width: 8%; }
-          .aging-report-table th:nth-child(2), .aging-report-table td:nth-child(2) { width: 14%; }
-          .aging-report-table th:nth-child(3), .aging-report-table td:nth-child(3) { width: 8%; }
-          .aging-report-table th:nth-child(4), .aging-report-table td:nth-child(4) { width: 12%; }
-          .aging-report-table th:nth-child(5), .aging-report-table td:nth-child(5) { width: 7%; }
-          .aging-report-table th:nth-child(6), .aging-report-table td:nth-child(6) { width: 6%; }
+          .aging-report-table th:nth-child(1), .aging-report-table td:nth-child(1) { width: 8% !important; }
+          .aging-report-table th:nth-child(2), .aging-report-table td:nth-child(2) { width: 14% !important; }
+          .aging-report-table th:nth-child(3), .aging-report-table td:nth-child(3) { width: 8% !important; }
+          .aging-report-table th:nth-child(4), .aging-report-table td:nth-child(4) { width: 12% !important; }
+          .aging-report-table th:nth-child(5), .aging-report-table td:nth-child(5) { width: 7% !important; }
+          .aging-report-table th:nth-child(6), .aging-report-table td:nth-child(6) { width: 6% !important; }
           .aging-report-table th:nth-child(7), .aging-report-table td:nth-child(7),
           .aging-report-table th:nth-child(8), .aging-report-table td:nth-child(8),
           .aging-report-table th:nth-child(9), .aging-report-table td:nth-child(9),
           .aging-report-table th:nth-child(10), .aging-report-table td:nth-child(10),
-          .aging-report-table th:nth-child(11), .aging-report-table td:nth-child(11) { width: 7%; }
-          .aging-report-table th:nth-child(12), .aging-report-table td:nth-child(12) { width: 10%; }
+          .aging-report-table th:nth-child(11), .aging-report-table td:nth-child(11) { width: 7% !important; }
+          .aging-report-table th:nth-child(12), .aging-report-table td:nth-child(12) { width: 10% !important; }
           .aging-report-table th { font-size: 7pt; }
           .break-inside-avoid-page { break-inside: avoid; }
           thead { display: table-header-group; }
