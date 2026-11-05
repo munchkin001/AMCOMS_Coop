@@ -655,12 +655,16 @@ const SalesForm = ({ onSave, onCancel }) => {
                   <input value={form.customerName} onChange={(event) => setForm({ ...form, customerName: event.target.value })} placeholder="Customer name" required className="mt-2 w-full rounded-lg border border-gray-300 px-3 py-2" />
                   <input
                     type="tel"
-                    inputMode="tel"
+                    inputMode="numeric"
                     autoComplete="tel"
                     value={form.customerContactNumber}
-                    onChange={(event) => setForm((current) => ({ ...current, customerContactNumber: event.target.value }))}
+                    onChange={(event) => setForm((current) => ({
+                      ...current,
+                      customerContactNumber: event.target.value.replace(/\D/g, '')
+                    }))}
                     placeholder="Contact number"
                     aria-label="Non-member customer contact number"
+                    pattern="[0-9]*"
                     maxLength={24}
                     required
                     className="mt-2 w-full rounded-lg border border-gray-300 px-3 py-2"
