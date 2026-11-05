@@ -11,6 +11,8 @@ import SearchableMemberSelect from '../../common/SearchableMemberSelect';
 const today = () => new Date().toISOString().slice(0, 10);
 
 const createReference = (prefix = 'SAL') => `${prefix}-${today().replace(/-/g, '')}-${globalThis.crypto.randomUUID().slice(0, 8).toUpperCase()}`;
+const controlClass = 'block w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-900 shadow-sm transition focus:border-emerald-600 focus:outline-none focus:ring-2 focus:ring-emerald-600/20 disabled:cursor-not-allowed disabled:bg-slate-100 read-only:bg-slate-50';
+const labelClass = 'block text-sm font-semibold text-slate-700';
 
 const SalesForm = ({ onSave, onCancel }) => {
   const { user, offlineMode } = useAuth();
@@ -443,7 +445,7 @@ const SalesForm = ({ onSave, onCancel }) => {
               <p className="mt-0.5 text-xs text-slate-500">Choose the sales action and enter the related customer and transaction information.</p>
             </div>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <label className="text-sm font-medium text-gray-700 sm:col-span-2">
+            <label className={`${labelClass} sm:col-span-2`}>
               Sales action *
               <select
                 value={flow}
@@ -456,7 +458,7 @@ const SalesForm = ({ onSave, onCancel }) => {
                     amount: ''
                   }));
                 }}
-                className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2"
+                className={`mt-1 ${controlClass}`}
               >
                 <option value="sale">Record a sale</option>
                 <option value="collection">Collect against a credit sale</option>
@@ -465,13 +467,13 @@ const SalesForm = ({ onSave, onCancel }) => {
             </label>
             {flow !== 'cancel' && (
               <>
-                <label className="text-sm font-medium text-gray-700">
+                <label className={labelClass}>
                   {flow === 'sale' ? 'Sale date *' : 'Collection date *'}
-                  <input type="date" value={form.date} onChange={(event) => setForm({ ...form, date: event.target.value })} required className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2" />
+                  <input type="date" value={form.date} onChange={(event) => setForm({ ...form, date: event.target.value })} required className={`mt-1 ${controlClass}`} />
                 </label>
-                <label className="text-sm font-medium text-gray-700">
+                <label className={labelClass}>
                   {flow === 'sale' ? 'Sale reference *' : 'Collection reference *'}
-                  <input value={form.reference} readOnly required className="mt-1 w-full rounded-lg border border-gray-300 bg-slate-50 px-3 py-2 text-slate-700" />
+                  <input value={form.reference} readOnly required className={`mt-1 ${controlClass}`} />
                   <span className="mt-1 block text-xs text-gray-500">
                     {flow === 'sale' && form.paymentType === 'credit'
                       ? 'Generated automatically to identify the sale. An official receipt number is issued when payment is collected.'
@@ -487,12 +489,12 @@ const SalesForm = ({ onSave, onCancel }) => {
                     <h4 className="font-semibold text-slate-900">1. Choose the credit sale to cancel</h4>
                     <p className="mt-1 text-xs text-slate-600">This sale number is the shared reference used in the Manager review, audit trail, and inventory reversal.</p>
                   </div>
-                  <label className="block text-sm font-medium text-gray-700">
+                  <label className={labelClass}>
                     Unpaid credit sale *
                     <select value={cancellationOrderId} onChange={(event) => {
                       setCancellationOrderId(event.target.value);
                       setReturnQuantities({});
-                    }} required className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2">
+                    }} required className={`mt-1 ${controlClass}`}>
                       <option value="">Select an unpaid credit sale</option>
                       {cancellableSales.map((sale) => (
                         <option key={sale.id} value={sale.id}>{sale.order_number} — {sale.customer_name}</option>
@@ -535,7 +537,7 @@ const SalesForm = ({ onSave, onCancel }) => {
                                 }}
                                 disabled={item.remaining === 0}
                                 aria-label={`Return quantity for ${item.description}`}
-                                className="w-full rounded-lg border border-slate-300 px-3 py-2 focus:border-orange-600 focus:outline-none focus:ring-2 focus:ring-orange-600/20 disabled:bg-slate-100"
+                                className={`mt-1 ${controlClass} focus:border-orange-600 focus:ring-orange-600/20`}
                               />
                             </span>
                           </label>
@@ -544,15 +546,15 @@ const SalesForm = ({ onSave, onCancel }) => {
                     </div>
                   )}
                 </section>
-                <label className="text-sm font-medium text-gray-700 sm:col-span-2">
+                <label className={`${labelClass} sm:col-span-2`}>
                   3. Cancellation reason *
-                  <textarea value={cancellationReason} onChange={(event) => setCancellationReason(event.target.value)} rows={3} required placeholder="Explain why this credit sale should be cancelled. This reason will be shown to the Manager and retained in the audit history." className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 focus:border-orange-600 focus:outline-none focus:ring-2 focus:ring-orange-600/20" />
+                  <textarea value={cancellationReason} onChange={(event) => setCancellationReason(event.target.value)} rows={3} required placeholder="Explain why this credit sale should be cancelled. This reason will be shown to the Manager and retained in the audit history." className={`mt-1 ${controlClass} focus:border-orange-600 focus:ring-orange-600/20`} />
                   <span className="mt-1 block text-xs font-normal text-gray-500">Any collected receipts must be voided or refunded separately. The Manager will review the selected sale, reason, and returned quantities.</span>
                 </label>
               </>
             ) : flow === 'collection' ? (
               <>
-                <label className="text-sm font-medium text-gray-700 sm:col-span-2">
+                <label className={`${labelClass} sm:col-span-2`}>
                   Member / non-member with payable sales *
                   <SearchableMemberSelect
                     id="sales-collection-payee"
@@ -578,9 +580,9 @@ const SalesForm = ({ onSave, onCancel }) => {
                   />
                   {creditPayees.length === 0 && <span className="mt-1 block text-xs text-gray-500">Only members/payees with an outstanding credit sale are listed.</span>}
                 </label>
-                <label className="text-sm font-medium text-gray-700 sm:col-span-2">
+                <label className={`${labelClass} sm:col-span-2`}>
                   Outstanding credit sale *
-                  <select value={collectionOrderId} onChange={(event) => selectCollectionSale(event.target.value)} required disabled={!filteredOutstandingSales.length} className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 disabled:bg-slate-100">
+                  <select value={collectionOrderId} onChange={(event) => selectCollectionSale(event.target.value)} required disabled={!filteredOutstandingSales.length} className={`mt-1 ${controlClass}`}>
                     <option value="">Select a credit sale</option>
                     {filteredOutstandingSales.map((sale) => (
                       <option key={sale.id} value={sale.id}>
@@ -591,7 +593,7 @@ const SalesForm = ({ onSave, onCancel }) => {
                   {!filteredOutstandingSales.length && <span className="mt-1 block text-xs text-gray-500">Select a member/payee with an outstanding credit sale.</span>}
                 </label>
                 <MemberBalanceSummary memberId={selectedBalanceMemberId} className="sm:col-span-2" />
-                <label className="text-sm font-medium text-gray-700">
+                <label className={labelClass}>
                   Collection amount (₱) *
                   <input
                     type="number"
@@ -603,7 +605,7 @@ const SalesForm = ({ onSave, onCancel }) => {
                     aria-invalid={collectionExceedsBalance}
                     aria-describedby="sales-collection-amount-help"
                     required
-                    className={`mt-1 w-full rounded-lg border px-3 py-2 ${collectionExceedsBalance ? 'border-red-500 bg-red-50 focus:border-red-600 focus:outline-none focus:ring-2 focus:ring-red-200' : 'border-gray-300'}`}
+                    className={`mt-1 block w-full rounded-lg border px-3 py-2.5 text-sm text-slate-900 shadow-sm transition focus:outline-none focus:ring-2 ${collectionExceedsBalance ? 'border-red-500 bg-red-50 focus:border-red-600 focus:ring-red-200' : 'border-slate-300 bg-white focus:border-emerald-600 focus:ring-emerald-600/20'}`}
                   />
                   <span id="sales-collection-amount-help" role={collectionExceedsBalance ? 'alert' : undefined} className={`mt-1 block text-xs ${collectionExceedsBalance ? 'font-semibold text-red-700' : 'text-gray-500'}`}>
                     {collectionExceedsBalance
@@ -614,15 +616,15 @@ const SalesForm = ({ onSave, onCancel }) => {
                   </span>
                 </label>
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 sm:col-span-2">
-                  <label className="text-sm font-medium text-gray-700">
+                  <label className={labelClass}>
                     Payment method *
-                    <select value={form.paymentMethod} onChange={(event) => setForm({ ...form, paymentMethod: event.target.value })} className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2">
+                    <select value={form.paymentMethod} onChange={(event) => setForm({ ...form, paymentMethod: event.target.value })} className={`mt-1 ${controlClass}`}>
                       <option value="cash">Cash</option>
                     </select>
                   </label>
-                  <label className="text-sm font-medium text-gray-700">
+                  <label className={labelClass}>
                     Deposit to *
-                    <select value={form.cashAccount} onChange={(event) => setForm({ ...form, cashAccount: event.target.value })} className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2">
+                    <select value={form.cashAccount} onChange={(event) => setForm({ ...form, cashAccount: event.target.value })} className={`mt-1 ${controlClass}`}>
                       <option value="Cash on Hand">Cash on Hand</option><option value="Cash in Bank">Cash in Bank</option>
                     </select>
                   </label>
@@ -630,7 +632,7 @@ const SalesForm = ({ onSave, onCancel }) => {
               </>
             ) : (
               <>
-            <label className="text-sm font-medium text-gray-700">
+            <label className={labelClass}>
               Customer *
               <SearchableMemberSelect
                 id="sales-customer-member"
@@ -652,7 +654,7 @@ const SalesForm = ({ onSave, onCancel }) => {
               />
               {customerMode === 'other' && (
                 <>
-                  <input value={form.customerName} onChange={(event) => setForm({ ...form, customerName: event.target.value })} placeholder="Customer name" required className="mt-2 w-full rounded-lg border border-gray-300 px-3 py-2" />
+                  <input value={form.customerName} onChange={(event) => setForm({ ...form, customerName: event.target.value })} placeholder="Customer name" required className={`mt-2 ${controlClass}`} />
                   <input
                     type="tel"
                     inputMode="numeric"
@@ -667,14 +669,14 @@ const SalesForm = ({ onSave, onCancel }) => {
                     pattern="[0-9]*"
                     maxLength={24}
                     required
-                    className="mt-2 w-full rounded-lg border border-gray-300 px-3 py-2"
+                    className={`mt-2 ${controlClass}`}
                   />
                 </>
               )}
             </label>
             <MemberBalanceSummary memberId={selectedBalanceMemberId} className="sm:col-span-2" />
 
-            <label className="text-sm font-medium text-gray-700">
+            <label className={labelClass}>
               Product (optional) or service
               <select
                 value={form.productId}
@@ -698,14 +700,14 @@ const SalesForm = ({ onSave, onCancel }) => {
                     amount
                   }));
                 }}
-                className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2"
+                className={`mt-1 ${controlClass}`}
               >
                 <option value="">No inventory product / service</option>
                 {products.map((product) => <option key={product.id} value={product.id}>{product.product_name} ({product.product_code})</option>)}
               </select>
-              <input value={form.itemDescription} onChange={(event) => setForm({ ...form, itemDescription: event.target.value })} placeholder="Product or service description *" required className="mt-2 w-full rounded-lg border border-gray-300 px-3 py-2" />
+              <input value={form.itemDescription} onChange={(event) => setForm({ ...form, itemDescription: event.target.value })} placeholder="Product or service description *" required className={`mt-2 ${controlClass}`} />
             </label>
-            <label className="text-sm font-medium text-gray-700">
+            <label className={labelClass}>
               Quantity *
               <input
                 type="number"
@@ -721,11 +723,11 @@ const SalesForm = ({ onSave, onCancel }) => {
                   setForm((current) => ({ ...current, quantity, amount }));
                 }}
                 required
-                className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2"
+                className={`mt-1 ${controlClass}`}
               />
               {selectedProduct && <span className="mt-1 block text-xs text-gray-500">Available quantity: {productAvailableQuantity}</span>}
             </label>
-            <label className="text-sm font-medium text-gray-700">
+            <label className={labelClass}>
               Total amount (₱) *
               <input
                 type="number"
@@ -735,20 +737,20 @@ const SalesForm = ({ onSave, onCancel }) => {
                 onChange={(event) => setForm((current) => ({ ...current, amount: event.target.value }))}
                 readOnly={Boolean(selectedProduct)}
                 required
-                className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 read-only:bg-gray-50"
+                className={`mt-1 ${controlClass}`}
               />
               <span className="mt-1 block text-xs text-gray-500">Unit amount: ₱{unitPrice.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
             </label>
-            <label className="text-sm font-medium text-gray-700">
+            <label className={labelClass}>
               Sales revenue account *
-              <select value={form.revenueAccount} onChange={(event) => setForm({ ...form, revenueAccount: event.target.value })} required className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2">
+              <select value={form.revenueAccount} onChange={(event) => setForm({ ...form, revenueAccount: event.target.value })} required className={`mt-1 ${controlClass}`}>
                 <option value="">Select revenue account</option>
                 {revenueAccounts.map((account) => <option key={account.account_name} value={account.account_name}>{account.account_name}</option>)}
               </select>
             </label>
-            <label className="text-sm font-medium text-gray-700">
+            <label className={labelClass}>
               Payment status *
-              <select value={form.paymentType} onChange={(event) => setForm({ ...form, paymentType: event.target.value })} className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2">
+              <select value={form.paymentType} onChange={(event) => setForm({ ...form, paymentType: event.target.value })} className={`mt-1 ${controlClass}`}>
                 <option value="cash">Money received</option>
                 <option value="credit">Amount due</option>
               </select>
@@ -760,15 +762,15 @@ const SalesForm = ({ onSave, onCancel }) => {
             </label>
             {form.paymentType === 'cash' && (
               <>
-                <label className="text-sm font-medium text-gray-700">
+                <label className={labelClass}>
                   Payment method *
-                  <select value={form.paymentMethod} onChange={(event) => setForm({ ...form, paymentMethod: event.target.value })} className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2">
+                  <select value={form.paymentMethod} onChange={(event) => setForm({ ...form, paymentMethod: event.target.value })} className={`mt-1 ${controlClass}`}>
                     <option value="cash">Cash</option>
                   </select>
                 </label>
-                <label className="text-sm font-medium text-gray-700">
+                <label className={labelClass}>
                   Deposit to *
-                  <select value={form.cashAccount} onChange={(event) => setForm({ ...form, cashAccount: event.target.value })} className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2">
+                  <select value={form.cashAccount} onChange={(event) => setForm({ ...form, cashAccount: event.target.value })} className={`mt-1 ${controlClass}`}>
                     <option value="Cash on Hand">Cash on Hand</option>
                     <option value="Cash in Bank">Cash in Bank</option>
                   </select>
@@ -776,7 +778,7 @@ const SalesForm = ({ onSave, onCancel }) => {
               </>
             )}
             {form.paymentType === 'credit' && (
-              <label className="text-sm font-medium text-gray-700">
+              <label className={labelClass}>
                 Due date *
                 <input
                   type="date"
@@ -784,7 +786,7 @@ const SalesForm = ({ onSave, onCancel }) => {
                   value={form.dueDate}
                   onChange={(event) => setForm((current) => ({ ...current, dueDate: event.target.value }))}
                   required
-                  className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2"
+                  className={`mt-1 ${controlClass}`}
                 />
                 <span className="mt-1 block text-xs font-normal text-gray-500">The amount due will be aged from this date.</span>
               </label>
