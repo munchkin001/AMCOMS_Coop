@@ -1,7 +1,8 @@
-import { useCallback, useEffect, useState } from 'react';
-import { Eye, X } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Eye, Filter, Search, X } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useMultipleRealtimeSubscriptions } from '../../hooks/useRealtimeSubscription';
+import { getMonthKey } from '../common/monthFilterUtils';
 
 const peso = (value) => `₱${(Number(value) || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 const formatDate = (value) => value
@@ -11,60 +12,182 @@ const formatDateTime = (value) => value ? new Date(value).toLocaleString('en-PH'
 const memberName = (member) => [member?.first_name, member?.middle_name, member?.last_name].filter(Boolean).join(' ') || 'Member';
 const display = (value) => value === null || value === undefined || value === '' ? 'Not recorded' : String(value);
 
-const TableSection = ({ title, caption, rows, columns, empty, onSelect }) => (
-  <section className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-    <header className="flex flex-wrap items-end justify-between gap-2 border-b border-slate-100 px-5 py-4">
-      <div>
-        <h3 className="font-semibold text-slate-900">{title}</h3>
-        {caption && <p className="mt-1 text-sm text-slate-500">{caption}</p>}
-      </div>
-      <span className="text-xs font-medium text-slate-500">{rows.length} {rows.length === 1 ? 'record' : 'records'}</span>
-    </header>
-    {rows.length === 0 ? (
-      <p className="px-5 py-8 text-center text-sm text-slate-500">{empty}</p>
-    ) : (
-      <div className="overflow-x-auto">
-        <table className="w-full min-w-[760px] text-left text-sm">
-          <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
-            <tr>
-              {columns.map((column) => <th key={column.label} scope="col" className={`px-4 py-3 font-semibold ${column.right ? 'text-right' : ''}`}>{column.label}</th>)}
-              <th scope="col" className="px-4 py-3 text-right font-semibold">Details</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-100">
-            {rows.map((row, index) => (
-              <tr
-                key={row.id || index}
-                tabIndex={0}
-                aria-label={`View details: ${row.detailTitle}`}
-                onClick={() => onSelect(row)}
-                onKeyDown={(event) => {
-                  if (event.key === 'Enter' || event.key === ' ') {
-                    event.preventDefault();
-                    onSelect(row);
-                  }
-                }}
-                className="cursor-pointer transition-colors hover:bg-emerald-50/60 focus:bg-emerald-50/60 focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-emerald-600"
+const TableSection = ({ title, caption, rows, columns, empty, onSelect, filterByStatus = false }) => {
+  const [search, setSearch] = useState('');
+  const [showFilters, setShowFilters] = useState(false);
+  const [selectedMonth, setSelectedMonth] = useState('all');
+  const [selectedStatus, setSelectedStatus] = useState('all');
+  const [sortOrder, setSortOrder] = useState('newest');
+  const dateMonths = useMemo(() => [...new Set(
+    rows.map((row) => getMonthKey(row.sortDate)).filter(Boolean)
+  )].sort().reverse(), [rows]);
+  const filteredRows = useMemo(() => {
+    const query = search.trim().toLocaleLowerCase();
+    return rows.filter((row) => {
+      const matchesSearch = !query || [
+        row.detailTitle,
+        ...(row.details || []).flatMap(([label, value]) => [label, value])
+      ].some((value) => String(value ?? '').toLocaleLowerCase().includes(query));
+      const matchesMonth = selectedMonth === 'all' || getMonthKey(row.sortDate) === selectedMonth;
+      const matchesStatus = !filterByStatus || selectedStatus === 'all' || row.status === selectedStatus;
+      return matchesSearch && matchesMonth && matchesStatus;
+    }).sort((left, right) => {
+      if (!dateMonths.length) {
+        const comparison = String(left.product_name || '').localeCompare(
+          String(right.product_name || ''),
+          undefined,
+          { sensitivity: 'base' }
+        );
+        return sortOrder === 'newest' ? comparison : -comparison;
+      }
+      const leftTime = left.sortDate ? new Date(left.sortDate).getTime() : 0;
+      const rightTime = right.sortDate ? new Date(right.sortDate).getTime() : 0;
+      return sortOrder === 'newest' ? rightTime - leftTime : leftTime - rightTime;
+    });
+  }, [dateMonths.length, filterByStatus, rows, search, selectedMonth, selectedStatus, sortOrder]);
+  const statusOptions = filterByStatus ? [...new Set(rows.map((row) => row.status).filter(Boolean))] : [];
+  const filtersId = `monitoring-filters-${title.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`;
+
+  return (
+    <section className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+      <header className="flex flex-col gap-3 border-b border-slate-100 px-5 py-4 sm:flex-row sm:items-end sm:justify-between">
+        <div className="min-w-0">
+          <h3 className="font-semibold text-slate-900">{title}</h3>
+          {caption && <p className="mt-1 text-sm text-slate-500">{caption}</p>}
+        </div>
+        <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center">
+          <div className="flex min-w-0 flex-1 items-center gap-2 sm:flex-none">
+            <label className="relative block min-w-0 flex-1 sm:w-72 sm:flex-none">
+              <span className="sr-only">Search {title.toLowerCase()}</span>
+              <Search aria-hidden="true" size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+              <input
+                type="search"
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+                placeholder="Search records"
+                className="min-h-10 w-full rounded-lg border border-slate-300 bg-white pl-9 pr-3 text-sm text-slate-900 placeholder:text-slate-400 focus:border-emerald-600 focus:outline-none focus:ring-2 focus:ring-emerald-600/20"
+              />
+            </label>
+            <button
+              type="button"
+              aria-expanded={showFilters}
+              aria-controls={filtersId}
+              onClick={() => setShowFilters((current) => !current)}
+              className="inline-flex min-h-10 shrink-0 items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 text-sm font-semibold text-emerald-900 transition hover:bg-emerald-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-700 focus-visible:ring-offset-2"
+            >
+              <Filter aria-hidden="true" size={16} />
+              Filter / Sort
+            </button>
+          </div>
+          <span className="shrink-0 text-xs font-medium text-slate-500">
+            {filteredRows.length}{search.trim() || selectedMonth !== 'all' || selectedStatus !== 'all' ? ` of ${rows.length}` : ''} {filteredRows.length === 1 ? 'record' : 'records'}
+          </span>
+        </div>
+      </header>
+      {showFilters && (
+        <div id={filtersId} className="grid gap-3 border-b border-slate-100 bg-slate-50/70 px-5 py-4 sm:grid-cols-2">
+          <label className="text-xs font-semibold text-slate-600">
+            Sort order
+            <select
+              value={sortOrder}
+              onChange={(event) => setSortOrder(event.target.value)}
+              className="mt-1 block min-h-10 w-full rounded-lg border border-slate-300 bg-white px-3 text-sm font-normal text-slate-800 focus:border-emerald-600 focus:outline-none focus:ring-2 focus:ring-emerald-600/20"
+            >
+              {dateMonths.length > 0 ? (
+                <>
+                  <option value="newest">Newest first</option>
+                  <option value="oldest">Oldest first</option>
+                </>
+              ) : (
+                <>
+                  <option value="newest">Name A–Z</option>
+                  <option value="oldest">Name Z–A</option>
+                </>
+              )}
+            </select>
+          </label>
+          {dateMonths.length > 0 ? (
+            <label className="text-xs font-semibold text-slate-600">
+              Month
+              <select
+                value={selectedMonth}
+                onChange={(event) => setSelectedMonth(event.target.value)}
+                className="mt-1 block min-h-10 w-full rounded-lg border border-slate-300 bg-white px-3 text-sm font-normal text-slate-800 focus:border-emerald-600 focus:outline-none focus:ring-2 focus:ring-emerald-600/20"
               >
-                {columns.map((column) => (
-                  <td key={column.label} className={`px-4 py-3.5 text-slate-700 ${column.right ? 'text-right tabular-nums' : ''}`}>
-                    {column.render(row)}
-                  </td>
-                ))}
-                <td className="px-4 py-3.5 text-right">
-                  <span className="inline-flex items-center gap-1.5 whitespace-nowrap text-xs font-semibold text-emerald-800">
-                    <Eye className="size-4" aria-hidden="true" />
-                    View details
-                  </span>
-                </td>
+                <option value="all">All months</option>
+                {dateMonths.map((month) => {
+                  const [year, monthNumber] = month.split('-').map(Number);
+                  return (
+                    <option key={month} value={month}>
+                      {new Date(year, monthNumber - 1, 1).toLocaleDateString('en-PH', { month: 'long', year: 'numeric' })}
+                    </option>
+                  );
+                })}
+              </select>
+            </label>
+          ) : filterByStatus ? (
+            <label className="text-xs font-semibold text-slate-600">
+              Stock status
+              <select
+                value={selectedStatus}
+                onChange={(event) => setSelectedStatus(event.target.value)}
+                className="mt-1 block min-h-10 w-full rounded-lg border border-slate-300 bg-white px-3 text-sm font-normal text-slate-800 focus:border-emerald-600 focus:outline-none focus:ring-2 focus:ring-emerald-600/20"
+              >
+                <option value="all">All statuses</option>
+                {statusOptions.map((status) => <option key={status} value={status}>{status}</option>)}
+              </select>
+            </label>
+          ) : null}
+        </div>
+      )}
+      {rows.length === 0 ? (
+        <p className="px-5 py-8 text-center text-sm text-slate-500">{empty}</p>
+      ) : filteredRows.length === 0 ? (
+        <p className="px-5 py-8 text-center text-sm text-slate-500">No records match the current search or filters.</p>
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[760px] text-left text-sm">
+            <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
+              <tr>
+                {columns.map((column) => <th key={column.label} scope="col" className={`px-4 py-3 font-semibold ${column.right ? 'text-right' : ''}`}>{column.label}</th>)}
+                <th scope="col" className="px-4 py-3 text-right font-semibold">Details</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    )}
-  </section>
-);
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {filteredRows.map((row, index) => (
+                <tr
+                  key={row.id || index}
+                  tabIndex={0}
+                  aria-label={`View details: ${row.detailTitle}`}
+                  onClick={() => onSelect(row)}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter' || event.key === ' ') {
+                      event.preventDefault();
+                      onSelect(row);
+                    }
+                  }}
+                  className="cursor-pointer transition-colors hover:bg-emerald-50/60 focus:bg-emerald-50/60 focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-emerald-600"
+                >
+                  {columns.map((column) => (
+                    <td key={column.label} className={`px-4 py-3.5 text-slate-700 ${column.right ? 'text-right tabular-nums' : ''}`}>
+                      {column.render(row)}
+                    </td>
+                  ))}
+                  <td className="px-4 py-3.5 text-right">
+                    <span className="inline-flex items-center gap-1.5 whitespace-nowrap text-xs font-semibold text-emerald-800">
+                      <Eye className="size-4" aria-hidden="true" />
+                      View details
+                    </span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </section>
+  );
+};
 
 const OperationsMonitoring = () => {
   const [activeTab, setActiveTab] = useState('loans');
@@ -161,6 +284,7 @@ const OperationsMonitoring = () => {
 
   const loanRows = loans.map((loan) => ({
     ...loan,
+    sortDate: loan.application_date,
     detailTitle: `Loan ${loan.loan_number || ''}`.trim(),
     details: [
       ['Member', memberName(loan.member)],
@@ -184,6 +308,7 @@ const OperationsMonitoring = () => {
       ...schedule,
       loan,
       outstanding,
+      sortDate: schedule.due_date,
       detailTitle: `Overdue installment ${schedule.installment_number || ''}`.trim(),
       details: [
         ['Member', memberName(loan?.member)],
@@ -203,6 +328,7 @@ const OperationsMonitoring = () => {
     const loan = Array.isArray(payment.loan) ? payment.loan[0] : payment.loan;
     return {
       ...payment,
+      sortDate: payment.payment_date || payment.created_at,
       detailTitle: `Loan payment ${payment.payment_number || payment.id}`,
       details: [
         ['Member', memberName(loan?.member)],
@@ -223,6 +349,7 @@ const OperationsMonitoring = () => {
 
   const accountRows = activeAccounts.map((account) => ({
     ...account,
+    sortDate: account.opening_date || account.created_at,
     detailTitle: `${account.account_type === 'time_deposit' ? 'Time deposit' : 'Savings account'} ${account.account_number || ''}`.trim(),
     details: [
       ['Account type', display(account.account_type).replaceAll('_', ' ')],
@@ -242,6 +369,7 @@ const OperationsMonitoring = () => {
     return {
       ...transaction,
       account,
+      sortDate: transaction.transaction_date || transaction.created_at,
       detailTitle: `${display(transaction.transaction_type)} · ${display(account?.account_number)}`,
       details: [
         ['Transaction type', display(transaction.transaction_type)],
@@ -264,6 +392,7 @@ const OperationsMonitoring = () => {
 
   const stockRows = stock.map((product) => ({
     ...product,
+    sortDate: null,
     detailTitle: product.product_name,
     details: [
       ['Product', product.product_name],
@@ -405,6 +534,7 @@ const OperationsMonitoring = () => {
           rows={stockRows}
           empty="No active products found."
           onSelect={setSelectedRecord}
+          filterByStatus
           columns={[
             { label: 'Product code', render: (product) => display(product.product_code) },
             { label: 'Product', render: (product) => <span className="font-semibold text-slate-900">{product.product_name}</span> },
