@@ -280,7 +280,6 @@ const OperationsMonitoring = () => {
   const activeLoanTotal = activeLoans.reduce((sum, loan) => sum + (Number(loan.balance) || 0), 0);
   const savingsAccounts = accounts.filter((account) => account.account_type !== 'time_deposit' && account.status !== 'closed');
   const timeDeposits = accounts.filter((account) => account.account_type === 'time_deposit' && account.status !== 'closed');
-  const activeAccounts = accounts.filter((account) => account.status !== 'closed');
 
   const loanRows = loans.map((loan) => ({
     ...loan,
@@ -347,7 +346,7 @@ const OperationsMonitoring = () => {
     };
   });
 
-  const accountRows = activeAccounts.map((account) => ({
+  const mapAccountRows = (accountList) => accountList.map((account) => ({
     ...account,
     sortDate: account.opening_date || account.created_at,
     detailTitle: `${account.account_type === 'time_deposit' ? 'Time deposit' : 'Savings account'} ${account.account_number || ''}`.trim(),
@@ -364,6 +363,8 @@ const OperationsMonitoring = () => {
       ['Maturing within seven days', account.maturing ? 'Yes' : 'No']
     ]
   }));
+  const savingsAccountRows = mapAccountRows(savingsAccounts);
+  const timeDepositRows = mapAccountRows(timeDeposits);
   const transactionRows = savingsTx.map((transaction) => {
     const account = Array.isArray(transaction.savings_accounts) ? transaction.savings_accounts[0] : transaction.savings_accounts;
     return {
@@ -495,18 +496,30 @@ const OperationsMonitoring = () => {
       {activeTab === 'savings' && (
         <div className="space-y-5">
           <TableSection
-            title="Savings and time-deposit accounts"
-            caption={`${savingsAccounts.length} savings accounts · ${peso(savingsAccounts.reduce((sum, account) => sum + Number(account.balance || 0), 0))} savings balance · ${timeDeposits.length} time deposits · ${peso(timeDeposits.reduce((sum, account) => sum + Number(account.balance || 0), 0))} time-deposit balance`}
-            rows={accountRows}
-            empty="No active savings or time-deposit accounts."
+            title="Savings accounts"
+            caption={`${savingsAccounts.length} accounts · ${peso(savingsAccounts.reduce((sum, account) => sum + Number(account.balance || 0), 0))} total savings balance`}
+            rows={savingsAccountRows}
+            empty="No active savings accounts."
             onSelect={setSelectedRecord}
             columns={[
               { label: 'Account number', render: (account) => <span className="font-semibold text-slate-900">{display(account.account_number)}</span> },
               { label: 'Member', render: (account) => <><span className="font-medium text-slate-900">{memberName(account.member)}</span><span className="mt-0.5 block text-xs text-slate-500">ID {display(account.member?.member_number)}</span></> },
-              { label: 'Account type', render: (account) => <span className="capitalize">{display(account.account_type).replaceAll('_', ' ')}</span> },
+              { label: 'Status', render: (account) => <span className="capitalize">{display(account.status)}</span> },
+              { label: 'Balance', right: true, render: (account) => <span className="font-semibold text-slate-900">{peso(account.balance)}</span> }
+            ]}
+          />
+          <TableSection
+            title="Time deposits"
+            caption={`${timeDeposits.length} accounts · ${peso(timeDeposits.reduce((sum, account) => sum + Number(account.balance || 0), 0))} total time-deposit balance`}
+            rows={timeDepositRows}
+            empty="No active time deposits."
+            onSelect={setSelectedRecord}
+            columns={[
+              { label: 'Account number', render: (account) => <span className="font-semibold text-slate-900">{display(account.account_number)}</span> },
+              { label: 'Member', render: (account) => <><span className="font-medium text-slate-900">{memberName(account.member)}</span><span className="mt-0.5 block text-xs text-slate-500">ID {display(account.member?.member_number)}</span></> },
               { label: 'Status', render: (account) => <span className="capitalize">{display(account.status)}</span> },
               { label: 'Balance', right: true, render: (account) => <span className="font-semibold text-slate-900">{peso(account.balance)}</span> },
-              { label: 'Maturity', render: (account) => account.account_type === 'time_deposit' ? formatDate(account.maturity_date) : '—' }
+              { label: 'Maturity', render: (account) => formatDate(account.maturity_date) }
             ]}
           />
           <TableSection
