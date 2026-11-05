@@ -67,7 +67,90 @@ const formatAuditValue = (value, field = '') => {
       maximumFractionDigits: 2
     }).format(Number(value));
   }
+  if (typeof value === 'boolean') return value ? 'Yes' : 'No';
+  if (typeof value === 'object') return JSON.stringify(value);
   return String(value);
+};
+
+const auditFieldLabels = {
+  account_id: 'Account',
+  account_number: 'Account number',
+  account_type: 'Account type',
+  address: 'Address',
+  amount: 'Amount',
+  application_date: 'Application date',
+  approval_date: 'Approval date',
+  balance: 'Balance',
+  contact_number: 'Contact number',
+  date: 'Date',
+  date_joined: 'Date joined',
+  description: 'Description',
+  due_date: 'Due date',
+  email: 'Email',
+  entry_date: 'Entry date',
+  first_name: 'First name',
+  interest_rate: 'Interest rate',
+  last_name: 'Last name',
+  member_id: 'Member',
+  member_number: 'Member number',
+  membership_status: 'Membership status',
+  membership_type: 'Membership type',
+  middle_name: 'Middle name',
+  notes: 'Notes',
+  payment_date: 'Payment date',
+  payment_frequency: 'Payment frequency',
+  payment_method: 'Payment method',
+  phone: 'Phone',
+  principal_amount: 'Principal amount',
+  product_name: 'Product name',
+  purpose: 'Purpose',
+  quantity: 'Quantity',
+  reference_number: 'Reference number',
+  request_number: 'Request number',
+  status: 'Status',
+  term_months: 'Term (months)',
+  total_amount: 'Total amount'
+};
+
+const hiddenAuditFields = new Set(['id', 'created_at', 'updated_at']);
+const sensitiveAuditFieldPattern = /password|token|secret|api[_-]?key|credential|authorization|cookie/i;
+
+const formatAuditFieldLabel = (path) => path.split('.').map((part) => {
+  if (auditFieldLabels[part]) return auditFieldLabels[part];
+  return part.replace(/_/g, ' ').replace(/\b\w/g, (letter) => letter.toUpperCase());
+}).join(' · ');
+
+const flattenAuditRecord = (record, prefix = '') => {
+  if (!record || typeof record !== 'object' || Array.isArray(record)) return prefix ? { [prefix]: record } : {};
+  return Object.entries(record).reduce((fields, [key, value]) => {
+    const path = prefix ? `${prefix}.${key}` : key;
+    if (sensitiveAuditFieldPattern.test(key) || hiddenAuditFields.has(key)) return fields;
+    if (value && typeof value === 'object' && !Array.isArray(value) && Object.keys(value).length > 0) {
+      return { ...fields, ...flattenAuditRecord(value, path) };
+    }
+    return { ...fields, [path]: value };
+  }, {});
+};
+
+const getAuditFieldChanges = (log) => {
+  const oldFields = flattenAuditRecord(getRecordData(log, 'old_data'));
+  const newFields = flattenAuditRecord(getRecordData(log, 'new_data'));
+  const isCreated = log.action?.startsWith('Created ');
+  const isDeleted = log.action?.startsWith('Deleted ');
+  const keys = new Set([...Object.keys(oldFields), ...Object.keys(newFields)]);
+
+  return [...keys]
+    .filter((key) => {
+      if (isCreated) return Object.prototype.hasOwnProperty.call(newFields, key);
+      if (isDeleted) return Object.prototype.hasOwnProperty.call(oldFields, key);
+      return JSON.stringify(oldFields[key]) !== JSON.stringify(newFields[key]);
+    })
+    .map((key) => ({
+      field: key,
+      label: formatAuditFieldLabel(key),
+      oldValue: isCreated ? undefined : oldFields[key],
+      newValue: isDeleted ? undefined : newFields[key]
+    }));
 };
 
 const loanChangeLabels = {
@@ -605,6 +688,7 @@ const AuditLog = () => {
   const selectedLogRecord = selectedLog
     ? getRecordData(selectedLog, 'new_data')
     : {};
+  const selectedLogChanges = selectedLog ? getAuditFieldChanges(selectedLog) : [];
   const selectedLogIsLoanRequest = selectedLog?.table_name === 'requests'
     && (selectedLogRecord.request_type || getRecordData(selectedLog, 'old_data').request_type) === 'loan_application';
   const openLogDetails = async (log) => {
@@ -1059,6 +1143,43 @@ const AuditLog = () => {
                   <p className="mt-2 break-all text-xs leading-5 text-slate-600">{selectedLog.user_agent}</p>
                 </details>
               )}
+
+              <section className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+                <header className="border-b border-slate-100 px-4 py-3">
+                  <h3 className="text-sm font-semibold text-slate-900">Record details</h3>
+                  <p className="mt-1 text-xs text-slate-500">
+                    {selectedLog.action?.startsWith('Created ')
+                      ? 'Values recorded when this record was created.'
+                      : selectedLog.action?.startsWith('Deleted ')
+                        ? 'Values on the record when it was deleted.'
+                        : 'Specific values changed in this audit event.'}
+                  </p>
+                </header>
+                {selectedLogChanges.length > 0 ? (
+                  <div className="overflow-x-auto">
+                    <table className="w-full min-w-[560px] text-left text-sm">
+                      <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
+                        <tr>
+                          <th scope="col" className="px-4 py-3 font-semibold">Field</th>
+                          <th scope="col" className="px-4 py-3 font-semibold">Previous value</th>
+                          <th scope="col" className="px-4 py-3 font-semibold">New value</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100">
+                        {selectedLogChanges.map((change) => (
+                          <tr key={change.field}>
+                            <th scope="row" className="max-w-56 break-words px-4 py-3 font-medium text-slate-700">{change.label}</th>
+                            <td className="max-w-64 break-words px-4 py-3 text-slate-600">{formatAuditValue(change.oldValue, change.field.split('.').at(-1))}</td>
+                            <td className="max-w-64 break-words px-4 py-3 font-medium text-slate-900">{formatAuditValue(change.newValue, change.field.split('.').at(-1))}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : (
+                  <p className="px-4 py-5 text-sm text-slate-500">No field-level record details were stored for this event.</p>
+                )}
+              </section>
 
               {(relatedContextLoading || relatedContextError || relatedContext.length > 0) && (
                 <section className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
