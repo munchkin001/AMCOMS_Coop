@@ -164,15 +164,15 @@ const EntryForm = ({ accounts, onPosted, onCancel }) => {
                       ))}
                     </select>
                   </label>
-                  <label className="text-xs font-bold uppercase tracking-wide text-blue-800 sm:col-span-1 lg:col-span-2">Debit
-                    <input aria-label={`Debit for line ${index + 1}`} type="number" min="0" step="0.01" placeholder="0.00" value={line.debit_amount}
-                      onWheel={(e) => e.currentTarget.blur()}
-                      onChange={(e) => updateLine(index, { debit_amount: e.target.value, credit_amount: e.target.value ? '' : line.credit_amount })} className={`${inputClass} mt-1.5 border-blue-200 bg-blue-50/50 text-right font-semibold text-blue-950 placeholder:text-blue-300 focus:border-blue-600 focus:ring-blue-600/20`} />
-                  </label>
                   <label className="text-xs font-bold uppercase tracking-wide text-emerald-800 sm:col-span-1 lg:col-span-2">Credit
                     <input aria-label={`Credit for line ${index + 1}`} type="number" min="0" step="0.01" placeholder="0.00" value={line.credit_amount}
                       onWheel={(e) => e.currentTarget.blur()}
                       onChange={(e) => updateLine(index, { credit_amount: e.target.value, debit_amount: e.target.value ? '' : line.debit_amount })} className={`${inputClass} mt-1.5 border-emerald-200 bg-emerald-50/50 text-right font-semibold text-emerald-950 placeholder:text-emerald-300 focus:border-emerald-600 focus:ring-emerald-600/20`} />
+                  </label>
+                  <label className="text-xs font-bold uppercase tracking-wide text-blue-800 sm:col-span-1 lg:col-span-2">Debit
+                    <input aria-label={`Debit for line ${index + 1}`} type="number" min="0" step="0.01" placeholder="0.00" value={line.debit_amount}
+                      onWheel={(e) => e.currentTarget.blur()}
+                      onChange={(e) => updateLine(index, { debit_amount: e.target.value, credit_amount: e.target.value ? '' : line.credit_amount })} className={`${inputClass} mt-1.5 border-blue-200 bg-blue-50/50 text-right font-semibold text-blue-950 placeholder:text-blue-300 focus:border-blue-600 focus:ring-blue-600/20`} />
                   </label>
                   <label className="text-xs font-bold uppercase tracking-wide text-slate-600 sm:col-span-2 lg:col-span-4">Line memo <span className="font-normal normal-case tracking-normal text-slate-400">(optional)</span>
                     <input aria-label={`Memo for line ${index + 1}`} placeholder="Add a note for this line" value={line.description} onChange={(e) => updateLine(index, { description: e.target.value })} className={`${inputClass} mt-1.5 border-slate-300 bg-white text-sm font-normal normal-case tracking-normal`} />
@@ -200,13 +200,13 @@ const EntryForm = ({ accounts, onPosted, onCancel }) => {
             }`}>Balance check</h4>
           </div>
           <div className="grid gap-3 sm:grid-cols-3">
-            <div className="rounded-lg border border-blue-100 bg-white px-4 py-3">
-              <p className="text-xs font-bold uppercase tracking-wide text-blue-700">Total debits</p>
-              <p className="mt-1 text-lg font-extrabold tabular-nums text-blue-950">{amount(totals.debit) || '0.00'}</p>
-            </div>
             <div className="rounded-lg border border-emerald-100 bg-white px-4 py-3">
               <p className="text-xs font-bold uppercase tracking-wide text-emerald-700">Total credits</p>
               <p className="mt-1 text-lg font-extrabold tabular-nums text-emerald-950">{amount(totals.credit) || '0.00'}</p>
+            </div>
+            <div className="rounded-lg border border-blue-100 bg-white px-4 py-3">
+              <p className="text-xs font-bold uppercase tracking-wide text-blue-700">Total debits</p>
+              <p className="mt-1 text-lg font-extrabold tabular-nums text-blue-950">{amount(totals.debit) || '0.00'}</p>
             </div>
             <div className={`rounded-lg border px-4 py-3 ${
               difference === 0 && totals.debit > 0 ? 'border-emerald-200 bg-emerald-100/70' : 'border-amber-200 bg-amber-100/70'
@@ -288,15 +288,15 @@ const EntryDetail = ({ entry, canPost, onReversed }) => {
     <div className="space-y-3 bg-gray-50 px-4 py-4 text-sm">
       <table className="min-w-full">
         <thead className="text-left text-xs uppercase text-gray-500">
-          <tr><th className="py-1">Account</th><th className="py-1">Memo</th><th className="py-1 text-right">Debit</th><th className="py-1 text-right">Credit</th></tr>
+          <tr><th className="py-1">Account</th><th className="py-1">Memo</th><th className="py-1 text-right">Credit</th><th className="py-1 text-right">Debit</th></tr>
         </thead>
         <tbody>
           {lines.map((line) => (
             <tr key={line.id} className="border-t border-gray-200">
               <td className="py-1.5">{line.account?.account_name}</td>
               <td className="py-1.5 text-gray-600">{line.description}</td>
-              <td className="py-1.5 text-right">{amount(line.debit_amount)}</td>
               <td className="py-1.5 text-right">{amount(line.credit_amount)}</td>
+              <td className="py-1.5 text-right">{amount(line.debit_amount)}</td>
             </tr>
           ))}
         </tbody>

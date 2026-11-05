@@ -62,8 +62,8 @@ const AccountSection = ({ group, from, onSelectEntry }) => {
         </div>
         <div className="grid flex-1 grid-cols-2 divide-gray-200 sm:grid-cols-4 sm:divide-x">
           <SummaryStat label="Opening Balance" value={money(openingBalance)} />
-          <SummaryStat label="Total Debits" value={money(totalDebit)} tone="text-green-600" />
           <SummaryStat label="Total Credits" value={money(totalCredit)} tone="text-red-600" />
+          <SummaryStat label="Total Debits" value={money(totalDebit)} tone="text-green-600" />
           <SummaryStat label="Ending Balance" value={signedMoney(closing)} tone="text-blue-900" accent />
         </div>
       </div>
@@ -77,8 +77,8 @@ const AccountSection = ({ group, from, onSelectEntry }) => {
                 <th className="rounded-l-lg px-4 py-3">Date</th>
                 <th className="px-4 py-3">Particulars</th>
                 <th className="px-4 py-3">Reference No.</th>
-                <th className="px-4 py-3 text-right">Debit</th>
                 <th className="px-4 py-3 text-right">Credit</th>
+                <th className="px-4 py-3 text-right">Debit</th>
                 <th className="px-4 py-3 text-right">Running Balance</th>
                 <th className="rounded-r-lg px-4 py-3">Notes</th>
               </tr>
@@ -119,11 +119,11 @@ const AccountSection = ({ group, from, onSelectEntry }) => {
                     {line.is_reversed && <span className="ml-2 rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold uppercase text-amber-800">Reversed</span>}
                     {line.is_reversal && <span className="ml-2 rounded bg-slate-200 px-1.5 py-0.5 text-[10px] font-semibold uppercase text-slate-700">Reversal</span>}
                   </td>
-                  <td className="whitespace-nowrap px-4 py-3 text-right font-semibold text-green-600">
-                    {Number(line.debit) ? money(line.debit) : <Dash />}
-                  </td>
                   <td className="whitespace-nowrap px-4 py-3 text-right font-semibold text-red-600">
                     {Number(line.credit) ? money(line.credit) : <Dash />}
+                  </td>
+                  <td className="whitespace-nowrap px-4 py-3 text-right font-semibold text-green-600">
+                    {Number(line.debit) ? money(line.debit) : <Dash />}
                   </td>
                   <td className="whitespace-nowrap px-4 py-3 text-right font-bold text-gray-900">{signedMoney(line.running_balance)}</td>
                                     <td className="whitespace-nowrap px-4 py-3 text-xs text-gray-600">{noteFor(line)}</td>
@@ -345,8 +345,8 @@ const EntryDetails = ({ line, onClose }) => {
                       <tr>
                         <th className="px-4 py-3">Account</th>
                         <th className="px-4 py-3">Memo</th>
-                        <th className="px-4 py-3 text-right">Debit</th>
                         <th className="px-4 py-3 text-right">Credit</th>
+                        <th className="px-4 py-3 text-right">Debit</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
@@ -357,8 +357,8 @@ const EntryDetails = ({ line, onClose }) => {
                             {entryLine.account?.account_name || 'Unknown account'}
                           </td>
                           <td className="px-4 py-3 text-slate-700">{entryLine.description || '—'}</td>
-                          <td className="whitespace-nowrap px-4 py-3 text-right font-bold text-green-700">{money(entryLine.debit_amount)}</td>
                           <td className="whitespace-nowrap px-4 py-3 text-right font-bold text-rose-700">{money(entryLine.credit_amount)}</td>
+                          <td className="whitespace-nowrap px-4 py-3 text-right font-bold text-green-700">{money(entryLine.debit_amount)}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -436,15 +436,15 @@ const LedgerView = () => {
 
   const exportCsv = () => {
     const escape = (value) => `"${String(value ?? '').replace(/"/g, '""')}"`;
-    const lines = [['Account', 'Date', 'Particulars', 'Reference', 'Debit', 'Credit', 'Running Balance'].map(escape).join(',')];
+    const lines = [['Account', 'Date', 'Particulars', 'Reference', 'Credit', 'Debit', 'Running Balance'].map(escape).join(',')];
     rows.forEach((row) => {
       lines.push([
         row.account_name,
         row.is_opening ? '' : String(row.entry_date).slice(0, 10),
         row.is_opening ? 'Opening Balance' : row.description,
         row.is_opening ? '' : row.entry_number,
-        Number(row.debit) || '',
         Number(row.credit) || '',
+        Number(row.debit) || '',
         Number(row.running_balance)
       ].map(escape).join(','));
     });

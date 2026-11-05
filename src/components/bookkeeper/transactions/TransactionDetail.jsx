@@ -307,12 +307,12 @@ const TransactionDetail = ({ transaction, onBack, onEdit, onDelete }) => {
               <tfoot className="bg-gray-50">
                 <tr>
                   <td colSpan="3" className="px-4 py-3 text-sm font-semibold text-gray-900">
-                    Debits / Credits
+                    Credits / Debits
                   </td>
                   <td className="px-4 py-3 text-sm font-semibold text-gray-900 text-right">
-                    {formatCurrency(transaction.accountAllocations.filter((allocation) => (allocation.side || 'debit') === 'debit').reduce((sum, allocation) => sum + (Number(allocation.amount) || 0), 0))}
-                    {' / '}
                     {formatCurrency(transaction.accountAllocations.filter((allocation) => allocation.side === 'credit').reduce((sum, allocation) => sum + (Number(allocation.amount) || 0), 0))}
+                    {' / '}
+                    {formatCurrency(transaction.accountAllocations.filter((allocation) => (allocation.side || 'debit') === 'debit').reduce((sum, allocation) => sum + (Number(allocation.amount) || 0), 0))}
                   </td>
                 </tr>
               </tfoot>

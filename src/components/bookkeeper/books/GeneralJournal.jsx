@@ -103,8 +103,8 @@ const GeneralJournal = ({ period = 'April 2026' }) => {
                 <th scope="col" className="px-4 py-3 text-left text-xs font-semibold uppercase text-gray-700">Date</th>
                 <th scope="col" className="px-4 py-3 text-left text-xs font-semibold uppercase text-gray-700">Reference</th>
                 <th scope="col" className="px-4 py-3 text-left text-xs font-semibold uppercase text-gray-700">Account / Particulars</th>
-                <th scope="col" className="px-4 py-3 text-right text-xs font-semibold uppercase text-gray-700">Debit</th>
                 <th scope="col" className="px-4 py-3 text-right text-xs font-semibold uppercase text-gray-700">Credit</th>
+                <th scope="col" className="px-4 py-3 text-right text-xs font-semibold uppercase text-gray-700">Debit</th>
               </tr>
             </thead>
             <tbody className="bg-white">
@@ -129,8 +129,8 @@ const GeneralJournal = ({ period = 'April 2026' }) => {
                         <span className="ml-2 text-gray-500">{line.description || entry.description}</span>
                       )}
                     </td>
-                    <td className="whitespace-nowrap px-4 py-2 text-right text-sm font-medium text-gray-900">{formatAmount(line.debit_amount)}</td>
                     <td className="whitespace-nowrap px-4 py-2 text-right text-sm font-medium text-gray-900">{formatAmount(line.credit_amount)}</td>
+                    <td className="whitespace-nowrap px-4 py-2 text-right text-sm font-medium text-gray-900">{formatAmount(line.debit_amount)}</td>
                   </tr>
                 );
               }))}
@@ -139,8 +139,8 @@ const GeneralJournal = ({ period = 'April 2026' }) => {
               <tfoot className="border-t-2 border-gray-300 bg-purple-50">
                 <tr>
                   <th scope="row" colSpan={3} className="px-4 py-3 text-left text-sm font-bold text-gray-900">Period totals</th>
-                  <td className="whitespace-nowrap px-4 py-3 text-right text-sm font-bold text-gray-900">{formatAmount(totalDebits)}</td>
                   <td className="whitespace-nowrap px-4 py-3 text-right text-sm font-bold text-gray-900">{formatAmount(totalCredits)}</td>
+                  <td className="whitespace-nowrap px-4 py-3 text-right text-sm font-bold text-gray-900">{formatAmount(totalDebits)}</td>
                 </tr>
               </tfoot>
             )}
