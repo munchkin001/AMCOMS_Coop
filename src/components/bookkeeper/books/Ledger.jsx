@@ -149,8 +149,8 @@ const Ledger = () => {
                 <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Date</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Reference</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Particulars</th>
-                <th className="px-4 py-3 text-right text-xs font-semibold text-gray-700 uppercase">Credit</th>
                 <th className="px-4 py-3 text-right text-xs font-semibold text-gray-700 uppercase">Debit</th>
+                <th className="px-4 py-3 text-right text-xs font-semibold text-gray-700 uppercase">Credit</th>
                 <th className="px-4 py-3 text-right text-xs font-semibold text-gray-700 uppercase">Balance</th>
               </tr>
             </thead>
@@ -172,8 +172,8 @@ const Ledger = () => {
                         </button>
                       </td>
                       <td className="px-4 py-3 text-sm text-gray-900">{entry.particulars}</td>
-                      <td className="px-4 py-3 text-sm text-gray-900 text-right whitespace-nowrap">{formatAmount(entry.credit)}</td>
                       <td className="px-4 py-3 text-sm text-gray-900 text-right whitespace-nowrap">{formatAmount(entry.debit)}</td>
+                      <td className="px-4 py-3 text-sm text-gray-900 text-right whitespace-nowrap">{formatAmount(entry.credit)}</td>
                       <td className="px-4 py-3 text-sm font-semibold text-gray-900 text-right whitespace-nowrap">
                         {formatAmount(entry.balance)}
                       </td>
@@ -185,7 +185,7 @@ const Ledger = () => {
                             <div><dt className="font-semibold text-gray-600">Entry number</dt><dd className="mt-1 text-gray-900">{entry.reference}</dd></div>
                             <div><dt className="font-semibold text-gray-600">Date</dt><dd className="mt-1 text-gray-900">{entry.date}</dd></div>
                             <div><dt className="font-semibold text-gray-600">Status</dt><dd className="mt-1 capitalize text-gray-900">{entry.status}</dd></div>
-                            <div><dt className="font-semibold text-gray-600">Credit / debit</dt><dd className="mt-1 text-gray-900">{formatAmount(entry.credit)} / {formatAmount(entry.debit)}</dd></div>
+                            <div><dt className="font-semibold text-gray-600">Debit / credit</dt><dd className="mt-1 text-gray-900">{formatAmount(entry.debit)} / {formatAmount(entry.credit)}</dd></div>
                             <div className="sm:col-span-2 lg:col-span-4"><dt className="font-semibold text-gray-600">Particulars</dt><dd className="mt-1 text-gray-900">{entry.particulars}</dd></div>
                           </dl>
                         </td>

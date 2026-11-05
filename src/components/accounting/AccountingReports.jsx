@@ -114,7 +114,7 @@ export const TrialBalance = () => {
           </div>
           <table className="min-w-full text-sm">
             <thead className="bg-gray-50 text-left text-xs uppercase text-gray-500">
-              <tr><th className="px-4 py-2">Code</th><th className="px-4 py-2">Account</th><th className="px-4 py-2 text-right">Credit</th><th className="px-4 py-2 text-right">Debit</th></tr>
+              <tr><th className="px-4 py-2">Code</th><th className="px-4 py-2">Account</th><th className="px-4 py-2 text-right">Debit</th><th className="px-4 py-2 text-right">Credit</th></tr>
             </thead>
             <tbody>
               {lines.length === 0 && <tr><td colSpan={4} className="py-10 text-center text-gray-500">No posted transactions for this period.</td></tr>}
@@ -122,12 +122,12 @@ export const TrialBalance = () => {
                 <tr key={row.account_id} className="border-t border-gray-100">
                   <td className="px-4 py-1.5 text-gray-500">{row.account_code}</td>
                   <td className="px-4 py-1.5">{row.account_name}</td>
-                  <Money value={row.credit} /><Money value={row.debit} />
+                  <Money value={row.debit} /><Money value={row.credit} />
                 </tr>
               ))}
             </tbody>
             <tfoot className="border-t-2 border-gray-300 bg-gray-50 font-semibold">
-              <tr><td colSpan={2} className="px-4 py-2 text-right">Totals</td><Money value={totalCredit} bold /><Money value={totalDebit} bold /></tr>
+              <tr><td colSpan={2} className="px-4 py-2 text-right">Totals</td><Money value={totalDebit} bold /><Money value={totalCredit} bold /></tr>
               <tr>
                 <td colSpan={4} className={`px-4 py-2 text-center text-sm ${lines.length === 0 ? 'text-gray-600' : balanced ? 'text-green-700' : 'text-red-700'}`}>
                   {lines.length === 0
