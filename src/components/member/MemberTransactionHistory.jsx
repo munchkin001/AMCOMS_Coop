@@ -3,6 +3,8 @@ import { useAuth } from '../../contexts/AuthContext';
 import { supabase } from '../../lib/supabase';
 import { useMultipleRealtimeSubscriptions } from '../../hooks/useRealtimeSubscription';
 import EmptyState from '../common/EmptyState';
+import MonthFilter from '../common/MonthFilter';
+import { getMonthKey } from '../common/monthFilterUtils';
 import PrintableReceipt from '../common/PrintableReceipt';
 
 const peso = (value) => `₱${Number(value || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -21,6 +23,7 @@ const MemberTransactionHistory = () => {
   const [filter, setFilter] = useState('all');
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
+  const [selectedMonth, setSelectedMonth] = useState('all');
   const [transactions, setTransactions] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -142,6 +145,7 @@ const MemberTransactionHistory = () => {
 
   const filtered = transactions.filter((t) => {
     if (filter !== 'all' && t.category.toLowerCase() !== filter) return false;
+    if (selectedMonth !== 'all' && getMonthKey(t.rawDate) !== selectedMonth) return false;
     if (dateFrom && new Date(t.rawDate) < new Date(dateFrom)) return false;
     if (dateTo && new Date(t.rawDate) > new Date(`${dateTo}T23:59:59`)) return false;
     return true;
@@ -150,6 +154,14 @@ const MemberTransactionHistory = () => {
   return (
     <div className="space-y-4">
       <div className="grid min-w-0 grid-cols-1 gap-3 overflow-hidden rounded-xl border border-gray-200 bg-white p-4 sm:grid-cols-3">
+        <div className="sm:col-span-3">
+          <MonthFilter
+            dates={transactions.map((transaction) => transaction.rawDate)}
+            value={selectedMonth}
+            onChange={setSelectedMonth}
+            id="member-transactions-month"
+          />
+        </div>
         <label className="min-w-0 text-sm font-medium text-gray-700">
           Category
           <select value={filter} onChange={(e) => setFilter(e.target.value)} className="mt-1 box-border block min-w-0 w-full max-w-full rounded-lg border border-gray-300 bg-white px-3 py-2">

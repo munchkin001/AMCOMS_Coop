@@ -2,6 +2,8 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { AlertCircle, ArrowDownLeft, ArrowUpRight, History, PhilippinePeso, RefreshCw } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { supabase } from '../../lib/supabase';
+import MonthFilter from '../common/MonthFilter';
+import { getMonthKey } from '../common/monthFilterUtils';
 
 const formatPeso = (value) => new Intl.NumberFormat('en-PH', {
   style: 'currency',
@@ -29,9 +31,13 @@ const MemberEquityHistory = ({ kind }) => {
   const memberId = staff?.member_id;
   const [balance, setBalance] = useState(0);
   const [entries, setEntries] = useState([]);
+  const [selectedMonth, setSelectedMonth] = useState('all');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const isCapital = kind === 'capital';
+  const filteredEntries = selectedMonth === 'all'
+    ? entries
+    : entries.filter((entry) => getMonthKey(entry.date) === selectedMonth);
 
   const loadHistory = useCallback(async () => {
     if (!memberId) {
@@ -143,17 +149,27 @@ const MemberEquityHistory = ({ kind }) => {
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 px-5 py-4 sm:px-6">
           <div>
             <h2 className="text-lg font-bold text-slate-900">{isCapital ? 'Capital share activity' : 'Share ownership activity'}</h2>
-            <p className="mt-1 text-sm text-slate-500">{entries.length} {entries.length === 1 ? 'entry' : 'entries'}</p>
+            <p className="mt-1 text-sm text-slate-500">
+              {filteredEntries.length}{selectedMonth !== 'all' ? ` of ${entries.length}` : ''} {filteredEntries.length === 1 ? 'entry' : 'entries'}
+            </p>
           </div>
-          <button
-            type="button"
-            onClick={loadHistory}
-            disabled={loading}
-            className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-slate-300 px-3 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            <RefreshCw aria-hidden="true" size={16} className={loading ? 'animate-spin' : ''} />
-            Refresh
-          </button>
+          <div className="flex flex-wrap items-center gap-2">
+            <MonthFilter
+              dates={entries.map((entry) => entry.date)}
+              value={selectedMonth}
+              onChange={setSelectedMonth}
+              id={`member-${kind}-history-month`}
+            />
+            <button
+              type="button"
+              onClick={loadHistory}
+              disabled={loading}
+              className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-slate-300 px-3 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              <RefreshCw aria-hidden="true" size={16} className={loading ? 'animate-spin' : ''} />
+              Refresh
+            </button>
+          </div>
         </div>
 
         {error ? (
@@ -175,6 +191,12 @@ const MemberEquityHistory = ({ kind }) => {
                 : 'Your share balance will appear here when ownership history has been recorded.'}
             </p>
           </div>
+        ) : filteredEntries.length === 0 ? (
+          <div className="px-6 py-12 text-center">
+            <History aria-hidden="true" className="mx-auto text-slate-300" size={32} />
+            <p className="mt-3 font-semibold text-slate-800">No entries for this month</p>
+            <p className="mt-1 text-sm text-slate-500">Choose another month or select all months to see your full history.</p>
+          </div>
         ) : (
           <>
             {!isCapital && (
@@ -194,7 +216,7 @@ const MemberEquityHistory = ({ kind }) => {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {entries.map((entry) => {
+                  {filteredEntries.map((entry) => {
                     const change = Number(entry.shares_change) || 0;
                     const isIncrease = change >= 0;
                     return (

@@ -2,6 +2,8 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { supabase } from '../../lib/supabase';
 import { useMultipleRealtimeSubscriptions } from '../../hooks/useRealtimeSubscription';
+import MonthFilter from '../common/MonthFilter';
+import { getMonthKey } from '../common/monthFilterUtils';
 
 const peso = (value, decimals = 2) => `₱${Number(value || 0).toLocaleString('en-PH', { minimumFractionDigits: decimals, maximumFractionDigits: decimals })}`;
 const fmtDate = (value) => new Date(value).toLocaleDateString('en-PH', { month: 'short', day: 'numeric' });
@@ -11,6 +13,7 @@ const AccountList = ({ kind }) => {
   const { staff } = useAuth();
   const [accounts, setAccounts] = useState([]);
   const [transactions, setTransactions] = useState([]);
+  const [selectedMonth, setSelectedMonth] = useState('all');
   const [loading, setLoading] = useState(true);
 
   const label = kind === 'time-deposit' ? 'Time Deposit' : 'Savings';
@@ -51,6 +54,9 @@ const AccountList = ({ kind }) => {
   const totalDeposits = sumOf((tx) => !isWithdrawal(tx) && !isInterest(tx));
   const totalWithdrawals = sumOf(isWithdrawal);
   const interestEarned = sumOf(isInterest);
+  const filteredTransactions = selectedMonth === 'all'
+    ? transactions.slice(0, 10)
+    : transactions.filter((transaction) => getMonthKey(transaction.transaction_date) === selectedMonth);
 
   if (loading) return <p className="py-6 text-center text-sm text-gray-500">Loading...</p>;
 
@@ -94,11 +100,21 @@ const AccountList = ({ kind }) => {
       </section>
 
       <section className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm sm:p-6">
-        <h3 className="text-lg font-semibold text-gray-900">Recent {label} History</h3>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <h3 className="text-lg font-semibold text-gray-900">{selectedMonth === 'all' ? `Recent ${label} History` : `${label} History`}</h3>
+          <MonthFilter
+            dates={transactions.map((transaction) => transaction.transaction_date)}
+            value={selectedMonth}
+            onChange={setSelectedMonth}
+            id={`${kind}-history-month`}
+          />
+        </div>
         {transactions.length === 0 ? (
           <p className="py-6 text-center text-sm text-gray-500">
             {accounts.length ? 'No transactions yet.' : `You have no ${label.toLowerCase()} account yet. Please visit the cooperative office to open one.`}
           </p>
+        ) : filteredTransactions.length === 0 ? (
+          <p className="py-6 text-center text-sm text-gray-500">No transactions for this month.</p>
         ) : (
           <div className="mt-3 overflow-x-auto">
             <table className="w-full text-sm">
@@ -111,7 +127,7 @@ const AccountList = ({ kind }) => {
                 </tr>
               </thead>
               <tbody>
-                {transactions.slice(0, 10).map((tx) => {
+                {filteredTransactions.map((tx) => {
                   const out = isWithdrawal(tx);
                   return (
                     <tr key={tx.id} className="border-b border-gray-100 last:border-0">

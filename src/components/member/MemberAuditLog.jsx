@@ -6,6 +6,8 @@ import {
 import { useAuth } from '../../contexts/AuthContext';
 import { useRealtimeSubscription } from '../../hooks/useRealtimeSubscription';
 import { supabase } from '../../lib/supabase';
+import MonthFilter from '../common/MonthFilter';
+import { getMonthKey } from '../common/monthFilterUtils';
 
 const describeDevice = (userAgent) => {
   if (!userAgent) return 'Device not reported';
@@ -70,6 +72,7 @@ const MemberAuditLog = () => {
   const [error, setError] = useState('');
   const [search, setSearch] = useState('');
   const [activityFilter, setActivityFilter] = useState('all');
+  const [selectedMonth, setSelectedMonth] = useState('all');
   const [page, setPage] = useState(1);
   const [selectedLog, setSelectedLog] = useState(null);
   const signInCount = logs.filter((log) => log.table_name === 'authentication' && log.action === 'Signed in').length;
@@ -80,7 +83,8 @@ const MemberAuditLog = () => {
       || (activityFilter === 'sign-ins' && isSignIn)
       || (activityFilter === 'account' && !isSignIn);
     const searchableText = `${getActivityLabel(log)} ${log.table_name || ''} ${log.action || ''} ${describeDevice(log.user_agent)} ${formatDate(log.created_at).date} ${formatDate(log.created_at).time}`.toLowerCase();
-    return matchesType && searchableText.includes(search.trim().toLowerCase());
+    const matchesMonth = selectedMonth === 'all' || getMonthKey(log.created_at) === selectedMonth;
+    return matchesType && matchesMonth && searchableText.includes(search.trim().toLowerCase());
   });
   const pageCount = Math.max(1, Math.ceil(filteredLogs.length / PAGE_SIZE));
   const currentPage = Math.min(page, pageCount);
@@ -187,7 +191,7 @@ const MemberAuditLog = () => {
             </span>
           )}
         </div>
-        <div className="grid gap-3 border-b border-slate-100 p-4 sm:grid-cols-[minmax(0,1fr)_12rem] sm:px-6">
+        <div className="grid gap-3 border-b border-slate-100 p-4 sm:grid-cols-[minmax(0,1fr)_12rem_auto] sm:px-6">
           <label className="text-sm font-medium text-slate-700">
             Search activity
             <span className="relative mt-1 block">
@@ -201,6 +205,14 @@ const MemberAuditLog = () => {
               />
             </span>
           </label>
+          <div className="sm:self-end">
+            <MonthFilter
+              dates={logs.map((log) => log.created_at)}
+              value={selectedMonth}
+              onChange={(value) => { setSelectedMonth(value); setPage(1); }}
+              id="member-audit-month"
+            />
+          </div>
           <label className="text-sm font-medium text-slate-700">
             Activity type
             <select
