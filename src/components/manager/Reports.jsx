@@ -992,6 +992,22 @@ const Reports = () => {
   return (
     <div className="space-y-6">
       <style>{`
+        .aging-screen-entries,
+        .aging-screen-entries > section {
+          width: 100%;
+          max-width: 100%;
+          min-width: 0;
+        }
+        .aging-report-table {
+          width: 100%;
+          min-width: 0;
+          table-layout: fixed;
+        }
+        .aging-report-table th,
+        .aging-report-table td {
+          white-space: normal !important;
+          overflow-wrap: anywhere;
+        }
         @media print {
           @page { size: A4 landscape; margin: 10mm; }
           body * { visibility: hidden !important; }
