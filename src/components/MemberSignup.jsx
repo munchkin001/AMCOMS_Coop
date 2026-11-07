@@ -2,52 +2,16 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 
-const inputClass = 'w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all';
-
-const fields = [
-  ['firstName', 'First name', true],
-  ['middleName', 'Middle name', false],
-  ['lastName', 'Last name', true],
-  ['dateOfBirth', 'Date of birth', true, 'date'],
-  ['email', 'Email', true, 'email'],
-  ['phone', 'Contact number', true, 'tel'],
-  ['gender', 'Gender', false, 'select'],
-  ['occupation', 'Occupation', false],
-  ['barangay', 'Barangay', false],
-  ['municipality', 'Municipality / city', false],
-  ['province', 'Province', false],
-  ['emergencyContactName', 'Emergency contact name', false],
-  ['emergencyContactPhone', 'Emergency contact phone', false, 'tel'],
-  ['rsbsa', 'RSBSA', false],
-  ['tin', 'TIN', false],
-  ['ncfrs', 'NCFRS', false],
-  ['pcaId', 'PCA ID', false]
-];
-
 const MemberSignup = () => {
   const navigate = useNavigate();
   const [showWarningModal, setShowWarningModal] = useState(true);
-  const [showSubmittedModal, setShowSubmittedModal] = useState(false);
   const [formData, setFormData] = useState({
     email: '',
     password: '',
     confirmPassword: '',
     firstName: '',
-    middleName: '',
     lastName: '',
-    dateOfBirth: '',
-    gender: '',
     phone: '',
-    occupation: '',
-    barangay: '',
-    municipality: '',
-    province: '',
-    emergencyContactName: '',
-    emergencyContactPhone: '',
-    rsbsa: '',
-    tin: '',
-    ncfrs: '',
-    pcaId: '',
     address: ''
   });
   const [error, setError] = useState('');
@@ -73,7 +37,7 @@ const MemberSignup = () => {
     }
 
     if (formData.password.length < 8 || !/[A-Z]/.test(formData.password) || !/[a-z]/.test(formData.password) || !/[0-9]/.test(formData.password)) {
-      setError('Use at least 8 characters with an uppercase letter, a lowercase letter, and a number. A special character or symbol is recommended, but optional.');
+      setError('Use at least 8 characters with an uppercase letter, a lowercase letter, and a number.');
       return;
     }
 
@@ -81,25 +45,16 @@ const MemberSignup = () => {
 
     try {
       // Step 1: Sign up the user with Supabase Auth
-      const { data: created, error: createError } = await supabase.functions.invoke('member-signup', {
-        body: {
-          email: formData.email,
-          password: formData.password,
-          first_name: formData.firstName,
-          last_name: formData.lastName,
-          phone: formData.phone
-        }
-      });
-      if (createError) {
-        let message = '';
-        try { message = (await createError.context?.json())?.error; } catch { /* ignore */ }
-        throw new Error(message || 'Failed to create user account');
-      }
-      if (!created?.created) throw new Error('Failed to create user account');
-
-      const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
+      const { data: authData, error: authError } = await supabase.auth.signUp({
         email: formData.email,
-        password: formData.password
+        password: formData.password,
+        options: {
+          data: {
+            first_name: formData.firstName,
+            last_name: formData.lastName,
+            phone: formData.phone
+          }
+        }
       });
 
       if (authError) throw authError;
@@ -110,28 +65,19 @@ const MemberSignup = () => {
 
       const { error: applicationError } = await supabase.rpc('submit_member_application', {
         p_first_name: formData.firstName,
-        p_middle_name: formData.middleName || null,
         p_last_name: formData.lastName,
         p_email: formData.email,
         p_phone: formData.phone,
-        p_address: formData.address,
-        p_barangay: formData.barangay || null,
-        p_municipality: formData.municipality || null,
-        p_province: formData.province || null,
-        p_date_of_birth: formData.dateOfBirth || null,
-        p_occupation: formData.occupation || null,
-        p_gender: formData.gender || null,
-        p_emergency_contact_name: formData.emergencyContactName || null,
-        p_emergency_contact_phone: formData.emergencyContactPhone || null,
-        p_rsbsa: formData.rsbsa || null,
-        p_tin: formData.tin || null,
-        p_ncfrs: formData.ncfrs || null,
-        p_pca_id: formData.pcaId || null
+        p_address: formData.address
       });
       if (applicationError) throw applicationError;
 
+      // Success!
+      alert('Application submitted successfully! Your application will be reviewed by our manager. Please check back later.');
+      
+      // Sign out the user (they'll need to wait for approval)
       await supabase.auth.signOut();
-      setShowSubmittedModal(true);
+      navigate('/login/member');
     } catch (err) {
       console.error('Signup error:', err);
       setError(err.message || 'Failed to create application. Please try again.');
@@ -142,29 +88,6 @@ const MemberSignup = () => {
 
   return (
     <>
-      {showSubmittedModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4" role="dialog" aria-modal="true" aria-labelledby="submitted-title">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-8 text-center">
-            <div className="flex items-center justify-center w-20 h-20 bg-green-100 rounded-full mx-auto mb-6">
-              <svg className="w-10 h-10 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-            </div>
-            <h2 id="submitted-title" className="text-2xl font-bold text-gray-900 mb-3">Application Received</h2>
-            <p className="text-gray-600 mb-6">
-              This may take a while. We will notify you via Email for the update.
-            </p>
-            <button
-              type="button"
-              onClick={() => navigate('/login/member')}
-              className="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-6 rounded-lg transition-colors"
-            >
-              OK
-            </button>
-          </div>
-        </div>
-      )}
-
       {/* Warning Modal */}
       {showWarningModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
@@ -250,6 +173,7 @@ const MemberSignup = () => {
                 <img src="/LOGO.png" alt="Logo" className="w-16 h-16 object-contain" />
                 <div className="text-left">
                   <h1 className="text-2xl font-bold text-gray-900">AMCOMS</h1>
+                  <p className="text-sm text-gray-600">Member Portal</p>
                 </div>
               </div>
 
@@ -273,31 +197,81 @@ const MemberSignup = () => {
 
             {/* Signup Form */}
             <form onSubmit={handleSubmit} className="space-y-6">
-              <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-                {fields.map(([name, label, required, type = 'text']) => (
-                  <div key={name}>
-                    <label className="mb-2 block font-medium text-gray-700">
-                      {label} {required && <span className="text-red-500">*</span>}
-                    </label>
-                    {type === 'select' ? (
-                      <select name={name} value={formData[name]} onChange={handleChange} required={required} className={inputClass}>
-                        <option value="">Not specified</option>
-                        <option value="male">Male</option>
-                        <option value="female">Female</option>
-                        <option value="other">Other</option>
-                      </select>
-                    ) : (
-                      <input type={type} name={name} value={formData[name]} onChange={handleChange} required={required} max={type === 'date' ? new Date().toISOString().slice(0, 10) : undefined} className={inputClass} />
-                    )}
-                  </div>
-                ))}
-                <div className="md:col-span-3">
-                  <label className="mb-2 block font-medium text-gray-700">
-                    Address <span className="text-red-500">*</span>
+              {/* Personal Information */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                  <label className="block text-gray-700 font-medium mb-2">
+                    First Name <span className="text-red-500">*</span>
                   </label>
-                  <textarea name="address" value={formData.address} onChange={handleChange} rows="2" className={inputClass} required />
+                  <input
+                    type="text"
+                    name="firstName"
+                    value={formData.firstName}
+                    onChange={handleChange}
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-gray-700 font-medium mb-2">
+                    Last Name <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    name="lastName"
+                    value={formData.lastName}
+                    onChange={handleChange}
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all"
+                    required
+                  />
                 </div>
               </div>
+
+              {/* Contact Information */}
+              <div>
+                <label className="block text-gray-700 font-medium mb-2">
+                  Email Address <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="email"
+                  name="email"
+                  value={formData.email}
+                  onChange={handleChange}
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block text-gray-700 font-medium mb-2">
+                  Phone Number <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="tel"
+                  name="phone"
+                  value={formData.phone}
+                  onChange={handleChange}
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all"
+                  placeholder="+63 XXX XXX XXXX"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block text-gray-700 font-medium mb-2">
+                  Address <span className="text-red-500">*</span>
+                </label>
+                <textarea
+                  name="address"
+                  value={formData.address}
+                  onChange={handleChange}
+                  rows="3"
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all"
+                  required
+                />
+              </div>
+
               {/* Password */}
               <div>
                 <label className="block text-gray-700 font-medium mb-2">
@@ -310,7 +284,7 @@ const MemberSignup = () => {
                     value={formData.password}
                     onChange={handleChange}
                     className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all pr-12"
-                    minLength="8"
+                    minLength="6"
                     required
                   />
                   <button
@@ -330,6 +304,7 @@ const MemberSignup = () => {
                     )}
                   </button>
                 </div>
+                <p className="text-xs text-gray-500 mt-1">At least 8 characters, including uppercase, lowercase, and a number</p>
               </div>
 
               <div>
@@ -399,7 +374,7 @@ const MemberSignup = () => {
                   <div>
                     <p className="text-sm text-gray-700 font-medium mb-1">What happens next?</p>
                     <p className="text-sm text-gray-600">
-                      Your application will be reviewed by the cooperative. You'll be notified once your account is approved.
+                      Your application will be reviewed by our manager. You'll be notified once your account is approved.
                     </p>
                   </div>
                 </div>

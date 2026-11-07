@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useState } from 'react';
-import { Send } from 'lucide-react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { RefreshCw, Send } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 
 const templates = [
@@ -16,6 +16,51 @@ const SMSCenter = () => {
   const [loadingHistory, setLoadingHistory] = useState(true);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState('');
+  const [notice, setNotice] = useState('');
+  const [creditBalance, setCreditBalance] = useState(null);
+  const [accountName, setAccountName] = useState('');
+  const [balanceError, setBalanceError] = useState('');
+  const [loadingBalance, setLoadingBalance] = useState(false);
+  const [balanceRefreshAllowed, setBalanceRefreshAllowed] = useState(true);
+  const balanceCooldownTimer = useRef(null);
+  const balanceRefreshAllowedRef = useRef(true);
+  const balanceRequestInProgressRef = useRef(false);
+
+  const loadCreditBalance = useCallback(async () => {
+    if (balanceRequestInProgressRef.current || !balanceRefreshAllowedRef.current) return;
+    balanceRequestInProgressRef.current = true;
+    setLoadingBalance(true);
+    setBalanceError('');
+    balanceRefreshAllowedRef.current = false;
+    setBalanceRefreshAllowed(false);
+    balanceCooldownTimer.current = setTimeout(() => {
+      balanceRefreshAllowedRef.current = true;
+      setBalanceRefreshAllowed(true);
+    }, 30000);
+
+    try {
+      const { data, error: balanceLoadError } = await supabase.functions.invoke('semaphore-sms', {
+        body: { action: 'balance' }
+      });
+      if (balanceLoadError) {
+        let serverMessage;
+        try {
+          serverMessage = (await balanceLoadError.context?.clone?.().json())?.error;
+        } catch {
+          serverMessage = null;
+        }
+        throw new Error(serverMessage || 'SMS credits could not be loaded.');
+      }
+      setCreditBalance(Number(data.credit_balance));
+      setAccountName(data.account_name || '');
+    } catch (balanceLoadError) {
+      setBalanceError(balanceLoadError.message || 'SMS credits could not be loaded.');
+    } finally {
+      balanceRequestInProgressRef.current = false;
+      setLoadingBalance(false);
+    }
+  }, []);
+
   const loadHistory = useCallback(async () => {
     setLoadingHistory(true);
     const { data, error: historyError } = await supabase
@@ -36,13 +81,19 @@ const SMSCenter = () => {
     loadHistory();
   }, [loadHistory]);
 
+  useEffect(() => {
+    loadCreditBalance();
+    return () => clearTimeout(balanceCooldownTimer.current);
+  }, [loadCreditBalance]);
+
   const handleSendSMS = async (event) => {
     event.preventDefault();
     setError('');
+    setNotice('');
     setSending(true);
 
     try {
-      const { data, error: sendError } = await supabase.functions.invoke('mocean-sms', {
+      const { data, error: sendError } = await supabase.functions.invoke('semaphore-sms', {
         body: { action: 'send', phone, message }
       });
       if (sendError) {
@@ -54,8 +105,10 @@ const SMSCenter = () => {
         }
         throw new Error(messageFromServer || 'The SMS could not be sent. Please try again.');
       }
-      if (!data?.sent_count) throw new Error('SMS API PH did not confirm delivery.');
 
+      setNotice(data?.failed_count
+        ? `Sent ${data.sent_count} message(s); ${data.failed_count} failed.`
+        : `SMS accepted for delivery to ${phone.trim()}.`);
       setPhone('');
       setMessage('');
       await loadHistory();
@@ -75,14 +128,21 @@ const SMSCenter = () => {
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-gray-950">SMS Center</h1>
+        <p className="mt-1 text-sm text-gray-600">Send a message to a member using their registered mobile number.</p>
       </div>
 
       <dl className="grid gap-3 sm:grid-cols-3">
         <div className="flex items-center justify-between gap-3 rounded-lg border border-gray-200 bg-white p-4 sm:col-span-3">
           <div>
-            <dt className="text-sm text-gray-600">SMS API PH credit balance</dt>
-            <dd className="mt-1 text-sm font-medium text-gray-700">Not available through the provider API</dd>
+            <dt className="text-sm text-gray-600">SMS credits remaining</dt>
+            <dd className="mt-1 text-2xl font-semibold text-gray-950">{loadingBalance && creditBalance === null ? 'Loading…' : creditBalance === null ? 'Unavailable' : creditBalance.toLocaleString()}</dd>
+            {accountName && <p className="mt-0.5 text-xs text-gray-500">{accountName}</p>}
+            {balanceError && <p role="alert" className="mt-1 text-sm text-red-700">{balanceError}</p>}
+            <p className="mt-1 text-xs text-gray-500">Balance refresh is limited to once every 30 seconds.</p>
           </div>
+          <button type="button" onClick={loadCreditBalance} disabled={loadingBalance || !balanceRefreshAllowed} aria-label="Refresh SMS credit balance" title="Refresh SMS credit balance" className="inline-flex size-10 shrink-0 items-center justify-center rounded-md border border-gray-300 text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50">
+            <RefreshCw size={17} aria-hidden="true" className={loadingBalance ? 'animate-spin' : ''} />
+          </button>
         </div>
         <div className="rounded-lg border border-gray-200 bg-white p-4"><dt className="text-sm text-gray-600">Sent today</dt><dd className="mt-1 text-2xl font-semibold text-gray-950">{sentToday}</dd></div>
         <div className="rounded-lg border border-gray-200 bg-white p-4"><dt className="text-sm text-gray-600">Failed today</dt><dd className="mt-1 text-2xl font-semibold text-gray-950">{failedToday}</dd></div>
@@ -93,6 +153,7 @@ const SMSCenter = () => {
         <h2 className="text-lg font-semibold text-gray-950">Send SMS</h2>
         <form onSubmit={handleSendSMS} className="mt-4 space-y-4">
           {error && <p role="alert" className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">{error}</p>}
+          {notice && <p role="status" className="rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-900">{notice}</p>}
           <div>
             <label htmlFor="sms-phone" className="mb-1.5 block text-sm font-medium text-gray-800">Mobile number</label>
             <input id="sms-phone" type="tel" inputMode="tel" autoComplete="tel" value={phone} onChange={(event) => setPhone(event.target.value)} placeholder="09XXXXXXXXX" required maxLength={24} className="w-full rounded-md border border-gray-300 px-3 py-2.5 text-sm focus:border-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-700/20" />
@@ -100,10 +161,7 @@ const SMSCenter = () => {
           <div>
             <label htmlFor="sms-message" className="mb-1.5 block text-sm font-medium text-gray-800">Message</label>
             <textarea id="sms-message" value={message} onChange={(event) => setMessage(event.target.value)} rows={4} maxLength={2000} required placeholder="Write your message" className="w-full resize-y rounded-md border border-gray-300 px-3 py-2.5 text-sm focus:border-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-700/20" />
-            <p className="mt-1 flex justify-between gap-3 text-xs text-gray-500">
-              <span>SMS supports plain text; font and color formatting are not transmitted.</span>
-              <span>{message.length}/2000 characters</span>
-            </p>
+            <p className="mt-1 text-right text-xs text-gray-500">{message.length}/2000 characters</p>
           </div>
           <button type="submit" disabled={sending || !phone.trim() || !message.trim()} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-md bg-blue-700 px-5 py-2.5 text-sm font-semibold text-white hover:bg-blue-800 disabled:cursor-not-allowed disabled:opacity-50">
             <Send size={17} aria-hidden="true" />{sending ? 'Sending…' : 'Send SMS'}

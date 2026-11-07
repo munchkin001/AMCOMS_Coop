@@ -1,47 +1,58 @@
-import React, { useCallback, useState, useEffect } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { Link, useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-import { OFFLINE_PIN_NOT_CONFIGURED_MESSAGE, unlockWithOfflinePin } from '../lib/Offline/offlinePin';
-import { setRememberMePreference } from '../lib/supabase';
 
-const Login = ({ portalType }) => {
+const Login = () => {
+  const { portalType } = useParams(); // Get portal type from URL
   const navigate = useNavigate();
-  const { login, staff, user, unlockOffline } = useAuth();
-  const isStaffPortal = portalType === 'staff';
-  const portalConfig = {
-    name: 'AMCOMS',
-    cooperative: 'Agay-ayan Multi-Purpose Cooperative',
-    gradient: isStaffPortal
-      ? 'from-blue-950 to-blue-800'
-      : 'from-[#0d3b2d] via-[#146344] to-[#2a8057]',
-    buttonColor: 'bg-[#c49a45] hover:bg-[#b18835]',
-    inputFocus: 'focus:ring-[#c49a45] focus:border-[#c49a45]',
-    linkColor: isStaffPortal
-      ? 'text-blue-800 hover:text-amber-700'
-      : 'text-emerald-800 hover:text-amber-700',
-    backLinkHover: 'hover:text-amber-700'
-  };
-  const [fullName, setFullName] = useState('');
+  const { signIn, staff, user } = useAuth();
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [offlinePin, setOfflinePin] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const [online, setOnline] = useState(navigator.onLine);
-  const [fieldErrors, setFieldErrors] = useState({ fullName: '', password: '' });
-  const redirectToPortal = useCallback((role) => {
-    const staffRoles = ['chairman', 'manager', 'treasurer', 'bookkeeper', 'inventory'];
-    if (staffRoles.includes(role)) {
-      navigate('/staff', { replace: true });
-    } else if (role === 'member') {
-      navigate('/member', { replace: true });
-    } else {
-      navigate('/', { replace: true });
-    }
-  }, [navigate]);
+  const [fieldErrors, setFieldErrors] = useState({ email: '', password: '' });
+  const [portalConfig, setPortalConfig] = useState({
+    name: 'AMCOMS',
+    subtitle: 'Login Portal',
+    cooperative: 'Agay-ayan Multi-Purpose Cooperative',
+    gradient: 'from-blue-950 to-blue-800',
+    buttonColor: 'bg-[#c49a45] hover:bg-[#b18835]',
+    inputFocus: 'focus:ring-[#c49a45] focus:border-[#c49a45]',
+    linkColor: 'text-blue-800 hover:text-amber-700',
+    backLinkHover: 'hover:text-amber-700'
+  });
 
   useEffect(() => {
+    // Configure the login page based on selected portal
+    const configs = {
+      'staff': {
+        name: 'AMCOMS',
+        subtitle: 'Staff Portal',
+        cooperative: 'Agay-ayan Multi-Purpose Cooperative',
+        gradient: 'from-blue-950 to-blue-800',
+        buttonColor: 'bg-[#c49a45] hover:bg-[#b18835]',
+        inputFocus: 'focus:ring-[#c49a45] focus:border-[#c49a45]',
+        linkColor: 'text-blue-800 hover:text-amber-700',
+        backLinkHover: 'hover:text-amber-700'
+      },
+      'member': {
+        name: 'AMCOMS',
+        subtitle: 'Member Portal',
+        cooperative: 'Agay-ayan Multi-Purpose Cooperative',
+        gradient: 'from-[#0d3b2d] via-[#146344] to-[#2a8057]',
+        buttonColor: 'bg-[#c49a45] hover:bg-[#b18835]',
+        inputFocus: 'focus:ring-[#c49a45] focus:border-[#c49a45]',
+        linkColor: 'text-emerald-800 hover:text-amber-700',
+        backLinkHover: 'hover:text-amber-700'
+      }
+    };
+
+    if (portalType && configs[portalType]) {
+      setPortalConfig(configs[portalType]);
+    }
+
     // Add keyboard shortcuts
     const handleKeyDown = (e) => {
       // Escape key - go back to portal selection
@@ -54,28 +65,10 @@ const Login = ({ portalType }) => {
     return () => document.removeEventListener('keydown', handleKeyDown);
   }, [portalType, navigate]);
 
-  useEffect(() => {
-    const handleOnline = () => {
-      setOnline(true);
-      setOfflinePin('');
-      setError((currentError) => (
-        currentError === OFFLINE_PIN_NOT_CONFIGURED_MESSAGE ? '' : currentError
-      ));
-    };
-    const handleOffline = () => setOnline(false);
-    window.addEventListener('online', handleOnline);
-    window.addEventListener('offline', handleOffline);
-    return () => {
-      window.removeEventListener('online', handleOnline);
-      window.removeEventListener('offline', handleOffline);
-    };
-  }, []);
-
   // Auto-redirect when staff profile loads after login
   useEffect(() => {
-    // AuthContext completes profile loading before the login promise resolves.
-    // Redirect based on the authenticated profile, not the transient loading state.
-    if (!user || !staff) {
+    // Only act if we're in loading state and have both user and staff
+    if (!user || !staff || !loading) {
       return;
     }
 
@@ -109,21 +102,19 @@ const Login = ({ portalType }) => {
     console.log('Valid access confirmed for role:', userRole, '- redirecting...');
     redirectToPortal(userRole);
     // Note: Keep loading=true until navigation completes
-  }, [user, staff, portalType, navigate, redirectToPortal]);
+  }, [user, staff, loading, portalType]);
 
   const handleLogin = async (e) => {
     e.preventDefault();
     setError('');
-    setFieldErrors({ fullName: '', password: '' });
-    if (!navigator.onLine) {
-      setError('Internet is required for regular sign-in. Use your device PIN if offline access was enabled on this device earlier.');
-      return;
-    }
+    setFieldErrors({ email: '', password: '' });
 
     // Validate fields
     const errors = {};
-    if (!fullName.trim()) {
-      errors.fullName = 'Enter your username';
+    if (!email.trim()) {
+      errors.email = 'Email is required';
+    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      errors.email = 'Please enter a valid email address';
     }
     if (!password.trim()) {
       errors.password = 'Password is required';
@@ -139,19 +130,38 @@ const Login = ({ portalType }) => {
     setLoading(true);
 
     try {
-      setRememberMePreference(rememberMe);
+      console.log('Attempting login for:', email);
+      
+      // Authenticate with Supabase
+      const { data, error: signInError } = await signIn(email, password);
 
-      // Authenticate with the username.
-      const result = await login(fullName, password);
-
-      if (!result.success) {
-        setError(result.error || 'Login failed. Please try again.');
+      if (signInError) {
+        console.error('Sign in error:', signInError.message);
+        
+        if (signInError.message.includes('Invalid login credentials')) {
+          setError('Invalid email or password. Please try again.');
+        } else if (signInError.message.includes('Email not confirmed')) {
+          setError('Please verify your email address before logging in.');
+        } else if (signInError.message.includes('Unable to load user profile')) {
+          setError('Unable to load user profile. Please contact the administrator.');
+        } else if (signInError.message.includes('No staff profile found')) {
+          setError('No staff profile found. Please contact the administrator.');
+        } else {
+          setError(signInError.message || 'An error occurred. Please try again.');
+        }
         setLoading(false);
         return;
       }
 
-      // Login successful - the useEffect will handle the redirect when staff loads
-      console.log('Login successful, staff profile should load automatically');
+      // Signin successful - the useEffect will handle the redirect when staff loads
+      console.log('Sign in successful, staff profile should load automatically');
+      
+      // Store remember me preference
+      if (rememberMe) {
+        localStorage.setItem('amcoms_remember', 'true');
+      } else {
+        localStorage.removeItem('amcoms_remember');
+      }
 
       // Don't set loading to false here - let the useEffect handle it after redirect
       
@@ -162,40 +172,21 @@ const Login = ({ portalType }) => {
     }
   };
 
-  const handleOfflineUnlock = async () => {
-    setError('');
-    setLoading(true);
-    try {
-      const offlineAccount = await unlockWithOfflinePin({
-        username: fullName,
-        pin: offlinePin,
-      });
-      const role = offlineAccount.staff.role;
-      const staffRoles = ['chairman', 'manager', 'treasurer', 'bookkeeper', 'inventory'];
-      const isStaffUser = staffRoles.includes(role);
-      if (
-        (portalType === 'staff' && !isStaffUser) ||
-        (portalType === 'member' && role !== 'member')
-      ) {
-        throw new Error('This offline PIN belongs to a different portal. Choose the correct portal and try again.');
-      }
-      if (offlineAccount.staff.must_change_password) {
-        throw new Error('Connect to the internet and complete the required password change before using offline access.');
-      }
-      unlockOffline(offlineAccount);
-      setOfflinePin('');
-      redirectToPortal(role);
-    } catch (unlockError) {
-      console.error('Offline PIN unlock failed:', unlockError);
-      const isStaleOfflineSetupError = navigator.onLine
-        && unlockError instanceof Error
-        && unlockError.message === OFFLINE_PIN_NOT_CONFIGURED_MESSAGE;
-      if (isStaleOfflineSetupError) {
-        setError('');
-      } else {
-        setError(unlockError instanceof Error ? unlockError.message : 'Offline unlock failed.');
-      }
-      setLoading(false);
+  // Redirect to appropriate portal based on role
+  const redirectToPortal = (role) => {
+    const staffRoles = ['chairman', 'manager', 'treasurer', 'bookkeeper', 'inventory'];
+    
+    console.log('Redirecting user with role:', role);
+    
+    if (staffRoles.includes(role)) {
+      console.log('Navigating to Staff Portal at /staff');
+      navigate('/staff', { replace: true });
+    } else if (role === 'member') {
+      console.log('Navigating to Member Portal at /member');
+      navigate('/member', { replace: true });
+    } else {
+      console.warn('Unknown role, redirecting to home');
+      navigate('/', { replace: true });
     }
   };
 
@@ -208,17 +199,18 @@ const Login = ({ portalType }) => {
           <div className={`border-b-4 border-[#c49a45] bg-gradient-to-br ${portalConfig.gradient} px-8 py-10 text-center text-white sm:py-12`}>
             {/* Logo */}
             <div className="mb-4">
-              <div className="mx-auto flex h-20 w-20 items-center justify-center overflow-hidden rounded-full border border-[#e9c46a]/70 bg-white/10 shadow-[0_0_24px_rgba(233,196,106,0.18)]">
+              <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-full border border-[#e9c46a]/70 bg-white/10 p-2 shadow-[0_0_24px_rgba(233,196,106,0.18)]">
                 <img 
                   src="/LOGO.png" 
                   alt="Agay-ayan MPC Logo" 
-                  className="h-full w-full scale-[1.14] object-cover"
+                  className="w-full h-full object-contain"
                 />
               </div>
             </div>
 
             {/* System Name */}
             <h1 className="text-3xl font-bold mb-2">{portalConfig.name}</h1>
+            <p className="mb-1 text-sm font-medium text-[#f0d995]">{portalConfig.subtitle}</p>
             <p className="text-xs text-white/75">{portalConfig.cooperative}</p>
           </div>
 
@@ -232,40 +224,38 @@ const Login = ({ portalType }) => {
                 </div>
               )}
 
-              {/* Username Field */}
+              {/* Email Field */}
               <div className="mb-5">
-                <label htmlFor="fullName" className="block text-gray-700 text-sm font-semibold mb-2">
-                  Username
+                <label htmlFor="email" className="block text-gray-700 text-sm font-semibold mb-2">
+                  Email
                 </label>
                 <input
-                  type="text"
-                  id="fullName"
+                  type="email"
+                  id="email"
                   autoComplete="username"
-                  value={fullName}
+                  value={email}
                   onChange={(e) => {
-                    setFullName(e.target.value);
-                    setOfflinePin('');
-                    if (fieldErrors.fullName) {
-                      setFieldErrors(prev => ({ ...prev, fullName: '' }));
+                    setEmail(e.target.value);
+                    if (fieldErrors.email) {
+                      setFieldErrors(prev => ({ ...prev, email: '' }));
                     }
                   }}
-                  placeholder="Enter your username"
-                  className={`w-full rounded-lg border ${fieldErrors.fullName ? 'border-red-300' : 'border-gray-200'} px-4 py-3 transition-all focus:outline-none focus:ring-2 ${portalConfig.inputFocus}`}
+                  placeholder="Enter your email"
+                  className={`w-full rounded-lg border ${fieldErrors.email ? 'border-red-300' : 'border-gray-200'} px-4 py-3 transition-all focus:outline-none focus:ring-2 ${portalConfig.inputFocus}`}
                   required
                   disabled={loading}
                 />
-                {fieldErrors.fullName && (
+                {fieldErrors.email && (
                   <p className="mt-1 text-sm text-red-600 flex items-center space-x-1">
                     <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
                       <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
                     </svg>
-                    <span>{fieldErrors.fullName}</span>
+                    <span>{fieldErrors.email}</span>
                   </p>
                 )}
               </div>
 
               {/* Password Field */}
-              {online && (
               <div className="mb-6">
                 <label htmlFor="password" className="block text-gray-700 text-sm font-semibold mb-2">
                   Password
@@ -316,10 +306,8 @@ const Login = ({ portalType }) => {
                   </p>
                 )}
               </div>
-              )}
 
               {/* Remember Me & Forgot Password */}
-              {online && (
               <div className="flex items-center justify-between mb-6">
                 <label className="flex items-center text-sm text-gray-600 cursor-pointer">
                   <input
@@ -334,15 +322,8 @@ const Login = ({ portalType }) => {
                   Forgot Password?
                 </Link>
               </div>
-              )}
-              {online && (
-                <p className="-mt-4 mb-5 text-xs text-gray-500">
-                  Leave this unchecked on a shared device; your sign-in will stay in this browser tab only.
-                </p>
-              )}
 
               {/* Login Button */}
-              {online && (
               <button
                 type="submit"
                 disabled={loading}
@@ -360,42 +341,15 @@ const Login = ({ portalType }) => {
                   'Sign in'
                 )}
               </button>
+              {portalType === 'member' && (
+                <p className="mt-5 text-center text-sm text-gray-600">
+                  New Member?{' '}
+                  <Link to="/member-signup" className={`font-semibold ${portalConfig.linkColor}`}>
+                    Create Account
+                  </Link>
+                </p>
               )}
             </form>
-            {!online && (
-              <div className="mt-5 rounded-lg border border-amber-200 bg-amber-50 p-4">
-                <p className="text-sm text-amber-950">
-                  Enter your username above and the six-digit device PIN you set up while signed in online.
-                </p>
-                <label htmlFor="offline-pin" className="mt-3 block text-sm font-semibold text-amber-950">
-                  Device PIN
-                </label>
-                <input
-                  id="offline-pin"
-                  type="password"
-                  inputMode="numeric"
-                  autoComplete="one-time-code"
-                  pattern="[0-9]{6}"
-                  maxLength={6}
-                  value={offlinePin}
-                  onChange={(event) => setOfflinePin(event.target.value.replace(/\D/g, '').slice(0, 6))}
-                  placeholder="Enter your 6-digit PIN"
-                  className="mt-1 w-full rounded-lg border border-amber-300 bg-white px-4 py-3 text-center text-gray-900"
-                  disabled={loading}
-                />
-                <button
-                  type="button"
-                  onClick={handleOfflineUnlock}
-                  disabled={loading || !fullName.trim() || offlinePin.length !== 6}
-                  className="mt-3 w-full rounded-lg border border-amber-700 px-4 py-3 font-semibold text-amber-900 transition-colors hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-60"
-                >
-                  {loading ? 'Verifying PIN…' : 'Unlock with PIN'}
-                </button>
-                <p className="mt-2 text-xs text-amber-900">
-                  Offline PIN access opens cached information only. Transactions and other server changes still require an internet connection and online sign-in.
-                </p>
-              </div>
-            )}
           </div>
         </div>
 

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { KeyRound, Search, X } from 'lucide-react';
+import { KeyRound, Search } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { getAppUrl } from '../../lib/appUrl';
 
@@ -8,7 +8,6 @@ const MemberAccountRecovery = () => {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [selectedMember, setSelectedMember] = useState(null);
-  const [selectedDetails, setSelectedDetails] = useState(null);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
@@ -95,6 +94,7 @@ const MemberAccountRecovery = () => {
     <div className="space-y-5">
       <header>
         <h1 className="text-2xl font-bold text-gray-950">Member Account Recovery</h1>
+        <p className="mt-1 text-sm text-gray-600">Initiate a secure password reset to the member’s registered email. Passwords are never visible here.</p>
       </header>
 
       <p className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950">
@@ -122,24 +122,12 @@ const MemberAccountRecovery = () => {
             </thead>
             <tbody className="divide-y divide-gray-100">
               {loading ? <tr><td colSpan={4} className="px-4 py-8 text-center text-sm text-gray-500">Loading member accounts…</td></tr> : filteredMembers.map((member) => (
-                <tr
-                  key={member.id}
-                  tabIndex={0}
-                  aria-label={`View account details for ${member.full_name}`}
-                  onClick={() => setSelectedDetails(member)}
-                  onKeyDown={(event) => {
-                    if (event.key === 'Enter' || event.key === ' ') {
-                      event.preventDefault();
-                      setSelectedDetails(member);
-                    }
-                  }}
-                  className="cursor-pointer hover:bg-blue-50 focus:bg-blue-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-blue-600"
-                >
+                <tr key={member.id}>
                   <td className="px-4 py-3"><p className="text-sm font-medium text-gray-900">{member.full_name}</p><p className="text-xs text-gray-500">{member.member_number}</p></td>
                   <td className="px-4 py-3 text-sm text-gray-700">{member.email || 'No email registered'}</td>
                   <td className="px-4 py-3 text-sm text-gray-700">{getAccountStatus(member)}</td>
                   <td className="px-4 py-3 text-right">
-                    <button type="button" onClick={(event) => { event.stopPropagation(); setSelectedMember(member); setError(''); }} onKeyDown={(event) => event.stopPropagation()} disabled={!member.email || !member.portal_account?.has_account || !member.portal_account?.is_active} className="inline-flex min-h-9 items-center gap-2 rounded-md border border-gray-300 px-3 py-2 text-sm font-medium text-gray-800 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50">
+                    <button type="button" onClick={() => { setSelectedMember(member); setError(''); }} disabled={!member.email || !member.portal_account?.has_account || !member.portal_account?.is_active} className="inline-flex min-h-9 items-center gap-2 rounded-md border border-gray-300 px-3 py-2 text-sm font-medium text-gray-800 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50">
                       <KeyRound size={16} aria-hidden="true" /> Initiate Password Reset
                     </button>
                   </td>
@@ -166,49 +154,6 @@ const MemberAccountRecovery = () => {
                 <button type="button" onClick={requestReset} disabled={sending} className="min-h-10 rounded-lg bg-blue-700 px-4 text-sm font-semibold text-white hover:bg-blue-800 disabled:opacity-60">{sending ? 'Sending…' : 'Send Reset Instructions'}</button>
               </div>
             </div>
-          </section>
-        </div>
-      )}
-      {selectedDetails && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-sm" onClick={() => setSelectedDetails(null)}>
-          <section
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="recovery-member-details-title"
-            className="w-full max-w-2xl overflow-hidden rounded-2xl border border-white/60 bg-slate-50 shadow-2xl"
-            onClick={(event) => event.stopPropagation()}
-          >
-            <header className="manager-gradient-header relative overflow-hidden bg-gradient-to-br from-[#7c2d12] via-[#c2410c] to-[#f97316] px-5 py-5 text-white sm:px-7">
-              <div className="pointer-events-none absolute -right-10 -top-20 size-48 rounded-full border-[24px] border-white/5" />
-              <div className="relative flex items-start justify-between gap-4">
-                <div>
-                  <p className="text-xs font-semibold uppercase tracking-[0.14em] text-orange-100">Member account</p>
-                  <h2 id="recovery-member-details-title" className="mt-1 text-xl font-bold">{selectedDetails.full_name}</h2>
-                  <p className="mt-1 text-sm text-orange-100">Member ID {selectedDetails.member_number || 'Not assigned'}</p>
-                </div>
-                <button type="button" onClick={() => setSelectedDetails(null)} aria-label="Close member account details" className="flex size-9 items-center justify-center rounded-lg border border-white/20 bg-white/10 text-white hover:bg-white/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white">
-                  <X className="size-5" aria-hidden="true" />
-                </button>
-              </div>
-            </header>
-            <dl className="grid gap-3 p-5 sm:grid-cols-2 sm:p-6">
-              {[
-                ['Registered email', selectedDetails.email || 'No email registered'],
-                ['Membership status', selectedDetails.membership_status],
-                ['Portal account', selectedDetails.portal_account?.has_account ? 'Created' : 'Not created'],
-                ['Account status', getAccountStatus(selectedDetails)],
-                ['Sign-in enabled', selectedDetails.portal_account?.is_active ? 'Yes' : 'No'],
-                ['Password setup required', selectedDetails.portal_account?.must_change_password ? 'Yes' : 'No']
-              ].map(([label, value]) => (
-                <div key={label} className="min-w-0 rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
-                  <dt className="text-xs font-medium text-slate-500">{label}</dt>
-                  <dd className="mt-1 break-words text-sm font-semibold capitalize text-slate-900">{value || 'Not recorded'}</dd>
-                </div>
-              ))}
-            </dl>
-            <footer className="flex justify-end border-t border-slate-200 bg-white px-5 py-4 sm:px-6">
-              <button type="button" onClick={() => setSelectedDetails(null)} className="min-h-10 rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-700 focus-visible:ring-offset-2">Close</button>
-            </footer>
           </section>
         </div>
       )}

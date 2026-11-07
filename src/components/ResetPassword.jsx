@@ -6,7 +6,6 @@ import { supabase } from '../lib/supabase';
 const ResetPassword = () => {
   const navigate = useNavigate();
   const { updatePassword, staff, loading: authLoading } = useAuth();
-  const [username, setUsername] = useState(staff?.username || '');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -22,7 +21,7 @@ const ResetPassword = () => {
       if (session) {
         setValidSession(true);
       } else {
-        setError('Sign in with the temporary password provided by the cooperative to change your password.');
+        setError('Invalid or expired password reset link. Please request a new one.');
       }
     };
 
@@ -55,14 +54,6 @@ const ResetPassword = () => {
       return;
     }
 
-    if (staff?.role === 'member' && staff.must_change_password) {
-      const normalizedUsername = username.trim().toLowerCase();
-      if (!/^[a-z0-9._-]{3,30}$/.test(normalizedUsername)) {
-        setError('Username must be 3-30 characters and contain only letters, numbers, dots, underscores, or hyphens.');
-        return;
-      }
-    }
-
     const passwordError = validatePassword(newPassword);
     if (passwordError) {
       setError(passwordError);
@@ -77,10 +68,7 @@ const ResetPassword = () => {
     setLoading(true);
 
     try {
-      const { error: updateError, activated } = await updatePassword(
-        newPassword,
-        staff?.role === 'member' && staff.must_change_password ? username.trim().toLowerCase() : undefined
-      );
+      const { error: updateError, activated } = await updatePassword(newPassword);
 
       if (updateError) {
         throw updateError;
@@ -94,8 +82,8 @@ const ResetPassword = () => {
 
       // Let the auth profile refresh complete before navigating.
       setTimeout(() => {
-        navigate(staff?.role === 'member' ? '/member' : '/staff/dashboard', { replace: true });
-      }, 1200);
+        navigate(staff?.role === 'member' ? '/login/member' : '/portal-selection', { replace: true });
+      }, 2000);
 
     } catch (err) {
       console.error('Password reset error:', err);
@@ -122,7 +110,7 @@ const ResetPassword = () => {
             </h2>
 
             <p className="text-gray-600 text-center mb-8">
-              Your password has been successfully updated. Opening your portal...
+              Your password has been successfully updated. You will be redirected to sign in...
             </p>
 
             <div className="flex justify-center">
@@ -147,7 +135,7 @@ const ResetPassword = () => {
             </div>
 
             <h2 className="text-2xl font-bold text-gray-900 text-center mb-4">
-              Sign-in required
+              Invalid Reset Link
             </h2>
 
             <p className="text-gray-600 text-center mb-8">
@@ -158,7 +146,7 @@ const ResetPassword = () => {
               href="/forgot-password"
               className="block w-full bg-blue-800 text-white py-3 rounded-lg font-semibold hover:bg-blue-900 transition-colors text-center"
             >
-              Go to Login
+              Request New Reset Link
             </a>
           </div>
         </div>
@@ -180,8 +168,8 @@ const ResetPassword = () => {
               </div>
             </div>
 
-            <h1 className="text-3xl font-bold mb-2">{staff?.must_change_password ? 'Set your AMCOMS password' : 'Change Password'}</h1>
-            <p className="text-blue-200 text-sm">{staff?.must_change_password ? 'Create your private password to continue to your account.' : 'Create a new secure password'}</p>
+            <h1 className="text-3xl font-bold mb-2">{staff?.must_change_password ? 'Activate your AMCOMS account' : 'Reset Password'}</h1>
+            <p className="text-blue-200 text-sm">{staff?.must_change_password ? 'Your member account is ready. Create your password to continue.' : 'Create a new secure password'}</p>
           </div>
 
           {/* Form */}
@@ -201,31 +189,6 @@ const ResetPassword = () => {
                 </div>
               )}
 
-              {staff?.role === 'member' && staff.must_change_password && (
-                <div className="mb-5">
-                  <label htmlFor="memberUsername" className="mb-2 block text-sm font-semibold text-gray-700">
-                    Choose your username *
-                  </label>
-                  <input
-                    type="text"
-                    id="memberUsername"
-                    value={username}
-                    onChange={(event) => setUsername(event.target.value)}
-                    placeholder="Enter a username"
-                    autoComplete="username"
-                    minLength={3}
-                    maxLength={30}
-                    required
-                    disabled={loading}
-                    aria-describedby="memberUsernameHelp"
-                    className="w-full rounded-lg border-2 border-gray-200 px-4 py-3 transition-all focus:border-transparent focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  />
-                  <p id="memberUsernameHelp" className="mt-1.5 text-xs text-gray-500">
-                    Use 3-30 letters, numbers, dots, underscores, or hyphens. This will be your username for future sign-ins.
-                  </p>
-                </div>
-              )}
-
               {/* Password Requirements */}
               <div className="mb-6 bg-blue-50 border border-blue-200 rounded-lg p-4">
                 <p className="text-sm font-semibold text-gray-900 mb-2">Password Requirements:</p>
@@ -233,7 +196,6 @@ const ResetPassword = () => {
                   <li>• At least 8 characters long</li>
                   <li>• Contains uppercase and lowercase letters</li>
                   <li>• Contains at least one number</li>
-                  <li>• A special character or symbol is recommended, but optional</li>
                 </ul>
               </div>
 
@@ -314,13 +276,13 @@ const ResetPassword = () => {
         {/* Back to Login */}
         <div className="text-center mt-6">
           <a 
-            href="/"
+            href="/portal-selection" 
             className="text-gray-600 hover:text-blue-600 text-sm flex items-center justify-center space-x-2 transition-colors"
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
             </svg>
-            <span>Back to Website</span>
+            <span>Back to Login</span>
           </a>
         </div>
       </div>

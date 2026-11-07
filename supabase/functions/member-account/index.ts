@@ -1,21 +1,5 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
-const generateTempPassword = () => {
-  const upper = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
-  const lower = 'abcdefghijkmnpqrstuvwxyz';
-  const digits = '23456789';
-  const symbols = '!@#$%&*+-_=.?';
-  const all = upper + lower + digits + symbols;
-  const pick = (set: string) => set[crypto.getRandomValues(new Uint32Array(1))[0] % set.length];
-  const chars = [pick(upper), pick(lower), pick(digits), pick(symbols)];
-  while (chars.length < 12) chars.push(pick(all));
-  for (let i = chars.length - 1; i > 0; i -= 1) {
-    const j = crypto.getRandomValues(new Uint32Array(1))[0] % (i + 1);
-    [chars[i], chars[j]] = [chars[j], chars[i]];
-  }
-  return chars.join('');
-};
-
 const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, apikey, content-type, x-client-info',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
@@ -38,8 +22,7 @@ const passwordProblem = (password: string) => {
 const isLocalDevOrigin = (value: string) => {
   try {
     const url = new URL(value);
-    const port = Number(url.port);
-    if (url.protocol !== 'http:' || port < 5173 || port > 5180) return false;
+    if (url.protocol !== 'http:' || url.port !== '5173') return false;
     const host = url.hostname;
     return host === 'localhost'
       || host === '127.0.0.1'
@@ -49,6 +32,15 @@ const isLocalDevOrigin = (value: string) => {
   } catch {
     return false;
   }
+};
+
+const resolveAppUrl = (requestedUrl: string, requestOrigin: string, configuredUrl?: string) => {
+  const normalizedUrl = requestedUrl.replace(/\/$/, '');
+  const resolvedOrigin = new URL(normalizedUrl).origin;
+  if (resolvedOrigin !== requestOrigin && resolvedOrigin !== configuredUrl && !isLocalDevOrigin(resolvedOrigin)) {
+    throw new Error('The configured app URL is not allowed for authentication redirects.');
+  }
+  return normalizedUrl;
 };
 
 const findAuthUserByEmail = async (admin: ReturnType<typeof createClient>, email: string) => {
@@ -81,13 +73,8 @@ const recordAccountEvent = async (
 Deno.serve(async (request) => {
   const origin = request.headers.get('origin') || '';
   const configuredAppUrl = Deno.env.get('APP_URL')?.replace(/\/$/, '');
-  const configuredAppOrigins = Deno.env.get('APP_ALLOWED_ORIGINS')
-    ?.split(',')
-    .map((configuredOrigin) => configuredOrigin.trim().replace(/\/$/, '')) || [];
   const allowedOrigins = new Set([
     configuredAppUrl,
-    ...configuredAppOrigins,
-    'https://amci-staff.vercel.app',
     'http://localhost:5173',
     'http://127.0.0.1:5173'
   ].filter(Boolean));
@@ -129,67 +116,39 @@ Deno.serve(async (request) => {
     const action = payload?.action;
 
     if (action === 'complete-password-setup') {
-      if (!actor.must_change_password) {
-        return jsonResponse({ error: 'No temporary password change is required.' }, 403, origin);
+      if (actor.role !== 'member' || !actor.member_id || !actor.must_change_password) {
+        return jsonResponse({ error: 'No member password setup is pending.' }, 403, origin);
+      }
+      const { data: member, error: memberError } = await caller
+        .from('members')
+        .select('email, membership_status, archived_at')
+        .eq('id', actor.member_id)
+        .maybeSingle();
+      if (memberError) throw memberError;
+      if (!member || member.membership_status !== 'active' || member.archived_at) {
+        return jsonResponse({ error: 'An active membership is required.' }, 403, origin);
       }
 
       const password = String(payload?.password || '');
       const validationMessage = passwordProblem(password);
       if (validationMessage) return jsonResponse({ error: validationMessage }, 400, origin);
-
-      let username: string | null = null;
-      if (actor.role === 'member') {
-        if (!actor.member_id) return jsonResponse({ error: 'The member account is not linked.' }, 403, origin);
-        username = String(payload?.username || '').trim().toLowerCase();
-        if (!/^[a-z0-9._-]{3,30}$/.test(username)) {
-          return jsonResponse({
-            error: 'Username must be 3-30 characters and contain only letters, numbers, dots, underscores, or hyphens.'
-          }, 400, origin);
-        }
-
-        const { data: member, error: memberError } = await caller
-          .from('members')
-          .select('membership_status, archived_at')
-          .eq('id', actor.member_id)
-          .maybeSingle();
-        if (memberError) throw memberError;
-        if (!member || member.membership_status !== 'active' || member.archived_at) {
-          return jsonResponse({ error: 'An active membership is required.' }, 403, origin);
-        }
-
-        const escapedUsername = username.replace(/[\\%_]/g, '\\$&');
-        const { data: matchingUsers, error: usernameLookupError } = await admin.from('staff')
-          .select('id')
-          .ilike('username', escapedUsername)
-          .neq('id', actor.id)
-          .limit(1);
-        if (usernameLookupError) throw usernameLookupError;
-        if (matchingUsers?.length) {
-          return jsonResponse({ error: 'This username is already taken. Please choose another.' }, 409, origin);
-        }
+      if (member.email && password.toLowerCase() === member.email.toLowerCase()) {
+        return jsonResponse({ error: 'Choose a password different from your email.' }, 400, origin);
       }
 
       const { error: passwordError } = await admin.auth.admin.updateUserById(authData.user.id, { password });
       if (passwordError) throw passwordError;
       const { error: flagError } = await admin.from('staff')
-        .update({
-          ...(username ? { username } : {}),
-          must_change_password: false
-        })
+        .update({ must_change_password: false })
         .eq('id', actor.id)
         .eq('user_id', authData.user.id);
       if (flagError) throw flagError;
-      await recordAccountEvent(
-        admin,
-        actor.id,
-        actor.member_id || actor.id,
-        actor.role === 'member' ? 'MEMBER_ACCOUNT_ACTIVATED' : 'STAFF_TEMPORARY_PASSWORD_CHANGED'
-      );
-      return jsonResponse({ completed: true, ...(username ? { username } : {}) }, 200, origin);
+      await recordAccountEvent(admin, actor.id, actor.member_id, 'MEMBER_ACCOUNT_ACTIVATED');
+      return jsonResponse({ completed: true }, 200, origin);
     }
 
-    if (!['bookkeeper', 'chairman'].includes(actor.role)) {
-      return jsonResponse({ error: 'Only Bookkeepers and the Chairman can manage member accounts.' }, 403, origin);
+    if (!['bookkeeper', 'manager', 'chairman'].includes(actor.role)) {
+      return jsonResponse({ error: 'This role cannot manage member account recovery.' }, 403, origin);
     }
     const memberId = String(payload?.member_id || '');
     if (!memberId) return jsonResponse({ error: 'A member record is required.' }, 400, origin);
@@ -253,92 +212,50 @@ Deno.serve(async (request) => {
       return jsonResponse({ disabled: true }, 200, origin);
     }
 
-    if (action === 'delete-account') {
-      if (!['bookkeeper', 'chairman'].includes(actor.role)) {
-        return jsonResponse({ error: 'Only Bookkeepers and the Chairman can delete member accounts.' }, 403, origin);
-      }
-      if (member.membership_status !== 'inactive' && !member.archived_at) {
-        return jsonResponse({ error: 'Only archived members can have their portal accounts deleted.' }, 409, origin);
-      }
-      const { data: activeLoans, error: loansError } = await admin
-        .from('loans')
-        .select('id', { count: 'exact', head: true })
-        .eq('member_id', member.id)
-        .in('status', ['approved', 'active'])
-        .gt('balance', 0);
-      if (loansError) throw loansError;
-      if ((activeLoans as unknown as { count: number }).count > 0) {
-        return jsonResponse({ error: 'Cannot delete account: member has outstanding loan balance.' }, 409, origin);
-      }
-      const { data: staffRecord, error: staffError } = await admin
-        .from('staff')
-        .select('id, user_id')
-        .eq('member_id', member.id)
-        .eq('role', 'member')
-        .maybeSingle();
-      if (staffError) throw staffError;
-      if (!staffRecord || !staffRecord.user_id) {
-        return jsonResponse({ error: 'No linked Member Portal account was found.' }, 404, origin);
-      }
-      const { error: deleteAuthError } = await admin.auth.admin.deleteUser(staffRecord.user_id);
-      if (deleteAuthError) throw deleteAuthError;
-      const { error: unlinkError } = await admin
-        .from('staff')
-        .update({ user_id: null })
-        .eq('id', staffRecord.id);
-      if (unlinkError) throw unlinkError;
-      await recordAccountEvent(admin, actor.id, member.id, 'MEMBER_ACCOUNT_DELETED');
-      return jsonResponse({ deleted: true, member_number: member.member_number }, 200, origin);
-    }
-
     if (member.membership_status !== 'active' || member.archived_at) {
       return jsonResponse({ error: 'Portal access is unavailable for archived members.' }, 409, origin);
     }
 
-    const email = member.email?.trim().toLowerCase() || null;
-    const authEmail = `${member.id}@members.amcoms.invalid`;
+    const email = member.email?.trim().toLowerCase();
+    if (!email) return jsonResponse({ error: 'A registered email is required for Member Portal access.' }, 400, origin);
+    const requestedAppUrl = String(payload?.app_url || configuredAppUrl || origin);
+    const appUrl = resolveAppUrl(requestedAppUrl, origin, configuredAppUrl);
+    const redirectTo = `${appUrl}/reset-password`;
     const { data: linkedStaff, error: linkedError } = await admin.from('staff')
-      .select('id, user_id, role, must_change_password, username')
+      .select('id, user_id, role, must_change_password')
       .eq('member_id', member.id)
       .maybeSingle();
     if (linkedError) throw linkedError;
 
-    const { data: staffByEmail, error: staffEmailError } = email
-      ? await admin.from('staff')
-        .select('id, user_id, role, member_id')
-        .ilike('email', email)
-        .maybeSingle()
-      : { data: null, error: null };
+    const { data: staffByEmail, error: staffEmailError } = await admin.from('staff')
+      .select('id, user_id, role, member_id')
+      .ilike('email', email)
+      .maybeSingle();
     if (staffEmailError) throw staffEmailError;
     if (staffByEmail && (staffByEmail.role !== 'member' || (staffByEmail.member_id && staffByEmail.member_id !== member.id))) {
       return jsonResponse({ error: 'This email is already associated with another account.' }, 409, origin);
     }
 
-    const issueTempPassword = async (staffId: string, authUserId: string, eventName: string) => {
+    const sendRecoveryLink = async (staffId: string, authUserId: string, eventName: string) => {
       const { data: authUserData, error: authUserError } = await admin.auth.admin.getUserById(authUserId);
       if (authUserError) throw authUserError;
-      const existingAuthEmail = authUserData.user.email?.trim().toLowerCase() || '';
-      if (existingAuthEmail !== authEmail) return jsonResponse({ error: 'The member login identity does not match the linked account.' }, 409, origin);
+      const authEmail = authUserData.user.email?.trim().toLowerCase() || '';
+      if (authEmail !== email) return jsonResponse({ error: 'The member email differs from the verified login email.' }, 409, origin);
 
-      const tempPassword = generateTempPassword();
-      const { error: passwordError } = await admin.auth.admin.updateUserById(authUserId, { password: tempPassword });
-      if (passwordError) throw passwordError;
       const { error: flagError } = await admin.from('staff').update({ must_change_password: true }).eq('id', staffId);
       if (flagError) throw flagError;
+      const { error: resetError } = await publicAuth.auth.resetPasswordForEmail(authEmail, { redirectTo });
+      if (resetError) {
+        await admin.from('staff').update({ must_change_password: linkedStaff?.must_change_password || false }).eq('id', staffId);
+        throw resetError;
+      }
       await recordAccountEvent(admin, actor.id, member.id, eventName);
-      return jsonResponse({
-        sent: false,
-        username: linkedStaff?.username || member.member_number,
-        temporary_password: tempPassword,
-        message: email
-          ? 'Temporary credentials generated. Share them securely; the member must change the password after signing in.'
-          : 'Temporary credentials generated. Share them securely; password recovery must be handled by staff until an email is added.'
-      }, 200, origin);
+      return jsonResponse({ sent: true, message: 'Secure instructions were sent to the registered email if delivery is available.' }, 200, origin);
     };
 
     if (action === 'reset' || action === 'resend-activation') {
-      if (actor.role !== 'bookkeeper') {
-        return jsonResponse({ error: 'Only Bookkeepers can reset member passwords.' }, 403, origin);
+      if (action === 'resend-activation' && actor.role !== 'bookkeeper') {
+        return jsonResponse({ error: 'Only Bookkeepers can resend initial activation instructions.' }, 403, origin);
       }
       if (!linkedStaff?.user_id || linkedStaff.role !== 'member') {
         return jsonResponse({ error: 'No linked Member Portal account was found.' }, 404, origin);
@@ -346,7 +263,7 @@ Deno.serve(async (request) => {
       if (action === 'resend-activation' && !linkedStaff.must_change_password) {
         return jsonResponse({ error: 'This account is already activated. Use password reset instead.' }, 409, origin);
       }
-      return await issueTempPassword(
+      return await sendRecoveryLink(
         linkedStaff.id,
         linkedStaff.user_id,
         action === 'reset' ? 'ADMIN_PASSWORD_RESET_INITIATED' : 'MEMBER_ACTIVATION_RESENT'
@@ -359,23 +276,20 @@ Deno.serve(async (request) => {
     if (action !== 'invite') return jsonResponse({ error: 'Unsupported member account action.' }, 400, origin);
     if (linkedStaff?.user_id) {
       if (linkedStaff.role === 'member' && linkedStaff.must_change_password) {
-        return await issueTempPassword(linkedStaff.id, linkedStaff.user_id, 'MEMBER_ACTIVATION_RESENT');
+        return await sendRecoveryLink(linkedStaff.id, linkedStaff.user_id, 'MEMBER_ACTIVATION_RESENT');
       }
       return jsonResponse({ error: 'This member already has an activated account.' }, 409, origin);
     }
 
-    let authUser = staffByEmail?.user_id ? null : await findAuthUserByEmail(admin, authEmail);
+    let authUser = staffByEmail?.user_id ? null : await findAuthUserByEmail(admin, email);
     let createdAuthUser = false;
-    const tempPassword = generateTempPassword();
     if (!authUser && !staffByEmail?.user_id) {
-      const { data: createdData, error: createError } = await admin.auth.admin.createUser({
-        email: authEmail,
-        password: tempPassword,
-        email_confirm: true,
-        user_metadata: { member_number: member.member_number, username: member.member_number }
+      const { data: inviteData, error: inviteError } = await admin.auth.admin.inviteUserByEmail(email, {
+        redirectTo,
+        data: { member_number: member.member_number }
       });
-      if (createError) throw createError;
-      authUser = createdData.user;
+      if (inviteError) throw inviteError;
+      authUser = inviteData.user;
       createdAuthUser = true;
     }
 
@@ -391,28 +305,14 @@ Deno.serve(async (request) => {
     }
 
     if (!createdAuthUser) {
-      const { error: passwordError } = await admin.auth.admin.updateUserById(authUserId, { password: tempPassword });
-      if (passwordError) throw passwordError;
+      const { error: recoveryError } = await publicAuth.auth.resetPasswordForEmail(email, { redirectTo });
+      if (recoveryError) throw recoveryError;
     }
-    const { error: flagError } = await admin.from('staff').update({ must_change_password: true })
-      .eq('member_id', member.id).eq('role', 'member');
-    if (flagError) throw flagError;
     await recordAccountEvent(admin, actor.id, member.id, 'MEMBER_ACCOUNT_CREATED');
-    return jsonResponse({
-      sent: false,
-      username: linkedStaff?.username || member.member_number,
-      temporary_password: tempPassword,
-      message: email
-        ? 'Member Portal account created. Share the temporary credentials securely; the member must change the password after signing in.'
-        : 'Member Portal account created. Share the temporary credentials securely; password recovery must be handled by staff until an email is added.'
-    }, 200, origin);
+    await recordAccountEvent(admin, actor.id, member.id, 'MEMBER_ACTIVATION_SENT');
+    return jsonResponse({ sent: true, message: 'Secure activation instructions were sent to the registered email if delivery is available.' }, 200, origin);
   } catch (error) {
-    const errorMessage = error instanceof Error
-      ? error.message
-      : error && typeof error === 'object' && 'message' in error && typeof error.message === 'string'
-      ? error.message
-      : 'The member account action could not be completed.';
-    console.error('Member account action failed:', errorMessage);
-    return jsonResponse({ error: errorMessage }, 400, origin);
+    console.error('Member account action failed.');
+    return jsonResponse({ error: error instanceof Error ? error.message : 'The member account action could not be completed.' }, 400, origin);
   }
 });

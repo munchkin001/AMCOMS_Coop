@@ -1,10 +1,7 @@
-// deno-lint-ignore-file
-/// <reference lib="deno.ns" />
-
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
 const corsHeaders = {
-  'Access-Control-Allow-Headers': 'authorization, apikey, content-type, x-client-info, x-supabase-api-version',
+  'Access-Control-Allow-Headers': 'authorization, apikey, content-type, x-client-info',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
   Vary: 'Origin'
 };
@@ -17,9 +14,7 @@ const jsonResponse = (body: Record<string, unknown>, status: number, origin: str
 const isLocalDevOrigin = (value: string) => {
   try {
     const url = new URL(value);
-    if (url.protocol !== 'http:') return false;
-    // Allow both 5173 and 5174 for Vite dev server
-    if (url.port !== '5173' && url.port !== '5174') return false;
+    if (url.protocol !== 'http:' || url.port !== '5173') return false;
     const host = url.hostname;
     return host === 'localhost'
       || host === '127.0.0.1'
@@ -37,11 +32,6 @@ const normalizePhone = (value: string) => {
   if (digits.startsWith('09') && digits.length === 11) digits = `63${digits.slice(1)}`;
   if (!/^639\d{9}$/.test(digits)) return null;
   return digits;
-};
-
-const hasInsufficientCreditError = (value: unknown) => {
-  const responseText = typeof value === 'string' ? value : JSON.stringify(value ?? '');
-  return /insufficient.{0,30}(credit|balance|fund)|(?:credit|balance|fund).{0,30}(insufficient|not enough|low)|not enough.{0,20}(credit|balance|fund)|low.{0,20}(credit|balance)/i.test(responseText);
 };
 
 const getRecipients = async (admin: ReturnType<typeof createClient>, groups: string[]) => {
@@ -106,17 +96,10 @@ const getRecipients = async (admin: ReturnType<typeof createClient>, groups: str
   return [...uniqueRecipients.values()];
 };
 
-Deno.serve(async (request: Request) => {
+Deno.serve(async (request) => {
   const origin = request.headers.get('origin') || '';
   const configuredAppUrl = Deno.env.get('APP_URL')?.replace(/\/$/, '');
-  const allowedOrigins = new Set([
-    configuredAppUrl, 
-    'https://amci-staff.vercel.app',
-    'http://localhost:5173', 
-    'http://127.0.0.1:5173',
-    'http://localhost:5174',
-    'http://127.0.0.1:5174'
-  ].filter(Boolean));
+  const allowedOrigins = new Set([configuredAppUrl, 'http://localhost:5173', 'http://127.0.0.1:5173'].filter(Boolean));
   if (!allowedOrigins.has(origin) && !isLocalDevOrigin(origin)) {
     return new Response('Origin is not allowed.', { status: 403 });
   }
@@ -152,42 +135,34 @@ Deno.serve(async (request: Request) => {
 
     const payload = await request.json();
     if (payload?.action === 'balance') {
-      const apiToken = Deno.env.get('MOCEAN_API_KEY');
-      if (!apiToken) return jsonResponse({ error: 'Mocean SMS is not configured on the server.' }, 503, origin);
+      const apiKey = Deno.env.get('SEMAPHORE_API_KEY');
+      if (!apiKey) return jsonResponse({ error: 'Semaphore SMS is not configured on the server.' }, 503, origin);
 
       let accountResponse: Response;
       try {
-        accountResponse = await fetch('https://rest.moceanapi.com/rest/2/account/balance', {
-          headers: { Authorization: apiToken },
-          signal: AbortSignal.timeout(12000)
-        });
+        const accountUrl = new URL('https://api.semaphore.co/api/v4/account');
+        accountUrl.searchParams.set('apikey', apiKey);
+        accountResponse = await fetch(accountUrl, { signal: AbortSignal.timeout(12000) });
       } catch {
-        return jsonResponse({ error: 'Mocean account balance is temporarily unavailable.' }, 502, origin);
+        return jsonResponse({ error: 'Semaphore account balance is temporarily unavailable.' }, 502, origin);
       }
 
-      let accountData: Record<string, unknown> | null;
+      let accountData: unknown;
       try {
-        const responseBody: unknown = await accountResponse.json();
-        accountData = responseBody && typeof responseBody === 'object' && !Array.isArray(responseBody)
-          ? responseBody as Record<string, unknown>
-          : null;
+        accountData = await accountResponse.json();
       } catch {
         accountData = null;
       }
-      const rawBalance = accountData?.value;
-      const balance = typeof rawBalance === 'number'
-        || (typeof rawBalance === 'string' && rawBalance.trim() !== '')
-        ? Number(rawBalance)
-        : Number.NaN;
-      const status = Number(accountData?.status);
-      const unit = typeof accountData?.unit === 'string' ? accountData.unit.trim() : '';
-      if (!accountResponse.ok || status !== 0 || !Number.isFinite(balance) || balance < 0 || !unit) {
-        return jsonResponse({ error: 'Mocean did not return a valid account balance.' }, 502, origin);
+      const account = Array.isArray(accountData) ? accountData[0] : accountData;
+      const creditBalance = Number(account?.credit_balance);
+      if (!accountResponse.ok || !Number.isFinite(creditBalance)) {
+        return jsonResponse({ error: 'Semaphore did not return an account credit balance.' }, 502, origin);
       }
 
       return jsonResponse({
-        balance,
-        unit
+        account_name: typeof account?.account_name === 'string' ? account.account_name : null,
+        status: typeof account?.status === 'string' ? account.status : null,
+        credit_balance: creditBalance
       }, 200, origin);
     }
 
@@ -257,19 +232,11 @@ Deno.serve(async (request: Request) => {
     }
 
     if (!providerResponse.ok || !Array.isArray(providerBody)) {
-      const insufficientCredits = providerResponse.status === 402 || hasInsufficientCreditError(providerBody);
       await admin.from('sms_logs').update({
         status: 'failed',
-        provider_response: {
-          http_status: providerResponse.status,
-          error: insufficientCredits ? 'insufficient_sms_credits' : 'provider_rejected'
-        }
+        provider_response: { http_status: providerResponse.status }
       }).in('id', logRows.map((row) => row.id));
-      return jsonResponse({
-        error: insufficientCredits
-          ? 'SMS credit is not enough. Please top up your Semaphore account and try again.'
-          : 'Semaphore rejected the SMS request. Check the server configuration and logs.'
-      }, insufficientCredits ? 402 : 502, origin);
+      return jsonResponse({ error: 'Semaphore rejected the SMS request. Check the server configuration and logs.' }, 502, origin);
     }
 
     const failedNumbers = new Set<string>();
@@ -298,12 +265,6 @@ Deno.serve(async (request: Request) => {
         provider_response: { http_status: providerResponse.status, messages: providerMetadata }
       }).in('id', failedLogIds);
       if (error) console.error('Unable to update failed SMS log status.');
-    }
-
-    if (acceptedLogIds.length === 0 && failedLogIds.length > 0 && hasInsufficientCreditError(providerBody)) {
-      return jsonResponse({
-        error: 'SMS credit is not enough. Please top up your Semaphore account and try again.'
-      }, 402, origin);
     }
 
     return jsonResponse({

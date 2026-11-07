@@ -10,12 +10,12 @@ import LoadingSpinner from './common/LoadingSpinner';
  * @param {Object} props
  * @param {React.Component} props.children - Component to render if authorized
  * @param {string|string[]} props.allowedRoles - Role(s) allowed to access this route
- * @param {string} props.redirectTo - Where to redirect if unauthorized (default: /)
+ * @param {string} props.redirectTo - Where to redirect if unauthorized (default: /portal-selection)
  */
 const ProtectedRoute = ({ 
   children, 
   allowedRoles = [], 
-  redirectTo = '/'
+  redirectTo = '/portal-selection' 
 }) => {
   const { user, staff, loading, authError } = useAuth();
   const location = useLocation();
@@ -62,7 +62,7 @@ const ProtectedRoute = ({
     );
   }
 
-  if (staff.must_change_password) {
+  if (staff.role === 'member' && staff.must_change_password) {
     return <Navigate to="/reset-password" state={{ from: location }} replace />;
   }
 

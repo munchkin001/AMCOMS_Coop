@@ -17,6 +17,12 @@ dist-ssr
 # Local database exports can contain member and financial data.
 /database/backups/
 
+# Raw captures may expose staff or member information.
+/docs/*-raw.png
+/docs/LIST OF MEMBERS.xlsx
+/docs/REMIS_User_Manual_1_checked.pdf
+/docs/~$*
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
