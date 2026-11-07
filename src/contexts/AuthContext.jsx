@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { getAppUrl } from '../lib/appUrl';
+import { findStaffByLoginIdentifier } from '../lib/authHelpers';
 import { useRealtimeSubscription } from '../hooks/useRealtimeSubscription';
 
 const AuthContext = createContext({});
@@ -129,12 +130,32 @@ export const AuthProvider = ({ children }) => {
     Boolean(user?.id)
   );
 
-  const signIn = async (email, password) => {
+  const signIn = async (username, password) => {
     try {
       setAuthError(null);
-      
+
+      const {
+        data: staffLogin,
+        error: lookupError,
+        ambiguous,
+      } = await findStaffByLoginIdentifier(username);
+
+      if (lookupError) {
+        console.error('Username lookup error:', lookupError);
+        throw new Error('Unable to verify username. Please try again.');
+      }
+      if (ambiguous) {
+        throw new Error('This username is associated with multiple accounts. Please contact the administrator.');
+      }
+      if (!staffLogin) {
+        throw new Error('Invalid username or password.');
+      }
+      if (!staffLogin.is_active) {
+        throw new Error('Your account has been deactivated. Please contact the administrator.');
+      }
+
       const { data, error } = await supabase.auth.signInWithPassword({
-        email,
+        email: staffLogin.email,
         password,
       });
 
