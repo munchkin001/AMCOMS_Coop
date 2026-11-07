@@ -5,30 +5,36 @@ export const MEMBER_REPORT_SORT_OPTIONS = [
   { value: 'name-desc', label: 'Name: Z–A' }
 ];
 
-export const sortMemberReportRows = (members, sortBy = 'newest') => {
+export const sortMemberReportRows = (members = [], sortBy = 'newest') => {
   const collator = new Intl.Collator('en', { numeric: true, sensitivity: 'base' });
-  const joinedDate = (member) => member.date_joined || '';
-  const memberName = (member) => [member.first_name, member.middle_name, member.last_name].filter(Boolean).join(' ');
-  const compare = (left, right) => {
-    if (sortBy === 'newest') {
-      if (!joinedDate(left)) return joinedDate(right) ? 1 : 0;
-      if (!joinedDate(right)) return -1;
-      return collator.compare(joinedDate(right), joinedDate(left));
-    }
-    if (sortBy === 'oldest') {
-      if (!joinedDate(left)) return joinedDate(right) ? 1 : 0;
-      if (!joinedDate(right)) return -1;
-      return collator.compare(joinedDate(left), joinedDate(right));
-    }
-    if (sortBy === 'name-desc') return collator.compare(memberName(right), memberName(left));
-    if (sortBy === 'name-asc') return collator.compare(memberName(left), memberName(right));
-    return collator.compare(joinedDate(right), joinedDate(left));
-  };
 
-  return members
-    .map((member, index) => ({ member, index }))
-    .sort((left, right) => {
-      return compare(left.member, right.member) || left.index - right.index;
-    })
-    .map(({ member }) => member);
+  const getJoinedDate = (member) => (member?.date_joined ?? '').toString();
+  const getMemberName = (member) =>
+    [member?.first_name, member?.middle_name, member?.last_name]
+      .filter(Boolean)
+      .join(' ')
+      .trim();
+
+  return [...members].sort((a, b) => {
+    if (sortBy === 'name-asc') {
+      return collator.compare(getMemberName(a), getMemberName(b));
+    }
+
+    if (sortBy === 'name-desc') {
+      return collator.compare(getMemberName(b), getMemberName(a));
+    }
+
+    const aDate = getJoinedDate(a);
+    const bDate = getJoinedDate(b);
+
+    if (!aDate && !bDate) return 0;
+    if (!aDate) return 1;
+    if (!bDate) return -1;
+
+    if (sortBy === 'oldest') {
+      return aDate.localeCompare(bDate);
+    }
+
+    return bDate.localeCompare(aDate);
+  });
 };

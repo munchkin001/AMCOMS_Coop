@@ -344,7 +344,7 @@ const MemberAccounts = () => {
       const term = searchTerm.trim().replace(/[,%()_*]/g, '');
 
       if (term) {
-        const escaped = term.replaceAll('.', '\\.');
+        const escaped = term.replace(/\./g, '\\.');
         query = query.or(
           `first_name.ilike.%${escaped}%,middle_name.ilike.%${escaped}%,last_name.ilike.%${escaped}%,member_number.ilike.%${escaped}%`
         );
